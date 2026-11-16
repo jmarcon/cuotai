@@ -775,7 +775,24 @@ fn check_cost_sources(inputs: &Inputs) -> Vec<Check> {
         .detail(damaged())
         .fix(damaged_fix())];
     };
-    settings
+    let mut checks = Vec::new();
+    // PRD 0030 C-02: saved plans or a second currency that were refused.
+    if let Some(note) = settings.notes().into_iter().next() {
+        checks.push(
+            Check::new(
+                "cost_settings",
+                CheckStatus::Warn,
+                fixed("doctor.title.cost_settings", "Local cost settings"),
+            )
+            .detail(note)
+            .fix(fixed(
+                "doctor.fix.cost_settings_values",
+                "Type the plan prices and the second currency again in Settings › Local cost, or with cuotai --cost-plan and --cost-currency.",
+            )),
+        );
+    }
+    checks.push(check_cost_pricing(root));
+    let sources = settings
         .enabled_sources(&inputs.cost_env)
         .into_iter()
         .map(|source| {
@@ -806,8 +823,31 @@ fn check_cost_sources(inputs: &Inputs) -> Vec<Check> {
                         "Choose the right folder in Settings › Advanced › Local cost, or turn the source off.",
                     ))
             }
-        })
-        .collect()
+        });
+    checks.extend(sources);
+    checks
+}
+
+/// PRD 0030 S-05: the user's `pricing.json`, when there is one, parses;
+/// otherwise only the built-in prices are used.
+fn check_cost_pricing(root: &std::path::Path) -> Check {
+    let title = fixed("doctor.title.cost_pricing", "Local prices (pricing.json)");
+    match crate::cost::PricingFile::at(root.join("cost").join("pricing.json")).load() {
+        Ok(None) => Check::new("cost_pricing", CheckStatus::Ok, title).detail(fixed(
+            "doctor.cost_pricing.none",
+            "No pricing.json; the built-in prices are used.",
+        )),
+        Ok(Some(_)) => Check::new("cost_pricing", CheckStatus::Ok, title).detail(fixed(
+            "doctor.cost_pricing.ok",
+            "It is valid and takes precedence over the built-in prices.",
+        )),
+        Err(error) => Check::new("cost_pricing", CheckStatus::Warn, title)
+            .detail(error.l10n())
+            .fix(fixed(
+                "doctor.fix.cost_pricing",
+                "Fix or remove pricing.json; only the built-in prices are used.",
+            )),
+    }
 }
 
 /// The clock: the servers' dates this process compared (RF7 of PRD 0052),

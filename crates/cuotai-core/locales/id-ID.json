@@ -2387,5 +2387,15 @@
   "oauth_error.store.too_long": "Kredensial ini terlalu besar untuk brankas sistem.",
   "edit_error.config_reserved_name": "Kolom {field} memakai nama yang dicadangkan untuk Cuotai (diawali __CUOTAI_); isi nama variabel lingkungan Anda sendiri, atau tempel rahasianya di asisten akun.",
   "vault.remove.in_use": "Kredensial itu sedang digunakan; hapus akun atau salurannya saja.",
-  "vault.remove.not_indexed": "Kunci itu tidak ada dalam daftar kredensial tersimpan."
+  "vault.remove.not_indexed": "Kunci itu tidak ada dalam daftar kredensial tersimpan.",
+  "bundle.need.cost_sources": "Sumber biaya lokal tetap nonaktif setelah pemulihan: aktifkan masing-masing di komputer ini (Pengaturan › Biaya lokal atau cuotai --cost-sources).",
+  "cost.settings.plans_ignored": {
+    "other": "{count} harga paket tersimpan tidak valid dan diabaikan; ketik ulang."
+  },
+  "cost.settings.rate_ignored": "Mata uang kedua yang tersimpan tidak valid dan diabaikan; atur ulang.",
+  "doctor.fix.cost_settings_values": "Ketik ulang harga paket dan mata uang kedua di Pengaturan › Biaya lokal, atau dengan cuotai --cost-plan dan --cost-currency.",
+  "doctor.title.cost_pricing": "Harga lokal (pricing.json)",
+  "doctor.cost_pricing.none": "Tidak ada pricing.json; harga bawaan yang dipakai.",
+  "doctor.cost_pricing.ok": "File valid dan diutamakan di atas harga bawaan.",
+  "doctor.fix.cost_pricing": "Perbaiki atau hapus pricing.json; hanya harga bawaan yang dipakai."
 }

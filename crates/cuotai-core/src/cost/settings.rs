@@ -102,6 +102,19 @@ pub struct CostSettings {
     /// project (off by default).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub folder_hints: BTreeMap<SourceId, bool>,
+    /// PRD 0030 C-02: what the last load dropped as invalid; never saved.
+    #[serde(skip)]
+    pub ignored: Ignored,
+}
+
+/// PRD 0030 C-02: the saved values a load refused, counted only: nothing
+/// of the file is ever repeated in a text.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Ignored {
+    /// Plans with a price, currency or cycle day the write path refuses.
+    pub plans: usize,
+    /// The second currency was refused.
+    pub display: bool,
 }
 
 fn default_retention() -> u32 {
@@ -118,11 +131,55 @@ impl Default for CostSettings {
             display_currency: None,
             block_hours: BTreeMap::new(),
             folder_hints: BTreeMap::new(),
+            ignored: Ignored::default(),
         }
     }
 }
 
 impl CostSettings {
+    /// PRD 0030 C-02: rebuild every plan and the second currency through
+    /// the constructors the write path uses, dropping (and counting) what
+    /// they refuse, so a hand-edited file can never give an infinite,
+    /// negative or disguised amount.
+    pub fn sanitize(&mut self) {
+        let before = self.plans.len();
+        self.plans = std::mem::take(&mut self.plans)
+            .into_iter()
+            .filter_map(|(key, plan)| {
+                PlanSetting::new(plan.price, &plan.currency, plan.cycle_day)
+                    .ok()
+                    .map(|plan| (key, plan))
+            })
+            .collect();
+        self.ignored.plans += before - self.plans.len();
+        if let Some(display) = self.display_currency.take() {
+            match DisplayCurrency::new(&display.code, display.rate, display.set_on) {
+                Ok(valid) => self.display_currency = Some(valid),
+                Err(_) => self.ignored.display = true,
+            }
+        }
+    }
+
+    /// PRD 0030 C-02: the notes of what [`Self::sanitize`] dropped.
+    pub fn notes(&self) -> Vec<Localized> {
+        let mut notes = Vec::new();
+        if self.ignored.plans > 0 {
+            notes.push(Localized::plural(
+                "cost.settings.plans_ignored",
+                crate::text::params([("count", self.ignored.plans.into())]),
+                "{count} saved plan price is invalid and ignored; type it again.",
+                "{count} saved plan prices are invalid and ignored; type them again.",
+            ));
+        }
+        if self.ignored.display {
+            notes.push(Localized::fixed(
+                "cost.settings.rate_ignored",
+                "The saved second currency is invalid and ignored; set it again.",
+            ));
+        }
+        notes
+    }
+
     /// The retention; a value out of bounds written by hand counts as the
     /// default.
     pub fn retention(&self) -> Retention {
@@ -339,7 +396,12 @@ impl SettingsStore {
     /// that cannot be read or parsed is an error, never "on".
     pub fn load(&self) -> Result<CostSettings, CostError> {
         match std::fs::read(&self.path) {
-            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|_| CostError::Settings),
+            Ok(bytes) => {
+                let mut settings: CostSettings =
+                    serde_json::from_slice(&bytes).map_err(|_| CostError::Settings)?;
+                settings.sanitize();
+                Ok(settings)
+            }
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(CostSettings::default()),
             Err(_) => Err(CostError::Settings),
         }
@@ -354,10 +416,12 @@ impl SettingsStore {
         // is never undone by a copy read before it wrote.
         let mut saved = None;
         crate::private_fs::update_locked(&self.path, |current| {
-            let mut settings = match current {
+            let mut settings: CostSettings = match current {
                 Some(bytes) => serde_json::from_slice(&bytes).map_err(|_| CostError::Settings)?,
                 None => CostSettings::default(),
             };
+            // C-02: a write never saves a refused value back.
+            settings.sanitize();
             change(&mut settings)?;
             let bytes = serde_json::to_vec_pretty(&settings).map_err(|_| CostError::Settings)?;
             saved = Some(settings);
@@ -731,5 +795,76 @@ mod tests {
             !saved.enabled(SourceId::ClaudeCode, &env),
             "the turn-off was undone by a stale copy"
         );
+    }
+
+    /// PRD 0030 C-02: a hand-edited file with hostile plans and rate.
+    #[test]
+    fn hostile_plans_and_rate_are_ignored_on_load_and_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cost/settings.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            r#"{"plans":{
+                "zero":{"price":0,"currency":"USD"},
+                "negative":{"price":-20,"currency":"USD"},
+                "huge":{"price":1e300,"currency":"USD"},
+                "escape":{"price":10,"currency":"\u001b[31mEUR"},
+                "digit":{"price":10,"currency":"US1"},
+                "day":{"price":10,"currency":"USD","cycle_day":99},
+                "good":{"price":20,"currency":"usd","cycle_day":15}
+            },
+            "display_currency":{"code":"\u001b]0;X\u0007","rate":-3,"set_on":"2026-10-01"}}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::at(&path);
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.plans.keys().collect::<Vec<_>>(), ["good"]);
+        assert_eq!(loaded.plans["good"].currency, "USD");
+        assert_eq!(loaded.display_currency, None);
+        assert_eq!(
+            loaded.ignored,
+            Ignored {
+                plans: 6,
+                display: true
+            }
+        );
+        let notes: Vec<String> = loaded.notes().iter().map(|n| n.resolve("en-US")).collect();
+        assert_eq!(
+            notes,
+            [
+                "6 saved plan prices are invalid and ignored; type them again.",
+                "The saved second currency is invalid and ignored; set it again.",
+            ]
+        );
+        for locale in ["pt-BR", "de", "ru"] {
+            for note in loaded.notes() {
+                let text = note.resolve(locale);
+                assert!(
+                    !text.contains('{') && !text.contains('\u{1b}'),
+                    "{locale}: {text}"
+                );
+            }
+        }
+        // A rate of zero is refused too.
+        let mut zero = CostSettings {
+            display_currency: Some(DisplayCurrency {
+                code: "BRL".into(),
+                rate: 0.0,
+                set_on: chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+            }),
+            ..CostSettings::default()
+        };
+        zero.sanitize();
+        assert!(zero.display_currency.is_none() && zero.ignored.display);
+
+        // A write never saves a refused value back.
+        store.set_period(Period::Today).unwrap();
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            !raw.contains("negative") && !raw.contains("display_currency"),
+            "{raw}"
+        );
+        assert_eq!(store.load().unwrap().ignored, Ignored::default());
     }
 }

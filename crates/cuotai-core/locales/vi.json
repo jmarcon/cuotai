@@ -2387,5 +2387,15 @@
   "oauth_error.store.too_long": "Thông tin xác thực này quá lớn đối với kho của hệ thống.",
   "edit_error.config_reserved_name": "Trường {field} dùng một tên dành riêng cho Cuotai (bắt đầu bằng __CUOTAI_); hãy đặt tên biến môi trường của riêng bạn, hoặc dán bí mật trong trình hướng dẫn tài khoản.",
   "vault.remove.in_use": "Thông tin xác thực này đang được dùng; hãy xóa tài khoản hoặc kênh của nó thay vào đó.",
-  "vault.remove.not_indexed": "Khóa đó không có trong danh sách thông tin xác thực đã lưu."
+  "vault.remove.not_indexed": "Khóa đó không có trong danh sách thông tin xác thực đã lưu.",
+  "bundle.need.cost_sources": "Các nguồn chi phí cục bộ vẫn tắt sau khi khôi phục: hãy bật từng nguồn trên máy tính này (Cài đặt › Chi phí cục bộ hoặc cuotai --cost-sources).",
+  "cost.settings.plans_ignored": {
+    "other": "{count} giá gói đã lưu không hợp lệ và bị bỏ qua; hãy nhập lại."
+  },
+  "cost.settings.rate_ignored": "Loại tiền thứ hai đã lưu không hợp lệ và bị bỏ qua; hãy đặt lại.",
+  "doctor.fix.cost_settings_values": "Nhập lại giá gói và loại tiền thứ hai trong Cài đặt › Chi phí cục bộ, hoặc bằng cuotai --cost-plan và --cost-currency.",
+  "doctor.title.cost_pricing": "Giá cục bộ (pricing.json)",
+  "doctor.cost_pricing.none": "Không có pricing.json; dùng giá tích hợp sẵn.",
+  "doctor.cost_pricing.ok": "Tệp hợp lệ và được ưu tiên hơn giá tích hợp sẵn.",
+  "doctor.fix.cost_pricing": "Sửa hoặc xóa pricing.json; chỉ dùng giá tích hợp sẵn."
 }

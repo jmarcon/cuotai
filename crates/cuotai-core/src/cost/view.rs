@@ -219,6 +219,10 @@ pub struct CostSummary {
     /// PRD 0042 RF7: the projects of the span that are not hidden.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projects: Vec<ProjectExport>,
+    /// PRD 0030 C-02: saved plans or a second currency that were invalid
+    /// and ignored, counted only (absent when there are none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub settings_notes: Vec<Localized>,
 }
 
 impl CostSummary {
@@ -364,6 +368,7 @@ pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
         blocks: Vec::new(),
         live: Vec::new(),
         projects: Vec::new(),
+        settings_notes: Vec::new(),
     }
 }
 
@@ -564,6 +569,7 @@ impl Scanner {
             pricing_error: pricing_error.as_ref(),
             last,
         });
+        summary.settings_notes = settings.notes();
         for source in &mut summary.sources {
             if settings.needs_reconsent(source.source, self.env()) {
                 source.reconsent = true;

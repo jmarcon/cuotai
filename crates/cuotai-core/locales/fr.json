@@ -2406,5 +2406,16 @@
   "oauth_error.store.too_long": "Cet identifiant est trop volumineux pour le coffre du système.",
   "edit_error.config_reserved_name": "Le champ {field} utilise un nom réservé à Cuotai (il commence par __CUOTAI_) ; indiquez le nom de votre propre variable d’environnement ou collez le secret dans l’assistant du compte.",
   "vault.remove.in_use": "Cet identifiant est utilisé ; supprimez plutôt son compte ou son canal.",
-  "vault.remove.not_indexed": "Cette clé ne figure pas dans la liste des identifiants enregistrés."
+  "vault.remove.not_indexed": "Cette clé ne figure pas dans la liste des identifiants enregistrés.",
+  "bundle.need.cost_sources": "Les sources de coût local restent désactivées après une restauration : activez chacune sur cet ordinateur (Réglages › Coût local ou cuotai --cost-sources).",
+  "cost.settings.plans_ignored": {
+    "one": "{count} prix de forfait enregistré est invalide et ignoré ; saisissez-le à nouveau.",
+    "other": "{count} prix de forfait enregistrés sont invalides et ignorés ; saisissez-les à nouveau."
+  },
+  "cost.settings.rate_ignored": "La deuxième devise enregistrée est invalide et ignorée ; définissez-la à nouveau.",
+  "doctor.fix.cost_settings_values": "Saisissez à nouveau les prix des forfaits et la deuxième devise dans Réglages › Coût local, ou avec cuotai --cost-plan et --cost-currency.",
+  "doctor.title.cost_pricing": "Prix locaux (pricing.json)",
+  "doctor.cost_pricing.none": "Aucun pricing.json ; les prix intégrés sont utilisés.",
+  "doctor.cost_pricing.ok": "Il est valide et prime sur les prix intégrés.",
+  "doctor.fix.cost_pricing": "Corrigez ou supprimez pricing.json ; seuls les prix intégrés sont utilisés."
 }

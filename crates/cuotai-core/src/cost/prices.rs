@@ -119,7 +119,35 @@ struct RawTable {
     effective: NaiveDate,
     #[serde(default)]
     source: Option<String>,
-    models: BTreeMap<String, RawRates>,
+    models: RawModels,
+}
+
+/// The `models` object of `pricing.json`, in file order with every entry
+/// kept, so a model written twice is refused (S-03) instead of the last
+/// entry silently winning.
+struct RawModels(Vec<(String, RawRates)>);
+
+impl<'de> Deserialize<'de> for RawModels {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = RawModels;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("an object of models")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<RawModels, A::Error> {
+                let mut entries = Vec::new();
+                while let Some(entry) = map.next_entry::<String, RawRates>()? {
+                    entries.push(entry);
+                }
+                Ok(RawModels(entries))
+            }
+        }
+        deserializer.deserialize_map(Visitor)
+    }
 }
 
 #[derive(Deserialize)]
@@ -231,6 +259,7 @@ impl PriceTable {
                     "output": null,
                     "cache_read": null,
                     "cache_write": null,
+                    "cache_write_1h": null,
                 }),
             );
         }
@@ -273,8 +302,13 @@ impl PriceTable {
             return Err(PricingError::Source);
         }
         let mut models = BTreeMap::new();
-        for (name, raw) in raw.models {
+        let mut names = std::collections::BTreeSet::new();
+        for (name, raw) in raw.models.0 {
             let model = model_key(&name).ok_or(PricingError::Model)?;
+            // An exact repeat is refused like a repeat after case folding.
+            if !names.insert(name) {
+                return Err(PricingError::Duplicate { model });
+            }
             let rate = |field: &'static str, usd: f64| {
                 Rate::usd_per_million(usd).ok_or_else(|| PricingError::Rate {
                     model: model.clone(),
@@ -691,6 +725,13 @@ mod tests {
         }
         assert_eq!(
             table(&with(&format!(r#""GPT-5": {rates}, "gpt-5": {rates}"#))),
+            Err(PricingError::Duplicate {
+                model: "gpt-5".into()
+            })
+        );
+        // S-03: an exact repeat is refused too, never "the last one wins".
+        assert_eq!(
+            table(&with(&format!(r#""gpt-5": {rates}, "gpt-5": {rates}"#))),
             Err(PricingError::Duplicate {
                 model: "gpt-5".into()
             })

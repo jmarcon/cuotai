@@ -362,6 +362,35 @@ fn notifications_locale_and_cost_sources_are_reported() {
         .checks
         .iter()
         .all(|c| !c.id.starts_with("cost_source") && c.id != "cost_settings"));
+    assert_eq!(status(&report, "cost_pricing"), CheckStatus::Ok);
+
+    // PRD 0030 C-02: a refused plan warns without repeating the file.
+    std::fs::write(
+        cost.join("settings.json"),
+        r#"{"plans":{"x":{"price":-20,"currency":"\u001b[31mEUR"}}}"#,
+    )
+    .unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    let check = report
+        .checks
+        .iter()
+        .find(|c| c.id == "cost_settings")
+        .unwrap();
+    assert_eq!(check.status, CheckStatus::Warn);
+    let text = check.detail.as_ref().unwrap().resolve("en-US");
+    assert!(text.starts_with("1 saved plan price is invalid"), "{text}");
+    assert!(!text.contains("EUR") && !text.contains('\u{1b}'));
+
+    // S-05: a pricing.json that does not parse warns.
+    std::fs::write(
+        cost.join("pricing.json"),
+        r#"{"effective":"2026-01-01","models":{"a":{"input":1,"output":1,"cache_read":1,"cache_write":1},"a":{"input":2,"output":1,"cache_read":1,"cache_write":1}}}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        status(&run(&fixture.inputs(&[], free_port())), "cost_pricing"),
+        CheckStatus::Warn
+    );
 }
 
 #[test]

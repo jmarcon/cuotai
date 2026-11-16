@@ -2406,5 +2406,16 @@
   "oauth_error.store.too_long": "Bu kimlik bilgisi sistem kasası için çok büyük.",
   "edit_error.config_reserved_name": "{field} alanı Cuotai için ayrılmış bir ad kullanıyor (__CUOTAI_ ile başlıyor); kendi ortam değişkeninizin adını girin veya gizli bilgiyi hesap sihirbazında yapıştırın.",
   "vault.remove.in_use": "Bu kimlik bilgisi kullanımda; bunun yerine hesabını veya kanalını kaldırın.",
-  "vault.remove.not_indexed": "Bu anahtar kayıtlı kimlik bilgileri listesinde yok."
+  "vault.remove.not_indexed": "Bu anahtar kayıtlı kimlik bilgileri listesinde yok.",
+  "bundle.need.cost_sources": "Geri yüklemeden sonra yerel maliyet kaynakları kapalı kalır: her birini bu bilgisayarda açın (Ayarlar › Yerel maliyet veya cuotai --cost-sources).",
+  "cost.settings.plans_ignored": {
+    "one": "Kayıtlı {count} plan fiyatı geçersiz ve yok sayıldı; yeniden yazın.",
+    "other": "Kayıtlı {count} plan fiyatı geçersiz ve yok sayıldı; yeniden yazın."
+  },
+  "cost.settings.rate_ignored": "Kayıtlı ikinci para birimi geçersiz ve yok sayıldı; yeniden ayarlayın.",
+  "doctor.fix.cost_settings_values": "Plan fiyatlarını ve ikinci para birimini Ayarlar › Yerel maliyet bölümünde veya cuotai --cost-plan ve --cost-currency ile yeniden yazın.",
+  "doctor.title.cost_pricing": "Yerel fiyatlar (pricing.json)",
+  "doctor.cost_pricing.none": "pricing.json yok; yerleşik fiyatlar kullanılıyor.",
+  "doctor.cost_pricing.ok": "Geçerli ve yerleşik fiyatlara göre önceliklidir.",
+  "doctor.fix.cost_pricing": "pricing.json dosyasını düzeltin veya kaldırın; yalnızca yerleşik fiyatlar kullanılır."
 }
