@@ -1177,23 +1177,22 @@ pub async fn run(
                         if let (Some(account), Some(Some(report))) =
                             (file.config.accounts.get(index), reports.get(index))
                         {
-                            let draft = cuotai_core::support::issue_draft(
-                                &cuotai_core::support::AccountView {
-                                    account,
-                                    report,
-                                    last_good_age: None,
-                                    incident_active: cuotai_core::incidents::incident_active(
-                                        &state.incidents,
-                                        account.provider,
-                                    ),
-                                },
-                                &crate::report_problem::app_info(),
-                            )
-                            // PRD 0046 RF4.4: the setup check's problems.
-                            .with_setup_check(&crate::doctor::report_for(
+                            // C-01: the last good reading from the core helper
+                            // the desktop uses too.
+                            let draft = crate::report_problem::draft_for(
+                                account,
+                                index,
+                                report,
+                                cuotai_core::support::LastGood::seen(
+                                    refresh_cycle.last_good_age(index, chrono::Utc::now()),
+                                ),
+                                cuotai_core::incidents::incident_active(
+                                    &state.incidents,
+                                    account.provider,
+                                ),
+                                cuotai_core::support::Interface::Tui,
                                 Some(file.path.clone()),
-                                "en-US",
-                            ));
+                            );
                             report_view = Some(ReportView::new(crate::report_problem::render(
                                 &draft,
                                 report.status == cuotai_core::Status::Ready,

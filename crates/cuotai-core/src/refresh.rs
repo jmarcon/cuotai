@@ -358,6 +358,22 @@ impl RefreshCycle {
         }
     }
 
+    /// PRD 0028 RF2.2: how long ago account `index` last read well: the
+    /// current report when it is `Ready`, else the kept last good reading;
+    /// `None` when this cycle saw none. Both front ends' problem reports
+    /// use it.
+    pub fn last_good_age(
+        &self,
+        index: usize,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Option<std::time::Duration> {
+        let good = match self.slots.get(index)? {
+            Some(report) if report.status == Status::Ready => report,
+            _ => self.last_good.get(index)?.as_ref()?,
+        };
+        Some((now - good.checked_at).to_std().unwrap_or_default())
+    }
+
     /// PRD 0036 RF4.2: the last `Ready` reading of sub-account `sub_id` of
     /// the aggregator at `index`, offered only while its current reading is
     /// missing or not `Ready` (the instance failed, or that connection did).
@@ -3112,6 +3128,28 @@ mod tests {
         assert!(cycle.last_good_report(0).is_none());
         finish(&mut cycle, 0, failed("a", 95, Status::Error));
         assert!(cycle.last_good_report(0).is_none());
+    }
+
+    /// PRD 0028 RF2.2 (C-01): the age both problem reports print.
+    #[test]
+    fn last_good_age_follows_the_current_or_kept_reading() {
+        let config = config_with(vec![account("a", None)]);
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let at = |seconds| Utc.timestamp_opt(seconds, 0).unwrap();
+        assert_eq!(cycle.last_good_age(0, at(100)), None);
+        finish(&mut cycle, 0, report("a", 10));
+        assert_eq!(
+            cycle.last_good_age(0, at(100)),
+            Some(Duration::from_secs(90))
+        );
+        finish(&mut cycle, 0, failed("a", 50, Status::Error));
+        assert_eq!(
+            cycle.last_good_age(0, at(130)),
+            Some(Duration::from_secs(120))
+        );
+        finish(&mut cycle, 0, failed("a", 60, Status::AuthenticationError));
+        assert_eq!(cycle.last_good_age(0, at(130)), None);
+        assert_eq!(cycle.last_good_age(7, at(130)), None);
     }
 
     #[test]

@@ -15,6 +15,13 @@ use std::time::Duration;
 pub const REPOSITORY: &str = "https://github.com/jmarcon/cuotai";
 /// The issue form the URL prefills.
 pub const TEMPLATE: &str = "provider-problem.yml";
+/// The form of an application problem not tied to an account (About).
+pub const BUG_TEMPLATE: &str = "bug.yml";
+/// The bare provider-problem form: what a copy-only draft opens.
+pub const FORM_URL: &str =
+    "https://github.com/jmarcon/cuotai/issues/new?template=provider-problem.yml";
+/// The bare application-bug form.
+pub const BUG_FORM_URL: &str = "https://github.com/jmarcon/cuotai/issues/new?template=bug.yml";
 /// A longer URL is not offered as a link, only as text to copy (RF2.3).
 pub const MAX_URL_CHARS: usize = 8_000;
 
@@ -26,6 +33,29 @@ pub struct AppInfo {
     pub arch: String,
     /// [`crate::install_source::InstallSource::as_str`] or `unknown`.
     pub install_channel: String,
+    /// The front end that builds the draft; prefills the form's
+    /// `interface` dropdown when known.
+    pub interface: Option<Interface>,
+}
+
+/// The front end a draft comes from, as the issue forms' `interface`
+/// dropdown names it (GitHub prefills a dropdown by its exact label).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Interface {
+    Desktop,
+    Tui,
+    Cli,
+}
+
+impl Interface {
+    /// The exact option label of the forms' `interface` dropdown.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Desktop => "Desktop",
+            Self::Tui => "TUI",
+            Self::Cli => "CLI (--once or --json)",
+        }
+    }
 }
 
 impl AppInfo {
@@ -36,6 +66,58 @@ impl AppInfo {
             os: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
             install_channel: install_channel.to_string(),
+            interface: None,
+        }
+    }
+
+    /// The same facts, built by `interface`.
+    pub fn with_interface(self, interface: Interface) -> Self {
+        Self {
+            interface: Some(interface),
+            ..self
+        }
+    }
+}
+
+/// What is known of the account's last good reading.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LastGood {
+    /// Nothing tells (a one-shot query without a recorded reading).
+    Unknown,
+    /// The running app saw no good reading of this account.
+    Never,
+    /// A good reading this long ago.
+    Ago(Duration),
+}
+
+impl LastGood {
+    /// From an age the app computed: `None` means it saw none.
+    pub fn seen(age: Option<Duration>) -> Self {
+        age.map_or(Self::Never, Self::Ago)
+    }
+
+    /// For a one-shot query (`--report-problem`): now when `current` is
+    /// good, else the age of the last recorded good reading, else unknown.
+    pub fn one_shot(
+        current: &Report,
+        recorded: Option<&Report>,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Self {
+        let good = |report: &Report| report.status == crate::Status::Ready;
+        [Some(current), recorded]
+            .into_iter()
+            .flatten()
+            .find(|report| good(report))
+            .map_or(Self::Unknown, |report| {
+                Self::Ago((now - report.checked_at).to_std().unwrap_or_default())
+            })
+    }
+
+    fn text(self) -> String {
+        match self {
+            Self::Unknown => "unknown".into(),
+            Self::Never => "none".into(),
+            Self::Ago(age) => age_text(age),
         }
     }
 }
@@ -45,8 +127,8 @@ impl AppInfo {
 pub struct AccountView<'a> {
     pub account: &'a Account,
     pub report: &'a Report,
-    /// Age of the last good reading, when the account had one.
-    pub last_good_age: Option<Duration>,
+    /// The last good reading (RF2.2).
+    pub last_good: LastGood,
     /// Whether a provider incident was active (PRD 0011); `None` when status
     /// queries are off or the provider has no verified source.
     pub incident_active: Option<bool>,
@@ -61,6 +143,21 @@ pub struct IssueDraft {
     pub url: String,
     /// The URL is too long to open; only copying is offered.
     pub copy_only: bool,
+    /// The bare form ([`FORM_URL`] or [`BUG_FORM_URL`]) a copy-only draft
+    /// opens instead.
+    pub form: &'static str,
+}
+
+impl IssueDraft {
+    /// What a front end opens: the prefilled URL, or the bare form when the
+    /// URL is too long (RF2.3). Always this project's issue form.
+    pub fn link(&self) -> &str {
+        if self.copy_only {
+            self.form
+        } else {
+            &self.url
+        }
+    }
 }
 
 impl IssueDraft {
@@ -69,12 +166,27 @@ impl IssueDraft {
     /// check and what it found), never a path, variable, host or value, so
     /// the draft stays as private as before. A report without problems
     /// leaves the draft unchanged.
-    pub fn with_setup_check(self, report: &crate::doctor::Report) -> Self {
+    ///
+    /// `account` is the index of the reported account: only its own
+    /// `account.<n>` checks are kept beside the global ones; `None` (About)
+    /// keeps the global checks only.
+    pub fn with_setup_check(self, report: &crate::doctor::Report, account: Option<usize>) -> Self {
         use crate::doctor::CheckStatus;
+        let own = account.map(|index| format!("account.{}", index + 1));
+        let relevant = |id: &str| match id.strip_prefix("account.") {
+            None => true,
+            Some(_) => own.as_deref().is_some_and(|own| {
+                id == own
+                    || id
+                        .strip_prefix(own)
+                        .is_some_and(|rest| rest.starts_with('.'))
+            }),
+        };
         let lines: Vec<String> = report
             .checks
             .iter()
             .filter(|check| matches!(check.status, CheckStatus::Fail | CheckStatus::Warn))
+            .filter(|check| relevant(&check.id))
             .map(|check| {
                 let status = if check.status == CheckStatus::Fail {
                     "fail"
@@ -116,6 +228,7 @@ impl IssueDraft {
             body,
             url,
             copy_only,
+            form: self.form,
         }
     }
 }
@@ -143,16 +256,33 @@ fn plain(value: &str) -> String {
     }
 }
 
-/// How the account authenticates, without naming any credential.
+/// How the account authenticates, without naming any credential: the
+/// account's own login, vault session or environment variable first, then
+/// the interface's credential (a local CLI, an agent feed, an aggregator
+/// without a password), else `none`.
 pub(crate) fn auth_mode(account: &Account) -> &'static str {
+    use access::Credential;
     if account.provider == crate::Provider::Extension {
-        "extension"
-    } else if account.oauth.is_some() {
-        "native_login"
-    } else if account.session.is_some() {
-        "session_in_vault"
-    } else {
-        "environment_variable"
+        return "extension";
+    }
+    if account.oauth.is_some() {
+        return "native_login";
+    }
+    if account.session.is_some() {
+        return "session_in_vault";
+    }
+    let env = account
+        .credential_env
+        .as_deref()
+        .is_some_and(|name| !name.trim().is_empty());
+    match access::describe(account).credential {
+        Credential::LocalCli => "local_cli",
+        Credential::AgentFeed => "agent_feed",
+        Credential::AggregatorLogin if env => "aggregator_password",
+        Credential::AggregatorLogin => "none",
+        Credential::CloudIdentity if !env => "cloud_identity",
+        _ if env => "environment_variable",
+        _ => "none",
     }
 }
 
@@ -182,8 +312,16 @@ pub fn canary_draft(
     build(view, app, Some((category, shape_diff)))
 }
 
-/// Whether `url` opens this project's issue form: what a front end may hand
-/// to the system browser for a problem report (never an arbitrary address).
+/// Whether `url` is one of this project's bare issue forms: the only
+/// problem-report address a webview may hand to the system browser. A
+/// prefilled draft is rebuilt and opened by the shell itself, so no query
+/// chosen by the page is ever opened (PRD 0028 re-validation, S-01).
+pub fn is_bare_form_url(url: &str) -> bool {
+    url == FORM_URL || url == BUG_FORM_URL
+}
+
+/// Whether `url` opens this project's issue form with any query. Kept only
+/// until the desktop opens drafts itself; use [`is_bare_form_url`].
 pub fn is_issue_url(url: &str) -> bool {
     let prefix = format!("{REPOSITORY}/issues/new?");
     url.len() <= MAX_URL_CHARS * 4
@@ -198,13 +336,18 @@ pub fn app_draft(app: &AppInfo) -> IssueDraft {
     let os = plain(&app.os);
     let arch = plain(&app.arch);
     let channel = plain(&app.install_channel);
-    let title = "[Provider] ".to_string();
+    let title = "[Bug] ".to_string();
     let body = format!(
         "## Problem report\n\n- Cuotai version: {version}\n- OS and architecture: {os} {arch}\n- Install channel: {channel}\n\nNo account name, e-mail, organization, credential, URL or response value is included.\n"
     );
     let mut query = url::form_urlencoded::Serializer::new(String::new());
-    query.append_pair("template", TEMPLATE);
+    query.append_pair("template", BUG_TEMPLATE);
+    query.append_pair("title", &title);
     query.append_pair("version", &version);
+    if let Some(interface) = app.interface {
+        query.append_pair("interface", interface.label());
+    }
+    query.append_pair("os", &format!("{os} {arch}"));
     query.append_pair("context", &body);
     let url = format!("{REPOSITORY}/issues/new?{}", query.finish());
     let copy_only = url.chars().count() > MAX_URL_CHARS;
@@ -213,15 +356,35 @@ pub fn app_draft(app: &AppInfo) -> IssueDraft {
         body,
         url,
         copy_only,
+        form: BUG_FORM_URL,
     }
 }
 
-/// Keep a canary shape diff to plain, bounded single-line text.
+/// Keep a canary shape diff to plain, bounded single-line text: control
+/// characters become spaces; bidi controls and other invisible format
+/// characters are dropped (PRD 0028 re-validation, S-04).
 fn plain_diff(diff: &str) -> String {
     diff.chars()
+        .filter(|c| !is_invisible_format(*c))
         .map(|c| if c.is_control() { ' ' } else { c })
         .take(1_500)
         .collect()
+}
+
+/// A bidi control (U+061C, U+200E/F, U+202A–U+202E, U+2066–U+2069) or
+/// another invisible format character (zero-width, word joiner, BOM, soft
+/// hyphen).
+pub(crate) fn is_invisible_format(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00AD}'
+            | '\u{061C}'
+            | '\u{180E}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'..='\u{2069}'
+            | '\u{FEFF}'
+    )
 }
 
 fn build(view: &AccountView<'_>, app: &AppInfo, canary: Option<(&str, &str)>) -> IssueDraft {
@@ -289,11 +452,7 @@ fn build(view: &AccountView<'_>, app: &AppInfo, canary: Option<(&str, &str)>) ->
     if let Some(digest) = &digest {
         line(format!("Response fingerprint (SHA-256): `{digest}`"));
     }
-    line(format!(
-        "Last good reading: {}",
-        view.last_good_age
-            .map_or_else(|| "none".to_string(), age_text)
-    ));
+    line(format!("Last good reading: {}", view.last_good.text()));
     line(format!(
         "Provider incident active: {}",
         match view.incident_active {
@@ -322,6 +481,9 @@ fn build(view: &AccountView<'_>, app: &AppInfo, canary: Option<(&str, &str)>) ->
     query.append_pair("version", &version);
     query.append_pair("mode", mode);
     query.append_pair("category", category);
+    if let Some(interface) = app.interface {
+        query.append_pair("interface", interface.label());
+    }
     if !paths.is_empty() {
         query.append_pair("paths", &paths);
     }
@@ -336,6 +498,7 @@ fn build(view: &AccountView<'_>, app: &AppInfo, canary: Option<(&str, &str)>) ->
         body,
         url,
         copy_only,
+        form: FORM_URL,
     }
 }
 
@@ -375,6 +538,7 @@ mod tests {
             os: "macos".into(),
             arch: "aarch64".into(),
             install_channel: "homebrew".into(),
+            interface: Some(Interface::Tui),
         }
     }
 
@@ -429,13 +593,22 @@ mod tests {
             tools: Default::default(),
             artifacts: Vec::new(),
         };
-        let draft = app_draft(&app()).with_setup_check(&report);
+        // About keeps only the global checks.
+        let about = app_draft(&app()).with_setup_check(&report, None);
+        assert!(about
+            .body
+            .contains("## Setup check (cuotai --doctor)\n\n- warn `port`\n"));
+        assert!(!about.body.contains("account.2"));
+        // A report of another account leaves account.2 out too (C-15).
+        let other = app_draft(&app()).with_setup_check(&report, Some(0));
+        assert!(!other.body.contains("account.2"));
+        // The reported account (index 1 is `account.2`) keeps its own.
+        let draft = app_draft(&app()).with_setup_check(&report, Some(1));
         assert!(draft.body.contains(
             "## Setup check (cuotai --doctor)\n\n- fail `account.2`: `doctor.account.env_missing`\n- warn `port`\n"
         ));
         assert!(draft.body.ends_with("response value is included.\n"));
         assert!(!draft.body.contains("SEEDED") && !draft.url.contains("SEEDED"));
-        assert!(is_issue_url(&draft.url));
         assert!(draft.url.contains("Setup+check"));
         // Nothing to add: the draft is unchanged.
         let clean = Report {
@@ -445,25 +618,107 @@ mod tests {
             artifacts: Vec::new(),
         };
         assert_eq!(
-            app_draft(&app()).with_setup_check(&clean),
+            app_draft(&app()).with_setup_check(&clean, Some(1)),
             app_draft(&app())
         );
     }
 
+    /// S-01: only the two bare forms may be handed to the browser; a
+    /// prefilled URL (any query the page could choose) never.
     #[test]
-    fn issue_urls_are_only_this_projects_form() {
+    fn issue_urls_are_only_this_projects_bare_forms() {
+        assert!(is_bare_form_url(FORM_URL));
+        assert!(is_bare_form_url(BUG_FORM_URL));
         let draft = app_draft(&app());
-        assert!(is_issue_url(&draft.url));
+        assert!(!is_bare_form_url(&draft.url));
         assert!(!draft.body.contains("SEEDED"));
         for url in [
+            "https://github.com/jmarcon/cuotai/issues/new?template=provider-problem.yml&title=x&body=y",
+            "https://github.com/jmarcon/cuotai/issues/new?title=Phish&body=run+this",
             "https://github.com/other/repo/issues/new?x=1",
-            "https://github.com/jmarcon/cuotai/issues/new?x=1 y",
             "https://github.com/jmarcon/cuotai/pulls",
             "javascript:alert(1)",
             "",
         ] {
-            assert!(!is_issue_url(url), "{url}");
+            assert!(!is_bare_form_url(url), "{url}");
         }
+    }
+
+    /// C-14: About opens the bug form, titled and prefilled as a bug.
+    #[test]
+    fn the_about_draft_opens_the_bug_form() {
+        let draft = app_draft(&app());
+        assert_eq!(draft.title, "[Bug] ");
+        assert_eq!(draft.form, BUG_FORM_URL);
+        let decoded = url::Url::parse(&draft.url).unwrap();
+        let pairs: std::collections::BTreeMap<_, _> = decoded.query_pairs().collect();
+        assert_eq!(pairs["template"], BUG_TEMPLATE);
+        assert_eq!(pairs["title"], "[Bug] ");
+        assert_eq!(pairs["version"], "0.80.0");
+        assert_eq!(pairs["os"], "macos aarch64");
+        assert_eq!(pairs["interface"], "TUI");
+        assert!(pairs["context"].contains("Install channel: homebrew"));
+    }
+
+    /// C-01: the one-shot path says "unknown" when nothing tells, and the
+    /// app path "none" only when it saw no good reading.
+    #[test]
+    fn the_last_good_reading_is_known_never_or_unknown() {
+        let account = account();
+        let now = chrono::Utc::now();
+        let failing = report(&account, Status::Error);
+        let mut good = report(&account, Status::Ready);
+        good.checked_at = now - chrono::Duration::minutes(7);
+        assert_eq!(LastGood::one_shot(&failing, None, now), LastGood::Unknown);
+        assert_eq!(
+            LastGood::one_shot(&failing, Some(&good), now),
+            LastGood::Ago(Duration::from_secs(420))
+        );
+        assert_eq!(LastGood::seen(None), LastGood::Never);
+        let draft = |last_good| {
+            issue_draft(
+                &AccountView {
+                    account: &account,
+                    report: &failing,
+                    last_good,
+                    incident_active: None,
+                },
+                &app(),
+            )
+            .body
+        };
+        assert!(draft(LastGood::Unknown).contains("Last good reading: unknown"));
+        assert!(draft(LastGood::Never).contains("Last good reading: none"));
+        assert!(
+            draft(LastGood::Ago(Duration::from_secs(420))).contains("Last good reading: 7 min ago")
+        );
+    }
+
+    /// C-11: an account without a credential is not "environment_variable".
+    #[test]
+    fn the_connection_mode_follows_the_credential() {
+        let bare = |provider| Account {
+            provider,
+            credential_env: None,
+            ..Default::default()
+        };
+        assert_eq!(auth_mode(&account()), "environment_variable");
+        assert_eq!(auth_mode(&bare(Provider::NineRouter)), "none");
+        assert_eq!(
+            auth_mode(&Account {
+                credential_env: Some("NINE_ROUTER_PASSWORD".into()),
+                ..bare(Provider::NineRouter)
+            }),
+            "aggregator_password"
+        );
+        assert_ne!(auth_mode(&bare(Provider::Claude)), "environment_variable");
+    }
+
+    /// S-04: bidi and other invisible format characters never reach a draft.
+    #[test]
+    fn a_shape_diff_loses_bidi_and_control_characters() {
+        let diff = plain_diff("a\u{202e}b \u{1b}[31m c\u{2066}d\u{200b}e");
+        assert_eq!(diff, "ab  [31m cde");
     }
 
     #[test]
@@ -478,7 +733,7 @@ mod tests {
             &AccountView {
                 account: &account,
                 report: &failing,
-                last_good_age: Some(Duration::from_secs(7_300)),
+                last_good: LastGood::Ago(Duration::from_secs(7_300)),
                 incident_active: Some(false),
             },
             &app(),
@@ -504,6 +759,8 @@ mod tests {
         let pairs: std::collections::BTreeMap<_, _> = decoded.query_pairs().collect();
         assert_eq!(pairs["template"], TEMPLATE);
         assert_eq!(pairs["provider"], "claude");
+        assert_eq!(pairs["interface"], "TUI");
+        assert_eq!(draft.form, FORM_URL);
         assert!(!draft.copy_only);
         for text in [&draft.title, &draft.body, &draft.url] {
             for needle in ["SEEDED", "example.com", "sk-live", "ana@"] {
@@ -545,7 +802,13 @@ mod tests {
         );
         // RF3.2: every key the draft prefills is a field of the form.
         for key in [
-            "provider", "version", "mode", "category", "paths", "context",
+            "provider",
+            "version",
+            "mode",
+            "category",
+            "paths",
+            "context",
+            "interface",
         ] {
             assert!(form.contains(&format!("    id: {key}\n")), "field {key}");
         }
@@ -558,6 +821,7 @@ mod tests {
             os: "".into(),
             arch: "<script>".into(),
             install_channel: "a b".into(),
+            interface: None,
         };
         for provider in Provider::ALL {
             let account = Account {
@@ -569,7 +833,7 @@ mod tests {
                 &AccountView {
                     account: &account,
                     report: &failing,
-                    last_good_age: None,
+                    last_good: LastGood::Never,
                     incident_active: None,
                 },
                 &hostile,
@@ -599,7 +863,7 @@ mod tests {
             &AccountView {
                 account: &account,
                 report: &failing,
-                last_good_age: None,
+                last_good: LastGood::Never,
                 incident_active: None,
             },
             &app(),

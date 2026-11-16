@@ -77,6 +77,15 @@ impl ResponseShape {
     }
 }
 
+/// The "What changed" block of DS-CMP-DIAG-1, ready for any front end.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DriftView {
+    pub heading: Localized,
+    pub sentence: Localized,
+    pub paths: Vec<DriftPath>,
+    pub privacy: Localized,
+}
+
 /// The diagnostic a [`crate::Report`] may carry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -90,7 +99,29 @@ impl Diagnostic {
         drift
     }
 
-    /// DS-CMP-DIAG-1: "The provider changed `five_hour.utilization`
+    /// The ids of [`Diagnostic::text`]: front ends that render the block
+    /// ([`Diagnostic::view`]) skip the report note with one of these ids,
+    /// which stays for `--json` and other plain consumers.
+    pub const NOTE_IDS: [&'static str; 2] =
+        ["diagnostic.schema_drift", "diagnostic.schema_drift_unknown"];
+
+    /// DS-CMP-DIAG-1, for every front end: the sentence, the heading "What
+    /// changed", the field paths (at most [`MAX_PATHS`]) and the note
+    /// "Values are never recorded". Paths are plain text; the front end
+    /// sets them in its mono style, never with literal backticks.
+    pub fn view(&self) -> DriftView {
+        DriftView {
+            heading: Localized::fixed("diagnostic.what_changed", "What changed"),
+            sentence: self.text(),
+            paths: self.drift().paths.iter().take(MAX_PATHS).cloned().collect(),
+            privacy: Localized::fixed(
+                "diagnostic.values_never_recorded",
+                "Values are never recorded.",
+            ),
+        }
+    }
+
+    /// DS-CMP-DIAG-1: "The provider changed five_hour.utilization
     /// (number → string)", `diagnostic.schema_drift`.
     pub fn text(&self) -> Localized {
         let drift = self.drift();
@@ -107,7 +138,7 @@ impl Diagnostic {
                 ("expected", ParamValue::from(first.expected.clone())),
                 ("found", ParamValue::from(first.found.clone())),
             ]),
-            "The provider changed `{path}` ({expected} → {found}).",
+            "The provider changed {path} ({expected} → {found}).",
         )
     }
 }
@@ -637,7 +668,39 @@ mod tests {
         assert_eq!(text.id, "diagnostic.schema_drift");
         assert_eq!(
             text.resolve("en-US"),
-            "The provider changed `five_hour.utilization` (number → string)."
+            "The provider changed five_hour.utilization (number → string)."
         );
+    }
+
+    /// C-02: the sentence carries no literal backticks in any catalog, and
+    /// the block has its heading, paths and privacy note.
+    #[test]
+    fn the_drift_block_has_no_backticks_and_all_its_parts() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("locales");
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let catalog: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            for key in [
+                "diagnostic.schema_drift",
+                "diagnostic.what_changed",
+                "diagnostic.values_never_recorded",
+            ] {
+                let text = catalog[key]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{key} in {path:?}"));
+                assert!(!text.contains('`'), "{path:?}: {text}");
+            }
+        }
+        let drift = field_drift(
+            &json!({"five_hour": {"utilization": "x"}}),
+            &["five_hour", "utilization"],
+            "number",
+        );
+        let view = Diagnostic::SchemaDrift(drift).view();
+        assert_eq!(view.heading.resolve("en-US"), "What changed");
+        assert_eq!(view.privacy.resolve("en-US"), "Values are never recorded.");
+        assert_eq!(view.paths[0].path, "five_hour.utilization");
+        assert!(Diagnostic::NOTE_IDS.contains(&&*view.sentence.id));
     }
 }

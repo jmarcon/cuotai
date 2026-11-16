@@ -393,7 +393,8 @@ pub fn drafts(
                 &AccountView {
                     account,
                     report,
-                    last_good_age: None,
+                    // A canary run is a one-shot query.
+                    last_good: support::LastGood::one_shot(report, None, report.checked_at),
                     incident_active: crate::incidents::incident_active(statuses, account.provider),
                 },
                 app,
@@ -640,6 +641,7 @@ mod tests {
             os: "macos".into(),
             arch: "aarch64".into(),
             install_channel: "homebrew".into(),
+            interface: None,
         }
     }
 
