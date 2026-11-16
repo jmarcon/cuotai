@@ -543,7 +543,7 @@
   "freshness.stale": "Stale",
   "age.measuredAt": "Measured: {time}",
   "age.clockAdjusted": "the system clock was adjusted",
-  "metric.renewedWaiting": "Renewed at {time}; waiting for a reading",
+  "metric.renewedWaiting": "Renewed at {time}; waiting for the next reading",
   "freshness.data_as_of": "data as of {time}",
   "tray.tooltip": "Oldest reading: {account}, {age}",
   "settings.order.title": "Account order",

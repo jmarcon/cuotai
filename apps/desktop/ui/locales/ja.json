@@ -536,7 +536,7 @@
   "freshness.stale": "古い",
   "age.measuredAt": "測定：{time}",
   "age.clockAdjusted": "システム時計が調整されました",
-  "metric.renewedWaiting": "{time} にリセット。読み取り待ち",
+  "metric.renewedWaiting": "{time} にリセット。次の読み取り待ち",
   "freshness.data_as_of": "{time} 時点のデータ",
   "tray.tooltip": "最も古い読み取り：{account}、{age}",
   "settings.order.title": "アカウントの順序",

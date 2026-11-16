@@ -546,7 +546,7 @@
   "freshness.stale": "पुराना",
   "age.measuredAt": "मापा गया: {time}",
   "age.clockAdjusted": "सिस्टम घड़ी बदली गई थी",
-  "metric.renewedWaiting": "{time} पर रीसेट हुआ; रीडिंग का इंतज़ार",
+  "metric.renewedWaiting": "{time} पर रीसेट हुआ; अगली रीडिंग का इंतज़ार",
   "freshness.data_as_of": "{time} तक का डेटा",
   "tray.tooltip": "सबसे पुरानी रीडिंग: {account}, {age}",
   "settings.order.title": "खातों का क्रम",

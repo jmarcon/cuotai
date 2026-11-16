@@ -748,19 +748,26 @@ export function fmtReset(iso) {
   if (d.toDateString() === new Date().toDateString()) return t("time.today", { time });
   return `${fmtLocal(d, { day: "2-digit", month: "short" })}, ${time}`;
 }
-/** Clock time of `iso` in the viewer's local zone, with the day when it is not today ("14:30", "24 Oct, 14:30"). */
-export function fmtClock(iso) {
+/** PRD 0033 re-validation (V-09): `iso` as the core's `text::clock` words it (the time today, the weekday and time within
+ *  the next six days, the short date and time otherwise), in the UI locale's hour cycle ("2:30 PM", "14:30"), so the
+ *  renewed and "data as of" texts read like the card's other times. Null for a missing or malformed instant. */
+export function coreClock(iso) {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  const time = fmtLocal(d, HHMM);
-  if (d.toDateString() === new Date().toDateString()) return time;
-  return `${fmtLocal(d, { day: "2-digit", month: "short" })}, ${time}`;
+  const locale = currentLocale();
+  // `format_time`: a 24-hour language pads the hour ("09:05"), a 12-hour one never does ("9:05 AM").
+  const h12 = /h1[12]/.test(intlFormatter("DateTimeFormat", locale, { hour: "numeric" }).resolvedOptions().hourCycle ?? "");
+  const time = { hour: h12 ? "numeric" : "2-digit", minute: "2-digit" };
+  const days = Math.round((new Date(d.toDateString()) - new Date(new Date().toDateString())) / 864e5);
+  if (days === 0) return fmtLocal(d, time, locale);
+  if (days >= 1 && days <= 6) return fmtLocal(d, { weekday: "long", ...time }, locale);
+  return fmtLocal(d, { day: "2-digit", month: "2-digit", ...time }, locale);
 }
 /** PRD 0033 RF2.1: a preserved or restored metric whose window renewed; the core sends it without values. */
 export const isRenewedWaiting = (m) => m.expired === true;
-/** "Renewed at 14:30; waiting for a reading", in the viewer's local time. */
-export const renewedText = (m) => t("metric.renewedWaiting", { time: fmtClock(m.resets_at) ?? "—" });
+/** "Renewed at 2:30 PM; waiting for the next reading", in the viewer's local time. */
+export const renewedText = (m) => t("metric.renewedWaiting", { time: coreClock(m.resets_at) ?? "—" });
 export const statusLabel = (status) => t(`status.${status}`);
 /** Quotas that define the account's summary and ordering: without the short rate-limit window (it is not the
  *  plan quota) and without the ones the user hid. */
@@ -909,7 +916,7 @@ export const ageText = (r) => {
   const f = freshnessOf(r);
   const age = f ? `${t(`freshness.${f}`)} · ${fmtAge(shownAt(r))}` : fmtAge(shownAt(r));
   // PRD 0033 RF3.2: the provider states its data is older than the query ("data as of 06:00").
-  const asOf = !isStaleReading(r) && r.data_as_of ? fmtClock(r.data_as_of) : null;
+  const asOf = !isStaleReading(r) && r.data_as_of ? coreClock(r.data_as_of) : null;
   return asOf ? `${age} · ${t("freshness.data_as_of", { time: asOf })}` : age;
 };
 const FRESHNESS_ICON = { fresh: "check", aging: "clock", stale: "warn" };
@@ -3506,6 +3513,13 @@ export function windowsOf(r) {
   const when = (m) => (m.resets_at ? new Date(m.resets_at).getTime() : Infinity);
   const pick = (w) => planMetrics(r).filter((m) => m.window === w).map((m) => ({ m, pct: remainingPct(m) })).filter((x) => x.pct != null)
     .sort((a, b) => a.pct - b.pct || when(a.m) - when(b.m))[0] ?? null;
+  return { h5: pick("window_5h"), week: pick("weekly") };
+}
+/** PRD 0033 re-validation (V-01): the renewed metric of each window that has no measured one (`windowsOf` gives it no
+ *  slot value), so a card with a renewed 5 h window beside a current week says "Renewed at …" instead of "—". */
+export function renewedWindowsOf(r) {
+  const when = (m) => (m.resets_at ? new Date(m.resets_at).getTime() : Infinity);
+  const pick = (w) => planMetrics(r).filter((m) => m.window === w && isRenewedWaiting(m)).sort((a, b) => when(a) - when(b))[0] ?? null;
   return { h5: pick("window_5h"), week: pick("weekly") };
 }
 /** Worst % available among the rate-limit windows (non-hidden); null when there are none. */

@@ -549,7 +549,7 @@
   "freshness.stale": "Desatualizada",
   "age.measuredAt": "Medida: {time}",
   "age.clockAdjusted": "o relógio do sistema foi ajustado",
-  "metric.renewedWaiting": "Renovada às {time}; aguardando leitura",
+  "metric.renewedWaiting": "Renovada às {time}; aguardando a próxima leitura",
   "freshness.data_as_of": "dados de {time}",
   "tray.tooltip": "Leitura mais antiga: {account}, {age}",
   "settings.order.title": "Ordem das contas",

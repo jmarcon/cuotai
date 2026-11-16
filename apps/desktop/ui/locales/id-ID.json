@@ -536,7 +536,7 @@
   "freshness.stale": "Usang",
   "age.measuredAt": "Diukur: {time}",
   "age.clockAdjusted": "jam sistem disesuaikan",
-  "metric.renewedWaiting": "Diperbarui pada {time}; menunggu pembacaan",
+  "metric.renewedWaiting": "Diperbarui pada {time}; menunggu pembacaan berikutnya",
   "freshness.data_as_of": "data per {time}",
   "tray.tooltip": "Pembacaan tertua: {account}, {age}",
   "settings.order.title": "Urutan akun",

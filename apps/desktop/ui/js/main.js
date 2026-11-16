@@ -12,10 +12,10 @@ import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, u
 import { maybeShowFirstRun } from "./first-run.js";
 import { openRestoreDialog } from "./backup-dialog.js";
 import { accountName, accountFullLabel,
-  fmtNext, fmtAge, fmtShare, metricName, ALERTS, overageChipHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, fmtAmount, getView, icon, initTheme, isBindingMetric, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
-  moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, initHiddenAccounts, migrateHiddenAccounts, rateLimitOf, reportKey, retryPurge, summaryOf, windowsOf, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
+  fmtNext, fmtAge, ALERTS, overageChipHtml, ageHtml, alertOf, bindThemeSwitch, bindingChipText, blockedText, brand, createStore, esc, getView, icon, initTheme, isBlocked, isDesktop, isStaleReading, level, logo, wordmark,
+  moveAccount, onHiddenChange, disabledAccounts, onDisabledChange, initHiddenAccounts, migrateHiddenAccounts, rateLimitOf, reportKey, retryPurge, themeSwitchHtml, langMenuHtml, sortReports, sortMenuHtml,
   currentSort, initOrderSync, staleView, configChangedOnDisk, reloadConfig, configLabel, errText, updateErrText, otherConfigNotice, otherConfigBanner, dismissOtherConfig, returnText, splitRecharging,
-  accountTitle, billingOverage, isRecharging, resetsText, bestChipHtml, cardPace, forecastChipHtml, renewedText, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, paceHtml, paceLineLabel, costPlans,
+  accountTitle, billingOverage, isRecharging, bestChipHtml, forecastChipHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
   sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml, clockSkewBannerHtml,
@@ -24,10 +24,11 @@ import { fold, patch } from "./util.js";
 import { initRowLayout, rowLayout } from "./density.js";
 import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, warningChipsHtml, withConnections } from "./aggregator.js";
 import {
-  accountState, announceChanges, extraColumnHtml, filterTabsHtml, changeMarkHtml, clearChange, expectedLeft, figureHtml, fitStatusLines, fmtAt, meterHtml, monograms,
+  accountState, announceChanges, filterTabsHtml, changeMarkHtml, clearChange, fitStatusLines, fmtAt, monograms,
   repeatedProviders, statusLineHtml, oneStatusHtml, tileHtml, trackChanges,
 } from "./components.js";
 import * as motion from "./motion.js";
+import { hasExtraColumn, summaryHtml } from "./card-summary.js";
 
 await boot();
 
@@ -56,54 +57,6 @@ async function loadLocalCost() {
 // PRD 0020 RF1.3: every entry point opens the one Settings window; the cost links land on the Local cost page.
 const openCostSettings = () => openSettingsWindow({ page: "cost" });
 const costContext = { summary: () => localCost, onSettings: openCostSettings };
-
-/** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
-const cardMeter = (m, pct, stale, name = metricName(m)) =>
-  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m), name });
-/** One limit of a card (mockup 10): the micro label with the "Binding" tag, the figure with its unit below, the
- *  meter, then "Resets 20:32 · in 2h 11m" once, under the bar. Counts ("15 / 1,000") are in the tooltip. */
-function limitColumn(r, label, m, pct, stale) {
-  const binding = isBindingMetric(r, m);
-  const exhausted = m.state === "exhausted";
-  const reset = resetsText(m);
-  return `<div class="win${binding ? " binding" : ""}" title="${esc(`${metricName(m)} · ${fmtAmount(m)}`)}">
-    <div class="win-top"><span class="win-name">${esc(label)}</span>${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
-    ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale })}
-    ${cardMeter(m, pct, stale, label)}
-    <div class="win-reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</div></div>`;
-}
-/** One window of the card (5 h or weekly); a missing window keeps its slot with "—" (DS-CMP-CARD-2). */
-function windowSlot(r, name, w, stale = false) {
-  const label = t(`card.window.long.${name}`);
-  if (!w) {
-    return `<div class="win none" aria-label="${esc(label)}"><div class="win-top"><span class="win-name">${esc(label)}</span></div>
-      ${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown", name: label })}</div>`;
-  }
-  return limitColumn(r, label, w.m, w.pct, stale);
-}
-
-/** Summary: the 5 h and weekly windows (most providers); without them, the tightest quota (or the text of an
- *  uncapped metric, a renewed window waiting for its reading, or the reason there is none). Extra usage, when it
- *  is being billed, takes the second column. */
-function summaryHtml(r, stale = false) {
-  const win = windowsOf(r);
-  // Fa gap 4: paid extra usage is its own limit column (mockup 10), never a repeated chip.
-  const extra = stale ? "" : extraColumnHtml(r);
-  if (win.h5 || win.week) return `<div class="wins${extra ? " three" : ""}">${windowSlot(r, "h5", win.h5, stale)}${windowSlot(r, "week", win.week, stale)}${extra}</div>`;
-  const s = summaryOf(r);
-  if (s.kind === "bar") return `<div class="wins">${limitColumn(r, metricName(s.m), s.m, s.pct, stale)}${extra}</div>`;
-  if (s.kind === "text") {
-    return `<div class="sum-text">
-      <div class="win-top"><span class="win-name">${esc(s.m.label)}</span></div>
-      <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div>${resetsText(s.m) ? `<div class="win-reset">${esc(resetsText(s.m))}</div>` : ""}</div>`;
-  }
-  if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;
-  if (s.kind === "renewed") return `<p class="sum-note" data-renewed-waiting>${icon("clock")}<span>${esc(renewedText(s.m))}</span></p>`;
-  return `<div class="sum-none">${figureHtml("—", "", { cls: "left" })}${meterHtml(null, { state: "unknown" })}<p class="sum-note">${esc(causeText(r))}</p></div>`;
-}
-
-/** Whether the summary draws the extra-usage column (then the foot leaves its chip out). */
-const hasExtraColumn = (r) => !!billingOverage(r) && (!!(windowsOf(r).h5 || windowsOf(r).week) || summaryOf(r).kind === "bar");
 
 /** PRD 0022 RF3.5 (DS-TOK-BRD-3): one state stripe at most: critical > warning. */
 const stripeOf = (r, alert) => (alert?.tone === "bad" || isRecharging(r) ? "stripe-bad" : r.usage_alerts?.length ? "stripe-warn" : "");

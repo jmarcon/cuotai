@@ -536,7 +536,7 @@
   "freshness.stale": "过期",
   "age.measuredAt": "测量时间：{time}",
   "age.clockAdjusted": "系统时钟已调整",
-  "metric.renewedWaiting": "已于 {time} 重置；等待读数",
+  "metric.renewedWaiting": "已于 {time} 重置；等待下一次读数",
   "freshness.data_as_of": "数据截至 {time}",
   "tray.tooltip": "最旧读数：{account}，{age}",
   "settings.order.title": "账户顺序",

@@ -546,7 +546,7 @@
   "freshness.stale": "Eski",
   "age.measuredAt": "Ölçüldü: {time}",
   "age.clockAdjusted": "sistem saati ayarlandı",
-  "metric.renewedWaiting": "{time} saatinde yenilendi; okuma bekleniyor",
+  "metric.renewedWaiting": "{time} saatinde yenilendi; sonraki okuma bekleniyor",
   "freshness.data_as_of": "veriler {time} itibarıyla",
   "tray.tooltip": "En eski okuma: {account}, {age}",
   "settings.order.title": "Hesap sırası",

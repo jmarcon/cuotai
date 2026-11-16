@@ -942,6 +942,20 @@
 .win.binding .win-name {
   color: var(--fg-muted);
 }
+/* PRD 0033 re-validation (V-01, V-08): a renewed window's sentence takes the figure, meter and reset rows of its slot;
+   the clock icon sits one space before the text, as in the details. */
+.wins > .win > .win-renewed {
+  grid-row: 2 / span 3;
+}
+.win-renewed {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: var(--space-1) 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
 .win-reset {
   margin-top: calc(var(--space-1) + var(--space-0));
   overflow: hidden;

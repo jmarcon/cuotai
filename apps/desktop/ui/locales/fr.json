@@ -546,7 +546,7 @@
   "freshness.stale": "Obsolète",
   "age.measuredAt": "Mesuré : {time}",
   "age.clockAdjusted": "l’horloge du système a été ajustée",
-  "metric.renewedWaiting": "Réinitialisé à {time} ; en attente d’un relevé",
+  "metric.renewedWaiting": "Réinitialisé à {time} ; en attente du prochain relevé",
   "freshness.data_as_of": "données du {time}",
   "tray.tooltip": "Relevé le plus ancien : {account}, {age}",
   "settings.order.title": "Ordre des comptes",
