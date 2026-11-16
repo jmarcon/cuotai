@@ -1065,7 +1065,14 @@ impl State {
             times.retain(|at| now.duration_since(*at) < WINDOW);
             !times.is_empty()
         });
-        let times = asked.entry(peer.to_canonical()).or_default();
+        // Re-validation S-07: `127.0.0.1` and `::1` are the same machine,
+        // so every loopback peer shares one budget.
+        let peer = if is_loopback(peer) {
+            IpAddr::V4(Ipv4Addr::LOCALHOST)
+        } else {
+            peer.to_canonical()
+        };
+        let times = asked.entry(peer).or_default();
         if times.len() >= STATS_PER_MINUTE {
             let wait = WINDOW.saturating_sub(now.duration_since(times[0]));
             return Err(wait.as_secs() + 1);
@@ -1087,6 +1094,10 @@ struct Snapshot {
     cache: std::sync::Mutex<Option<Cached>>,
     /// Exports built so far; names each one in the `ETag`.
     builds: std::sync::atomic::AtomicU64,
+    /// Re-validation S-06: a random number per snapshot, the `ETag`'s first
+    /// part, so a tag never repeats after a reconfigure or a restart
+    /// (where `builds` starts over).
+    instance: u64,
 }
 
 /// An export reused while its generation holds.
@@ -1105,6 +1116,7 @@ impl Snapshot {
             source: Box::new(source),
             cache: std::sync::Mutex::new(None),
             builds: std::sync::atomic::AtomicU64::new(0),
+            instance: rand::random(),
         }
     }
 
@@ -1491,7 +1503,7 @@ impl State {
     /// account has a reading (current or preserved).
     ///
     /// PRD 0031 RF6: a source that tells generations gets an `ETag`
-    /// (`"<build>-<route>"`, the route being `snapshot`, `limits` or
+    /// (`"<instance>-<build>-<route>"`, the route being `snapshot`, `limits` or
     /// `account`; an account's key is part of the URL the client caches
     /// under) and a `304` for a matching `If-None-Match`.
     fn with_export(
@@ -1514,7 +1526,7 @@ impl State {
         let Some(build) = build else {
             return answer(&export);
         };
-        let etag = format!("\"{build}-{route}\"");
+        let etag = format!("\"{:016x}-{build}-{route}\"", snapshot.instance);
         if head.if_none_match(&etag) {
             return Response::empty(304).header("ETag", etag);
         }
