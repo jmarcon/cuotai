@@ -62,12 +62,7 @@ impl Rig {
         );
         fs::write(dir.join(MANIFEST_FILE), manifest).unwrap();
         let program = dir.join("run.sh");
-        fs::write(&program, script).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
-        }
+        crate::write_executable(&program, script);
         let discovery = discover(&self.root);
         assert!(discovery.rejected.is_empty(), "{:?}", discovery.rejected);
         let manifest: Manifest = discovery.get(id).expect("discovered").clone();

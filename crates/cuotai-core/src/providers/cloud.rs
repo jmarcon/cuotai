@@ -1136,7 +1136,6 @@ mod tests {
     /// Fake `aws` answering by profile/region and logging its argv.
     #[cfg(unix)]
     fn fake_aws(dir: &std::path::Path) -> String {
-        use std::os::unix::fs::PermissionsExt;
         let bin = dir.join("aws");
         let log = dir.join("argv.log");
         let script = format!(
@@ -1153,8 +1152,7 @@ esac
 "#,
             log = log.display()
         );
-        std::fs::write(&bin, script).unwrap();
-        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::write_executable(&bin, script);
         bin.to_string_lossy().into_owned()
     }
 

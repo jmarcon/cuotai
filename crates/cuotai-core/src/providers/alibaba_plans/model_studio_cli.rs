@@ -725,12 +725,11 @@ mod tests {
     #[cfg(unix)]
     impl FakeCli {
         fn new(stdout: &str, stderr: &str, code: i32, sleep: u32) -> Self {
-            use std::os::unix::fs::PermissionsExt;
             let dir = tempfile::tempdir().unwrap();
             std::fs::write(dir.path().join("out.json"), stdout).unwrap();
             std::fs::write(dir.path().join("err.txt"), stderr).unwrap();
             let bin = dir.path().join("bl");
-            std::fs::write(
+            crate::write_executable(
                 &bin,
                 format!(
                     "#!/bin/sh\n\
@@ -742,11 +741,7 @@ mod tests {
                      cat \"$d/err.txt\" >&2\n\
                      exit {code}\n"
                 ),
-            )
-            .unwrap();
-            let mut perms = std::fs::metadata(&bin).unwrap().permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&bin, perms).unwrap();
+            );
             Self { dir }
         }
 

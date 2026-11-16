@@ -52,12 +52,7 @@ fn bin_dir(names: &[&str]) -> tempfile::TempDir {
 }
 
 fn write_program(path: &Path, bytes: &[u8]) {
-    std::fs::write(path, bytes).unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    crate::write_executable(path, bytes);
 }
 
 fn on(dirs: &[&Path]) -> Option<OsString> {
@@ -1796,10 +1791,8 @@ rm '{running}/'$$
     }
 
     fn write_script(path: &Path, body: &str) {
-        use std::os::unix::fs::PermissionsExt;
         let tmp = path.with_extension("tmp");
-        std::fs::write(&tmp, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::write_executable(&tmp, format!("#!/bin/sh\n{body}\n"));
         std::fs::rename(&tmp, path).unwrap();
     }
 

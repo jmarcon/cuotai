@@ -48,12 +48,7 @@ fn extension(root: &Path, name: &str, manifest: &str) -> PathBuf {
 }
 
 fn script(path: &Path) {
-    fs::write(path, "#!/bin/sh\necho '{}'\n").unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
-    }
+    crate::write_executable(path, "#!/bin/sh\necho '{}'\n");
 }
 
 /// The reason id of the only rejection.

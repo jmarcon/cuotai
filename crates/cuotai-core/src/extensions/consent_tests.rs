@@ -42,12 +42,7 @@ impl Rig {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join(MANIFEST_FILE), manifest).unwrap();
         let program = dir.join("run.sh");
-        fs::write(&program, "#!/bin/sh\nprintf '{}'\n").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
-        }
+        crate::write_executable(&program, "#!/bin/sh\nprintf '{}'\n");
     }
 
     fn manifest(&self) -> Manifest {
