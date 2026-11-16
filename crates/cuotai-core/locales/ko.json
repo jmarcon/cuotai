@@ -306,7 +306,9 @@
   "config.warning.unknown_key": "{path}은(는) 이 버전의 Cuotai가 알지 못합니다. 무시되며 파일을 저장할 때 그대로 유지됩니다.",
   "cost.confirm.answer": "예",
   "cost.confirm.question": "켜려면 \"{answer}\"을(를) 입력하고 Enter를 누르세요(다른 답은 거부로 처리됩니다):",
-  "cost.disabled": "{source}을(를) 껐습니다. 파생된 기록 {removed}개를 삭제했습니다.",
+  "cost.disabled": {
+    "other": "{source}을(를) 껐습니다. 파생된 기록 {count}개를 삭제했습니다."
+  },
   "cost.disclosure.accept": "읽기 켜기",
   "cost.disclosure.directories": "다음 디렉터리의 {pattern} 파일만 읽습니다:",
   "cost.disclosure.directory": "{path}",
@@ -315,10 +317,12 @@
   "cost.disclosure.never_v2": "대화 내용, 프롬프트, 답변, 파일 이름, 프로젝트 경로는 색인에 읽히거나 저장되거나 표시되지 않습니다. 프로젝트의 마지막 폴더 이름은 켠 경우에만 보관됩니다. 이 컴퓨터 밖으로 나가는 것은 없습니다.",
   "cost.disclosure.off": "소스를 끄면 모든 읽기가 중단되고 거기서 파생된 모든 데이터가 삭제됩니다.",
   "cost.disclosure.purpose": "이 컴퓨터에서만 {source} 사용량의 토큰과 API 가격 기준 비용을 일별·모델별로 추정하기 위해서입니다.",
-  "cost.display.line": "≈ {amount}(입력한 환율 기준, {days}일 전 설정)",
-  "cost.display.line_stale": "≈ {amount}(입력한 환율 기준, {days}일 전 설정). 환율을 업데이트하세요",
+  "cost.display.line": "≈ {amount}(입력한 환율 기준, {age})",
+  "cost.display.line_stale": "≈ {amount}(입력한 환율 기준, {age}). 환율을 업데이트하세요",
   "cost.enabled": "{source}을(를) 켰습니다. TUI 또는 데스크톱 앱이 열려 있는 동안 로그를 백그라운드에서 읽으며, 지금 읽으려면 cuotai --cost-scan을 사용하세요.",
-  "cost.erased": "로컬 비용 색인을 삭제했습니다: 기록 {removed}개.",
+  "cost.erased": {
+    "other": "로컬 비용 색인을 삭제했습니다: 기록 {count}개."
+  },
   "cost.error.consent_changed": "이 소스의 디렉터리가 표시된 이후 바뀌었습니다. 다시 검토하고 확인하세요.",
   "cost.error.days_bounds": "일수는 {min}에서 {max} 사이여야 합니다.",
   "cost.error.declined": "소스를 켜지 않았으며 어떤 로그도 읽지 않았습니다.",
@@ -341,11 +345,9 @@
   "cost.period.last_30_days": "최근 30일",
   "cost.period.last_7_days": "최근 7일",
   "cost.period.today": "오늘",
-  "cost.plan.combined": "{source} 계정",
-  "cost.plan.partial": "{amount}, 가격이 없는 모델 제외",
-  "cost.plan.ratio": "{source}: API 가격 기준 ≈ {estimate}(추정) · 요금제 {plans} · 요금제 가격의 ≈ {ratio}배",
-  "cost.plan.ratio_rate": "{source}: API 가격 기준 ≈ {estimate}(추정) · 요금제 {plans} · 요금제 가격의 ≈ {ratio}배(입력한 환율 기준)",
-  "cost.plan.side": "{source}: API 가격 기준 ≈ {estimate}(추정) · 요금제 {plans}",
+  "cost.plan.combined": {
+    "other": "{source}, 계정 {count}개 합산: {estimate} · 요금제 {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: API 가격 기준 비용 알 수 없음(가격이 없는 모델) · 요금제 {plans}",
   "cost.prices.age": "{days}일 전 가격",
   "cost.prices.unpriced": "가격 없음: {models}",
@@ -414,12 +416,16 @@
   "cost.block.local_estimate": "로컬 추정",
   "cost.block.active": "진행 중",
   "cost.block.closed": "종료",
-  "cost.block.line": "{source} · {window} · {state} · 세션 {sessions}개, 프로젝트 {projects}개",
-  "cost.block.hours_saved": "{source}: {hours}시간 블록.",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "other": "{source}: {count}시간 블록."
+  },
   "cost.label.saved": "{short}의 레이블을 로컬 비용 인덱스에 저장했습니다.",
   "cost.label.removed": "{short}의 레이블을 제거했습니다.",
   "cost.folder_hint.on": "{source}: 각 프로젝트의 마지막 폴더 이름을 이 컴퓨터에 보관해 레이블을 미리 채웁니다.",
-  "cost.folder_hint.off": "{source}: 폴더 이름을 더 이상 보관하지 않습니다. {removed}개를 삭제했습니다.",
+  "cost.folder_hint.off": {
+    "other": "{source}: 폴더 이름을 더 이상 보관하지 않습니다. {count}개를 삭제했습니다."
+  },
   "cost.error.invalid_label": "레이블은 1~{max}자입니다.",
   "cost.error.unknown_prefix": "그 접두사로 시작하는 세션이나 프로젝트가 없습니다(16진수 {min}자 이상).",
   "cost.error.ambiguous_prefix": "그 접두사로 시작하는 세션이나 프로젝트가 여러 개입니다. 더 입력하세요.",
@@ -2397,5 +2403,45 @@
   "doctor.title.cost_pricing": "로컬 가격(pricing.json)",
   "doctor.cost_pricing.none": "pricing.json이 없습니다. 기본 제공 가격을 사용합니다.",
   "doctor.cost_pricing.ok": "유효하며 기본 제공 가격보다 우선합니다.",
-  "doctor.fix.cost_pricing": "pricing.json을 수정하거나 삭제하세요. 기본 제공 가격만 사용됩니다."
+  "doctor.fix.cost_pricing": "pricing.json을 수정하거나 삭제하세요. 기본 제공 가격만 사용됩니다.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + 알 수 없음",
+  "cost.rate.age.today": "오늘 설정",
+  "cost.rate.age.yesterday": "어제 설정",
+  "cost.rate.age.days": {
+    "other": "{count}일 전 설정"
+  },
+  "cost.error.rate_too_small": "환율이 너무 작습니다. 0.000001 이상을 사용하세요.",
+  "cost.block.sessions": {
+    "other": "세션 {count}개"
+  },
+  "cost.block.projects": {
+    "other": "프로젝트 {count}개"
+  },
+  "cost.plan.estimate": "API 가격 기준 ≈ {amount}(추정)",
+  "cost.plan.estimate_partial": "가격이 있는 모델의 API 가격 기준 ≈ {amount}(추정)",
+  "cost.plan.single": "{source}: {estimate} · 요금제 {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · 요금제 {plans}",
+  "cost.plan.combined_side": {
+    "other": "{source}, 계정 {count}개 합산: {estimate} · 요금제 {plans}"
+  },
+  "cost.plan.combined_some": {
+    "other": "{source}, 계정 {count}개 합산: {estimate} · 그중 {planned}개의 요금제: {plans}. 로그를 나눌 수 없어 비율이 없습니다"
+  },
+  "cost.plan.combined_label": {
+    "other": "{source}, 계정 {count}개 합산"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "요금제 가격의 ≈ {ratio}×",
+  "cost.plan.times_rate": "요금제 가격의 ≈ {ratio}×(입력한 환율 기준)",
+  "cost.plan.times_plans": "요금제 합계 가격의 ≈ {ratio}×",
+  "cost.plan.times_plans_rate": "요금제 합계 가격의 ≈ {ratio}×(입력한 환율 기준)",
+  "cost.plan.share": "요금제 가격의 ≈ {percent}%",
+  "cost.plan.share_rate": "요금제 가격의 ≈ {percent}%(입력한 환율 기준)",
+  "cost.plan.share_plans": "요금제 합계 가격의 ≈ {percent}%",
+  "cost.plan.share_plans_rate": "요금제 합계 가격의 ≈ {percent}%(입력한 환율 기준)",
+  "cost.plan.share_small": "요금제 가격의 1% 미만",
+  "cost.plan.share_small_rate": "요금제 가격의 1% 미만(입력한 환율 기준)",
+  "cost.plan.share_small_plans": "요금제 합계 가격의 1% 미만",
+  "cost.plan.share_small_plans_rate": "요금제 합계 가격의 1% 미만(입력한 환율 기준)"
 }

@@ -48,6 +48,21 @@ impl Usd {
     pub fn as_usd(self) -> f64 {
         self.micros() as f64 / 1e6
     }
+
+    /// PRD 0030 C-03: the amount as an `amount.money` text each front end
+    /// renders in its locale, half up to the cent; "< $0.01" for a
+    /// positive amount below a cent, so a small cost never reads as free.
+    pub fn money(self) -> Localized {
+        if self.cents() == 0 && self.pico > 0 {
+            return Localized::with_param(
+                "cost.amount.under",
+                "amount",
+                crate::text::number::money(0.01, CURRENCY),
+                "< {amount}",
+            );
+        }
+        crate::text::number::money(self.cents() as f64 / 100.0, CURRENCY)
+    }
 }
 
 impl std::ops::Add for Usd {

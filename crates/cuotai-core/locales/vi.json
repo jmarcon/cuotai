@@ -306,7 +306,9 @@
   "config.warning.unknown_key": "{path} không được phiên bản Cuotai này biết đến; nó bị bỏ qua và được giữ lại khi lưu tệp.",
   "cost.confirm.answer": "có",
   "cost.confirm.question": "Để bật, hãy gõ \"{answer}\" rồi nhấn Enter (câu trả lời khác là từ chối):",
-  "cost.disabled": "Đã tắt {source}; đã xóa {removed} bản ghi phát sinh.",
+  "cost.disabled": {
+    "other": "Đã tắt {source}; đã xóa {count} bản ghi phát sinh."
+  },
   "cost.disclosure.accept": "Bật việc đọc",
   "cost.disclosure.directories": "Chỉ đọc các tệp {pattern} trong những thư mục này:",
   "cost.disclosure.directory": "{path}",
@@ -315,10 +317,12 @@
   "cost.disclosure.never_v2": "Nội dung hội thoại, prompt, câu trả lời, tên tệp và đường dẫn dự án không bao giờ được đọc vào chỉ mục, lưu hoặc hiển thị; tên thư mục cuối của dự án chỉ được giữ nếu bạn bật tính năng đó. Không có gì rời khỏi máy tính này.",
   "cost.disclosure.off": "Tắt nguồn sẽ dừng mọi việc đọc và xóa mọi thứ rút ra từ nó.",
   "cost.disclosure.purpose": "Để ước tính, chỉ trên máy tính này, số token và chi phí theo giá API của mức sử dụng {source} của bạn theo từng ngày và từng mô hình.",
-  "cost.display.line": "≈ {amount} theo tỷ giá của bạn (đặt cách đây {days} ngày)",
-  "cost.display.line_stale": "≈ {amount} theo tỷ giá của bạn (đặt cách đây {days} ngày); hãy cập nhật tỷ giá",
+  "cost.display.line": "≈ {amount} theo tỷ giá của bạn ({age})",
+  "cost.display.line_stale": "≈ {amount} theo tỷ giá của bạn ({age}); hãy cập nhật tỷ giá",
   "cost.enabled": "Đã bật {source}. Nhật ký được đọc ở chế độ nền khi TUI hoặc ứng dụng máy tính để bàn đang mở, hoặc ngay bây giờ bằng cuotai --cost-scan.",
-  "cost.erased": "Đã xóa chỉ mục chi phí cục bộ: {removed} bản ghi.",
+  "cost.erased": {
+    "other": "Đã xóa chỉ mục chi phí cục bộ: {count} bản ghi."
+  },
   "cost.error.consent_changed": "Các thư mục của nguồn này đã thay đổi kể từ khi được hiển thị; hãy xem lại và xác nhận lại.",
   "cost.error.days_bounds": "Số ngày nằm trong khoảng từ {min} đến {max}.",
   "cost.error.declined": "Chưa bật nguồn; không có nhật ký nào được đọc.",
@@ -341,11 +345,9 @@
   "cost.period.last_30_days": "30 ngày qua",
   "cost.period.last_7_days": "7 ngày qua",
   "cost.period.today": "Hôm nay",
-  "cost.plan.combined": "Các tài khoản {source}",
-  "cost.plan.partial": "{amount}, không tính các mô hình chưa có giá",
-  "cost.plan.ratio": "{source}: ≈ {estimate} theo giá API (ước tính) · gói {plans} · ≈ {ratio}× giá gói",
-  "cost.plan.ratio_rate": "{source}: ≈ {estimate} theo giá API (ước tính) · gói {plans} · ≈ {ratio}× giá gói, theo tỷ giá của bạn",
-  "cost.plan.side": "{source}: ≈ {estimate} theo giá API (ước tính) · gói {plans}",
+  "cost.plan.combined": {
+    "other": "{source}, gộp {count} tài khoản: {estimate} · các gói {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: chưa rõ chi phí theo giá API (mô hình chưa có giá) · gói {plans}",
   "cost.prices.age": "Giá từ {days} ngày trước",
   "cost.prices.unpriced": "Chưa có giá cho: {models}",
@@ -414,12 +416,16 @@
   "cost.block.local_estimate": "Ước tính cục bộ",
   "cost.block.active": "đang diễn ra",
   "cost.block.closed": "đã đóng",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} phiên, {projects} dự án",
-  "cost.block.hours_saved": "{source}: khối {hours} giờ.",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "other": "{source}: khối {count} giờ."
+  },
   "cost.label.saved": "Đã lưu nhãn của {short} vào chỉ mục chi phí cục bộ.",
   "cost.label.removed": "Đã xóa nhãn của {short}.",
   "cost.folder_hint.on": "{source}: tên thư mục cuối của mỗi dự án được giữ trên máy này để điền sẵn nhãn.",
-  "cost.folder_hint.off": "{source}: không còn giữ tên thư mục; đã xóa {removed}.",
+  "cost.folder_hint.off": {
+    "other": "{source}: không còn giữ tên thư mục; đã xóa {count} tên."
+  },
   "cost.error.invalid_label": "Nhãn có từ 1 đến {max} ký tự.",
   "cost.error.unknown_prefix": "Không có phiên hay dự án nào bắt đầu bằng tiền tố đó (ít nhất {min} ký tự thập lục phân).",
   "cost.error.ambiguous_prefix": "Có nhiều phiên hoặc dự án bắt đầu bằng tiền tố đó; hãy gõ thêm ký tự.",
@@ -2397,5 +2403,45 @@
   "doctor.title.cost_pricing": "Giá cục bộ (pricing.json)",
   "doctor.cost_pricing.none": "Không có pricing.json; dùng giá tích hợp sẵn.",
   "doctor.cost_pricing.ok": "Tệp hợp lệ và được ưu tiên hơn giá tích hợp sẵn.",
-  "doctor.fix.cost_pricing": "Sửa hoặc xóa pricing.json; chỉ dùng giá tích hợp sẵn."
+  "doctor.fix.cost_pricing": "Sửa hoặc xóa pricing.json; chỉ dùng giá tích hợp sẵn.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + chưa rõ",
+  "cost.rate.age.today": "đặt hôm nay",
+  "cost.rate.age.yesterday": "đặt hôm qua",
+  "cost.rate.age.days": {
+    "other": "đặt cách đây {count} ngày"
+  },
+  "cost.error.rate_too_small": "Tỷ giá quá nhỏ: hãy dùng ít nhất 0.000001.",
+  "cost.block.sessions": {
+    "other": "{count} phiên"
+  },
+  "cost.block.projects": {
+    "other": "{count} dự án"
+  },
+  "cost.plan.estimate": "≈ {amount} theo giá API (ước tính)",
+  "cost.plan.estimate_partial": "≈ {amount} theo giá API cho các mô hình có giá (ước tính)",
+  "cost.plan.single": "{source}: {estimate} · gói {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · gói {plans}",
+  "cost.plan.combined_side": {
+    "other": "{source}, gộp {count} tài khoản: {estimate} · các gói {plans}"
+  },
+  "cost.plan.combined_some": {
+    "other": "{source}, gộp {count} tài khoản: {estimate} · gói của {planned} tài khoản trong số đó: {plans}; không thể tách nhật ký nên không có tỷ lệ"
+  },
+  "cost.plan.combined_label": {
+    "other": "{source}, gộp {count} tài khoản"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ {ratio}× giá gói",
+  "cost.plan.times_rate": "≈ {ratio}× giá gói, theo tỷ giá của bạn",
+  "cost.plan.times_plans": "≈ {ratio}× tổng giá các gói",
+  "cost.plan.times_plans_rate": "≈ {ratio}× tổng giá các gói, theo tỷ giá của bạn",
+  "cost.plan.share": "≈ {percent}% giá gói",
+  "cost.plan.share_rate": "≈ {percent}% giá gói, theo tỷ giá của bạn",
+  "cost.plan.share_plans": "≈ {percent}% tổng giá các gói",
+  "cost.plan.share_plans_rate": "≈ {percent}% tổng giá các gói, theo tỷ giá của bạn",
+  "cost.plan.share_small": "dưới 1% giá gói",
+  "cost.plan.share_small_rate": "dưới 1% giá gói, theo tỷ giá của bạn",
+  "cost.plan.share_small_plans": "dưới 1% tổng giá các gói",
+  "cost.plan.share_small_plans_rate": "dưới 1% tổng giá các gói, theo tỷ giá của bạn"
 }

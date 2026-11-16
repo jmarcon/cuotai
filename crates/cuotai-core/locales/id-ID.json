@@ -306,7 +306,9 @@
   "config.warning.unknown_key": "{path} tidak dikenal versi Cuotai ini; diabaikan dan dipertahankan saat file disimpan.",
   "cost.confirm.answer": "ya",
   "cost.confirm.question": "Untuk mengaktifkan, ketik \"{answer}\" lalu tekan Enter (jawaban lain menolak):",
-  "cost.disabled": "{source} dinonaktifkan; {removed} catatan turunan dihapus.",
+  "cost.disabled": {
+    "other": "{source} dinonaktifkan; {count} catatan turunan dihapus."
+  },
   "cost.disclosure.accept": "Aktifkan pembacaan",
   "cost.disclosure.directories": "Hanya membaca file {pattern} dari direktori ini:",
   "cost.disclosure.directory": "{path}",
@@ -315,10 +317,12 @@
   "cost.disclosure.never_v2": "Isi percakapan, prompt, jawaban, nama file, dan jalur proyek tidak pernah dibaca ke indeks, disimpan, atau ditampilkan; nama folder terakhir sebuah proyek hanya disimpan jika Anda mengaktifkannya. Tidak ada yang keluar dari komputer ini.",
   "cost.disclosure.off": "Menonaktifkan sumber menghentikan setiap pembacaan dan menghapus semua yang diturunkan darinya.",
   "cost.disclosure.purpose": "Untuk memperkirakan, hanya di komputer ini, token dan biaya pada harga API dari penggunaan {source} Anda per hari dan per model.",
-  "cost.display.line": "≈ {amount} pada kurs Anda (ditetapkan {days} hari lalu)",
-  "cost.display.line_stale": "≈ {amount} pada kurs Anda (ditetapkan {days} hari lalu); perbarui kurs Anda",
+  "cost.display.line": "≈ {amount} pada kurs Anda ({age})",
+  "cost.display.line_stale": "≈ {amount} pada kurs Anda ({age}); perbarui kurs Anda",
   "cost.enabled": "{source} diaktifkan. Log dibaca di latar belakang saat TUI atau aplikasi desktop terbuka, atau sekarang dengan cuotai --cost-scan.",
-  "cost.erased": "Indeks biaya lokal dihapus: {removed} catatan.",
+  "cost.erased": {
+    "other": "Indeks biaya lokal dihapus: {count} catatan."
+  },
   "cost.error.consent_changed": "Direktori sumber ini berubah sejak ditampilkan; tinjau dan konfirmasikan lagi.",
   "cost.error.days_bounds": "Jumlah hari berkisar dari {min} hingga {max}.",
   "cost.error.declined": "Sumber tidak diaktifkan; tidak ada log yang dibaca.",
@@ -341,11 +345,9 @@
   "cost.period.last_30_days": "30 hari terakhir",
   "cost.period.last_7_days": "7 hari terakhir",
   "cost.period.today": "Hari ini",
-  "cost.plan.combined": "Akun {source}",
-  "cost.plan.partial": "{amount}, tanpa model yang tidak memiliki harga",
-  "cost.plan.ratio": "{source}: ≈ {estimate} pada harga API (perkiraan) · paket {plans} · ≈ {ratio}× harga paket",
-  "cost.plan.ratio_rate": "{source}: ≈ {estimate} pada harga API (perkiraan) · paket {plans} · ≈ {ratio}× harga paket, pada kurs Anda",
-  "cost.plan.side": "{source}: ≈ {estimate} pada harga API (perkiraan) · paket {plans}",
+  "cost.plan.combined": {
+    "other": "{source}, {count} akun digabung: {estimate} · paket {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: biaya pada harga API tidak diketahui (model tanpa harga) · paket {plans}",
   "cost.prices.age": "Harga dari {days} hari lalu",
   "cost.prices.unpriced": "Tanpa harga untuk: {models}",
@@ -414,12 +416,16 @@
   "cost.block.local_estimate": "Perkiraan lokal",
   "cost.block.active": "aktif",
   "cost.block.closed": "selesai",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} sesi, {projects} proyek",
-  "cost.block.hours_saved": "{source}: blok {hours} jam.",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "other": "{source}: blok {count} jam."
+  },
   "cost.label.saved": "Label {short} disimpan di indeks biaya lokal.",
   "cost.label.removed": "Label {short} dihapus.",
   "cost.folder_hint.on": "{source}: nama folder terakhir tiap proyek disimpan di komputer ini untuk mengisi labelnya lebih dulu.",
-  "cost.folder_hint.off": "{source}: nama folder tidak lagi disimpan; {removed} dihapus.",
+  "cost.folder_hint.off": {
+    "other": "{source}: nama folder tidak lagi disimpan; {count} dihapus."
+  },
   "cost.error.invalid_label": "Label berisi 1 sampai {max} karakter.",
   "cost.error.unknown_prefix": "Tidak ada sesi atau proyek yang diawali prefiks itu (minimal {min} karakter heksadesimal).",
   "cost.error.ambiguous_prefix": "Lebih dari satu sesi atau proyek diawali prefiks itu; ketik lebih banyak karakter.",
@@ -2397,5 +2403,45 @@
   "doctor.title.cost_pricing": "Harga lokal (pricing.json)",
   "doctor.cost_pricing.none": "Tidak ada pricing.json; harga bawaan yang dipakai.",
   "doctor.cost_pricing.ok": "File valid dan diutamakan di atas harga bawaan.",
-  "doctor.fix.cost_pricing": "Perbaiki atau hapus pricing.json; hanya harga bawaan yang dipakai."
+  "doctor.fix.cost_pricing": "Perbaiki atau hapus pricing.json; hanya harga bawaan yang dipakai.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + tidak diketahui",
+  "cost.rate.age.today": "ditetapkan hari ini",
+  "cost.rate.age.yesterday": "ditetapkan kemarin",
+  "cost.rate.age.days": {
+    "other": "ditetapkan {count} hari lalu"
+  },
+  "cost.error.rate_too_small": "Kurs terlalu kecil: gunakan minimal 0.000001.",
+  "cost.block.sessions": {
+    "other": "{count} sesi"
+  },
+  "cost.block.projects": {
+    "other": "{count} proyek"
+  },
+  "cost.plan.estimate": "≈ {amount} pada harga API (perkiraan)",
+  "cost.plan.estimate_partial": "≈ {amount} pada harga API untuk model yang memiliki harga (perkiraan)",
+  "cost.plan.single": "{source}: {estimate} · paket {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · paket {plans}",
+  "cost.plan.combined_side": {
+    "other": "{source}, {count} akun digabung: {estimate} · paket {plans}"
+  },
+  "cost.plan.combined_some": {
+    "other": "{source}, {count} akun digabung: {estimate} · paket dari {planned} di antaranya: {plans}; log tidak dapat dipisahkan, jadi tidak ada rasio"
+  },
+  "cost.plan.combined_label": {
+    "other": "{source}, {count} akun digabung"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ {ratio}× harga paket",
+  "cost.plan.times_rate": "≈ {ratio}× harga paket, pada kurs Anda",
+  "cost.plan.times_plans": "≈ {ratio}× total harga paket",
+  "cost.plan.times_plans_rate": "≈ {ratio}× total harga paket, pada kurs Anda",
+  "cost.plan.share": "≈ {percent}% dari harga paket",
+  "cost.plan.share_rate": "≈ {percent}% dari harga paket, pada kurs Anda",
+  "cost.plan.share_plans": "≈ {percent}% dari total harga paket",
+  "cost.plan.share_plans_rate": "≈ {percent}% dari total harga paket, pada kurs Anda",
+  "cost.plan.share_small": "kurang dari 1% harga paket",
+  "cost.plan.share_small_rate": "kurang dari 1% harga paket, pada kurs Anda",
+  "cost.plan.share_small_plans": "kurang dari 1% total harga paket",
+  "cost.plan.share_small_plans_rate": "kurang dari 1% total harga paket, pada kurs Anda"
 }

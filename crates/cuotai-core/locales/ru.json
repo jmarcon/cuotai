@@ -312,7 +312,12 @@
   "config.warning.unknown_key": "{path} неизвестно этой версии Cuotai; оно игнорируется и сохраняется при записи файла.",
   "cost.confirm.answer": "да",
   "cost.confirm.question": "Чтобы включить, введите «{answer}» и нажмите Enter (любой другой ответ — отказ):",
-  "cost.disabled": "{source} выключен; удалено производных записей: {removed}.",
+  "cost.disabled": {
+    "one": "{source} выключен; удалена {count} производная запись.",
+    "few": "{source} выключен; удалены {count} производные записи.",
+    "many": "{source} выключен; удалено {count} производных записей.",
+    "other": "{source} выключен; удалено {count} производной записи."
+  },
   "cost.disclosure.accept": "Включить чтение",
   "cost.disclosure.directories": "Читает только файлы {pattern} из этих каталогов:",
   "cost.disclosure.directory": "{path}",
@@ -321,10 +326,15 @@
   "cost.disclosure.never_v2": "Содержимое разговоров, промпты, ответы, имена файлов и пути проектов никогда не считываются в индекс, не сохраняются и не показываются; последнее имя папки проекта хранится, только если вы это включите. Ничто не покидает этот компьютер.",
   "cost.disclosure.off": "Выключение источника прекращает любое чтение и удаляет всё, что было из него получено.",
   "cost.disclosure.purpose": "Чтобы оценить только на этом компьютере токены и расходы по ценам API для использования {source} по дням и моделям.",
-  "cost.display.line": "≈ {amount} по вашему курсу (задан {days} дн. назад)",
-  "cost.display.line_stale": "≈ {amount} по вашему курсу (задан {days} дн. назад); обновите курс",
+  "cost.display.line": "≈ {amount} по вашему курсу ({age})",
+  "cost.display.line_stale": "≈ {amount} по вашему курсу ({age}); обновите курс",
   "cost.enabled": "{source} включён. Логи читаются в фоне, пока открыт TUI или приложение для компьютера, либо сразу командой cuotai --cost-scan.",
-  "cost.erased": "Индекс локальных расходов удалён: записей: {removed}.",
+  "cost.erased": {
+    "one": "Индекс локальных расходов удалён: {count} запись.",
+    "few": "Индекс локальных расходов удалён: {count} записи.",
+    "many": "Индекс локальных расходов удалён: {count} записей.",
+    "other": "Индекс локальных расходов удалён: {count} записи."
+  },
   "cost.error.consent_changed": "Каталоги этого источника изменились после показа; проверьте и подтвердите снова.",
   "cost.error.days_bounds": "Количество дней — от {min} до {max}.",
   "cost.error.declined": "Источник не включён; ни один лог не прочитан.",
@@ -347,11 +357,12 @@
   "cost.period.last_30_days": "Последние 30 дней",
   "cost.period.last_7_days": "Последние 7 дней",
   "cost.period.today": "Сегодня",
-  "cost.plan.combined": "Записи {source}",
-  "cost.plan.partial": "{amount}, без моделей без цены",
-  "cost.plan.ratio": "{source}: ≈ {estimate} по ценам API (оценка) · тариф {plans} · ≈ {ratio}× цены тарифа",
-  "cost.plan.ratio_rate": "{source}: ≈ {estimate} по ценам API (оценка) · тариф {plans} · ≈ {ratio}× цены тарифа, по вашему курсу",
-  "cost.plan.side": "{source}: ≈ {estimate} по ценам API (оценка) · тариф {plans}",
+  "cost.plan.combined": {
+    "one": "{source}, {count} аккаунт вместе: {estimate} · тарифы {plans} · {value}",
+    "few": "{source}, {count} аккаунта вместе: {estimate} · тарифы {plans} · {value}",
+    "many": "{source}, {count} аккаунтов вместе: {estimate} · тарифы {plans} · {value}",
+    "other": "{source}, {count} аккаунта вместе: {estimate} · тарифы {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: расходы по ценам API неизвестны (модели без цены) · тариф {plans}",
   "cost.prices.age": "Цены {days} дн. назад",
   "cost.prices.unpriced": "Нет цены для: {models}",
@@ -432,12 +443,22 @@
   "cost.block.local_estimate": "Локальная оценка",
   "cost.block.active": "активен",
   "cost.block.closed": "завершён",
-  "cost.block.line": "{source} · {window} · {state} · сеансов: {sessions}, проектов: {projects}",
-  "cost.block.hours_saved": "{source}: блоки по {hours} ч.",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "one": "{source}: блоки по {count} часу.",
+    "few": "{source}: блоки по {count} часа.",
+    "many": "{source}: блоки по {count} часов.",
+    "other": "{source}: блоки по {count} часа."
+  },
   "cost.label.saved": "Метка {short} сохранена в локальном индексе затрат.",
   "cost.label.removed": "Метка {short} удалена.",
   "cost.folder_hint.on": "{source}: последнее имя папки каждого проекта хранится на этом компьютере, чтобы подставить метку.",
-  "cost.folder_hint.off": "{source}: имена папок больше не хранятся; удалено: {removed}.",
+  "cost.folder_hint.off": {
+    "one": "{source}: имена папок больше не хранятся; удалено {count} имя.",
+    "few": "{source}: имена папок больше не хранятся; удалено {count} имени.",
+    "many": "{source}: имена папок больше не хранятся; удалено {count} имён.",
+    "other": "{source}: имена папок больше не хранятся; удалено {count} имени."
+  },
   "cost.error.invalid_label": "Метка содержит от 1 до {max} символов.",
   "cost.error.unknown_prefix": "Ни один сеанс или проект не начинается с этого префикса (не менее {min} шестнадцатеричных символов).",
   "cost.error.ambiguous_prefix": "С этого префикса начинается несколько сеансов или проектов; введите больше символов.",
@@ -2457,5 +2478,63 @@
   "doctor.title.cost_pricing": "Локальные цены (pricing.json)",
   "doctor.cost_pricing.none": "Файла pricing.json нет; используются встроенные цены.",
   "doctor.cost_pricing.ok": "Файл действителен и имеет приоритет над встроенными ценами.",
-  "doctor.fix.cost_pricing": "Исправьте или удалите pricing.json; используются только встроенные цены."
+  "doctor.fix.cost_pricing": "Исправьте или удалите pricing.json; используются только встроенные цены.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + неизвестно",
+  "cost.rate.age.today": "задан сегодня",
+  "cost.rate.age.yesterday": "задан вчера",
+  "cost.rate.age.days": {
+    "one": "задан {count} день назад",
+    "few": "задан {count} дня назад",
+    "many": "задан {count} дней назад",
+    "other": "задан {count} дня назад"
+  },
+  "cost.error.rate_too_small": "Курс слишком мал: укажите не меньше 0.000001.",
+  "cost.block.sessions": {
+    "one": "{count} сеанс",
+    "few": "{count} сеанса",
+    "many": "{count} сеансов",
+    "other": "{count} сеанса"
+  },
+  "cost.block.projects": {
+    "one": "{count} проект",
+    "few": "{count} проекта",
+    "many": "{count} проектов",
+    "other": "{count} проекта"
+  },
+  "cost.plan.estimate": "≈ {amount} по ценам API (оценка)",
+  "cost.plan.estimate_partial": "≈ {amount} по ценам API для моделей с ценой (оценка)",
+  "cost.plan.single": "{source}: {estimate} · тариф {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · тариф {plans}",
+  "cost.plan.combined_side": {
+    "one": "{source}, {count} аккаунт вместе: {estimate} · тарифы {plans}",
+    "few": "{source}, {count} аккаунта вместе: {estimate} · тарифы {plans}",
+    "many": "{source}, {count} аккаунтов вместе: {estimate} · тарифы {plans}",
+    "other": "{source}, {count} аккаунта вместе: {estimate} · тарифы {plans}"
+  },
+  "cost.plan.combined_some": {
+    "one": "{source}, {count} аккаунт вместе: {estimate} · тарифы {planned} из них: {plans}; логи нельзя разделить, поэтому соотношения нет",
+    "few": "{source}, {count} аккаунта вместе: {estimate} · тарифы {planned} из них: {plans}; логи нельзя разделить, поэтому соотношения нет",
+    "many": "{source}, {count} аккаунтов вместе: {estimate} · тарифы {planned} из них: {plans}; логи нельзя разделить, поэтому соотношения нет",
+    "other": "{source}, {count} аккаунта вместе: {estimate} · тарифы {planned} из них: {plans}; логи нельзя разделить, поэтому соотношения нет"
+  },
+  "cost.plan.combined_label": {
+    "one": "{source}, {count} аккаунт вместе",
+    "few": "{source}, {count} аккаунта вместе",
+    "many": "{source}, {count} аккаунтов вместе",
+    "other": "{source}, {count} аккаунта вместе"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ {ratio}× цены тарифа",
+  "cost.plan.times_rate": "≈ {ratio}× цены тарифа, по вашему курсу",
+  "cost.plan.times_plans": "≈ {ratio}× цены тарифов",
+  "cost.plan.times_plans_rate": "≈ {ratio}× цены тарифов, по вашему курсу",
+  "cost.plan.share": "≈ {percent}% цены тарифа",
+  "cost.plan.share_rate": "≈ {percent}% цены тарифа, по вашему курсу",
+  "cost.plan.share_plans": "≈ {percent}% цены тарифов",
+  "cost.plan.share_plans_rate": "≈ {percent}% цены тарифов, по вашему курсу",
+  "cost.plan.share_small": "менее 1% цены тарифа",
+  "cost.plan.share_small_rate": "менее 1% цены тарифа, по вашему курсу",
+  "cost.plan.share_small_plans": "менее 1% цены тарифов",
+  "cost.plan.share_small_plans_rate": "менее 1% цены тарифов, по вашему курсу"
 }

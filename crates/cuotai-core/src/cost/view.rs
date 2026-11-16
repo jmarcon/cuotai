@@ -144,6 +144,12 @@ pub struct SourceUsage {
     /// everything, to today), days without usage included with zero
     /// tokens. Empty when the span has no usage.
     pub days: Vec<DayCost>,
+    /// PRD 0030 C-06: this source's models with tokens in the span and no
+    /// price (the summary-wide list is [`CostSummary::unpriced_models`]).
+    pub unpriced_models: Vec<String>,
+    /// "No price for: a, b" for this source; `null` when every model of it
+    /// has a price.
+    pub unpriced: Option<Localized>,
 }
 
 /// One source in a [`CostSummary`].
@@ -335,7 +341,8 @@ pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
         .into_iter()
         .map(|source| source_cost(source, input, &span_rows, yesterday))
         .collect();
-    let total = estimate(&span_rows, input.prices);
+    let mut total = estimate(&span_rows, input.prices);
+    date_tables(&mut total, today);
     let prices_effective = total.tables.iter().map(|table| table.effective).min();
     let prices_age_days = prices_effective.and_then(|date| days_since(date, today));
     let unpriced_models: Vec<String> = total.unknown_models().map(str::to_owned).collect();
@@ -462,16 +469,51 @@ fn source_cost(
         input.today,
         input.prices,
     );
+    let mut usage = SourceUsage {
+        today: estimate(&of_day(input.today), input.prices),
+        yesterday: estimate(&of_day(yesterday), input.prices),
+        period: estimate(&rows, input.prices),
+        days,
+        unpriced_models: Vec::new(),
+        unpriced: None,
+    };
+    for estimate in [&mut usage.today, &mut usage.yesterday, &mut usage.period] {
+        date_tables(estimate, input.today);
+    }
+    usage.unpriced_models = usage.period.unknown_models().map(str::to_owned).collect();
+    usage.unpriced =
+        (!usage.unpriced_models.is_empty()).then(|| unpriced_text(&usage.unpriced_models));
     SourceCost {
         state,
         note,
-        usage: Some(SourceUsage {
-            today: estimate(&of_day(input.today), input.prices),
-            yesterday: estimate(&of_day(yesterday), input.prices),
-            period: estimate(&rows, input.prices),
-            days,
-        }),
+        usage: Some(usage),
         ..base
+    }
+}
+
+/// PRD 0030 C-06: each price table of `estimate` with its age on `today`
+/// and, from [`PRICE_AGE_NOTICE_DAYS`] days on, its "Prices from N days
+/// ago", so the age sits on the table it belongs to.
+fn date_tables(estimate: &mut Estimate, today: NaiveDate) {
+    for table in &mut estimate.tables {
+        table.age_days = table.age(today);
+        table.age = table
+            .age_days
+            .filter(|days| *days >= PRICE_AGE_NOTICE_DAYS)
+            .map(prices_age_text);
+    }
+}
+
+impl SourceUsage {
+    /// C-06: the oldest "Prices from N days ago" of the tables that priced
+    /// this source's span, if any is old enough to say so.
+    pub fn prices_age(&self) -> Option<&Localized> {
+        self.period
+            .tables
+            .iter()
+            .filter(|table| table.age.is_some())
+            .max_by_key(|table| table.age_days)
+            .and_then(|table| table.age.as_ref())
     }
 }
 
@@ -657,7 +699,7 @@ pub fn usage_line(
             params([
                 ("label", label),
                 ("tokens", count.as_str().into()),
-                ("cost", cost.to_string().into()),
+                ("cost", ParamValue::l10n(cost.money())),
                 ("unknown", hidden.as_str().into()),
             ]),
             "{label}: {tokens} tokens · {cost} + unknown cost of {unknown} tokens",
@@ -667,7 +709,7 @@ pub fn usage_line(
             params([
                 ("label", label),
                 ("tokens", count.as_str().into()),
-                ("cost", cost.to_string().into()),
+                ("cost", ParamValue::l10n(cost.money())),
             ]),
             "{label}: {tokens} tokens · {cost}",
         ),
@@ -905,6 +947,63 @@ mod tests {
         assert!(none.unpriced.is_none() && none.prices_age_days.is_none());
     }
 
+    /// C-06: each source names only its own unpriced models, and a price
+    /// table's age sits on that table, never on a source it did not price.
+    #[test]
+    fn unpriced_models_and_price_age_belong_to_their_source() {
+        let rate = Rate::usd_per_million(1.0).unwrap();
+        let rates = Rates {
+            input: rate,
+            output: rate,
+            cache_read: rate,
+            cache_write: rate,
+            cache_write_1h: None,
+        };
+        let table = |days: i64, model: &str| PriceTable {
+            currency: CURRENCY,
+            effective: day(20) - Days::days(days),
+            source: None,
+            models: [(model.to_owned(), rates)].into(),
+        };
+        // The embedded table is fresh; the user's prices only a Claude model.
+        let prices = Prices::with_tables(table(1, "gpt-known"), Some(table(319, "claude-mine")));
+        let usage = [
+            row(SourceId::ClaudeCode, 20, "claude-mine", 1_000),
+            row(SourceId::ClaudeCode, 20, "claude-mystery", 1_000),
+            row(SourceId::CodexCli, 20, "gpt-known", 1_000),
+            row(SourceId::GeminiCli, 20, "gemini-mystery", 1_000),
+        ];
+        let s = summarize(&SummaryInput {
+            today: day(20),
+            span: Span::Period(Period::Today),
+            enabled: &SourceId::ALL,
+            usage: &usage,
+            prices: &prices,
+            pricing_error: None,
+            last: None,
+        });
+        let usage_of = |source| s.source(source).unwrap().usage.as_ref().unwrap();
+        assert_eq!(
+            usage_of(SourceId::ClaudeCode).unpriced_models,
+            ["claude-mystery"]
+        );
+        assert_eq!(
+            usage_of(SourceId::GeminiCli).unpriced_models,
+            ["gemini-mystery"]
+        );
+        assert!(usage_of(SourceId::CodexCli).unpriced.is_none());
+        assert_eq!(
+            usage_of(SourceId::ClaudeCode)
+                .prices_age()
+                .unwrap()
+                .fallback,
+            "Prices from 319 days ago"
+        );
+        assert!(usage_of(SourceId::CodexCli).prices_age().is_none());
+        assert!(usage_of(SourceId::GeminiCli).prices_age().is_none());
+        assert_eq!(s.unpriced_models, ["claude-mystery", "gemini-mystery"]);
+    }
+
     #[test]
     fn today_yesterday_and_the_span_split_by_local_day_and_source() {
         let claude = SourceId::ClaudeCode;
@@ -1026,7 +1125,7 @@ mod tests {
         );
         assert_eq!(
             partial.resolve("en-US"),
-            "Today: 2K tokens · <$0.01 + unknown cost of 1K tokens"
+            "Today: 2K tokens · < $0.01 + unknown cost of 1K tokens"
         );
         let unknown = usage_line("Today", &tokens(950), None, &tokens(950));
         assert_eq!(

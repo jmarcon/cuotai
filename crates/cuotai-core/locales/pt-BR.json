@@ -305,7 +305,10 @@
   "config.warning.unknown_key": "{path} não é conhecido por esta versão do Cuotai; é ignorado e mantido quando o arquivo é salvo.",
   "cost.confirm.answer": "sim",
   "cost.confirm.question": "Para ligar, digite \"{answer}\" e Enter (qualquer outra resposta recusa):",
-  "cost.disabled": "{source} desligado; {removed} registro(s) derivado(s) apagado(s).",
+  "cost.disabled": {
+    "one": "{source} desligado; {count} registro derivado apagado.",
+    "other": "{source} desligado; {count} registros derivados apagados."
+  },
   "cost.disclosure.accept": "Ligar a leitura",
   "cost.disclosure.directories": "Lê apenas os arquivos {pattern} destes diretórios:",
   "cost.disclosure.directory": "{path}",
@@ -314,10 +317,13 @@
   "cost.disclosure.never_v2": "O conteúdo das conversas, prompts, respostas, nomes de arquivos e caminhos de projeto nunca são lidos no índice, guardados ou exibidos; o último nome de pasta de um projeto só é guardado se você ativar isso. Nada sai deste computador.",
   "cost.disclosure.off": "Desligar a fonte interrompe qualquer leitura e apaga tudo o que foi derivado dela.",
   "cost.disclosure.purpose": "Para estimar, só neste computador, os tokens e o custo a preços de API do uso do {source} por dia e por modelo.",
-  "cost.display.line": "≈ {amount} no seu câmbio (definido há {days} dias)",
-  "cost.display.line_stale": "≈ {amount} no seu câmbio (definido há {days} dias); atualize o câmbio",
+  "cost.display.line": "≈ {amount} no seu câmbio ({age})",
+  "cost.display.line_stale": "≈ {amount} no seu câmbio ({age}); atualize o câmbio",
   "cost.enabled": "{source} ligado. Os logs são lidos em segundo plano enquanto a TUI ou o app desktop estão abertos, ou agora com cuotai --cost-scan.",
-  "cost.erased": "Índice de custo local apagado: {removed} registro(s).",
+  "cost.erased": {
+    "one": "Índice de custo local apagado: {count} registro.",
+    "other": "Índice de custo local apagado: {count} registros."
+  },
   "cost.error.consent_changed": "Os diretórios desta fonte mudaram desde que foram exibidos; revise e confirme de novo.",
   "cost.error.days_bounds": "O número de dias vai de {min} a {max}.",
   "cost.error.declined": "Fonte não ligada; nenhum log foi lido.",
@@ -340,11 +346,10 @@
   "cost.period.last_30_days": "Últimos 30 dias",
   "cost.period.last_7_days": "Últimos 7 dias",
   "cost.period.today": "Hoje",
-  "cost.plan.combined": "Contas do {source}",
-  "cost.plan.partial": "{amount}, sem os modelos sem preço",
-  "cost.plan.ratio": "{source}: ≈ {estimate} a preços de API (estimativa) · plano {plans} · ≈ {ratio}× o preço do plano",
-  "cost.plan.ratio_rate": "{source}: ≈ {estimate} a preços de API (estimativa) · plano {plans} · ≈ {ratio}× o preço do plano, no seu câmbio",
-  "cost.plan.side": "{source}: ≈ {estimate} a preços de API (estimativa) · plano {plans}",
+  "cost.plan.combined": {
+    "one": "{source}, {count} conta combinada: {estimate} · planos {plans} · {value}",
+    "other": "{source}, {count} contas combinadas: {estimate} · planos {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: custo a preços de API desconhecido (modelos sem preço) · plano {plans}",
   "cost.prices.age": "Preços de {days} dias atrás",
   "cost.prices.unpriced": "Sem preço para: {models}",
@@ -417,12 +422,18 @@
   "cost.block.local_estimate": "Estimativa local",
   "cost.block.active": "ativo",
   "cost.block.closed": "encerrado",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} sessão(ões), {projects} projeto(s)",
-  "cost.block.hours_saved": "{source}: blocos de {hours} hora(s).",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "one": "{source}: blocos de {count} hora.",
+    "other": "{source}: blocos de {count} horas."
+  },
   "cost.label.saved": "Rótulo de {short} salvo no índice local de custos.",
   "cost.label.removed": "Rótulo de {short} removido.",
   "cost.folder_hint.on": "{source}: o último nome de pasta de cada projeto fica guardado neste computador para preencher o rótulo.",
-  "cost.folder_hint.off": "{source}: nomes de pasta não são mais guardados; {removed} apagado(s).",
+  "cost.folder_hint.off": {
+    "one": "{source}: nomes de pasta não são mais guardados; {count} apagado.",
+    "other": "{source}: nomes de pasta não são mais guardados; {count} apagados."
+  },
   "cost.error.invalid_label": "Um rótulo tem de 1 a {max} caracteres.",
   "cost.error.unknown_prefix": "Nenhuma sessão ou projeto começa com esse prefixo (pelo menos {min} caracteres hexadecimais).",
   "cost.error.ambiguous_prefix": "Mais de uma sessão ou projeto começa com esse prefixo; digite mais caracteres.",
@@ -2414,5 +2425,51 @@
   "doctor.title.cost_pricing": "Preços locais (pricing.json)",
   "doctor.cost_pricing.none": "Sem pricing.json; os preços embutidos são usados.",
   "doctor.cost_pricing.ok": "É válido e tem precedência sobre os preços embutidos.",
-  "doctor.fix.cost_pricing": "Corrija ou remova o pricing.json; só os preços embutidos são usados."
+  "doctor.fix.cost_pricing": "Corrija ou remova o pricing.json; só os preços embutidos são usados.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + desconhecido",
+  "cost.rate.age.today": "definido hoje",
+  "cost.rate.age.yesterday": "definido ontem",
+  "cost.rate.age.days": {
+    "one": "definido há {count} dia",
+    "other": "definido há {count} dias"
+  },
+  "cost.error.rate_too_small": "O câmbio é pequeno demais: use pelo menos 0.000001.",
+  "cost.block.sessions": {
+    "one": "{count} sessão",
+    "other": "{count} sessões"
+  },
+  "cost.block.projects": {
+    "one": "{count} projeto",
+    "other": "{count} projetos"
+  },
+  "cost.plan.estimate": "≈ {amount} a preços de API (estimativa)",
+  "cost.plan.estimate_partial": "≈ {amount} a preços de API para os modelos com preço (estimativa)",
+  "cost.plan.single": "{source}: {estimate} · plano {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · plano {plans}",
+  "cost.plan.combined_side": {
+    "one": "{source}, {count} conta combinada: {estimate} · planos {plans}",
+    "other": "{source}, {count} contas combinadas: {estimate} · planos {plans}"
+  },
+  "cost.plan.combined_some": {
+    "one": "{source}, {count} conta combinada: {estimate} · planos de {planned} delas: {plans}; os logs não podem ser separados, então não há proporção",
+    "other": "{source}, {count} contas combinadas: {estimate} · planos de {planned} delas: {plans}; os logs não podem ser separados, então não há proporção"
+  },
+  "cost.plan.combined_label": {
+    "one": "{source}, {count} conta combinada",
+    "other": "{source}, {count} contas combinadas"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ {ratio}× o preço do plano",
+  "cost.plan.times_rate": "≈ {ratio}× o preço do plano, no seu câmbio",
+  "cost.plan.times_plans": "≈ {ratio}× o preço dos planos",
+  "cost.plan.times_plans_rate": "≈ {ratio}× o preço dos planos, no seu câmbio",
+  "cost.plan.share": "≈ {percent}% do preço do plano",
+  "cost.plan.share_rate": "≈ {percent}% do preço do plano, no seu câmbio",
+  "cost.plan.share_plans": "≈ {percent}% do preço dos planos",
+  "cost.plan.share_plans_rate": "≈ {percent}% do preço dos planos, no seu câmbio",
+  "cost.plan.share_small": "menos de 1% do preço do plano",
+  "cost.plan.share_small_rate": "menos de 1% do preço do plano, no seu câmbio",
+  "cost.plan.share_small_plans": "menos de 1% do preço dos planos",
+  "cost.plan.share_small_plans_rate": "menos de 1% do preço dos planos, no seu câmbio"
 }

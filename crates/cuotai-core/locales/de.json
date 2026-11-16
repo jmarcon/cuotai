@@ -308,7 +308,10 @@
   "config.warning.unknown_key": "{path} ist dieser Cuotai-Version unbekannt; es wird ignoriert und beim Speichern der Datei beibehalten.",
   "cost.confirm.answer": "ja",
   "cost.confirm.question": "Geben Sie zum Einschalten „{answer}“ ein und drücken Sie Enter (jede andere Antwort lehnt ab):",
-  "cost.disabled": "{source} ausgeschaltet; {removed} abgeleitete(r) Datensatz/Datensätze gelöscht.",
+  "cost.disabled": {
+    "one": "{source} ausgeschaltet; {count} abgeleiteter Datensatz gelöscht.",
+    "other": "{source} ausgeschaltet; {count} abgeleitete Datensätze gelöscht."
+  },
   "cost.disclosure.accept": "Lesen einschalten",
   "cost.disclosure.directories": "Liest nur die {pattern}-Dateien dieser Verzeichnisse:",
   "cost.disclosure.directory": "{path}",
@@ -317,10 +320,13 @@
   "cost.disclosure.never_v2": "Der Inhalt von Gesprächen, Prompts, Antworten, Dateinamen und Projektpfaden wird nie für den Index gelesen, gespeichert oder angezeigt; der letzte Ordnername eines Projekts wird nur gespeichert, wenn Sie das einschalten. Nichts verlässt den Computer.",
   "cost.disclosure.off": "Das Ausschalten der Quelle beendet jedes Lesen und löscht alles, was daraus abgeleitet wurde.",
   "cost.disclosure.purpose": "Um nur auf diesem Computer die Tokens und die Kosten zu API-Preisen der Nutzung von {source} pro Tag und Modell zu schätzen.",
-  "cost.display.line": "≈ {amount} zu Ihrem Kurs (festgelegt vor {days} Tagen)",
-  "cost.display.line_stale": "≈ {amount} zu Ihrem Kurs (festgelegt vor {days} Tagen); aktualisieren Sie den Kurs",
+  "cost.display.line": "≈ {amount} zu Ihrem Kurs ({age})",
+  "cost.display.line_stale": "≈ {amount} zu Ihrem Kurs ({age}); aktualisieren Sie den Kurs",
   "cost.enabled": "{source} eingeschaltet. Die Logs werden im Hintergrund gelesen, solange die TUI oder die Desktop-App geöffnet ist, oder jetzt mit cuotai --cost-scan.",
-  "cost.erased": "Lokaler Kostenindex gelöscht: {removed} Datensatz/Datensätze.",
+  "cost.erased": {
+    "one": "Lokaler Kostenindex gelöscht: {count} Datensatz.",
+    "other": "Lokaler Kostenindex gelöscht: {count} Datensätze."
+  },
   "cost.error.consent_changed": "Die Verzeichnisse dieser Quelle haben sich seit der Anzeige geändert; prüfen und bestätigen Sie erneut.",
   "cost.error.days_bounds": "Die Anzahl der Tage reicht von {min} bis {max}.",
   "cost.error.declined": "Quelle nicht eingeschaltet; es wurde kein Log gelesen.",
@@ -343,11 +349,10 @@
   "cost.period.last_30_days": "Letzte 30 Tage",
   "cost.period.last_7_days": "Letzte 7 Tage",
   "cost.period.today": "Heute",
-  "cost.plan.combined": "Konten von {source}",
-  "cost.plan.partial": "{amount}, ohne Modelle ohne Preis",
-  "cost.plan.ratio": "{source}: ≈ {estimate} zu API-Preisen (Schätzung) · Tarif {plans} · ≈ {ratio}× der Tarifpreis",
-  "cost.plan.ratio_rate": "{source}: ≈ {estimate} zu API-Preisen (Schätzung) · Tarif {plans} · ≈ {ratio}× der Tarifpreis, zu Ihrem Kurs",
-  "cost.plan.side": "{source}: ≈ {estimate} zu API-Preisen (Schätzung) · Tarif {plans}",
+  "cost.plan.combined": {
+    "one": "{source}, {count} Konto zusammengefasst: {estimate} · Tarife {plans} · {value}",
+    "other": "{source}, {count} Konten zusammengefasst: {estimate} · Tarife {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: Kosten zu API-Preisen unbekannt (Modelle ohne Preis) · Tarif {plans}",
   "cost.prices.age": "Preise von vor {days} Tagen",
   "cost.prices.unpriced": "Kein Preis für: {models}",
@@ -420,12 +425,18 @@
   "cost.block.local_estimate": "Lokale Schätzung",
   "cost.block.active": "aktiv",
   "cost.block.closed": "abgeschlossen",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} Sitzung(en), {projects} Projekt(e)",
-  "cost.block.hours_saved": "{source}: Blöcke von {hours} Stunde(n).",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "one": "{source}: Blöcke von {count} Stunde.",
+    "other": "{source}: Blöcke von {count} Stunden."
+  },
   "cost.label.saved": "Bezeichnung von {short} im lokalen Kostenindex gespeichert.",
   "cost.label.removed": "Bezeichnung von {short} entfernt.",
   "cost.folder_hint.on": "{source}: Der letzte Ordnername jedes Projekts wird auf diesem Computer gespeichert, um seine Bezeichnung vorzuschlagen.",
-  "cost.folder_hint.off": "{source}: Ordnernamen werden nicht mehr gespeichert; {removed} gelöscht.",
+  "cost.folder_hint.off": {
+    "one": "{source}: Ordnernamen werden nicht mehr gespeichert; {count} gelöscht.",
+    "other": "{source}: Ordnernamen werden nicht mehr gespeichert; {count} gelöscht."
+  },
   "cost.error.invalid_label": "Eine Bezeichnung hat 1 bis {max} Zeichen.",
   "cost.error.unknown_prefix": "Keine Sitzung und kein Projekt beginnt mit diesem Präfix (mindestens {min} Hexadezimalzeichen).",
   "cost.error.ambiguous_prefix": "Mehr als eine Sitzung oder ein Projekt beginnt mit diesem Präfix; tippen Sie mehr Zeichen.",
@@ -2417,5 +2428,51 @@
   "doctor.title.cost_pricing": "Lokale Preise (pricing.json)",
   "doctor.cost_pricing.none": "Keine pricing.json; die eingebauten Preise werden verwendet.",
   "doctor.cost_pricing.ok": "Sie ist gültig und hat Vorrang vor den eingebauten Preisen.",
-  "doctor.fix.cost_pricing": "Korrigieren oder entfernen Sie pricing.json; nur die eingebauten Preise werden verwendet."
+  "doctor.fix.cost_pricing": "Korrigieren oder entfernen Sie pricing.json; nur die eingebauten Preise werden verwendet.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + unbekannt",
+  "cost.rate.age.today": "heute festgelegt",
+  "cost.rate.age.yesterday": "gestern festgelegt",
+  "cost.rate.age.days": {
+    "one": "vor {count} Tag festgelegt",
+    "other": "vor {count} Tagen festgelegt"
+  },
+  "cost.error.rate_too_small": "Der Kurs ist zu klein: Verwenden Sie mindestens 0.000001.",
+  "cost.block.sessions": {
+    "one": "{count} Sitzung",
+    "other": "{count} Sitzungen"
+  },
+  "cost.block.projects": {
+    "one": "{count} Projekt",
+    "other": "{count} Projekte"
+  },
+  "cost.plan.estimate": "≈ {amount} zu API-Preisen (Schätzung)",
+  "cost.plan.estimate_partial": "≈ {amount} zu API-Preisen für die Modelle mit Preis (Schätzung)",
+  "cost.plan.single": "{source}: {estimate} · Tarif {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · Tarif {plans}",
+  "cost.plan.combined_side": {
+    "one": "{source}, {count} Konto zusammengefasst: {estimate} · Tarife {plans}",
+    "other": "{source}, {count} Konten zusammengefasst: {estimate} · Tarife {plans}"
+  },
+  "cost.plan.combined_some": {
+    "one": "{source}, {count} Konto zusammengefasst: {estimate} · Tarife von {planned} davon: {plans}; die Logs lassen sich nicht aufteilen, daher gibt es kein Verhältnis",
+    "other": "{source}, {count} Konten zusammengefasst: {estimate} · Tarife von {planned} davon: {plans}; die Logs lassen sich nicht aufteilen, daher gibt es kein Verhältnis"
+  },
+  "cost.plan.combined_label": {
+    "one": "{source}, {count} Konto zusammengefasst",
+    "other": "{source}, {count} Konten zusammengefasst"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ {ratio}× der Tarifpreis",
+  "cost.plan.times_rate": "≈ {ratio}× der Tarifpreis, zu Ihrem Kurs",
+  "cost.plan.times_plans": "≈ {ratio}× der Preis der Tarife",
+  "cost.plan.times_plans_rate": "≈ {ratio}× der Preis der Tarife, zu Ihrem Kurs",
+  "cost.plan.share": "≈ {percent}% des Tarifpreises",
+  "cost.plan.share_rate": "≈ {percent}% des Tarifpreises, zu Ihrem Kurs",
+  "cost.plan.share_plans": "≈ {percent}% des Preises der Tarife",
+  "cost.plan.share_plans_rate": "≈ {percent}% des Preises der Tarife, zu Ihrem Kurs",
+  "cost.plan.share_small": "weniger als 1% des Tarifpreises",
+  "cost.plan.share_small_rate": "weniger als 1% des Tarifpreises, zu Ihrem Kurs",
+  "cost.plan.share_small_plans": "weniger als 1% des Preises der Tarife",
+  "cost.plan.share_small_plans_rate": "weniger als 1% des Preises der Tarife, zu Ihrem Kurs"
 }

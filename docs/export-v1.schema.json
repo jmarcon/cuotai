@@ -590,7 +590,8 @@
         "unpriced": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The localized 'No price for: ...' text (additive)." },
         "blocks": { "type": "array", "items": { "$ref": "#/$defs/CostBlock" }, "description": "PRD 0042 RF7 (additive, absent when empty): the computed 5-hour blocks of the last 7 days, newest first." },
         "live": { "type": "array", "items": { "$ref": "#/$defs/CostLiveBlock" }, "description": "PRD 0042 RF3.3 (additive, absent when empty): the active block of each source with its burn rate and projection." },
-        "projects": { "type": "array", "items": { "$ref": "#/$defs/CostProject" }, "description": "PRD 0042 RF7 (additive, absent when empty): the projects of the span that are not hidden; never a folder name." }
+        "projects": { "type": "array", "items": { "$ref": "#/$defs/CostProject" }, "description": "PRD 0042 RF7 (additive, absent when empty): the projects of the span that are not hidden; never a folder name." },
+        "settings_notes": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "PRD 0030 (additive, absent when empty): saved plan prices or a second currency that were invalid and ignored, counted only; nothing of the file is repeated." }
       }
     },
     "CostBlock": {
@@ -672,7 +673,9 @@
         "today": { "$ref": "#/$defs/CostEstimate" },
         "yesterday": { "$ref": "#/$defs/CostEstimate" },
         "period": { "$ref": "#/$defs/CostEstimate", "description": "The span; its models are the breakdown by model." },
-        "days": { "type": "array", "items": { "$ref": "#/$defs/CostDay" }, "description": "Every local day of the span, oldest first, days without usage at zero; empty without usage." }
+        "days": { "type": "array", "items": { "$ref": "#/$defs/CostDay" }, "description": "Every local day of the span, oldest first, days without usage at zero; empty without usage." },
+        "unpriced_models": { "type": "array", "items": { "type": "string" }, "description": "PRD 0030 (additive): this source's models with tokens in the span and no known price." },
+        "unpriced": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "PRD 0030 (additive): the localized 'No price for: ...' text of this source." }
       }
     },
     "CostDay": {
@@ -731,7 +734,9 @@
             "properties": {
               "origin": { "anyOf": [{ "enum": ["embedded", "user"] }, { "type": "string" }] },
               "effective": { "type": "string", "format": "date" },
-              "source": { "type": ["string", "null"] }
+              "source": { "type": ["string", "null"] },
+              "age_days": { "type": "integer", "minimum": 0, "description": "PRD 0030 (additive, absent when the date is in the future): days from effective to the export day." },
+              "age": { "$ref": "#/$defs/Localized", "description": "PRD 0030 (additive, absent before 60 days): the localized 'Prices from N days ago' text of this table." }
             }
           },
           "description": "Date and source of each price table that priced a model."

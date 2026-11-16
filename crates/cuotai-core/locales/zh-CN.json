@@ -306,7 +306,9 @@
   "config.warning.unknown_key": "此版本的 Cuotai 不认识 {path}；它会被忽略，并在保存文件时保留。",
   "cost.confirm.answer": "是",
   "cost.confirm.question": "要开启，请输入“{answer}”并按 Enter（其他任何回答都视为拒绝）：",
-  "cost.disabled": "已关闭 {source}；已删除 {removed} 条派生记录。",
+  "cost.disabled": {
+    "other": "已关闭 {source}；已删除 {count} 条派生记录。"
+  },
   "cost.disclosure.accept": "开启读取",
   "cost.disclosure.directories": "只读取以下目录中的 {pattern} 文件：",
   "cost.disclosure.directory": "{path}",
@@ -315,10 +317,12 @@
   "cost.disclosure.never_v2": "对话内容、提示词、回答、文件名和项目路径从不读入索引、保存或显示；只有在你开启时才会保存项目的最后一级文件夹名。任何内容都不会离开本机。",
   "cost.disclosure.off": "关闭该来源会停止所有读取，并清除由其派生的所有内容。",
   "cost.disclosure.purpose": "仅在此电脑上，按日期和模型估算使用 {source} 的 token 以及按 API 价格计算的费用。",
-  "cost.display.line": "按自定汇率 ≈ {amount}（{days} 天前设置）",
-  "cost.display.line_stale": "按自定汇率 ≈ {amount}（{days} 天前设置）；请更新汇率",
+  "cost.display.line": "按自定汇率 ≈ {amount}（{age}）",
+  "cost.display.line_stale": "按自定汇率 ≈ {amount}（{age}）；请更新汇率",
   "cost.enabled": "已开启 {source}。TUI 或桌面应用打开时会在后台读取日志，也可以现在运行 cuotai --cost-scan。",
-  "cost.erased": "本地费用索引已清除：{removed} 条记录。",
+  "cost.erased": {
+    "other": "本地费用索引已清除：{count} 条记录。"
+  },
   "cost.error.consent_changed": "此来源的目录在显示后已更改；请检查后再次确认。",
   "cost.error.days_bounds": "天数范围为 {min} 到 {max}。",
   "cost.error.declined": "未开启该来源；未读取任何日志。",
@@ -341,11 +345,9 @@
   "cost.period.last_30_days": "最近 30 天",
   "cost.period.last_7_days": "最近 7 天",
   "cost.period.today": "今天",
-  "cost.plan.combined": "{source} 的账户",
-  "cost.plan.partial": "{amount}，不含无价格的模型",
-  "cost.plan.ratio": "{source}：按 API 价格 ≈ {estimate}（估算） · 套餐 {plans} · ≈ 套餐价格的 {ratio}×",
-  "cost.plan.ratio_rate": "{source}：按 API 价格 ≈ {estimate}（估算） · 套餐 {plans} · 按自定汇率 ≈ 套餐价格的 {ratio}×",
-  "cost.plan.side": "{source}：按 API 价格 ≈ {estimate}（估算） · 套餐 {plans}",
+  "cost.plan.combined": {
+    "other": "{source}，合并 {count} 个账户：{estimate} · 套餐 {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}：按 API 价格的费用未知（模型无价格） · 套餐 {plans}",
   "cost.prices.age": "{days} 天前的价格",
   "cost.prices.unpriced": "无价格：{models}",
@@ -414,12 +416,16 @@
   "cost.block.local_estimate": "本地估算",
   "cost.block.active": "进行中",
   "cost.block.closed": "已结束",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} 个会话，{projects} 个项目",
-  "cost.block.hours_saved": "{source}：时段块长 {hours} 小时。",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}，{projects}",
+  "cost.block.hours_saved": {
+    "other": "{source}：时段块长 {count} 小时。"
+  },
   "cost.label.saved": "已将 {short} 的标签保存到本地费用索引。",
   "cost.label.removed": "已移除 {short} 的标签。",
   "cost.folder_hint.on": "{source}：每个项目的最后一级文件夹名会保存在本机，用于预填其标签。",
-  "cost.folder_hint.off": "{source}：不再保存文件夹名；已删除 {removed} 个。",
+  "cost.folder_hint.off": {
+    "other": "{source}：不再保存文件夹名；已删除 {count} 个。"
+  },
   "cost.error.invalid_label": "标签长度为 1 到 {max} 个字符。",
   "cost.error.unknown_prefix": "没有以该前缀开头的会话或项目（至少 {min} 个十六进制字符）。",
   "cost.error.ambiguous_prefix": "有多个会话或项目以该前缀开头；请输入更多字符。",
@@ -2397,5 +2403,45 @@
   "doctor.title.cost_pricing": "本地价格（pricing.json）",
   "doctor.cost_pricing.none": "没有 pricing.json；使用内置价格。",
   "doctor.cost_pricing.ok": "文件有效，优先于内置价格。",
-  "doctor.fix.cost_pricing": "修正或删除 pricing.json；仅使用内置价格。"
+  "doctor.fix.cost_pricing": "修正或删除 pricing.json；仅使用内置价格。",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + 未知",
+  "cost.rate.age.today": "今天设置",
+  "cost.rate.age.yesterday": "昨天设置",
+  "cost.rate.age.days": {
+    "other": "{count} 天前设置"
+  },
+  "cost.error.rate_too_small": "汇率太小：至少使用 0.000001。",
+  "cost.block.sessions": {
+    "other": "{count} 个会话"
+  },
+  "cost.block.projects": {
+    "other": "{count} 个项目"
+  },
+  "cost.plan.estimate": "按 API 价格 ≈ {amount}（估算）",
+  "cost.plan.estimate_partial": "有价格的模型按 API 价格 ≈ {amount}（估算）",
+  "cost.plan.single": "{source}：{estimate} · 套餐 {plans} · {value}",
+  "cost.plan.single_side": "{source}：{estimate} · 套餐 {plans}",
+  "cost.plan.combined_side": {
+    "other": "{source}，合并 {count} 个账户：{estimate} · 套餐 {plans}"
+  },
+  "cost.plan.combined_some": {
+    "other": "{source}，合并 {count} 个账户：{estimate} · 其中 {planned} 个的套餐：{plans}；日志无法拆分，因此没有比例"
+  },
+  "cost.plan.combined_label": {
+    "other": "{source}，合并 {count} 个账户"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ 套餐价格的 {ratio}×",
+  "cost.plan.times_rate": "按自定汇率 ≈ 套餐价格的 {ratio}×",
+  "cost.plan.times_plans": "≈ 套餐总价的 {ratio}×",
+  "cost.plan.times_plans_rate": "按自定汇率 ≈ 套餐总价的 {ratio}×",
+  "cost.plan.share": "≈ 套餐价格的 {percent}%",
+  "cost.plan.share_rate": "按自定汇率 ≈ 套餐价格的 {percent}%",
+  "cost.plan.share_plans": "≈ 套餐总价的 {percent}%",
+  "cost.plan.share_plans_rate": "按自定汇率 ≈ 套餐总价的 {percent}%",
+  "cost.plan.share_small": "不到套餐价格的 1%",
+  "cost.plan.share_small_rate": "按自定汇率不到套餐价格的 1%",
+  "cost.plan.share_small_plans": "不到套餐总价的 1%",
+  "cost.plan.share_small_plans_rate": "按自定汇率不到套餐总价的 1%"
 }
