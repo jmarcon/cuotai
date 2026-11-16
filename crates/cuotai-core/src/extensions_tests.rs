@@ -669,3 +669,53 @@ fn every_rejection_and_catalog_text_is_translated() {
         }
     }
 }
+
+/// PRD 0029 RF3.4 (R-02): once the manager read an extension's manifest for
+/// a run, an unnamed account of it is shown by the manifest name on every
+/// surface (account and report); a disguising name is never used, and a
+/// removed extension falls back to its id.
+#[test]
+fn an_unnamed_extension_account_shows_the_manifest_name_it_ran_with() {
+    let mut account = crate::Account {
+        provider: crate::Provider::Extension,
+        ..Default::default()
+    };
+    account
+        .params
+        .insert("extension_id".into(), "r02-usage".into());
+    assert_eq!(account.display_name(), "r02-usage");
+
+    remember_manifest_name("r02-usage", Some(" Acme Usage "));
+    assert_eq!(account.display_name(), "Acme Usage");
+    let report = crate::Report {
+        account: String::new(),
+        account_id: None,
+        provider: crate::Provider::Extension,
+        checked_at: chrono::Utc::now(),
+        status: crate::Status::Ready,
+        metrics: Vec::new(),
+        notes: Vec::new(),
+        notes_l10n: Vec::new(),
+        source: "extension:r02-usage".into(),
+        session_expires_at: None,
+        diagnostic: None,
+        sub_reports: Vec::new(),
+        as_of: None,
+        overage_hint: None,
+        breakdown: Vec::new(),
+    };
+    assert_eq!(report.display_name(), "Acme Usage");
+    account.name = "Work".into();
+    assert_eq!(account.display_name(), "Work", "a configured name wins");
+    account.name.clear();
+
+    remember_manifest_name("r02-usage", Some("Acme\u{202e}egasU"));
+    assert_eq!(
+        account.display_name(),
+        "r02-usage",
+        "never a disguising name"
+    );
+    remember_manifest_name("r02-usage", Some("Acme Usage"));
+    remember_manifest_name("r02-usage", None);
+    assert_eq!(account.display_name(), "r02-usage");
+}

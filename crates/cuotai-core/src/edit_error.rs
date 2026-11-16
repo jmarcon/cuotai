@@ -187,11 +187,47 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         return rule.note(field);
     }
 
-    if let crate::ConfigError::AccountIds { field } = error {
+    if let crate::ConfigError::AccountIds {
+        field,
+        computed_for,
+    } = error
+    {
+        return match computed_for {
+            Some(other) => Localized::with_params(
+                "edit_error.config_account_id_computed",
+                params([
+                    ("field", ParamValue::from(field.clone())),
+                    ("other", ParamValue::from(other.clone())),
+                ]),
+                "The field {field} equals the id Cuotai computes for {other}, an account without an id line; change or delete this id line.",
+            ),
+            None => Localized::with_params(
+                "edit_error.config_account_ids",
+                params([("field", ParamValue::from(field.clone()))]),
+                "The field {field} repeats another account's id (a copied [[accounts]] block is the usual cause); delete the duplicated id line.",
+            ),
+        };
+    }
+
+    // PRD 0029 RF3.2 (V-05): which table, and which of the two mistakes.
+    if let crate::ConfigError::AccountNameRequired { field, provider } = error {
         return Localized::with_params(
-            "edit_error.config_account_ids",
-            params([("field", ParamValue::from(field.clone()))]),
-            "The field {field} repeats another account's id (a copied [[accounts]] block is the usual cause); delete the duplicated id line.",
+            "edit_error.config_account_name_required",
+            params([
+                ("field", ParamValue::from(field.clone())),
+                ("provider", crate::text::provider_l10n(*provider).into()),
+            ]),
+            "The account at {field} needs a name because you have another {provider} account; add a name line to it.",
+        );
+    }
+    if let crate::ConfigError::AccountNameRepeated { field, other_field } = error {
+        return Localized::with_params(
+            "edit_error.config_account_name_repeated",
+            params([
+                ("field", ParamValue::from(field.clone())),
+                ("other_field", ParamValue::from(other_field.clone())),
+            ]),
+            "The name at {field} repeats the name at {other_field} (case does not count); change one of them.",
         );
     }
 
@@ -213,7 +249,6 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
 
     let id = match error {
         crate::ConfigError::Bounds => "edit_error.config_bounds",
-        crate::ConfigError::AccountNames => "edit_error.config_account_names",
         crate::ConfigError::AccountNameCharacters => "edit_error.config_account_name_characters",
         crate::ConfigError::Client => "edit_error.config_client",
         crate::ConfigError::OAuth => "edit_error.config_oauth",
@@ -225,6 +260,8 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         crate::ConfigError::Feed => "edit_error.config_feed",
         crate::ConfigError::MeteredRefreshFloor { .. }
         | crate::ConfigError::AccountIds { .. }
+        | crate::ConfigError::AccountNameRequired { .. }
+        | crate::ConfigError::AccountNameRepeated { .. }
         | crate::ConfigError::Budget { .. }
         | crate::ConfigError::Breakdown { .. }
         | crate::ConfigError::ReservedName { .. }
@@ -324,10 +361,6 @@ mod tests {
         for (error, id) in [
             (crate::ConfigError::Bounds, "edit_error.config_bounds"),
             (
-                crate::ConfigError::AccountNames,
-                "edit_error.config_account_names",
-            ),
-            (
                 crate::ConfigError::AccountNameCharacters,
                 "edit_error.config_account_name_characters",
             ),
@@ -347,6 +380,35 @@ mod tests {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);
             assert_eq!(note.fallback, error.to_string());
+        }
+
+        // Errors with parameters: the English text is the resolved fallback.
+        for (error, id) in [
+            (
+                crate::ConfigError::AccountNameRequired {
+                    field: "accounts[0]".into(),
+                    provider: crate::Provider::Groq,
+                },
+                "edit_error.config_account_name_required",
+            ),
+            (
+                crate::ConfigError::AccountNameRepeated {
+                    field: "accounts[1].name".into(),
+                    other_field: "accounts[0].name".into(),
+                },
+                "edit_error.config_account_name_repeated",
+            ),
+            (
+                crate::ConfigError::AccountIds {
+                    field: "accounts[0].id".into(),
+                    computed_for: Some("accounts[1]".into()),
+                },
+                "edit_error.config_account_id_computed",
+            ),
+        ] {
+            let note = config_error_note(&error);
+            assert_eq!(note.id, id);
+            assert_eq!(note.text(), error.to_string());
         }
 
         let metered = crate::ConfigError::MeteredRefreshFloor {

@@ -212,11 +212,14 @@ impl Discovery {
     /// PRD 0029 RF3.4: the name shown for `account`: its configured name,
     /// else (for an extension account) the manifest display name of its
     /// extension when it is installed, else the extension id.
+    /// [`crate::Account::display_name`] gives the same once the extension
+    /// ran in this process (see [`manifest_name`]).
     pub fn account_name<'a>(&'a self, account: &'a crate::Account) -> std::borrow::Cow<'a, str> {
         let manifest = account
             .extension_id()
             .and_then(|id| self.get(id))
-            .map(|manifest| manifest.name.as_str());
+            .map(|manifest| manifest.name.as_str())
+            .filter(|name| !name.chars().any(crate::text::is_disguising));
         account.display_name_with(manifest)
     }
 
@@ -263,6 +266,46 @@ fn catalog_hint(description: Option<&str>) -> Localized {
             "Local program you review and approve",
         ),
     }
+}
+
+/// PRD 0029 RF3.4 (R-02): the manifest display names of the extensions
+/// this process ran, by id, so every surface that shows an unnamed
+/// extension account ([`crate::Account::display_name`],
+/// [`crate::Report::display_name`]) shows its extension's name rather than
+/// its id. The extension manager records a name each time it reads the
+/// manifest for a run, and forgets it when the extension is gone.
+static MANIFEST_NAMES: std::sync::RwLock<std::collections::BTreeMap<String, String>> =
+    std::sync::RwLock::new(std::collections::BTreeMap::new());
+
+/// Record (`Some`) or forget (`None`) the display name of the extension
+/// `id`. A name holding a control or text-direction character
+/// ([`crate::text::is_disguising`]) is never recorded: it could reorder
+/// the line it is shown in.
+pub(crate) fn remember_manifest_name(id: &str, name: Option<&str>) {
+    let name = name
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && !name.chars().any(crate::text::is_disguising));
+    let mut names = MANIFEST_NAMES
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    match name {
+        Some(name) => {
+            names.insert(id.to_owned(), name.to_owned());
+        }
+        None => {
+            names.remove(id);
+        }
+    }
+}
+
+/// The recorded display name of the extension `id` (see
+/// [`remember_manifest_name`]).
+pub(crate) fn manifest_name(id: &str) -> Option<String> {
+    MANIFEST_NAMES
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(id)
+        .cloned()
 }
 
 /// RF1.2: the extensions under `root`, read without running anything. Each

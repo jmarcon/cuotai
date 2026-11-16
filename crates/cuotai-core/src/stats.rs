@@ -263,7 +263,8 @@ pub fn summarize<Tz: TimeZone>(
             .collect();
         stats.push(AccountStats {
             account_index,
-            name: account.name.clone(),
+            // PRD 0029 RF3.4 (V-03): never blank for an unnamed account.
+            name: account.display_name().into_owned(),
             hits,
             average_peak: mean(best.iter().flatten().copied()),
             days_with_data: best.iter().flatten().count() as u32,

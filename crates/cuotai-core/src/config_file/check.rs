@@ -41,7 +41,10 @@ pub fn error_kind(error: &ConfigError) -> &'static str {
         ConfigError::Parse { .. } => "parse",
         ConfigError::Bounds => "bounds",
         ConfigError::MeteredRefreshFloor { .. } => "metered_refresh_floor",
-        ConfigError::AccountNames => "account_names",
+        // V-05 split one error in two; the stable kind stays the same.
+        ConfigError::AccountNameRequired { .. } | ConfigError::AccountNameRepeated { .. } => {
+            "account_names"
+        }
         ConfigError::AccountNameCharacters => "account_name_characters",
         ConfigError::AccountIds { .. } => "account_ids",
         ConfigError::Client => "client",
@@ -68,7 +71,9 @@ fn diagnostic(error: &ConfigError) -> ConfigDiagnostic {
             path.as_ref().map(ToString::to_string),
         ),
         ConfigError::MeteredRefreshFloor { field, .. }
-        | ConfigError::AccountIds { field }
+        | ConfigError::AccountIds { field, .. }
+        | ConfigError::AccountNameRequired { field, .. }
+        | ConfigError::AccountNameRepeated { field, .. }
         | ConfigError::Budget { field, .. }
         | ConfigError::Breakdown { field }
         | ConfigError::ReservedName { field } => (None, None, Some(field.clone())),
@@ -92,6 +97,13 @@ fn failed(diagnostic: ConfigDiagnostic) -> ConfigCheck {
 
 /// Check the bytes of a configuration file strictly.
 pub fn check_bytes(bytes: &[u8]) -> ConfigCheck {
+    check_bytes_at(bytes, None)
+}
+
+/// [`check_bytes`] for the file whose identity is `identity`, so the ids
+/// computed for accounts without an `id` line are the ones a reader of that
+/// file derives (PRD 0029 F3).
+fn check_bytes_at(bytes: &[u8], identity: Option<&super::ConfigIdentity>) -> ConfigCheck {
     let text = match std::str::from_utf8(bytes) {
         Ok(text) => text,
         Err(error) => {
@@ -108,7 +120,10 @@ pub fn check_bytes(bytes: &[u8]) -> ConfigCheck {
             return failed(found);
         }
     };
-    let result = parse(text, ConfigParseMode::Strict).and_then(|parsed| parsed.config.validate());
+    let result = parse(text, ConfigParseMode::Strict).and_then(|parsed| {
+        parsed.config.check_ids(identity)?;
+        parsed.config.validate()
+    });
     match result {
         Ok(()) => ConfigCheck {
             valid: true,
@@ -122,7 +137,7 @@ pub fn check_bytes(bytes: &[u8]) -> ConfigCheck {
 /// file is a diagnostic too: `--check-config` needs an existing file.
 pub fn check(path: &Path) -> ConfigCheck {
     match std::fs::read(path) {
-        Ok(bytes) => check_bytes(&bytes),
+        Ok(bytes) => check_bytes_at(&bytes, super::ConfigIdentity::of_path(path).ok().as_ref()),
         Err(error) => {
             let not_found = error.kind() == std::io::ErrorKind::NotFound;
             failed(ConfigDiagnostic {

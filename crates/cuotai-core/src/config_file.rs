@@ -178,7 +178,15 @@ pub struct ConfigFile {
 
 /// PRD 0051 RF1/RF2: read `bytes` tolerantly and validate what is usable.
 /// Every error keeps its redacted, localized note (line, column, key path).
-fn read_document(bytes: &[u8]) -> Result<ParsedConfig, EditError> {
+///
+/// `identity` is the file's (see [`Config::check_ids`]): effective ids are
+/// checked before validation, so an `id` line equal to the id computed for
+/// another account is refused at every read (PRD 0029 F3). The caller then
+/// fills those ids in with [`Config::resolve_ids`].
+fn read_document(
+    bytes: &[u8],
+    identity: Option<&ConfigIdentity>,
+) -> Result<ParsedConfig, EditError> {
     let text = std::str::from_utf8(bytes).map_err(|error| {
         let (line, column) = position(
             &String::from_utf8_lossy(&bytes[..error.valid_up_to()]),
@@ -197,7 +205,8 @@ fn read_document(bytes: &[u8]) -> Result<ParsedConfig, EditError> {
         .map_err(|error| validation_note(None, config_error_note(&error)))?;
     parsed
         .config
-        .validate()
+        .check_ids(identity)
+        .and_then(|()| parsed.config.validate())
         .map_err(|error| validation_note(None, config_error_note(&error)))?;
     Ok(parsed)
 }
@@ -246,12 +255,13 @@ impl ConfigFile {
         match fs::read(&path) {
             Ok(bytes) => {
                 // ConfigError notes carry positions and key paths, never the body.
+                let identity = ConfigIdentity::of_path(&path).ok();
                 let ParsedConfig {
                     mut config,
                     issues,
                     warnings,
-                } = read_document(&bytes)?;
-                config.resolve_ids(ConfigIdentity::of_path(&path).ok().as_ref());
+                } = read_document(&bytes, identity.as_ref())?;
+                config.resolve_ids(identity.as_ref());
                 Ok(Self {
                     config,
                     path,
@@ -346,7 +356,11 @@ impl ConfigFile {
         // PRD 0029 RF1.3: an account the front end built without an id gets
         // the effective one a reader of this file would derive; every saved
         // table carries its id from now on.
-        config.resolve_ids(self.identity().ok().as_ref());
+        let identity = self.identity().ok();
+        config
+            .check_ids(identity.as_ref())
+            .map_err(|e| validation_note(None, config_error_note(&e)))?;
+        config.resolve_ids(identity.as_ref());
         config
             .validate()
             .map_err(|e| validation_note(None, config_error_note(&e)))?;
@@ -445,12 +459,13 @@ impl ConfigFile {
     pub fn reload(&mut self) -> Result<(), EditError> {
         match fs::read(&self.path) {
             Ok(bytes) => {
+                let identity = ConfigIdentity::of_path(&self.path).ok();
                 let ParsedConfig {
                     mut config,
                     issues,
                     warnings,
-                } = read_document(&bytes)?;
-                config.resolve_ids(ConfigIdentity::of_path(&self.path).ok().as_ref());
+                } = read_document(&bytes, identity.as_ref())?;
+                config.resolve_ids(identity.as_ref());
                 // Commit only after every step above succeeded; an
                 // intermediate failure keeps `self` untouched.
                 self.config = config;
@@ -536,9 +551,27 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
         .unwrap_or_default();
     let text = match previous_text.and_then(|s| s.parse::<toml_edit::DocumentMut>().ok()) {
         Some(mut doc) => {
-            set_int(&mut doc, "refresh_seconds", config.refresh_seconds as i64);
-            set_int(&mut doc, "concurrency", config.concurrency as i64);
-            set_int(&mut doc, "timeout_seconds", config.timeout_seconds as i64);
+            // PRD 0029 RF1 (V-06): a global key is written only when its
+            // value differs from what the document holds (an absent key
+            // holds its default), so a save adds nothing the user never set.
+            set_global(
+                &mut doc,
+                "refresh_seconds",
+                config.refresh_seconds,
+                crate::model::default_refresh(),
+            );
+            set_global(
+                &mut doc,
+                "concurrency",
+                config.concurrency as u64,
+                crate::model::default_concurrency() as u64,
+            );
+            set_global(
+                &mut doc,
+                "timeout_seconds",
+                config.timeout_seconds,
+                crate::model::default_timeout(),
+            );
             // `accounts = []` is what removing the last account writes: an
             // empty list is as editable as a missing one.
             let editable = doc
@@ -584,7 +617,7 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
     // Round-trip guard: the rendered document must describe the same config.
     // It reads tolerantly so unknown top-level tables, which `render` leaves
     // in place (PRD 0051 RF1.3), do not fail the save.
-    let parsed = read_document(text.as_bytes())?.config;
+    let parsed = read_document(text.as_bytes(), None)?.config;
     let want = toml::to_string(config).map_err(|_| {
         validation(
             None,
@@ -630,6 +663,22 @@ fn serialize_fresh(config: &Config) -> Result<String, EditError> {
 }
 
 /// Replace a scalar while keeping the existing value decor (e.g. trailing comments).
+/// Set the global integer `key` to `val`, leaving the document untouched
+/// when it already holds that value, or holds no key and `val` is the
+/// `default` a reader assumes for a missing one.
+fn set_global(doc: &mut toml_edit::DocumentMut, key: &str, val: u64, default: u64) {
+    let held = match doc.get(key) {
+        None => Some(default),
+        Some(item) => item
+            .as_integer()
+            .and_then(|value| u64::try_from(value).ok()),
+    };
+    if held == Some(val) {
+        return;
+    }
+    set_int(doc, key, val as i64);
+}
+
 fn set_int(doc: &mut toml_edit::DocumentMut, key: &str, val: i64) {
     if let Some(existing) = doc.get_mut(key).and_then(|i| i.as_value_mut()) {
         let decor = existing.decor().clone();
@@ -1665,8 +1714,97 @@ provider = "open_ai_api"
         let config = Config::from_toml(&fs::read_to_string(&path).unwrap());
         assert!(matches!(
             config,
-            Err(crate::ConfigError::AccountIds { field }) if field == "accounts[1].id"
+            Err(crate::ConfigError::AccountIds { field, computed_for: None }) if field == "accounts[1].id"
         ));
+    }
+
+    /// PRD 0029 F3: an `id` line equal to the id computed for an account
+    /// without one is refused at every read, in either order, naming the
+    /// `id` line the file holds and the account whose id it copies.
+    #[test]
+    fn an_id_equal_to_a_computed_id_is_refused_in_either_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("copied.toml");
+        fs::write(&path, "").unwrap();
+        let identity = ConfigIdentity::of_path(&path).unwrap();
+        let computed = crate::AccountId::derive("claude:Work", Some(&identity));
+        let derived =
+            "[[accounts]]\nname = \"Work\"\nprovider = \"claude\"\ncredential_env = \"A\"\n"
+                .to_string();
+        let copied = format!(
+            "[[accounts]]\nid = \"{computed}\"\nname = \"Home\"\nprovider = \"claude\"\ncredential_env = \"B\"\n"
+        );
+        for (text, field, other) in [
+            (
+                format!("{derived}\n{copied}"),
+                "accounts[1].id",
+                "accounts[0]",
+            ),
+            (
+                format!("{copied}\n{derived}"),
+                "accounts[0].id",
+                "accounts[1]",
+            ),
+        ] {
+            fs::write(&path, &text).unwrap();
+            for interactive in [false, true] {
+                let Err(error) = load_at(&path, interactive) else {
+                    panic!("{field}: two accounts on one id must not load");
+                };
+                let note = error.l10n();
+                assert_eq!(note.id, "edit_error.config_account_id_computed");
+                assert_eq!(
+                    note.params.get("field"),
+                    Some(&crate::text::ParamValue::Text(field.into()))
+                );
+                assert_eq!(
+                    note.params.get("other"),
+                    Some(&crate::text::ParamValue::Text(other.into()))
+                );
+            }
+            let check = check::check(&path);
+            assert!(!check.valid);
+            assert_eq!(check.diagnostics[0].path.as_deref(), Some(field));
+        }
+        // A reload refuses it too and keeps the configuration it had.
+        fs::write(&path, &derived).unwrap();
+        let mut file = load_at(&path, true).unwrap();
+        fs::write(&path, format!("{derived}\n{copied}")).unwrap();
+        assert!(file.reload().is_err());
+        assert_eq!(file.config.accounts.len(), 1);
+    }
+
+    /// PRD 0029 RF1 acceptance (V-06): an old file without global keys
+    /// gains exactly one `id` line per table on its next save, and nothing
+    /// else changes, byte for byte.
+    #[test]
+    fn a_save_adds_only_the_id_lines_to_an_old_file() {
+        const OLD: &str = "# my accounts\n\
+[[accounts]]\n\
+name = \"Work\" # the work one\n\
+provider = \"open_ai_api\"\n\
+credential_env = \"WORK_KEY\"\n\
+\n\
+[[accounts]]\n\
+provider = \"claude\"\n\
+credential_env = \"CLAUDE_KEY\"\n";
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("old.toml");
+        fs::write(&path, OLD).unwrap();
+        let mut file = load_at(&path, true).unwrap();
+        file.save(file.config.clone()).unwrap();
+        let saved = fs::read_to_string(&path).unwrap();
+        let (ids, rest): (Vec<&str>, Vec<&str>) =
+            saved.lines().partition(|line| line.starts_with("id = "));
+        assert_eq!(ids.len(), 2, "{saved}");
+        assert_eq!(rest.join("\n") + "\n", OLD, "{saved}");
+        // A changed global is written; one back at its default stays.
+        let mut config = file.config.clone();
+        config.refresh_seconds = 600;
+        file.save(config).unwrap();
+        assert!(fs::read_to_string(&path)
+            .unwrap()
+            .contains("refresh_seconds = 600"));
     }
 
     #[test]

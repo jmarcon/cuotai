@@ -5406,6 +5406,39 @@ mod tests {
             .is_err());
     }
 
+    /// PRD 0029 RF3 acceptance (V-02, V-03, V-07): titles in four
+    /// languages. A named account is titled by its name beside the
+    /// localized provider; an unnamed one, or one named exactly like its
+    /// provider, by the provider once.
+    #[test]
+    fn display_titles_in_four_languages_never_repeat_the_provider() {
+        let provider = Provider::AlibabaCloud;
+        for (locale, label) in [
+            ("en-US", "Alibaba Cloud — billing"),
+            ("pt-BR", "Alibaba Cloud — faturamento"),
+            ("de", "Alibaba Cloud — Abrechnung"),
+            ("ja", "Alibaba Cloud — 請求"),
+        ] {
+            let localized = crate::text::provider_l10n(provider).resolve(locale);
+            assert_eq!(localized, label, "{locale}");
+            assert_eq!(
+                crate::model::display_title(&localized, "  "),
+                (label, None),
+                "{locale}: unnamed"
+            );
+            assert_eq!(
+                crate::model::display_title(&localized, label),
+                (label, None),
+                "{locale}: named like the provider"
+            );
+            assert_eq!(
+                crate::model::display_title(&localized, " Work "),
+                ("Work", Some(label)),
+                "{locale}: named"
+            );
+        }
+    }
+
     /// PRD 0029 RF3.4: display names fall back to the provider.
     #[test]
     fn display_name_falls_back_to_the_provider() {

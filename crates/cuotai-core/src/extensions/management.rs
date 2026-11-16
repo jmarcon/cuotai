@@ -1163,10 +1163,10 @@ impl Manager {
     }
 
     fn manifest(&self, id: &str) -> Result<Manifest, Localized> {
-        discover(&self.root)
-            .get(id)
-            .cloned()
-            .ok_or_else(|| missing(id))
+        let manifest = discover(&self.root).get(id).cloned();
+        // PRD 0029 RF3.4 (R-02): an unnamed account shows this name.
+        super::remember_manifest_name(id, manifest.as_ref().map(|m| m.name.as_str()));
+        manifest.ok_or_else(|| missing(id))
     }
 
     /// The manifest and program digests as they are now, computed from the
