@@ -1506,7 +1506,7 @@ function demoAt(iso, short = false) {
   const days = Math.round((new Date(d.toDateString()) - new Date(new Date().toDateString())) / 864e5);
   const hm = { hour: String(d.getHours()), minute: String(d.getMinutes()) };
   const time = { hour: "numeric", minute: "2-digit" };
-  const en = (shape) => new Intl.DateTimeFormat("en-US", shape).format(d);
+  const en = (shape) => fmtLocal(d, shape, "en-US");
   if (days === 0) return { id: "at.time", params: hm, fallback: en(time) };
   if (days >= 1 && days <= 6) {
     const weekday = String(((d.getDay() + 6) % 7) + 1);
@@ -1520,7 +1520,9 @@ function demoAt(iso, short = false) {
 /** PRD 0026 re-validation (V-02, V-03, V-09, V-11): the core's past clock, day text, day heading and hour text the shell
  *  sends for Stats and the journal (`text::clock::past`, `day`, `day_heading`, `hour`), with machine params. */
 const demoDaysBack = (d) => Math.round((new Date(new Date().toDateString()) - new Date(d.toDateString())) / 864e5);
-const demoEn = (d, shape) => new Intl.DateTimeFormat("en-US", shape).format(d);
+// The demo stands in for the core, so its en-US fallbacks reuse the cached formatters: built per text, they were
+// most of the tray Stats drill-in's first frame in the browser demo (perf probe `tray-open-stats`).
+const demoEn = (d, shape) => fmtLocal(d, shape, "en-US");
 function demoTime(iso) {
   const d = new Date(iso);
   return { id: "at.time", params: { hour: String(d.getHours()), minute: String(d.getMinutes()) }, fallback: demoEn(d, { hour: "numeric", minute: "2-digit" }) };
