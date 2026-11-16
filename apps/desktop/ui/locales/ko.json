@@ -778,6 +778,7 @@
   "settings.serve.stats": "사용량 통계 공유",
   "settings.serve.statsHelp": "GET /v1/stats도 제공합니다. 이 기기의 로컬 기록에서 계산한 피크와 한도 도달 빈도이며 원본 샘플, 이메일, URL은 포함하지 않습니다. 기본값은 꺼짐이며 액세스 토큰이 필요하고 루프백에만 응답하며 분당 최대 6회 요청까지 받습니다.",
   "settings.serve.statsNeedsToken": "토큰을 생성하세요. 토큰이 없으면 서버는 /v1/stats에 응답하지 않습니다.",
+  "settings.serve.statsNeedsServer": "서버가 꺼져 있습니다. 위에서 켜면 /v1/stats에 응답합니다.",
   "settings.serve.accessLog.title": "액세스 로그",
   "settings.serve.accessLog.help": "로컬 서버에 대한 각 요청을 이 컴퓨터의 비공개 파일에 기록합니다: 시간, 클라이언트가 이 컴퓨터인지 여부, 메서드, 경로 템플릿, 상태. 주소, 헤더, 토큰, 쿼리, 계정 이름은 절대 기록하지 않습니다. 각 사본은 1 MiB 미만으로 유지됩니다.",
   "settings.serve.accessLog.off": "끔",

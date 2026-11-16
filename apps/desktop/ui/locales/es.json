@@ -786,6 +786,7 @@
   "settings.serve.stats": "Compartir estadísticas de uso",
   "settings.serve.statsHelp": "También sirve GET /v1/stats: picos y cuántas veces se alcanzó un límite, del historial local de este dispositivo (sin muestras brutas, correos ni URL). Desactivado por defecto; exige el token de acceso, responde solo en loopback y a un máximo de 6 solicitudes por minuto.",
   "settings.serve.statsNeedsToken": "Genere un token: sin él el servidor no responde /v1/stats.",
+  "settings.serve.statsNeedsServer": "El servidor está desactivado: responde /v1/stats cuando lo active arriba.",
   "settings.serve.accessLog.title": "Registro de acceso",
   "settings.serve.accessLog.help": "Registra cada petición al servidor local en un archivo privado de este equipo: hora, si el cliente era este equipo, método, plantilla de ruta y estado. Nunca direcciones, cabeceras, tokens, consultas ni nombres de cuentas. Cada copia se mantiene por debajo de 1 MiB.",
   "settings.serve.accessLog.off": "Desactivado",

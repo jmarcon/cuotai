@@ -432,6 +432,7 @@
   transform: translateX(18px);
 }
 .sw:disabled,
+.sw[aria-disabled="true"],
 .chk:disabled {
   opacity: 0.45;
   cursor: default;

@@ -778,6 +778,7 @@
   "settings.serve.stats": "共享用量统计",
   "settings.serve.statsHelp": "同时提供 GET /v1/stats：基于此设备本地历史的峰值和触及限额的频率（不含原始样本、电子邮件或 URL）。默认关闭；需要访问令牌，只响应本机回环地址，每分钟最多 6 个请求。",
   "settings.serve.statsNeedsToken": "请生成令牌：没有令牌时服务器不会响应 /v1/stats。",
+  "settings.serve.statsNeedsServer": "服务器已关闭：在上方开启后，它会响应 /v1/stats。",
   "settings.serve.accessLog.title": "访问日志",
   "settings.serve.accessLog.help": "将对本地服务器的每个请求记录到本机的私有文件中：时间、客户端是否为本机、方法、路由模板和状态。绝不记录地址、请求头、令牌、查询或账户名称。每份副本保持在 1 MiB 以下。",
   "settings.serve.accessLog.off": "关闭",
