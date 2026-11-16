@@ -53,7 +53,10 @@ impl Interval {
 
 fn parse_time(text: &str) -> Option<NaiveTime> {
     let (hours, minutes) = text.trim().split_once(':')?;
-    if hours.len() != 2 || minutes.len() != 2 {
+    // Exactly two ASCII digits on each side: `u32::from_str` alone would
+    // take a sign ("+1:00") (PRD 0032 re-validation C-12).
+    let two_digits = |part: &str| part.len() == 2 && part.bytes().all(|b| b.is_ascii_digit());
+    if !two_digits(hours) || !two_digits(minutes) {
         return None;
     }
     NaiveTime::from_hms_opt(hours.parse().ok()?, minutes.parse().ok()?, 0)
@@ -431,14 +434,17 @@ pub fn window_at<Tz: TimeZone>(
         return None;
     }
     let mut ends_at = containing(schedule, now, tz)?;
-    // Merge the windows that start where this one ends.
+    let cap = now + chrono::TimeDelta::days(7);
+    // Merge the windows that start where this one ends, up to a week.
     for _ in 0..(7 * MAX_INTERVALS_PER_DAY) {
         match containing(schedule, ends_at, tz) {
-            Some(next) if next > ends_at => ends_at = next,
+            Some(next) if next > ends_at && ends_at < cap => ends_at = next,
             _ => break,
         }
     }
-    Some(QuietWindow { ends_at })
+    Some(QuietWindow {
+        ends_at: ends_at.min(cap),
+    })
 }
 
 /// What a notice is, for the delivery decision.

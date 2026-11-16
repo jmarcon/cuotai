@@ -604,3 +604,41 @@ fn the_digest_title_fits_the_notification_budget() {
         }
     }
 }
+
+/// PRD 0032 re-validation C-12: a week without a gap is capped at a week,
+/// as documented, however many merge passes it would take.
+#[test]
+fn a_week_without_gap_is_capped_at_a_week() {
+    let always = QuietSchedule {
+        enabled: true,
+        days: std::array::from_fn(|_| vec![Interval::parse("00:00", "00:00").unwrap()]),
+        digest: true,
+    };
+    let now = utc(2026, 2, 18, 13, 37);
+    let window = window_at(&always, now, &chrono::Utc).unwrap();
+    assert_eq!(window.ends_at, now + chrono::TimeDelta::days(7));
+}
+
+/// PRD 0032 re-validation C-12: a time is exactly two ASCII digits on each
+/// side of the colon, in both readings.
+#[test]
+fn times_need_two_ascii_digits_on_each_side() {
+    for bad in [
+        "+1:00",
+        "-1:00",
+        " 1:00",
+        "1:00",
+        "０１:００",
+        "01:+0",
+        "001:00",
+    ] {
+        assert!(Interval::parse(bad, "08:00").is_none(), "{bad}");
+        let value = serde_json::json!({
+            "enabled": true, "digest": true,
+            "days": {"mon": [{"from": bad, "to": "08:00"}]}
+        });
+        assert!(QuietSchedule::from_value_strict(&value).is_err(), "{bad}");
+        assert!(!QuietSchedule::from_value(&value).has_intervals(), "{bad}");
+    }
+    assert!(Interval::parse("22:00", "08:00").is_some());
+}
