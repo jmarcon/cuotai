@@ -615,6 +615,75 @@ fn account_key(provider: Provider, name: &str) -> String {
     format!("{}:{name}", provider.slug())
 }
 
+/// Longest text parameter a report note keeps (PRD 0034 re-validation
+/// S-01); a longer one is cut and ends with `…`.
+pub const NOTE_PARAM_MAX_CHARS: usize = 200;
+
+/// Whether `c` is a control (`Cc`) or format (`Cf`) character: besides
+/// [`crate::text::is_disguising`], the bidi marks, zero-width characters,
+/// the byte-order mark, invisible operators, interlinear annotation and
+/// tag characters. None of them is visible text in a note.
+fn is_hidden(c: char) -> bool {
+    crate::text::is_disguising(c)
+        || matches!(
+            c,
+            '\u{00AD}'
+                | '\u{0600}'..='\u{0605}'
+                | '\u{061C}'
+                | '\u{06DD}'
+                | '\u{070F}'
+                | '\u{0890}'..='\u{0891}'
+                | '\u{08E2}'
+                | '\u{180E}'
+                | '\u{200B}'..='\u{200F}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{206A}'..='\u{206F}'
+                | '\u{FEFF}'
+                | '\u{FFF9}'..='\u{FFFB}'
+                | '\u{110BD}'
+                | '\u{110CD}'
+                | '\u{13430}'..='\u{1343F}'
+                | '\u{1BCA0}'..='\u{1BCA3}'
+                | '\u{1D173}'..='\u{1D17A}'
+                | '\u{E0001}'
+                | '\u{E0020}'..='\u{E007F}'
+        )
+}
+
+/// Drop the [`is_hidden`] characters of `text`, in place.
+fn strip_hidden(text: &mut String) {
+    if text.chars().any(is_hidden) {
+        text.retain(|c| !is_hidden(c));
+    }
+}
+
+/// One note of a report or sub-report, cleaned: its fallback and every
+/// text param lose their [`is_hidden`] characters, a text param is capped
+/// at [`NOTE_PARAM_MAX_CHARS`], and nested notes are cleaned the same way.
+fn clean_note(note: &mut crate::text::Localized) {
+    if note.fallback.chars().any(is_hidden) {
+        let mut fallback = note.fallback.to_string();
+        strip_hidden(&mut fallback);
+        note.fallback = std::borrow::Cow::Owned(fallback);
+    }
+    for value in note.params.values_mut() {
+        match value {
+            crate::text::ParamValue::Text(text) => {
+                strip_hidden(text);
+                if let Some((cut, _)) = text.char_indices().nth(NOTE_PARAM_MAX_CHARS) {
+                    let mut end = cut;
+                    if let Some((last, _)) = text[..cut].char_indices().next_back() {
+                        end = last;
+                    }
+                    text.truncate(end);
+                    text.push('…');
+                }
+            }
+            crate::text::ParamValue::L10n(nested) => clean_note(nested),
+        }
+    }
+}
+
 /// Largest `Retry-After` the refresh engine honors for one account.
 pub const RETRY_AFTER_MAX_SECONDS: u64 = 86_400;
 
@@ -639,9 +708,22 @@ impl Report {
     /// extension text can reorder or forge a line in a front end, a JSON
     /// export or a hook payload. Visible text is unchanged, so history keys
     /// of ordinary labels stay the same.
+    ///
+    /// PRD 0034 re-validation (S-01): the same boundary cleans the notes,
+    /// whose params can carry server text (a plan name, for example):
+    /// `notes`, every `notes_l10n` fallback and text param (nested ones
+    /// included) lose control and format characters (Unicode `Cc` and
+    /// `Cf`: bidi controls, marks and zero-width characters), and each
+    /// text param is capped at [`NOTE_PARAM_MAX_CHARS`].
     pub fn strip_disguising_text(&mut self) {
         for metric in &mut self.metrics {
             metric.strip_disguising_text();
+        }
+        for note in &mut self.notes {
+            strip_hidden(note);
+        }
+        for note in &mut self.notes_l10n {
+            clean_note(note);
         }
         for sub in &mut self.sub_reports {
             sub.strip_disguising_text();
@@ -1241,10 +1323,20 @@ impl SubReport {
         self.as_of = crate::instant::plausible(self.as_of);
     }
 
-    /// [`Report::strip_disguising_text`] for one sub-report.
+    /// [`Report::strip_disguising_text`] for one sub-report: its metrics,
+    /// notes, and (as defence in depth; adapters clean them today) its
+    /// label, upstream slug and plan.
     pub fn strip_disguising_text(&mut self) {
         for metric in &mut self.metrics {
             metric.strip_disguising_text();
+        }
+        for note in &mut self.notes_l10n {
+            clean_note(note);
+        }
+        strip_hidden(&mut self.label);
+        strip_hidden(&mut self.upstream);
+        if let Some(plan) = &mut self.plan {
+            strip_hidden(plan);
         }
     }
 }
@@ -1421,6 +1513,82 @@ mod tests {
             let back: Metric = serde_json::from_value(json).unwrap();
             assert_eq!(back.window, Some(window));
         }
+    }
+
+    /// PRD 0034 re-validation (S-01): control, bidi and zero-width
+    /// characters leave the notes, their fallbacks and their params (nested
+    /// ones and a sub-report's included); a long param is capped.
+    #[test]
+    fn hidden_characters_leave_report_notes() {
+        use crate::text::{Localized, ParamValue};
+        let forged = "Pro\u{202E}evif\u{2066}\u{200B}\u{FEFF}\u{1b}[2K\u{E0041}";
+        let nested = Localized::with_param("inner", "plan", forged, "Plan {plan}\u{200F}.");
+        let mut note = Localized::with_param("outer", "long", "x".repeat(500), "Outer\u{2067}.");
+        note.params
+            .insert("nested".into(), ParamValue::l10n(nested.clone()));
+        let sub = SubReport {
+            id: "s".into(),
+            upstream: "gemini\u{200D}-cli".into(),
+            provider: None,
+            label: "Team\u{202D}".into(),
+            status: Status::Ready,
+            metrics: Vec::new(),
+            notes_l10n: vec![nested],
+            checked_at: Utc::now(),
+            as_of: None,
+            enabled_upstream: None,
+            duplicate_of: None,
+            plan: Some("max\u{061C}".into()),
+            via: None,
+            identity: None,
+        };
+        let mut report = Report {
+            account_id: None,
+            diagnostic: None,
+            account: "a".into(),
+            provider: Provider::Kimi,
+            checked_at: Utc::now(),
+            status: Status::Ready,
+            metrics: Vec::new(),
+            notes: vec![format!("Token plan: {forged}.")],
+            notes_l10n: vec![note],
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: vec![sub],
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        report.strip_disguising_text();
+        assert_eq!(report.notes, ["Token plan: Proevif[2K."]);
+        let note = &report.notes_l10n[0];
+        assert_eq!(note.fallback, "Outer.");
+        let Some(ParamValue::Text(long)) = note.params.get("long") else {
+            panic!("text param kept");
+        };
+        assert_eq!(long.chars().count(), NOTE_PARAM_MAX_CHARS);
+        assert!(long.ends_with('…'));
+        let Some(ParamValue::L10n(inner)) = note.params.get("nested") else {
+            panic!("nested param kept");
+        };
+        assert_eq!(inner.fallback, "Plan Proevif[2K.");
+        assert_eq!(
+            inner.params.get("plan"),
+            Some(&ParamValue::Text("Proevif[2K".into()))
+        );
+        let sub = &report.sub_reports[0];
+        assert_eq!(sub.notes_l10n[0], **inner);
+        assert_eq!(
+            (
+                sub.label.as_str(),
+                sub.upstream.as_str(),
+                sub.plan.as_deref()
+            ),
+            ("Team", "gemini-cli", Some("max"))
+        );
+        let json = serde_json::to_string(&report).unwrap();
+        assert!(!json.chars().any(is_hidden));
+        assert!(!json.contains("\\u"), "no escaped control characters");
     }
 
     #[test]

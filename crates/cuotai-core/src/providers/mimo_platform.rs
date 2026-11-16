@@ -680,4 +680,83 @@ mod tests {
         assert_eq!(plan.remaining, Some(70.0));
         assert_eq!(plan.unit, "%");
     }
+
+    /// PRD 0034 re-validation (S-01): a server `planCode` holding a bidi
+    /// override, an isolate and zero-width characters reaches the report's
+    /// notes, note params, JSON and localized fallbacks without them.
+    #[tokio::test]
+    async fn plataforma_plano_com_caracteres_ocultos_chega_limpo_ao_relatorio() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/balance"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0,
+                "data": { "balance": "1.00", "currency": "USD" }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/tokenPlan/detail"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "code": 0,
+                "data": { "planCode": "Pro\u{202E}evif\u{2066}\u{200B}\u{FEFF}", "expired": false }
+            })))
+            .mount(&server)
+            .await;
+
+        let http = reqwest::Client::new();
+        let data = fetch(&ctx_with(&http, &NoCredentials), &server.uri(), COOKIE)
+            .await
+            .expect("sucesso");
+        let mut report = crate::Report {
+            account_id: None,
+            diagnostic: None,
+            account: "m".into(),
+            provider: crate::Provider::XiaomiMimo,
+            checked_at: Utc::now(),
+            status: Status::Ready,
+            metrics: data.metrics,
+            notes: data.notes,
+            notes_l10n: data.notes_l10n,
+            source: data.source,
+            session_expires_at: None,
+            sub_reports: data.sub_reports,
+            as_of: data.as_of,
+            overage_hint: data.overage_hint,
+            breakdown: data.breakdown,
+        };
+        let hidden = |c: char| {
+            c.is_control()
+                || matches!(
+                    c,
+                    '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}'
+                )
+        };
+        assert!(
+            report.notes.iter().any(|n| n.chars().any(hidden)),
+            "the adapter passes the server text through"
+        );
+        report.strip_disguising_text();
+
+        assert!(report.notes.iter().any(|n| n == "Token plan: Proevif."));
+        let plan_note = report
+            .notes_l10n
+            .iter()
+            .find(|n| n.id == "note.mimo_platform.token_plan")
+            .expect("plan note");
+        assert_eq!(
+            plan_note.params.get("plan"),
+            Some(&ParamValue::Text("Proevif".into()))
+        );
+        assert!(!plan_note
+            .with_fallback_locale("es")
+            .fallback
+            .chars()
+            .any(hidden));
+        let mut json = serde_json::to_value(&report).unwrap();
+        crate::text::localize_json_fallbacks(&mut json, "es");
+        let json = serde_json::to_string(&json).unwrap();
+        assert!(!json.chars().any(hidden));
+        assert!(!json.contains("\\u"), "no escaped control characters");
+    }
 }
