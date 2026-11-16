@@ -1517,6 +1517,33 @@ function demoAt(iso, short = false) {
   return short ? { id: "at.date", params: dm, fallback: en({ month: "2-digit", day: "2-digit" }) }
     : { id: "at.date", params: { ...dm, ...hm }, fallback: en({ month: "2-digit", day: "2-digit", ...time }) };
 }
+/** PRD 0026 re-validation (V-02, V-03, V-09, V-11): the core's past clock, day text, day heading and hour text the shell
+ *  sends for Stats and the journal (`text::clock::past`, `day`, `day_heading`, `hour`), with machine params. */
+const demoDaysBack = (d) => Math.round((new Date(new Date().toDateString()) - new Date(d.toDateString())) / 864e5);
+const demoEn = (d, shape) => new Intl.DateTimeFormat("en-US", shape).format(d);
+function demoTime(iso) {
+  const d = new Date(iso);
+  return { id: "at.time", params: { hour: String(d.getHours()), minute: String(d.getMinutes()) }, fallback: demoEn(d, { hour: "numeric", minute: "2-digit" }) };
+}
+function demoPast(iso) {
+  const d = new Date(iso), back = demoDaysBack(d);
+  const hm = { hour: String(d.getHours()), minute: String(d.getMinutes()) }, time = { hour: "numeric", minute: "2-digit" };
+  if (back === 0) return demoTime(iso);
+  if (back >= 1 && back <= 6) return { id: "at.weekday", params: { weekday: String(((d.getDay() + 6) % 7) + 1), ...hm }, fallback: demoEn(d, { weekday: "long", ...time }) };
+  return { id: "at.date", params: { day: String(d.getDate()), month: String(d.getMonth() + 1), ...hm }, fallback: demoEn(d, { month: "2-digit", day: "2-digit", ...time }) };
+}
+function demoDay(day) {
+  const d = new Date(`${day}T12:00:00`), back = demoDaysBack(d);
+  if (back >= 0 && back <= 6) return { id: "at.weekday", params: { weekday: String(((d.getDay() + 6) % 7) + 1) }, fallback: demoEn(d, { weekday: "short" }) };
+  return { id: "at.date", params: { day: String(d.getDate()), month: String(d.getMonth() + 1) }, fallback: demoEn(d, { month: "2-digit", day: "2-digit" }) };
+}
+function demoHeading(iso) {
+  const d = new Date(iso), back = demoDaysBack(d);
+  if (back === 0) return { id: "cost.period.today", params: {}, fallback: "Today" };
+  if (back === 1) return { id: "cost.view.yesterday", params: {}, fallback: "Yesterday" };
+  return demoDay(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+}
+const demoHour = (h) => ({ id: "at.hour", params: { hour: String(h) }, fallback: demoEn(new Date(2024, 0, 1, h), { hour: "numeric" }) });
 /** PRD 0024 RF4.3: the forecast the shell adds to a metric the core's strict forecast says runs out before the reset
  *  (RF2.2: a recent slope and at least 25% used; demo values). */
 const demoForecast = (m, pace) => {
@@ -1957,7 +1984,7 @@ const demoStats = async ({ range, account, generation }) => {
     const back = days - 1 - k, d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - back);
     const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const gap = erased || back === 5 || back === 6;
-    return { day, share: gap ? null : Math.min(1, Math.max(0.05, demoWave(seed + back) * 1.2)), is_today: back === 0 };
+    return { day, share: gap ? null : Math.min(1, Math.max(0.05, demoWave(seed + back) * 1.2)), is_today: back === 0, label: demoDay(day) };
   });
   const accounts = indexes.map((i, row) => {
     const d = daily(i * 3.1), have = d.filter((x) => x.share != null);
@@ -1975,12 +2002,13 @@ const demoStats = async ({ range, account, generation }) => {
     { occurred_at: at(7), kind: "quota_reset", account: demoReports[1].account, summary: { id: "events.summary.quota_reset", params: { metric: "session (5h)" }, fallback: "session (5h): window reset" } },
     { occurred_at: at(30), kind: "quota_exhausted", account: demoReports[1].account, summary: { id: "events.summary.quota_exhausted", params: { metric: "weekly (7d)" }, fallback: "weekly (7d): quota exhausted" } },
     { occurred_at: at(55), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.provider_error", params: {}, fallback: "provider error" } }, fallback: "Refresh failed: provider error" } },
-  ].filter((e) => account == null || e.account === demoReports[account].account).map((e) => ({ ...e, account: demoName(e.account), parent: e.parent ? demoName(e.parent) : e.parent }));
+  ].filter((e) => account == null || e.account === demoReports[account].account).map((e) => ({ ...e, account: demoName(e.account), parent: e.parent ? demoName(e.parent) : e.parent,
+    when: demoPast(e.occurred_at), time: demoTime(e.occurred_at), day: demoHeading(e.occurred_at) }));
   return { summary: { range, hits: accounts.reduce((a, x) => a + x.hits, 0), average_peak: averages.length ? averages.reduce((a, x) => a + x, 0) / averages.length : null,
       accounts, extra_spent: account == null && !erased ? [{ unit: "USD", amount: 6.25 }] : null, daily: dailyAll, unknown_limits: 0,
       retention_days: 90, first_sample_at: at(24 * 10), coverage: withData < 2 ? { kind: "not_enough" } : withData === days ? { kind: "full" } : { kind: "partial", days_with_data: withData } },
     indexes, history_kept: { id: "stats.history_kept", params: { days: 90 }, fallback: "History kept 90 days on this device" },
-    not_enough: { id: "stats.not_enough", params: {}, fallback: "Not enough history" }, removed_account: demoRemoved, events, recording: demoSettings.historyRecording,
+    not_enough: { id: "stats.not_enough", params: {}, fallback: "Not enough history" }, removed_account: demoRemoved, events, skipped: 0, recording: demoSettings.historyRecording,
     rhythm: demoRhythm(erased) };
 };
 // ponytail: PRD 0043 demo rhythm: working hours with a gap at night, a reset at 09:00 and the weekend off.
@@ -1990,15 +2018,15 @@ function demoRhythm(erased) {
   const use = (h) => (h >= 9 && h < 19 ? Math.round(demoWave(h) * 120) / 10 : h < 7 ? null : 0.4);
   const last24 = Array.from({ length: 24 }, (_, i) => {
     const h = (hour - 23 + i + 24) % 24;
-    return { start: at(23 - i), hour: h, consumption: erased ? null : use(h), samples: erased || use(h) == null ? 0 : 4, reset: !erased && h === 9, day_off: false };
+    return { start: at(23 - i), hour: h, consumption: erased ? null : use(h), samples: erased || use(h) == null ? 0 : 4, reset: !erased && h === 9, day_off: false, label: demoHour(h) };
   });
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
     const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const off = d.getDay() === 0 || d.getDay() === 6;
-    return { start: d.toISOString(), day, consumption: erased ? null : off ? 3 : Math.round(demoWave(i) * 600) / 10, samples: erased ? 0 : 40, reset: false, day_off: off };
+    return { start: d.toISOString(), day, consumption: erased ? null : off ? 3 : Math.round(demoWave(i) * 600) / 10, samples: erased ? 0 : 40, reset: false, day_off: off, label: demoDay(day) };
   });
-  const typical = Array.from({ length: 24 }, (_, h) => ({ start: at(0), hour: h, consumption: erased || use(h) == null ? null : use(h), samples: erased ? 0 : 12, reset: false, day_off: false }));
+  const typical = Array.from({ length: 24 }, (_, h) => ({ start: at(0), hour: h, consumption: erased || use(h) == null ? null : use(h), samples: erased ? 0 : 12, reset: false, day_off: false, label: demoHour(h) }));
   return { last_24h: { range: "last24h", buckets: last24, metrics: [] }, last_7d: { range: "last7d", buckets: week, metrics: [] }, typical: { range: "typical30d", buckets: typical, metrics: [] } };
 }
 const demoTimeline = async ({ range, generation }) => {
@@ -2007,12 +2035,12 @@ const demoTimeline = async ({ range, generation }) => {
   const all = demoView().reports.filter((r) => r.binding && r.status === "ready").map((r) => {
     const at = r.binding.blocked_until ?? r.binding.resets_at;
     const share = Math.min(1, Math.max(0, 1 - r.binding.used_ratio));
-    return { account_index: r.index, name: r.account, provider: r.provider, label: r.binding.label ?? "", returns_at: at ?? null, returns_in: at ? durationNote((new Date(at) - now) / 1000) : null, remaining_share: share,
+    return { account_index: r.index, name: r.account, provider: r.provider, label: r.binding.label ?? "", returns_at: at ?? null, returns_in: at ? durationNote((new Date(at) - now) / 1000) : null, returns_clock: at ? demoAt(at) : null, remaining_share: share,
       level: share >= 0.7 ? "good" : share >= 0.3 ? "warn" : "bad", exhausted: r.binding.reason === "exhausted", stale: r.freshness === "stale" };
   });
   const by = (a, b) => new Date(a.returns_at) - new Date(b.returns_at);
   const known = all.filter((l) => l.returns_at);
-  return { range, now: new Date(now).toISOString(), ends_at: new Date(now + span).toISOString(),
+  return { range, now: new Date(now).toISOString(), ends_at: new Date(now + span).toISOString(), ends_clock: demoAt(new Date(now + span).toISOString()),
     lanes: known.filter((l) => new Date(l.returns_at) - now <= span).sort(by), later: known.filter((l) => new Date(l.returns_at) - now > span).sort(by), unknown: all.filter((l) => !l.returns_at) };
 };
 // ponytail: the browser demo has no logs; two fixed sources play the core's disclosure, the consent by digest, turning

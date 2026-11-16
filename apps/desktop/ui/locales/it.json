@@ -1272,8 +1272,10 @@
   "stats.accounts.legend": "media · limiti",
   "stats.events.title": "Eventi recenti",
   "stats.events.empty": "Nessun evento registrato finora.",
-  "stats.events.today": "Oggi",
-  "stats.events.yesterday": "Ieri",
+  "stats.events.skipped": {
+    "one": "Impossibile leggere {count} voce del registro.",
+    "other": "Impossibile leggere {count} voci del registro."
+  },
   "stats.recording.off": "La registrazione dello storico è disattivata; i nuovi eventi non vengono conservati.",
   "stats.footer.partial": "Dati di {have} giorni su {total}.",
   "stats.footer.unknown": {
@@ -1292,7 +1294,8 @@
   "timeline.empty": "Nessun limite torna in questo periodo.",
   "timeline.later": "Dopo",
   "timeline.unknown": "Ritorno sconosciuto",
-  "timeline.lane.aria": "{name} torna alle {time}, tra {in}",
+  "timeline.lane.aria": "{name}: torna {time}, tra {in}; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "esaurito",
   "timeline.left": "{pct}% rimanente",
   "timeline.stale": "lettura non aggiornata",

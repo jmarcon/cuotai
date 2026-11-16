@@ -1275,8 +1275,10 @@
   "stats.accounts.legend": "औसत · बार",
   "stats.events.title": "हाल की घटनाएँ",
   "stats.events.empty": "अभी कोई घटना दर्ज नहीं।",
-  "stats.events.today": "आज",
-  "stats.events.yesterday": "कल",
+  "stats.events.skipped": {
+    "one": "{count} जर्नल प्रविष्टि पढ़ी नहीं जा सकी।",
+    "other": "{count} जर्नल प्रविष्टियाँ पढ़ी नहीं जा सकीं।"
+  },
   "stats.recording.off": "इतिहास की रिकॉर्डिंग बंद है; नई घटनाएँ नहीं रखी जातीं।",
   "stats.footer.partial": "{total} में से {have} दिनों का डेटा।",
   "stats.footer.unknown": {
@@ -1295,7 +1297,8 @@
   "timeline.empty": "इस अवधि में कोई सीमा वापस नहीं आती।",
   "timeline.later": "बाद में",
   "timeline.unknown": "वापसी का समय अज्ञात",
-  "timeline.lane.aria": "{name} {time} पर वापस, {in} में",
+  "timeline.lane.aria": "{name}: वापसी {time}, {in} में; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "खत्म",
   "timeline.left": "{pct}% बचा",
   "timeline.stale": "रीडिंग पुरानी है",

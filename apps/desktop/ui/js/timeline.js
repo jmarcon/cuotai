@@ -2,22 +2,36 @@
 // by return time, from the core's `reset_timeline` (the held readings only: no query, no history). Lanes with a return
 // beyond the range, and accounts whose return is unknown, are listed as text below and never plotted at an edge.
 // This module only draws; the chart is hidden from assistive technology, which reads one named button per lane.
-import { currentLocale, t, te, tl } from "./i18n.js";
+import { t, te, tl } from "./i18n.js";
 import { STALE, brand, errText, esc, getView, logo, reportKey, resetTimeline, setStatsPrefs, statsPrefs } from "./lib.js";
 
 const RANGES = ["hours24", "days7"];
 const REFRESH_MS = 30_000;
 let uid = 0;
 
-const clock = { hour: "2-digit", minute: "2-digit" };
-const timeOf = (iso, range) => new Date(iso).toLocaleString(currentLocale(), range === "days7" ? { weekday: "short", ...clock } : clock);
 const percentOf = (lane) => Math.round(lane.remaining_share * 100);
+/** PRD 0026 re-validation (V-01, V-02): times come from the core clock (`returns_clock`, `ends_clock`: the time today,
+ *  the weekday within six days, the date beyond). A chip on the axis shows its short form (DS-CMP-TIME-1: the time
+ *  today, otherwise the weekday or the date alone); the full time is in the lane's name and tooltip. */
+const fullTime = (note) => (note ? tl(note) : "");
+function shortTime(note) {
+  if (!note || note.id === "at.time" || !note.params) return fullTime(note);
+  const { hour, minute, ...day } = note.params;
+  return tl({ ...note, params: day });
+}
+/** A lane's chip: on the 24-hour axis every return is within a day, so the chip is the time alone; on the 7-day axis the
+ *  short form. */
+function chipTime(note, range) {
+  if (range !== "hours24" || !note?.params || note.params.hour == null) return shortTime(note);
+  return tl({ id: "at.time", params: { hour: note.params.hour, minute: note.params.minute }, fallback: note.fallback });
+}
 
-/** "Claude Work back at 19:30, in 1h 35m" (DS-CHT-6 accessible name). */
-export function laneLabel(lane, range) {
-  const when = timeOf(lane.returns_at, range);
+/** "Claude Work: returns Tuesday 7:30 PM, in 1h 35m; 40% left" (DS-CHT-6 accessible name), one catalog template per
+ *  language (V-12). */
+export function laneLabel(lane) {
   const left = lane.exhausted ? t("timeline.exhausted") : t("timeline.left", { pct: percentOf(lane) });
-  return `${t("timeline.lane.aria", { name: lane.name, time: when, in: lane.returns_in ? tl(lane.returns_in) : "" })}. ${left}${lane.stale ? `. ${t("timeline.stale")}` : ""}`;
+  const state = lane.stale ? t("timeline.lane.staleState", { state: left, stale: t("timeline.stale") }) : left;
+  return t("timeline.lane.aria", { name: lane.name, time: fullTime(lane.returns_clock), in: lane.returns_in ? tl(lane.returns_in) : "", state });
 }
 
 /** Several accounts of one provider show the account name next to the tile; one shows only the provider. */
@@ -30,11 +44,11 @@ function laneHtml(lane, all, tl) {
   const left = `${(x * 100).toFixed(2)}%`;
   const flip = x > 0.78 ? " flip" : x < 0.22 ? " start" : "";
   return `<li class="tl-lane ${lane.level}${lane.stale ? " stale" : ""}">
-    <button type="button" class="tl-who" data-timeline-account="${lane.account_index}" aria-label="${esc(laneLabel(lane, tl.range))}" title="${esc(laneLabel(lane, tl.range))}">
+    <button type="button" class="tl-who" data-timeline-account="${lane.account_index}" aria-label="${esc(laneLabel(lane))}" title="${esc(laneLabel(lane))}">
       ${logo(lane.provider, 14)}<span class="tl-name" title="${esc(labelOf(lane, all))}">${esc(labelOf(lane, all))}</span>
     </button>
     <div class="tl-track" aria-hidden="true"><i class="tl-line" style="width:${left}"></i><i class="tl-dot" style="left:${left}"></i>
-      <span class="tl-time${flip}" style="left:${left}">${esc(tl.compact && lanes(all, lane) > 1 ? `${lane.name} · ${timeOf(lane.returns_at, tl.range)}` : timeOf(lane.returns_at, tl.range))}</span></div>
+      <span class="tl-time${flip}" style="left:${left}" title="${esc(fullTime(lane.returns_clock))}">${esc(tl.compact && lanes(all, lane) > 1 ? `${lane.name} · ${chipTime(lane.returns_clock, tl.range)}` : chipTime(lane.returns_clock, tl.range))}</span></div>
   </li>`;
 }
 
@@ -43,12 +57,12 @@ function textGroup(titleKey, lanes, tl, withTime) {
   if (!lanes.length) return "";
   const hx = tl.compact ? "h3" : "h4";
   return `<div class="tl-text"><${hx}>${te(titleKey)}</${hx}><ul>${lanes.map((l) => `<li>${logo(l.provider, 14)}<span>${esc(`${brand(l.provider).label} · ${l.name}`)}</span>${
-    withTime ? `<span class="tl-when">${esc(timeOf(l.returns_at, "days7"))}</span>` : ""}</li>`).join("")}</ul></div>`;
+    withTime ? `<span class="tl-when">${esc(fullTime(l.returns_clock))}</span>` : ""}</li>`).join("")}</ul></div>`;
 }
 
 function chartHtml(tl) {
   if (!tl.lanes.length) return `<p class="sub tl-empty">${te("timeline.empty")}</p>`;
-  return `<div class="tl-axis sub" aria-hidden="true"><span class="tl-now-label">${te("timeline.now")}</span><span>${esc(timeOf(tl.ends_at, tl.range))}</span></div>
+  return `<div class="tl-axis sub" aria-hidden="true"><span class="tl-now-label">${te("timeline.now")}</span><span title="${esc(fullTime(tl.ends_clock))}">${esc(shortTime(tl.ends_clock))}</span></div>
     <ul class="tl-lanes">${tl.lanes.map((lane) => laneHtml(lane, tl.lanes, tl)).join("")}</ul>`;
 }
 

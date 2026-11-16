@@ -1286,8 +1286,10 @@
   "stats.accounts.legend": "avg · hits",
   "stats.events.title": "Recent events",
   "stats.events.empty": "No events recorded yet.",
-  "stats.events.today": "Today",
-  "stats.events.yesterday": "Yesterday",
+  "stats.events.skipped": {
+    "one": "{count} journal entry could not be read.",
+    "other": "{count} journal entries could not be read."
+  },
   "stats.recording.off": "History recording is off; new events are not kept.",
   "stats.footer.partial": "Data from {have} of {total} days.",
   "stats.footer.unknown": {
@@ -1306,7 +1308,8 @@
   "timeline.empty": "No limit comes back in this period.",
   "timeline.later": "Later",
   "timeline.unknown": "Return unknown",
-  "timeline.lane.aria": "{name} back at {time}, in {in}",
+  "timeline.lane.aria": "{name}: returns {time}, in {in}; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "exhausted",
   "timeline.left": "{pct}% left",
   "timeline.stale": "reading is out of date",

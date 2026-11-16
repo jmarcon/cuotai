@@ -1258,8 +1258,9 @@
   "stats.accounts.legend": "平均 · 触及",
   "stats.events.title": "最近事件",
   "stats.events.empty": "尚未记录事件。",
-  "stats.events.today": "今天",
-  "stats.events.yesterday": "昨天",
+  "stats.events.skipped": {
+    "other": "有 {count} 条事件记录无法读取。"
+  },
   "stats.recording.off": "历史记录已关闭；不会保存新事件。",
   "stats.footer.partial": "数据来自 {total} 天中的 {have} 天。",
   "stats.footer.unknown": {
@@ -1277,7 +1278,8 @@
   "timeline.empty": "此期间没有限额恢复。",
   "timeline.later": "之后",
   "timeline.unknown": "恢复时间未知",
-  "timeline.lane.aria": "{name} 于 {time} 恢复，{in}后",
+  "timeline.lane.aria": "{name}：{time} 恢复，{in}后；{state}",
+  "timeline.lane.staleState": "{state}，{stale}",
   "timeline.exhausted": "已用尽",
   "timeline.left": "剩余 {pct}%",
   "timeline.stale": "读数已过期",

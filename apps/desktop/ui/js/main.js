@@ -454,9 +454,12 @@ const OPEN_VIEW_KEY = "cuotai.openView";
 let statsMount = null, timelineMount = null;
 function setPage(next) {
   if (page === next) return;
+  const from = page;
   page = next;
   render();
   if (next === "stats") root.querySelector("[data-stats-back]")?.focus({ preventScroll: true });
+  // PRD 0026 re-validation (V-05): leaving Stats returns focus to the button that opened it, not to the page.
+  else if (from === "stats") root.querySelector("[data-stats-toggle]")?.focus({ preventScroll: true });
 }
 /** A timeline lane selects its account: back to the grid with that card in view and focused (RF5.2). */
 function focusAccount(key) {

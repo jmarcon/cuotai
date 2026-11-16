@@ -48,7 +48,11 @@ const iso = (daysBack) => {
   d.setDate(d.getDate() - daysBack);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const days = (shares) => shares.map((share, k) => ({ day: iso(shares.length - 1 - k), share, is_today: k === shares.length - 1 }));
+// PRD 0026 re-validation (V-03): the core's day text (`text::clock::day`) travels with each day.
+const dayNote = (back) => ({ id: "at.weekday", params: { weekday: String(((new Date(Date.now() - back * 864e5).getDay() + 6) % 7) + 1) }, fallback: "Mon" });
+const days = (shares) => shares.map((share, k) => ({ day: iso(shares.length - 1 - k), share, is_today: k === shares.length - 1, label: dayNote(shares.length - 1 - k) }));
+const today = { id: "cost.period.today", params: {}, fallback: "Today" };
+const timeNote = { id: "at.time", params: { hour: "18", minute: "5" }, fallback: "6:05 PM" };
 const notEnough = { id: "stats.not_enough", params: {}, fallback: "Histórico insuficiente" };
 const kept = { id: "stats.history_kept", params: { days: 90 }, fallback: "Histórico mantido por 90 dias neste dispositivo" };
 const view = { reports: [{ index: 0, provider: "claude", account: "Work" }] };
@@ -66,8 +70,8 @@ const empty = answer(summary("days7", Array(7).fill(null), { kind: "not_enough" 
 const week = answer(summary("days7", [0.2, 0.5, null, 1, 0.4, null, 0.8], { kind: "partial", days_with_data: 5 }, {
   hits: 1, average_peak: 0.58, extra_spent: [{ unit: "USD", amount: 6.25 }, { unit: "créditos", amount: 120 }],
 }), [
-  { occurred_at: new Date().toISOString(), kind: "quota_exhausted", account: "Work", summary: { id: "events.summary.quota_exhausted", params: { metric: "5h" }, fallback: "5h: cota esgotada" } },
-  { occurred_at: new Date(Date.now() - 9 * 36e5 * 24).toISOString(), kind: "refresh_failed", account: null, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.offline", params: {}, fallback: "provedor inacessível" } }, fallback: "Falha" } },
+  { occurred_at: new Date().toISOString(), kind: "quota_exhausted", account: "Work", day: today, time: timeNote, when: timeNote, summary: { id: "events.summary.quota_exhausted", params: { metric: "5h" }, fallback: "5h: cota esgotada" } },
+  { occurred_at: new Date(Date.now() - 9 * 36e5 * 24).toISOString(), kind: "refresh_failed", account: null, day: { id: "at.date", params: { day: "9", month: "11" }, fallback: "11/09" }, time: timeNote, when: timeNote, summary: { id: "events.summary.refresh_failed", params: { category: { id: "events.category.offline", params: {}, fallback: "provedor inacessível" } }, fallback: "Falha" } },
 ]);
 
 const generation = 7;
@@ -109,10 +113,14 @@ for (const { code } of i18n.LOCALES) {
   assert.equal((bars.match(/class="gap"/g) ?? []).length, 2, `${code}: two gap days`);
   assert.equal((bars.match(/bar ghost/g) ?? []).length, 2, `${code}: gaps are ghost columns, not zero bars`);
   assert.equal((bars.match(/class="full"/g) ?? []).length, 1, `${code}: only the day at the limit is full`);
+  // V-04: today at the limit keeps its accent class and its label.
+  const fullToday = barsHtml([{ day: iso(1), share: 0.5, is_today: false, label: dayNote(1) }, { day: iso(0), share: 1, is_today: true, label: dayNote(0) }]);
+  assert.ok(/class="full today"/.test(fullToday) && fullToday.includes(`>${label("stats.chart.today")}<`), `${code}: today at the limit keeps its highlight`);
   assert.ok(bars.includes(`>${label("stats.chart.today")}<`), `${code}: today is labelled`);
   const body = statsBodyHtml(week, view, "t");
   assert.ok(body.includes('role="img"') && body.includes('<div class="sr-only"><table id="t-table"'), `${code}: chart text alternative and table`);
-  assert.ok(body.includes(label("stats.events.today")), `${code}: journal day header`);
+  assert.ok(body.includes(`<h4 class="st-day-head micro">${i18n.tle(today)}</h4>`), `${code}: journal day header`);
+  assert.ok(statsBodyHtml({ ...week, skipped: 2 }, view, "t").includes("data-stats-skipped"), `${code}: unreadable entries are counted`);
   assert.ok(body.includes(i18n.tl(week.removed_account)), `${code}: removed account label`);
   assert.ok(body.includes(i18n.tl(kept)), `${code}: coverage footnote`);
   assert.ok(body.includes(i18n.t("stats.footer.partial", { have: 5, total: 7 })), `${code}: partial coverage`);
@@ -120,8 +128,12 @@ for (const { code } of i18n.LOCALES) {
   const at = new Date(Date.now() + 95 * 60_000 + 30_000).toISOString();
   // PRD 0024 re-validation (V-10): the duration is the core's `returns_in` text the lane carries.
   const returnsIn = { id: "text.duration.hours_minutes", params: { h: "1", m: "35" }, fallback: "1h 35m" };
-  const name = laneLabel({ name: "Work", returns_at: at, returns_in: returnsIn, exhausted: false, remaining_share: 0.4, stale: false }, "hours24");
-  assert.ok(name.includes("Work") && /\b1\D{1,12}35\D/.test(name) && name.includes("40"), `${code}: lane name "${name}"`);
+  // PRD 0026 re-validation (V-01, V-12): the time is the core's clock (a date beyond six days), and one catalog
+  // template joins the parts, with no ". " seam.
+  const returnsClock = { id: "at.date", params: { day: "28", month: "11", hour: "9", minute: "5" }, fallback: "11/28 9:05 AM" };
+  const name = laneLabel({ name: "Work", returns_at: at, returns_in: returnsIn, returns_clock: returnsClock, exhausted: false, remaining_share: 0.4, stale: true });
+  assert.ok(name.includes("Work") && /\b1\D{1,12}35\D/.test(name) && name.includes("40") && name.includes("28"), `${code}: lane name "${name}"`);
+  assert.ok(!/\.\. |\. [a-zà-ÿ]/.test(name), `${code}: lane name punctuation "${name}"`);
   console.log(`${code}: ${name}`);
 }
 

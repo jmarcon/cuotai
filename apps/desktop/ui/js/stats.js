@@ -3,29 +3,19 @@
 // samples is a hatched ghost column, never a zero bar; unknown figures read "—" with the reason (DS-CMP-KPI-2); fewer
 // than two days of data replaces the charts with one sentence (DS-CHT-11). Every chart hides from assistive technology,
 // which reads its summary and an equivalent table (DS-CHT-10).
-import { currentLocale, t, te, tl } from "./i18n.js";
+import { currentLocale, t, te, tl, tle } from "./i18n.js";
 import { monograms, repeatedProviders, tileHtml } from "./components.js";
 import { STALE, brand, errText, esc, fmtNumber, getView, icon, openSettingsWindow, reportKey, setStatsPrefs, stats, statsPrefs } from "./lib.js";
 
 const RANGES = ["days7", "days30"];
 const REFRESH_MS = 30_000;
-const DAY_MS = 864e5;
 let uid = 0;
 
 const pct = (share) => `${Math.round(share * 100)}%`;
-const dayDate = (iso) => new Date(`${iso}T12:00:00`);
-const dayName = (iso) => dayDate(iso).toLocaleDateString(currentLocale(), { weekday: "short", day: "numeric", month: "short" });
-const clock = (iso) => new Date(iso).toLocaleTimeString(currentLocale(), { hour: "2-digit", minute: "2-digit" });
-
-/** "Today 10:44", "Yesterday 10:44" or "24 Oct 10:44": the time of a journal row (DS-CMP-JRNL-1). */
-function eventWhen(iso, now = new Date()) {
-  const at = new Date(iso);
-  const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const back = Math.round((midnight(now) - midnight(at)) / DAY_MS);
-  const day = back === 0 ? t("stats.events.today") : back === 1 ? t("stats.events.yesterday")
-    : at.toLocaleDateString(currentLocale(), { day: "numeric", month: "short" });
-  return `${day} ${clock(iso)}`;
-}
+// PRD 0026 re-validation (V-02, V-03, V-11): every day and time comes from the core (`text::clock`: `label` of a day
+// or a rhythm bucket, `when`/`time`/`day` of a journal entry), rendered by `tl` with `Intl.DateTimeFormat`, so the
+// desktop, the TUI and the CLI agree. The day of the month of a 30-day tick is the only figure read here.
+const dayOfMonth = (iso) => String(Number(String(iso).slice(8, 10)));
 
 /** The glyph and tone of a journal row, by event kind. */
 const EVENT_ICON = {
@@ -83,12 +73,13 @@ export function barsHtml(daily) {
   const n = daily.length;
   const every = n > 7 ? 5 : 1;
   const cols = daily.map((d, i) => {
-    const name = dayName(d.day);
+    const name = tl(d.label);
     const tip = d.share == null ? `${name}: ${t("stats.chart.noData")}` : `${name}: ${pct(d.share)}`;
     const label = d.is_today ? t("stats.chart.today")
-      : n <= 7 ? dayDate(d.day).toLocaleDateString(currentLocale(), { weekday: "short" })
-      : i % every === 0 || i === n - 1 ? String(dayDate(d.day).getDate()) : "";
-    const cls = d.share == null ? "gap" : d.share >= 1 ? "full" : d.is_today ? "today" : "";
+      : n <= 7 ? name
+      : i % every === 0 || i === n - 1 ? dayOfMonth(d.day) : "";
+    // V-04: today keeps its accent and bold label even at the limit.
+    const cls = [d.share == null ? "gap" : d.share >= 1 ? "full" : "", d.is_today ? "today" : ""].filter(Boolean).join(" ");
     const bar = d.share == null ? `<i class="bar ghost"></i>` : `<i class="bar" style="height:${(d.share * 100).toFixed(1)}%"></i>`;
     // The value over a bar: today's, and a dash over a day without readings.
     const value = d.share == null ? `<span class="x-val" style="bottom:100%">—</span>`
@@ -111,7 +102,7 @@ function chartHtml(data, id, range) {
   const peak = Math.max(...withData.map((d) => d.share));
   const today = s.daily.find((d) => d.is_today)?.share;
   const alt = t("stats.chart.alt", { days: s.daily.length, peak: pct(peak), today: today == null ? t("stats.chart.noData") : pct(today) });
-  const rows = s.daily.map((d) => `<tr><td>${esc(dayName(d.day))}</td><td>${d.share == null ? te("stats.chart.noData") : pct(d.share)}</td></tr>`).join("");
+  const rows = s.daily.map((d) => `<tr><td>${tle(d.label)}</td><td>${d.share == null ? te("stats.chart.noData") : pct(d.share)}</td></tr>`).join("");
   return `<section class="st-card">${head}<div role="img" aria-label="${esc(alt)}" aria-describedby="${id}-table">${barsHtml(s.daily)}</div>
     <div class="sr-only"><table id="${id}-table"><caption>${esc(alt)}</caption>
       <thead><tr><th scope="col">${te("stats.table.day")}</th><th scope="col">${te("stats.table.peak")}</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
@@ -120,7 +111,6 @@ function chartHtml(data, id, range) {
 // ---------- rhythm (PRD 0043 RF4.1) ----------
 
 const pts = (v) => t("stats.rhythm.points", { value: fmtNumber(v, 1) });
-const hourLabel = (h) => `${String(h).padStart(2, "0")}`;
 
 /** One rhythm chart: equal columns scaled to its largest bucket; a bucket without samples is a hatched ghost column
  *  (never a zero bar), a reset is marked under its column, a day off is dimmed. Hidden from assistive technology,
@@ -128,14 +118,14 @@ const hourLabel = (h) => `${String(h).padStart(2, "0")}`;
 export function rhythmChartHtml(rhythm, id, kind) {
   const buckets = rhythm.buckets ?? [];
   const max = Math.max(0, ...buckets.map((b) => b.consumption ?? 0));
-  const labelOf = (b) => (b.day ? dayName(b.day) : hourLabel(b.hour));
+  const labelOf = (b) => tl(b.label);
   const cols = buckets.map((b, i) => {
     const name = labelOf(b);
     const extra = [b.reset ? t("stats.rhythm.reset") : "", b.day_off ? t("stats.rhythm.dayOff") : "", kind === "typical" && b.consumption != null ? t("stats.rhythm.samples", { count: b.samples }) : ""].filter(Boolean).join(" · ");
     const tip = `${name}: ${b.consumption == null ? t("stats.chart.noData") : pts(b.consumption)}${extra ? ` · ${extra}` : ""}`;
     const height = b.consumption == null || max <= 0 ? 0 : (b.consumption / max) * 100;
     const bar = b.consumption == null ? `<i class="bar ghost"></i>` : `<i class="bar" style="height:${height.toFixed(1)}%"></i>`;
-    const label = b.day ? dayDate(b.day).toLocaleDateString(currentLocale(), { weekday: "short" }) : i % 6 === 0 ? hourLabel(b.hour) : "";
+    const label = b.day || i % 6 === 0 ? labelOf(b) : "";
     const cls = [b.consumption == null ? "gap" : "", b.reset ? "reset" : "", b.day_off ? "off" : ""].filter(Boolean).join(" ");
     return `<li class="${cls}" title="${esc(tip)}">${bar}${b.reset ? `<span class="x-reset">↺</span>` : ""}<span class="x-label">${esc(label)}</span></li>`;
   }).join("");
@@ -193,17 +183,26 @@ function accountsHtml(data, view) {
 // ---------- recent events (DS-CMP-JRNL-1) ----------
 
 function eventsHtml(data) {
-  const rows = data.events.map((ev) => {
+  // V-09 (DS-CMP-JRNL-1): rows under day headers ("Today", "Yesterday", then the weekday or the date, from the core),
+  // each with its time; the full time is in the tooltip.
+  let head = null;
+  const groups = [];
+  for (const ev of data.events) {
+    const day = ev.day ? tl(ev.day) : "";
+    if (day !== head) { groups.push({ day, rows: [] }); head = day; }
     // PRD 0036 RF7.3: a connection's event names its aggregator after the connection.
     const who = [ev.account ?? tl(data.removed_account), ev.parent].filter(Boolean).join(" · ");
     const [glyph, tone] = EVENT_ICON[ev.kind] ?? ["info", "muted"];
-    return `<li class="st-event"><span class="st-ev-ico ${tone}" aria-hidden="true">${icon(glyph)}</span>
+    groups.at(-1).rows.push(`<li class="st-event"><span class="st-ev-ico ${tone}" aria-hidden="true">${icon(glyph)}</span>
       <div class="st-event-main"><span class="st-event-text">${esc(tl(ev.summary))}</span><span class="sub">${esc(who)}</span></div>
-      <time class="st-time" datetime="${esc(ev.occurred_at)}">${esc(eventWhen(ev.occurred_at))}</time></li>`;
-  });
+      <time class="st-time" datetime="${esc(ev.occurred_at)}" title="${tle(ev.when)}">${tle(ev.time)}</time></li>`);
+  }
   const off = data.recording ? "" : `<p class="sub">${te("stats.recording.off")}</p>`;
+  // S-03: entries a newer release wrote, or a damaged row, are counted, never guessed.
+  const skipped = data.skipped ? `<p class="sub st-empty-line" data-stats-skipped>${te("stats.events.skipped", { count: data.skipped })}</p>` : "";
+  const list = groups.map((g) => `${g.day ? `<h4 class="st-day-head micro">${esc(g.day)}</h4>` : ""}<ul class="st-list events">${g.rows.join("")}</ul>`).join("");
   return `<section class="st-section"><h3 class="micro">${te("stats.events.title")}</h3>${off}${
-    rows.length ? `<ul class="st-list events">${rows.join("")}</ul>` : `<p class="sub st-empty-line">${te("stats.events.empty")}</p>`}</section>`;
+    groups.length ? list : `<p class="sub st-empty-line">${te("stats.events.empty")}</p>`}${skipped}</section>`;
 }
 
 // ---------- footnote (DS-CMP-STATS-3) ----------
@@ -241,7 +240,7 @@ export function mountStats({ tray = false, onOpenFull = null } = {}) {
   const status = el.querySelector(".st-status");
   const body = el.querySelector(".st-body");
   const select = scopeEl.querySelector("select");
-  let range = "days7", scope = "all", data = null, error = null, epoch = 0, stamp = null, generation = null, view = null, at = 0;
+  let range = "days7", scope = "all", data = null, error = null, epoch = 0, stamp = null, generation = null, view = null, at = 0, refocus = false;
   // PRD 0026 §7: the remembered 7 d / 30 d choice; a toggle before it arrives wins.
   let touched = false;
   statsPrefs().then((p) => {
@@ -262,7 +261,14 @@ export function mountStats({ tray = false, onOpenFull = null } = {}) {
   function paint() {
     for (const b of el.querySelectorAll("[data-stats-range]")) b.setAttribute("aria-pressed", String(b.dataset.statsRange === range));
     status.textContent = error ?? (!data ? t("stats.loading") : "");
+    // V-05: the range toggle lives in the repainted body; a toggle that had focus gets it back (the pressed one), so
+    // the keyboard never falls to the page.
+    if (body.contains(document.activeElement) && document.activeElement.matches("[data-stats-range]")) refocus = true;
     body.innerHTML = !data || error ? "" : statsBodyHtml(data, view, id, { range });
+    const toggle = refocus && body.querySelector(`[data-stats-range="${range}"]`);
+    // While the new range loads the body is empty; the focus returns with the answer, unless it moved meanwhile.
+    if (toggle && (document.activeElement === document.body || document.activeElement == null)) toggle.focus({ preventScroll: true });
+    if (toggle || (refocus && document.activeElement !== document.body)) refocus = false;
   }
   async function load() {
     const e = ++epoch;

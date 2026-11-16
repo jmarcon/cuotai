@@ -1272,8 +1272,10 @@
   "stats.accounts.legend": "media · límites",
   "stats.events.title": "Eventos recientes",
   "stats.events.empty": "Aún no hay eventos registrados.",
-  "stats.events.today": "Hoy",
-  "stats.events.yesterday": "Ayer",
+  "stats.events.skipped": {
+    "one": "No se pudo leer {count} entrada del registro.",
+    "other": "No se pudieron leer {count} entradas del registro."
+  },
   "stats.recording.off": "El registro del historial está desactivado; los eventos nuevos no se guardan.",
   "stats.footer.partial": "Datos de {have} de {total} días.",
   "stats.footer.unknown": {
@@ -1292,7 +1294,8 @@
   "timeline.empty": "Ningún límite vuelve en este periodo.",
   "timeline.later": "Después",
   "timeline.unknown": "Regreso desconocido",
-  "timeline.lane.aria": "{name} vuelve a las {time}, en {in}",
+  "timeline.lane.aria": "{name}: vuelve {time}, en {in}; {state}",
+  "timeline.lane.staleState": "{state}, {stale}",
   "timeline.exhausted": "agotado",
   "timeline.left": "{pct}% restante",
   "timeline.stale": "lectura desactualizada",
