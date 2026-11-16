@@ -208,11 +208,24 @@ struct WidgetSnapshot: Codable {
     /// memory, so it reads as unreadable (the empty state).
     static let maxBytes = 1024 * 1024
 
-    /// The file as it is now, `nil` when it is absent (the empty state) or
-    /// unreadable: a widget never draws made-up numbers.
+    /// The file as it is now, `nil` when it is absent or unreadable: a
+    /// widget never draws made-up numbers. [read(from:)] tells the two apart.
     static func load(from url: URL? = SnapshotLocation.url) -> WidgetSnapshot? {
-        guard let url,
-              let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
+        read(from: url).snapshot
+    }
+
+    /// The file as it is now: absent (widgets off, or the app never wrote
+    /// it: the empty state), unreadable (a newer schema, a file this
+    /// extension cannot decode or may not open: "Update Cuotai"), or ready.
+    static func read(from url: URL? = SnapshotLocation.url) -> SnapshotRead {
+        guard let url else { return .absent }
+        guard FileManager.default.fileExists(atPath: url.path) else { return .absent }
+        guard let snapshot = decode(at: url) else { return .unreadable }
+        return .ready(snapshot)
+    }
+
+    private static func decode(at url: URL) -> WidgetSnapshot? {
+        guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
               size <= maxBytes,
               let data = try? Data(contentsOf: url),
               data.count <= maxBytes
@@ -238,5 +251,22 @@ struct WidgetSnapshot: Codable {
               snapshot.schema <= WidgetSnapshot.supportedSchema
         else { return nil }
         return snapshot
+    }
+}
+
+/// What [WidgetSnapshot.read(from:)] found.
+enum SnapshotRead {
+    case absent
+    case unreadable
+    case ready(WidgetSnapshot)
+
+    var snapshot: WidgetSnapshot? {
+        if case .ready(let snapshot) = self { return snapshot }
+        return nil
+    }
+
+    var isUnreadable: Bool {
+        if case .unreadable = self { return true }
+        return false
     }
 }

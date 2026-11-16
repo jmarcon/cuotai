@@ -1199,6 +1199,50 @@
           }
         }
       }
+    },
+    "Update Cuotai": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualize o Cuotai"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiza Cuotai"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiorna Cuotai"
+          }
+        }
+      }
+    },
+    "This widget cannot read the data Cuotai published. Update Cuotai and open it again.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este widget não consegue ler os dados que o Cuotai publicou. Atualize o Cuotai e abra-o de novo."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este widget no puede leer los datos que publicó Cuotai. Actualiza Cuotai y vuelve a abrirlo."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo widget non riesce a leggere i dati pubblicati da Cuotai. Aggiorna Cuotai e riaprilo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

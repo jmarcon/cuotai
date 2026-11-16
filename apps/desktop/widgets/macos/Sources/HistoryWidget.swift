@@ -11,6 +11,19 @@ struct HistoryEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot?
     let pinnedKey: String?
+    /// The file exists but could not be read (`SnapshotRead.unreadable`).
+    var unreadable = false
+
+    init(date: Date, snapshot: WidgetSnapshot?, pinnedKey: String?, unreadable: Bool = false) {
+        self.date = date
+        self.snapshot = snapshot
+        self.pinnedKey = pinnedKey
+        self.unreadable = unreadable
+    }
+
+    init(date: Date, read: SnapshotRead, pinnedKey: String?) {
+        self.init(date: date, snapshot: read.snapshot, pinnedKey: pinnedKey, unreadable: read.isUnreadable)
+    }
 
     /// The account to chart: the pinned one, else the first published
     /// (the most restrictive, RF1.2).
@@ -41,7 +54,7 @@ struct HistoryProvider: AppIntentTimelineProvider {
 
     private func entry(for configuration: AccountIntent) -> HistoryEntry {
         HistoryEntry(date: Date(),
-                     snapshot: WidgetSnapshot.load(),
+                     read: WidgetSnapshot.read(),
                      pinnedKey: configuration.account?.id)
     }
 }
@@ -52,7 +65,9 @@ struct HistoryWidgetEntryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             WidgetHeader(title: entry.account.map { Text(verbatim: $0.name) } ?? Text("History"))
-            if entry.snapshot == nil {
+            if entry.unreadable {
+                SnapshotUnreadableView()
+            } else if entry.snapshot == nil {
                 // No file: widgets are off or the app never published one.
                 EmptyStateView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,6 +108,7 @@ struct HistoryWidgetEntryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .boundedProposal()
     }
 
     /// The span the series covers, as the file published it.

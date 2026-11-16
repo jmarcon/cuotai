@@ -11,6 +11,20 @@ struct SummaryEntry: TimelineEntry {
     /// The pinned account (its id, or a legacy key), when the user narrowed
     /// the widget down; the App Intent widget passes its own.
     let pinnedKey: String?
+    /// The file exists but could not be read (`SnapshotRead.unreadable`).
+    var unreadable = false
+
+    /// An entry for what `WidgetSnapshot.read()` found.
+    init(date: Date, snapshot: WidgetSnapshot?, pinnedKey: String?, unreadable: Bool = false) {
+        self.date = date
+        self.snapshot = snapshot
+        self.pinnedKey = pinnedKey
+        self.unreadable = unreadable
+    }
+
+    init(date: Date, read: SnapshotRead, pinnedKey: String?) {
+        self.init(date: date, snapshot: read.snapshot, pinnedKey: pinnedKey, unreadable: read.isUnreadable)
+    }
 
     var accounts: [WidgetAccount] {
         let all = snapshot?.accounts ?? []
@@ -26,11 +40,11 @@ struct SummaryProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SummaryEntry) -> Void) {
-        completion(SummaryEntry(date: Date(), snapshot: WidgetSnapshot.load(), pinnedKey: nil))
+        completion(SummaryEntry(date: Date(), read: WidgetSnapshot.read(), pinnedKey: nil))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SummaryEntry>) -> Void) {
-        let entry = SummaryEntry(date: Date(), snapshot: WidgetSnapshot.load(), pinnedKey: nil)
+        let entry = SummaryEntry(date: Date(), read: WidgetSnapshot.read(), pinnedKey: nil)
         // The app writes at most once every 15 seconds (RF1.4) and the
         // system decides when to redraw (RF4.2): ask again after a quarter
         // of an hour, which is also the age the snapshot itself carries.
@@ -44,11 +58,16 @@ struct SummaryWidgetEntryView: View {
     let entry: SummaryEntry
 
     var body: some View {
-        if entry.accounts.isEmpty {
-            EmptyStateView()
-        } else {
-            content
+        Group {
+            if entry.unreadable {
+                SnapshotUnreadableView()
+            } else if entry.accounts.isEmpty {
+                EmptyStateView()
+            } else {
+                content
+            }
         }
+        .boundedProposal()
     }
 
     @ViewBuilder
