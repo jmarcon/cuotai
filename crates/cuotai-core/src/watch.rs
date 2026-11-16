@@ -16,7 +16,7 @@ use crate::events::{self, Event, EventKind, EventState};
 use crate::export::v1::{AccountExport, Export};
 use crate::pace::Point;
 use crate::text::{params, Localized, ParamValue};
-use crate::{Config, Provider};
+use crate::Config;
 
 /// The shortest `--interval` accepted; a shorter one is an error, never
 /// silently raised.
@@ -25,8 +25,8 @@ pub const MIN_INTERVAL_SECONDS: u64 = 60;
 /// `config` refreshed every `seconds` instead of its global
 /// `refresh_seconds`, for one run (nothing is saved). An account with its
 /// own `refresh_seconds` keeps it, and a provider billed per query (AWS
-/// Bedrock) is never polled more often than
-/// [`Provider::METERED_MIN_REFRESH_SECONDS`]. `seconds` outside
+/// Bedrock) keeps its own cadence ([`crate::Account::effective_refresh_seconds`],
+/// hourly by default). `seconds` outside
 /// [`MIN_INTERVAL_SECONDS`]..=[`MAX_REFRESH_SECONDS`] is rejected.
 pub fn with_interval(config: &Config, seconds: u64) -> Result<Config, Localized> {
     if !(MIN_INTERVAL_SECONDS..=MAX_REFRESH_SECONDS).contains(&seconds) {
@@ -40,14 +40,12 @@ pub fn with_interval(config: &Config, seconds: u64) -> Result<Config, Localized>
         ));
     }
     let mut config = config.clone();
+    // PRD 0033 re-validation M-5: a metered account (billed per query)
+    // keeps its own cadence, hourly by default; `--interval` never makes
+    // it query more often.
     for account in &mut config.accounts {
-        if account.refresh_seconds.is_none() {
-            let floor = if account.provider.is_metered() {
-                Provider::METERED_MIN_REFRESH_SECONDS
-            } else {
-                0
-            };
-            account.refresh_seconds = Some(seconds.max(floor));
+        if account.refresh_seconds.is_none() && !account.provider.is_metered() {
+            account.refresh_seconds = Some(seconds);
         }
     }
     Ok(config)
