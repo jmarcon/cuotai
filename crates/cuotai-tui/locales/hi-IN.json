@@ -84,7 +84,10 @@
   "cost.prices.heading": "स्थानीय लागत अनुमान की कीमतें (USD प्रति दस लाख टोकन)",
   "cost.prices.origin.embedded": "अंतर्निहित",
   "cost.prices.origin.user": "आपकी तालिका",
-  "cost.prices.user": "आपकी तालिका ({path}): {date} की कीमतें; स्रोत: {source}; {count} मॉडल, जो अंतर्निहित तालिका पर भारी हैं",
+  "cost.prices.user": {
+    "one": "आपकी तालिका ({path}): {date} की कीमतें; स्रोत: {source}; {count} मॉडल, जो अंतर्निहित तालिका पर भारी है",
+    "other": "आपकी तालिका ({path}): {date} की कीमतें; स्रोत: {source}; {count} मॉडल, जो अंतर्निहित तालिका पर भारी हैं"
+  },
   "cost.prices.user_ignored": "आपकी तालिका ({path}): अनदेखी की गई। {reason}",
   "cost.prices.user_missing": "आपकी तालिका ({path}): मौजूद नहीं है; कीमतें जाँचने या बदलने के लिए उसे इसी फ़ॉर्मैट में बनाएँ",
   "cost.sources.dirs": "  डायरेक्टरी ({origin}), फ़ाइलें {pattern}:",
@@ -92,14 +95,17 @@
   "cost.sources.dirs.default": "डिफ़ॉल्ट",
   "cost.sources.footer": "अवधि: {period} ({slug}); इंडेक्स अवधारण: {days} दिन\nइंडेक्स: {index}\nपसंद: {settings}",
   "cost.sources.heading": "स्थानीय लागत (केवल इसी कंप्यूटर पर अनुमान; डिफ़ॉल्ट रूप से बंद)",
-  "cost.sources.indexed": "  इंडेक्स में: {files} लॉग, {invalid} अमान्य पंक्तियाँ अनदेखी",
+  "cost.sources.indexed": "  इंडेक्स में: {files}, {invalid}",
   "cost.sources.off": "बंद",
   "cost.sources.on_since": "{at} से चालू",
   "cost.live.interval_bounds": "--watch-interval 2 से 3600 सेकंड तक होता है।",
   "cost.live.quit": "q से बाहर निकलें",
   "cost.label.target": "अज्ञात लेबल लक्ष्य: {name}। लक्ष्य: session, project।",
   "cost.folder_hint.state": "on या off का उपयोग करें।",
-  "cost.project.sessions": "{count} सत्र",
+  "cost.project.sessions": {
+    "one": "{count} सत्र",
+    "other": "{count} सत्र"
+  },
   "dashboard.aggregator.available": "{available}/{total} उपलब्ध",
   "dashboard.card.stale": "(पुराना) {age}",
   "dashboard.card.waiting": "प्रतीक्षा में",
@@ -660,5 +666,6 @@
   "cli.backup.history_large": "बैकअप में {size} MiB इतिहास है; इसे कॉपी करने में समय लग सकता है।",
   "cli.restore.merge": "मिलाएँ",
   "cli.restore.rows": "पंक्तियाँ: {rows}, यहाँ नई: {new}",
-  "cli.list_providers.aggregator": " (एग्रीगेटर)"
+  "cli.list_providers.aggregator": " (एग्रीगेटर)",
+  "cost.plan.no_account": "किसी भी कॉन्फ़िगर किए गए खाते का नाम {account} नहीं है; उसकी id या provider:name इस्तेमाल करें।"
 }

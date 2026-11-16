@@ -10,7 +10,7 @@
 //! `local_cost`.
 
 use crate::dashboard::{cells, pad_end, pad_start};
-use crate::l10n::{tr, tr_in, trf, trf_in};
+use crate::l10n::{tr, tr_in, trf, trf_in, trp_in};
 use cuotai_core::cost::{
     self, Breakdown, CostIndex, CostSummary, CostWorker, DayZone, Env, Limits, Period, PriceOrigin,
     Prices, PricingFile, Retention, ScanReport, Scanner, SettingsStore, SourceId, SourceState,
@@ -316,8 +316,17 @@ pub(crate) fn run(
                     cost::PlanSetting::new(price, &currency, day)
                 })
                 .map_err(l10n)?;
-            let key = plan_key(configured.as_deref(), &account);
-            settings.set_plan(&key, Some(plan)).map_err(l10n)?;
+            // L-06: a plan is saved only under an account that exists.
+            let Some(found) = find_account(configured.as_deref(), &account) else {
+                return Err(trf(
+                    "cost.plan.no_account",
+                    "No configured account is named {account}; use its id or provider:name.",
+                    &[("account", &crate::ui::safe(&account))],
+                ));
+            };
+            settings
+                .set_plan(&found.state_key(), Some(plan))
+                .map_err(l10n)?;
             writeln!(
                 stdout,
                 "{}",
@@ -603,13 +612,6 @@ fn find_account<'a>(accounts: Option<&'a [Account]>, name: &str) -> Option<&'a A
         .find(|account| account.state_key() == name || account.key() == name)
 }
 
-/// PRD 0029 RF2: the settings key of the plan of `name`: the account id
-/// when the configuration names it, else `name` as typed (a legacy
-/// `provider:name` key, matched by the core's fallback).
-fn plan_key(accounts: Option<&[Account]>, name: &str) -> String {
-    find_account(accounts, name).map_or_else(|| name.to_owned(), Account::state_key)
-}
-
 /// Without a configuration: the accounts the saved plans name
 /// (`provider:name`), enough for
 /// [`cost::plan_values`]; plans of extension accounts are not matched.
@@ -764,10 +766,28 @@ fn sources(
         out += &trf_in(
             locale,
             "cost.sources.indexed",
-            "  In the index: {files} log(s), {invalid} invalid line(s) ignored",
+            "  In the index: {files}, {invalid}",
             &[
-                ("files", &indexed.files),
-                ("invalid", &indexed.invalid_lines),
+                (
+                    "files",
+                    &cuotai_core::text::Localized::plural(
+                        "cost.scan.files",
+                        cuotai_core::text::params([("count", indexed.files.into())]),
+                        "{count} log",
+                        "{count} logs",
+                    )
+                    .resolve(locale),
+                ),
+                (
+                    "invalid",
+                    &cuotai_core::text::Localized::plural(
+                        "cost.scan.invalid",
+                        cuotai_core::text::params([("count", indexed.invalid_lines.into())]),
+                        "{count} invalid line ignored",
+                        "{count} invalid lines ignored",
+                    )
+                    .resolve(locale),
+                ),
             ],
         );
         out += "\n";
@@ -841,15 +861,16 @@ fn prices(file: &PricingFile, json: bool, locale: &str) -> Result<(String, u8), 
                     ("source", &source(&info.source)),
                 ],
             ),
-            PriceOrigin::User => trf_in(
+            PriceOrigin::User => trp_in(
                 locale,
                 "cost.prices.user",
-                "Your table ({path}): prices of {date}; source: {source}; {count} model(s), which take precedence over the built-in one",
+                "Your table ({path}): prices of {date}; source: {source}; {count} model, which takes precedence over the built-in one",
+                "Your table ({path}): prices of {date}; source: {source}; {count} models, which take precedence over the built-in one",
+                prices.user().map_or(0, |table| table.models.len()),
                 &[
                     ("path", &file.path().display()),
                     ("date", &info.effective),
                     ("source", &source(&info.source)),
-                    ("count", &prices.user().map_or(0, |table| table.models.len())),
                 ],
             ),
         };
@@ -958,15 +979,22 @@ pub(crate) enum Row {
     Heading,
     /// One model or one day.
     Item,
+    /// PRD 0030 RF6.2: an amount at the person's rate, under the period.
+    Aside,
 }
 
 /// RF4.2: the rows of one source, shared by `--cost` and the TUI's account
 /// details: its note, today, yesterday and the span, then the breakdown by
 /// model and by day (the days with usage). A source that is off has only
 /// its note.
+///
+/// C-07: the period's amount at the typed rate (`display`) and the plan
+/// lines (`plans`) come right under the period row.
 pub(crate) fn source_rows(
     summary: &CostSummary,
     source: &cost::SourceCost,
+    display: Option<&cost::DisplayCurrency>,
+    plans: &[&cost::PlanValue],
 ) -> Vec<(Row, cuotai_core::text::Localized)> {
     let span = &summary.span;
     let mut rows: Vec<_> = source.note.iter().map(|n| (Row::Note, n.clone())).collect();
@@ -978,6 +1006,10 @@ pub(crate) fn source_rows(
         (Row::Amount, usage.yesterday.line(cost::yesterday_label())),
         (Row::Amount, usage.period.line(span.label.clone())),
     ]);
+    if let Some(line) = display.and_then(|d| d.text_for(&usage.period, span.last_day)) {
+        rows.push((Row::Aside, line));
+    }
+    rows.extend(plans.iter().map(|plan| (Row::Amount, plan.text.clone())));
     // PRD 0042 RF6.2: the active block, only with a burn rate.
     if let Some(live) = summary
         .live
@@ -1021,7 +1053,12 @@ fn usage_text(
     if let Some(error) = &summary.pricing_error {
         out += &format!("{}\n", error.resolve(locale));
     }
-    for note in summary.prices_age.iter().chain(&summary.unpriced) {
+    for note in summary
+        .prices_age
+        .iter()
+        .chain(&summary.unpriced)
+        .chain(&summary.settings_notes)
+    {
         out += &format!("{}\n", crate::ui::safe(&note.resolve(locale)));
     }
     for source in &summary.sources {
@@ -1029,21 +1066,25 @@ fn usage_text(
         if source.usage.is_some() {
             out += &format!("{}\n", cost::heading(source.source).resolve(locale));
         }
-        for (row, text) in source_rows(summary, source) {
+        // The plan lines describe themselves and come once at the end.
+        for (row, text) in source_rows(summary, source, display, &[]) {
             let indent = match row {
                 _ if source.usage.is_none() => "",
-                Row::Note | Row::Amount | Row::Heading => "  ",
+                Row::Note | Row::Amount | Row::Heading | Row::Aside => "  ",
                 Row::Item => "    ",
             };
             out += &format!("{indent}{}\n", crate::ui::safe(&text.resolve(locale)));
         }
     }
-    if let (Some(display), Some(total)) = (display, summary.total.total) {
-        let today = summary.span.last_day;
+    // C-07: the whole span at the typed rate, with its unknown part.
+    if let Some(line) = display.and_then(|d| d.text_for(&summary.total, summary.span.last_day)) {
         out += &format!(
-            "\n{}: {}\n",
-            summary.span.label.resolve(locale),
-            display.text(total, today).resolve(locale)
+            "\n{}\n",
+            crate::ui::safe(&format!(
+                "{}: {}",
+                summary.span.label.resolve(locale),
+                line.resolve(locale)
+            ))
         );
     }
     if !plans.is_empty() {
@@ -1217,11 +1258,13 @@ fn breakdown_text(
                 out += &format!("\n{}{short}{hidden}\n", safe(&project.name));
                 out += &format!(
                     "  {}\n",
-                    safe(&project.estimate.line(trf_in(
+                    safe(&project.estimate.line(trp_in(
                         locale,
                         "cost.project.sessions",
-                        "{count} session(s)",
-                        &[("count", &project.sessions)],
+                        "{count} session",
+                        "{count} sessions",
+                        usize::try_from(project.sessions).unwrap_or(usize::MAX),
+                        &[],
                     )))
                 );
             }
@@ -1460,7 +1503,7 @@ mod tests {
         assert_eq!(value["tables"][1]["effective"], "2026-10-15");
         let (text, _) = prices(&file, false, "pt-BR").unwrap();
         assert!(
-            text.contains("preços de 2026-10-15; fonte: contract; 1 modelo(s)"),
+            text.contains("preços de 2026-10-15; fonte: contract; 1 modelo, que vale"),
             "{text}"
         );
 
@@ -1557,7 +1600,7 @@ mod tests {
             "{projects}"
         );
         assert_eq!(projects.matches("Project ").count(), 2, "{projects}");
-        assert!(projects.contains("session(s)"), "{projects}");
+        assert!(projects.contains("1 session:"), "{projects}");
 
         let blocks = text(Breakdown::Block, None, false);
         assert!(blocks.contains("Local estimate"), "{blocks}");
@@ -1574,5 +1617,54 @@ mod tests {
         assert!(none.contains("Codex CLI: no active block."), "{none}");
         let off = live_text(&[], &[], "en-US");
         assert!(off.contains("cuotai --cost-enable"), "{off}");
+    }
+
+    /// C-02: even a display currency built past its constructor never
+    /// puts a control sequence in the `--cost` text; C-07: the rate line
+    /// sits right under the period row.
+    #[test]
+    fn the_cost_text_filters_the_rate_line_and_places_it_under_the_period() {
+        use cuotai_core::cost::{summarize, DailyUsage, Prices, Span, SummaryInput, Tokens};
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 20).unwrap();
+        let usage = [DailyUsage {
+            source: SourceId::ClaudeCode,
+            day: today,
+            model: "claude-opus-5-5".into(),
+            tokens: Tokens {
+                input: 1_000_000,
+                ..Tokens::default()
+            },
+            requests: 1,
+            sessions: 1,
+        }];
+        let summary = summarize(&SummaryInput {
+            today,
+            span: Span::Period(Period::Today),
+            enabled: &[SourceId::ClaudeCode],
+            usage: &usage,
+            prices: &Prices::embedded(),
+            pricing_error: None,
+            last: None,
+        });
+        let crafted = cost::DisplayCurrency {
+            code: "\u{1b}]0;X\u{7}".into(),
+            rate: 5.0,
+            set_on: today,
+        };
+        let text = usage_text(&summary, Some(&crafted), &[], "en-US");
+        assert!(
+            !text.contains('\u{1b}') && !text.contains('\u{7}'),
+            "{text:?}"
+        );
+        let lines: Vec<&str> = text.lines().collect();
+        // Today, Yesterday, then the span (also "Today").
+        let period = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.starts_with("  Today:"))
+            .map(|(i, _)| i)
+            .nth(1)
+            .expect("period row");
+        assert!(lines[period + 1].contains("at your rate"), "{text}");
     }
 }

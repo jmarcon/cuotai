@@ -81,7 +81,10 @@
   "cost.prices.heading": "Precios de la estimación de costo local (USD por millón de tokens)",
   "cost.prices.origin.embedded": "integrada",
   "cost.prices.origin.user": "tu tabla",
-  "cost.prices.user": "Tu tabla ({path}): precios de {date}; fuente: {source}; {count} modelo(s), que prevalecen sobre la integrada",
+  "cost.prices.user": {
+    "one": "Tu tabla ({path}): precios de {date}; fuente: {source}; {count} modelo, que prevalece sobre la integrada",
+    "other": "Tu tabla ({path}): precios de {date}; fuente: {source}; {count} modelos, que prevalecen sobre la integrada"
+  },
   "cost.prices.user_ignored": "Tu tabla ({path}): ignorada. {reason}",
   "cost.prices.user_missing": "Tu tabla ({path}): no existe; créala con el mismo formato para revisar o cambiar precios",
   "cost.sources.dirs": "  Directorios ({origin}), archivos {pattern}:",
@@ -89,14 +92,17 @@
   "cost.sources.dirs.default": "predeterminados",
   "cost.sources.footer": "Período: {period} ({slug}); retención del índice: {days} días\nÍndice: {index}\nPreferencias: {settings}",
   "cost.sources.heading": "Costo local (estimación solo en este equipo; desactivado por defecto)",
-  "cost.sources.indexed": "  En el índice: {files} log(s), {invalid} línea(s) no válida(s) ignorada(s)",
+  "cost.sources.indexed": "  En el índice: {files}, {invalid}",
   "cost.sources.off": "desactivado",
   "cost.sources.on_since": "activado desde {at}",
   "cost.live.interval_bounds": "--watch-interval va de 2 a 3600 segundos.",
   "cost.live.quit": "q sale",
   "cost.label.target": "Destino de etiqueta desconocido: {name}. Destinos: session, project.",
   "cost.folder_hint.state": "Use on u off.",
-  "cost.project.sessions": "{count} sesión(es)",
+  "cost.project.sessions": {
+    "one": "{count} sesión",
+    "other": "{count} sesiones"
+  },
   "dashboard.aggregator.available": "{available}/{total} disponibles",
   "dashboard.card.stale": "(desactualizada) {age}",
   "dashboard.card.waiting": "Esperando",
@@ -657,5 +663,6 @@
   "cli.backup.history_large": "La copia guarda {size} MiB de historial; puede tardar en copiarse.",
   "cli.restore.merge": "fusionar",
   "cli.restore.rows": "filas: {rows}, nuevas aquí: {new}",
-  "cli.list_providers.aggregator": " (agregador)"
+  "cli.list_providers.aggregator": " (agregador)",
+  "cost.plan.no_account": "Ninguna cuenta configurada se llama {account}; use su id o provider:name."
 }

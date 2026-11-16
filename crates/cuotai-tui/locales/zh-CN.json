@@ -84,7 +84,9 @@
   "cost.prices.heading": "本地费用估算的价格（USD / 百万 token）",
   "cost.prices.origin.embedded": "内置",
   "cost.prices.origin.user": "自定价格表",
-  "cost.prices.user": "自定价格表（{path}）：{date} 的价格；来源：{source}；{count} 个模型，优先于内置价格表",
+  "cost.prices.user": {
+    "other": "自定价格表（{path}）：{date} 的价格；来源：{source}；{count} 个模型，优先于内置价格表"
+  },
   "cost.prices.user_ignored": "自定价格表（{path}）：已忽略。{reason}",
   "cost.prices.user_missing": "自定价格表（{path}）：不存在；按相同格式创建即可查看或修改价格",
   "cost.sources.dirs": "  目录（{origin}），文件 {pattern}：",
@@ -92,14 +94,16 @@
   "cost.sources.dirs.default": "默认",
   "cost.sources.footer": "周期：{period}（{slug}）；索引保留：{days} 天\n索引：{index}\n偏好设置：{settings}",
   "cost.sources.heading": "本地费用（仅为此电脑上的估算；默认关闭）",
-  "cost.sources.indexed": "  索引中：{files} 个日志，已忽略 {invalid} 行无效内容",
+  "cost.sources.indexed": "  索引中：{files}，{invalid}",
   "cost.sources.off": "关闭",
   "cost.sources.on_since": "自 {at} 起开启",
   "cost.live.interval_bounds": "--watch-interval 的范围为 2 到 3600 秒。",
   "cost.live.quit": "按 q 退出",
   "cost.label.target": "未知的标签对象：{name}。可用：session、project。",
   "cost.folder_hint.state": "请使用 on 或 off。",
-  "cost.project.sessions": "{count} 个会话",
+  "cost.project.sessions": {
+    "other": "{count} 个会话"
+  },
   "dashboard.aggregator.available": "{available}/{total} 可用",
   "dashboard.card.stale": "（过期）{age}",
   "dashboard.card.waiting": "等待中",
@@ -650,5 +654,6 @@
   "cli.backup.history_large": "备份包含 {size} MiB 的历史记录；复制可能较慢。",
   "cli.restore.merge": "合并",
   "cli.restore.rows": "行：{rows}，此处新增：{new}",
-  "cli.list_providers.aggregator": " (聚合器)"
+  "cli.list_providers.aggregator": " (聚合器)",
+  "cost.plan.no_account": "没有名为 {account} 的已配置账户；请使用其 id 或 provider:name。"
 }

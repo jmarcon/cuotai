@@ -649,13 +649,14 @@ struct Args {
     /// CUOTAI_FALLBACK_LOCALE. Without it they are English.
     #[arg(long, value_name = "LOCALE")]
     fallback_locale: Option<String>,
-    /// Lists the local cost sources (Claude Code, Codex CLI): whether they
-    /// are on, the exact directories they read (or would read) and what the
+    /// Lists the local cost sources (Claude Code, Codex CLI, Gemini CLI):
+    /// whether they are on, the exact directories they read (or would read) and what the
     /// index already follows; reads no logs. With --json, as JSON. All off
     /// by default.
     #[arg(long, group = "cost_action")]
     cost_sources: bool,
-    /// Turns on reading the local logs of SOURCE (claude_code or codex_cli):
+    /// Turns on reading the local logs of SOURCE (claude_code, codex_cli or
+    /// gemini_cli):
     /// shows exactly which directories will be read, what for and that only
     /// numbers (time, model, token counts, an anonymous session summary) are
     /// extracted, and asks for confirmation in the terminal. Never reads the
@@ -693,7 +694,8 @@ struct Args {
     #[arg(long, value_name = "MODEL", num_args = 1.., requires = "cost_prices")]
     template: Vec<String>,
     /// Stores the plan price of an account (typed by you, on this computer
-    /// only): ACCOUNT is provider:name (e.g. claude:personal), PRICE the
+    /// only): ACCOUNT is the account id or provider:name (e.g.
+    /// claude:personal) of a configured account, PRICE the
     /// amount, CURRENCY the three-letter code and DAY (1 to 28, default 1)
     /// the start of the cycle. Compares the estimate at API prices with the
     /// plan.
@@ -704,7 +706,7 @@ struct Args {
         group = "cost_action"
     )]
     cost_plan: Option<Vec<String>>,
-    /// Removes the plan price of ACCOUNT (provider:name).
+    /// Removes the plan price of ACCOUNT (the account id or provider:name).
     #[arg(long, value_name = "ACCOUNT", group = "cost_action")]
     cost_plan_clear: Option<String>,
     /// A second currency for display only: `--cost-currency BRL 5.42` (1 USD

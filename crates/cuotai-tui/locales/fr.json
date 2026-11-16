@@ -84,7 +84,10 @@
   "cost.prices.heading": "Prix de l’estimation de coût local (USD par million de tokens)",
   "cost.prices.origin.embedded": "intégrée",
   "cost.prices.origin.user": "votre table",
-  "cost.prices.user": "Votre table ({path}) : prix du {date} ; source : {source} ; {count} modèle(s), prioritaires sur la table intégrée",
+  "cost.prices.user": {
+    "one": "Votre table ({path}) : prix du {date} ; source : {source} ; {count} modèle, prioritaire sur la table intégrée",
+    "other": "Votre table ({path}) : prix du {date} ; source : {source} ; {count} modèles, prioritaires sur la table intégrée"
+  },
   "cost.prices.user_ignored": "Votre table ({path}) : ignorée. {reason}",
   "cost.prices.user_missing": "Votre table ({path}) : n’existe pas ; créez-la au même format pour revoir ou modifier les prix",
   "cost.sources.dirs": "  Dossiers ({origin}), fichiers {pattern} :",
@@ -92,14 +95,17 @@
   "cost.sources.dirs.default": "par défaut",
   "cost.sources.footer": "Période : {period} ({slug}) ; conservation de l’index : {days} jours\nIndex : {index}\nPréférences : {settings}",
   "cost.sources.heading": "Coût local (estimation sur cet ordinateur uniquement ; désactivé par défaut)",
-  "cost.sources.indexed": "  Dans l’index : {files} journal(aux), {invalid} ligne(s) invalide(s) ignorée(s)",
+  "cost.sources.indexed": "  Dans l’index : {files}, {invalid}",
   "cost.sources.off": "désactivé",
   "cost.sources.on_since": "activé depuis {at}",
   "cost.live.interval_bounds": "--watch-interval va de 2 à 3600 secondes.",
   "cost.live.quit": "q quitte",
   "cost.label.target": "Cible de libellé inconnue : {name}. Cibles : session, project.",
   "cost.folder_hint.state": "Utilisez on ou off.",
-  "cost.project.sessions": "{count} session(s)",
+  "cost.project.sessions": {
+    "one": "{count} session",
+    "other": "{count} sessions"
+  },
   "dashboard.aggregator.available": "{available}/{total} disponibles",
   "dashboard.card.stale": "(obsolète) {age}",
   "dashboard.card.waiting": "En attente",
@@ -660,5 +666,6 @@
   "cli.backup.history_large": "La sauvegarde contient {size} Mio d'historique ; sa copie peut être lente.",
   "cli.restore.merge": "fusionner",
   "cli.restore.rows": "lignes : {rows}, nouvelles ici : {new}",
-  "cli.list_providers.aggregator": " (agrégateur)"
+  "cli.list_providers.aggregator": " (agrégateur)",
+  "cost.plan.no_account": "Aucun compte configuré ne s’appelle {account} ; utilisez son identifiant ou provider:name."
 }
