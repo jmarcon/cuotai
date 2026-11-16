@@ -10,7 +10,7 @@
 //! | `config/cuotai.toml` | the accounts TOML | verbatim (it names variables, never values) |
 //! | `config/hooks.toml` | beside the TOML | verbatim |
 //! | `prefs/desktop.json` | desktop settings | window geometry, one-time records and the data folder dropped; the chosen paths become `@config`/`@user` markers, never taken on restore |
-//! | `prefs/cost-settings.json` | local cost settings | the per-machine sources (and their folders) dropped |
+//! | `prefs/cost-settings.json` | local cost settings | the per-machine sources, their folders and the folder-name switches dropped; never taken on restore, where this computer's stay |
 //! | `prefs/pricing.json` | your local prices | verbatim |
 //! | `prefs/cost-labels.json` | the labels and hidden projects of the local cost index | only the person's labels (never a folder name) and the key of the project fingerprints, adopted on restore by a computer with no fingerprint of its own |
 //! | `user/themes/*.css`, `user/locales/*.json` | user themes and languages | verbatim |
@@ -56,6 +56,7 @@ pub const HISTORY_WARN_BYTES: usize = 32 << 20;
 
 const MANIFEST: &str = "manifest.json";
 const COST_LABELS: &str = "prefs/cost-labels.json";
+const COST_SETTINGS: &str = "prefs/cost-settings.json";
 
 /// Why a backup or a restore stopped. Never carries a value from a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -418,12 +419,58 @@ fn scrub_desktop(bytes: &[u8]) -> Option<Vec<u8>> {
     serde_json::to_vec_pretty(&value).ok()
 }
 
-/// Local cost settings without the sources, which each computer turns on
-/// after its own disclosure and whose folders belong to it.
+/// The members of the local cost settings that are this computer's
+/// consents: the sources (each turned on after its own disclosure, with
+/// folders that belong to it) and the folder-name switches (PRD 0042
+/// RF4.3). Never in a backup, never taken from one.
+const COST_MACHINE_KEYS: [&str; 2] = ["sources", "folder_hints"];
+
+/// Local cost settings without [`COST_MACHINE_KEYS`].
 fn scrub_cost_settings(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
-    value.as_object_mut()?.remove("sources");
+    let object = value.as_object_mut()?;
+    for key in COST_MACHINE_KEYS {
+        object.remove(key);
+    }
     serde_json::to_vec_pretty(&value).ok()
+}
+
+/// PRD 0030 C-01: the incoming cost settings with [`COST_MACHINE_KEYS`]
+/// dropped whatever the backup holds, and this computer's own put back,
+/// so a restore never turns a local cost source on. `None` when either
+/// side is not a JSON object.
+fn merge_cost_settings(local: Option<&[u8]>, incoming: &[u8]) -> Option<Vec<u8>> {
+    let mut merged: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_slice(incoming).ok()?;
+    for key in COST_MACHINE_KEYS {
+        merged.remove(key);
+    }
+    if let Some(local) = local {
+        let local: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(local).ok()?;
+        for key in COST_MACHINE_KEYS {
+            if let Some(value) = local.get(key) {
+                merged.insert(key.to_owned(), value.clone());
+            }
+        }
+    }
+    serde_json::to_vec_pretty(&serde_json::Value::Object(merged)).ok()
+}
+
+/// PRD 0030 C-01: a restore that carries cost settings leaves every local
+/// cost source off; each one is turned on on this computer.
+fn cost_sources_need() -> (Localized, NextStep) {
+    (
+        Localized::fixed(
+            "bundle.need.cost_sources",
+            "Local cost sources stay off after a restore: turn each one on on this computer (Settings › Local cost or cuotai --cost-sources).",
+        ),
+        NextStep {
+            kind: "cost_sources",
+            account: 0,
+            provider: String::new(),
+        },
+    )
 }
 
 /// The history a backup carries (`--with-history`, RF2.2): the samples of
@@ -756,8 +803,9 @@ enum MergeWith {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NextStep {
     /// `env` (a variable to set, or in the desktop a key to type),
-    /// `sign_in`, or `channel` (a notification channel's address to type
-    /// again, PRD 0044).
+    /// `sign_in`, `channel` (a notification channel's address to type
+    /// again, PRD 0044), or `cost_sources` (turn the local cost sources on
+    /// on this computer, PRD 0030; `account` 0 and no provider).
     pub kind: &'static str,
     /// The account's position in the backup's file (0-based); for a
     /// `channel`, the channel's position in the desktop settings.
@@ -1072,6 +1120,8 @@ pub fn plan(
         }
         let new = if path == "prefs/desktop.json" {
             merge_desktop(current.as_deref(), bytes).ok_or(BundleError::Invalid)?
+        } else if path == COST_SETTINGS {
+            merge_cost_settings(current.as_deref(), bytes).ok_or(BundleError::Invalid)?
         } else {
             bytes.clone()
         };
@@ -1118,6 +1168,12 @@ pub fn plan(
             .map(|desktop| channel_needs(desktop))
             .unwrap_or_default(),
     );
+    if bundle.files.contains_key(COST_SETTINGS)
+        && only.is_none_or(|part| part == Part::Prefs)
+        && locations.data_root.is_some()
+    {
+        steps.push(cost_sources_need());
+    }
     let (needs, next_steps) = steps.into_iter().unzip();
     Ok(Plan {
         created_at: bundle.manifest.created_at.clone(),

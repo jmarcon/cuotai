@@ -2387,5 +2387,15 @@
   "oauth_error.store.too_long": "이 자격 증명은 시스템 보관소에 넣기에 너무 큽니다.",
   "edit_error.config_reserved_name": "필드 {field}에 Cuotai용으로 예약된 이름(__CUOTAI_로 시작)이 쓰였습니다. 직접 만든 환경 변수의 이름을 지정하거나 계정 마법사에서 비밀 값을 붙여 넣으세요.",
   "vault.remove.in_use": "이 자격 증명은 사용 중입니다. 대신 해당 계정이나 채널을 제거하세요.",
-  "vault.remove.not_indexed": "이 키는 저장된 자격 증명 목록에 없습니다."
+  "vault.remove.not_indexed": "이 키는 저장된 자격 증명 목록에 없습니다.",
+  "bundle.need.cost_sources": "복원 후에도 로컬 비용 소스는 꺼진 상태로 유지됩니다. 이 컴퓨터에서 하나씩 켜세요(설정 › 로컬 비용 또는 cuotai --cost-sources).",
+  "cost.settings.plans_ignored": {
+    "other": "저장된 요금제 가격 {count}개가 유효하지 않아 무시되었습니다. 다시 입력하세요."
+  },
+  "cost.settings.rate_ignored": "저장된 두 번째 통화가 유효하지 않아 무시되었습니다. 다시 설정하세요.",
+  "doctor.fix.cost_settings_values": "설정 › 로컬 비용에서 또는 cuotai --cost-plan 및 --cost-currency로 요금제 가격과 두 번째 통화를 다시 입력하세요.",
+  "doctor.title.cost_pricing": "로컬 가격(pricing.json)",
+  "doctor.cost_pricing.none": "pricing.json이 없습니다. 기본 제공 가격을 사용합니다.",
+  "doctor.cost_pricing.ok": "유효하며 기본 제공 가격보다 우선합니다.",
+  "doctor.fix.cost_pricing": "pricing.json을 수정하거나 삭제하세요. 기본 제공 가격만 사용됩니다."
 }

@@ -2403,5 +2403,16 @@
   "oauth_error.store.too_long": "Esta credencial es demasiado grande para la bóveda del sistema.",
   "edit_error.config_reserved_name": "El campo {field} usa un nombre reservado para Cuotai (empieza por __CUOTAI_); indica el nombre de tu propia variable de entorno o pega el secreto en el asistente de la cuenta.",
   "vault.remove.in_use": "Esa credencial está en uso; elimina su cuenta o su canal en su lugar.",
-  "vault.remove.not_indexed": "Esa clave no está en la lista de credenciales guardadas."
+  "vault.remove.not_indexed": "Esa clave no está en la lista de credenciales guardadas.",
+  "bundle.need.cost_sources": "Las fuentes de coste local siguen desactivadas tras una restauración: active cada una en este equipo (Ajustes › Coste local o cuotai --cost-sources).",
+  "cost.settings.plans_ignored": {
+    "one": "{count} precio de plan guardado no es válido y se ignora; escríbalo de nuevo.",
+    "other": "{count} precios de plan guardados no son válidos y se ignoran; escríbalos de nuevo."
+  },
+  "cost.settings.rate_ignored": "La segunda moneda guardada no es válida y se ignora; configúrela de nuevo.",
+  "doctor.fix.cost_settings_values": "Escriba de nuevo los precios de los planes y la segunda moneda en Ajustes › Coste local, o con cuotai --cost-plan y --cost-currency.",
+  "doctor.title.cost_pricing": "Precios locales (pricing.json)",
+  "doctor.cost_pricing.none": "No hay pricing.json; se usan los precios integrados.",
+  "doctor.cost_pricing.ok": "Es válido y tiene prioridad sobre los precios integrados.",
+  "doctor.fix.cost_pricing": "Corrija o elimine pricing.json; solo se usan los precios integrados."
 }

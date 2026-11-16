@@ -2403,5 +2403,16 @@
   "oauth_error.store.too_long": "Questa credenziale è troppo grande per il vault di sistema.",
   "edit_error.config_reserved_name": "Il campo {field} usa un nome riservato a Cuotai (inizia con __CUOTAI_); indica il nome di una tua variabile d’ambiente, oppure incolla il segreto nell’assistente dell’account.",
   "vault.remove.in_use": "Questa credenziale è in uso; rimuovi invece il suo account o il suo canale.",
-  "vault.remove.not_indexed": "Questa chiave non è nell'elenco delle credenziali salvate."
+  "vault.remove.not_indexed": "Questa chiave non è nell'elenco delle credenziali salvate.",
+  "bundle.need.cost_sources": "Le fonti di costo locale restano spente dopo un ripristino: accendi ciascuna su questo computer (Impostazioni › Costo locale o cuotai --cost-sources).",
+  "cost.settings.plans_ignored": {
+    "one": "{count} prezzo del piano salvato non è valido ed è ignorato; digitalo di nuovo.",
+    "other": "{count} prezzi dei piani salvati non sono validi e sono ignorati; digitali di nuovo."
+  },
+  "cost.settings.rate_ignored": "La seconda valuta salvata non è valida ed è ignorata; impostala di nuovo.",
+  "doctor.fix.cost_settings_values": "Digita di nuovo i prezzi dei piani e la seconda valuta in Impostazioni › Costo locale, oppure con cuotai --cost-plan e --cost-currency.",
+  "doctor.title.cost_pricing": "Prezzi locali (pricing.json)",
+  "doctor.cost_pricing.none": "Nessun pricing.json; si usano i prezzi integrati.",
+  "doctor.cost_pricing.ok": "È valido e ha la precedenza sui prezzi integrati.",
+  "doctor.fix.cost_pricing": "Correggi o rimuovi pricing.json; si usano solo i prezzi integrati."
 }

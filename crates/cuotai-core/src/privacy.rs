@@ -255,20 +255,24 @@ static ARTIFACTS: &[Artifact] = &[
         "cost.settings",
         LocalData,
         "cost/settings.json",
-        "local cost sources and their switches, block lengths, folder-name hint switches",
+        "local cost sources and their switches, block lengths, folder-name hint switches, plan prices per account id, a second currency and its rate",
         Unversioned,
         UNTIL_ERASED,
-        "0015",
+        "0015, 0030",
     ),
-    file(
-        "cost.pricing",
-        LocalData,
-        "cost/pricing.json",
-        "price overrides per model",
-        Unversioned,
-        UNTIL_ERASED,
-        "0015",
-    ),
+    Artifact {
+        // Written only by the person; Cuotai reads it and never writes it.
+        mode: None,
+        ..file(
+            "cost.pricing",
+            LocalData,
+            "cost/pricing.json",
+            "price overrides per model, as you created it (never written by Cuotai)",
+            Unversioned,
+            UNTIL_ERASED,
+            "0015, 0030",
+        )
+    },
     file(
         "notifications.ledger",
         LocalData,

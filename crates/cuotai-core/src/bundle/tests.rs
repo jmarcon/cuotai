@@ -213,7 +213,8 @@ fn a_restore_on_a_fresh_machine_adds_everything_and_lists_what_is_missing() {
         needs,
         [
             "Set GROQ_WORK for account 1 (groq).",
-            "Sign in again to account 2 (claude)."
+            "Sign in again to account 2 (claude).",
+            "Local cost sources stay off after a restore: turn each one on on this computer (Settings › Local cost or cuotai --cost-sources)."
         ]
     );
     let written = plan
@@ -333,6 +334,11 @@ fn next_steps_follow_the_needs_one_for_one() {
                 kind: "sign_in",
                 account: 1,
                 provider: "claude".into()
+            },
+            NextStep {
+                kind: "cost_sources",
+                account: 0,
+                provider: String::new()
             },
         ]
     );
@@ -772,4 +778,64 @@ fn a_backup_refuses_cuotai_files_and_replaces_others_privately() {
         assert_eq!(mode & 0o777, 0o600);
         assert_eq!(std::fs::read(&out).unwrap(), b"second");
     }
+}
+
+/// PRD 0030 C-01: a restore never turns a local cost source on nor keeps
+/// folder names, whatever the backup holds; this computer's stay.
+#[test]
+fn a_restore_never_turns_a_local_cost_source_on() {
+    let source = Tree::new();
+    source.write("config/cuotai.toml", "");
+    source.write(
+        "data/cost/settings.json",
+        r#"{"sources":{"claude_code":{"enabled":true}},"folder_hints":{"claude_code":true},"retention_days":60}"#,
+    );
+    let mut bundle = collect(&source.locations(), at(), "9.9.9").unwrap();
+    let carried: serde_json::Value =
+        serde_json::from_slice(&bundle.files["prefs/cost-settings.json"]).unwrap();
+    assert_eq!(carried, serde_json::json!({"retention_days": 60}));
+
+    // A crafted backup carrying consents and folder switches.
+    bundle.files.insert(
+        "prefs/cost-settings.json".into(),
+        br#"{"sources":{"claude_code":{"enabled":true,"digest":"x"}},"folder_hints":{"claude_code":true},"retention_days":30}"#.to_vec(),
+    );
+    let none = |_: &str| None;
+    let fresh = Tree::new();
+    let plan = plan(&bundle, &fresh.locations(), None, &none).unwrap();
+    assert!(plan
+        .next_steps
+        .iter()
+        .any(|step| step.kind == "cost_sources"));
+    plan.apply(|_| true).unwrap();
+    let store = crate::cost::SettingsStore::at(fresh.at("data/cost/settings.json"));
+    let restored = store.load().unwrap();
+    assert!(restored.sources.is_empty());
+    assert!(restored.folder_hints.is_empty());
+    assert_eq!(restored.retention_days, 30);
+
+    // On a computer with its own consents, they stay exactly as they were.
+    let local = Tree::new();
+    local.write(
+        "data/cost/settings.json",
+        r#"{"sources":{"codex_cli":{"enabled":true}},"retention_days":90}"#,
+    );
+    let plan = super::plan(&bundle, &local.locations(), None, &none).unwrap();
+    plan.apply(|_| true).unwrap();
+    let restored: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(local.at("data/cost/settings.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        restored,
+        serde_json::json!({"sources": {"codex_cli": {"enabled": true}}, "retention_days": 30})
+    );
+
+    // Cost settings that are not an object are refused.
+    bundle
+        .files
+        .insert("prefs/cost-settings.json".into(), b"[1]".to_vec());
+    assert!(matches!(
+        super::plan(&bundle, &Tree::new().locations(), None, &none),
+        Err(BundleError::Invalid)
+    ));
 }

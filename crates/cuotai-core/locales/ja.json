@@ -2387,5 +2387,15 @@
   "oauth_error.store.too_long": "この資格情報はシステムの保管庫には大きすぎます。",
   "edit_error.config_reserved_name": "フィールド {field} は Cuotai 用に予約された名前（__CUOTAI_ で始まる）を使っています。自分の環境変数の名前を指定するか、アカウントウィザードでシークレットを貼り付けてください。",
   "vault.remove.in_use": "この認証情報は使用中です。代わりにそのアカウントまたはチャネルを削除してください。",
-  "vault.remove.not_indexed": "そのキーは保存済み認証情報の一覧にありません。"
+  "vault.remove.not_indexed": "そのキーは保存済み認証情報の一覧にありません。",
+  "bundle.need.cost_sources": "復元後もローカルコストのソースはオフのままです。このコンピューターで1つずつオンにしてください（設定 › ローカルコスト、または cuotai --cost-sources）。",
+  "cost.settings.plans_ignored": {
+    "other": "保存されたプラン料金 {count} 件が無効なため無視されました。もう一度入力してください。"
+  },
+  "cost.settings.rate_ignored": "保存された第2通貨が無効なため無視されました。もう一度設定してください。",
+  "doctor.fix.cost_settings_values": "設定 › ローカルコスト、または cuotai --cost-plan と --cost-currency で、プラン料金と第2通貨をもう一度入力してください。",
+  "doctor.title.cost_pricing": "ローカル価格（pricing.json）",
+  "doctor.cost_pricing.none": "pricing.json はありません。組み込みの価格を使用します。",
+  "doctor.cost_pricing.ok": "有効で、組み込みの価格より優先されます。",
+  "doctor.fix.cost_pricing": "pricing.json を修正するか削除してください。組み込みの価格だけが使われます。"
 }

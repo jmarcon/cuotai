@@ -14,7 +14,13 @@ fn the_template_names_the_models_with_null_rates() {
     assert_eq!(json["currency"], "USD");
     assert!(json["effective"].as_str().is_some_and(|d| d.len() == 10));
     for model in ["claude-foo-6", "gpt-x-mini"] {
-        for field in ["input", "output", "cache_read", "cache_write"] {
+        for field in [
+            "input",
+            "output",
+            "cache_read",
+            "cache_write",
+            "cache_write_1h",
+        ] {
             assert!(json["models"][model][field].is_null(), "{model} {field}");
         }
     }

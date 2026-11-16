@@ -2387,5 +2387,15 @@
   "oauth_error.store.too_long": "此凭据对系统保险库来说过大。",
   "edit_error.config_reserved_name": "字段 {field} 使用了为 Cuotai 保留的名称（以 __CUOTAI_ 开头）；请填写你自己的环境变量名称，或在账户向导中粘贴密钥。",
   "vault.remove.in_use": "该凭据正在使用中；请改为移除其账户或渠道。",
-  "vault.remove.not_indexed": "该键不在已保存凭据列表中。"
+  "vault.remove.not_indexed": "该键不在已保存凭据列表中。",
+  "bundle.need.cost_sources": "恢复后本地成本来源保持关闭：请在这台电脑上逐个开启（设置 › 本地成本，或 cuotai --cost-sources）。",
+  "cost.settings.plans_ignored": {
+    "other": "{count} 个已保存的套餐价格无效，已忽略；请重新输入。"
+  },
+  "cost.settings.rate_ignored": "已保存的第二货币无效，已忽略；请重新设置。",
+  "doctor.fix.cost_settings_values": "请在 设置 › 本地成本 中，或用 cuotai --cost-plan 和 --cost-currency 重新输入套餐价格和第二货币。",
+  "doctor.title.cost_pricing": "本地价格（pricing.json）",
+  "doctor.cost_pricing.none": "没有 pricing.json；使用内置价格。",
+  "doctor.cost_pricing.ok": "文件有效，优先于内置价格。",
+  "doctor.fix.cost_pricing": "修正或删除 pricing.json；仅使用内置价格。"
 }
