@@ -509,7 +509,7 @@
   "wizard.params.none": "इस प्रदाता के कोई अतिरिक्त पैरामीटर नहीं हैं।",
   "wizard.params.none.keys": "Enter जारी रखता है; Shift+Tab वापस जाता है।",
   "wizard.params.required": " (ज़रूरी)",
-  "wizard.provider.detect_prompt": "[F6] जाँचें  [F7] अभी नहीं · इस डिवाइस पर पहले से इस्तेमाल हो रहे AI टूल खोजें? Cuotai केवल यह देखता है कि फ़ोल्डर मौजूद हैं या नहीं, एनवायरनमेंट वेरिएबल सेट हैं या नहीं (उनके मान कभी नहीं) और 127.0.0.1 पर कोई स्थानीय 9router जवाब देता है या नहीं; इसके अलावा कुछ नहीं पढ़ता।",
+  "wizard.provider.detect_prompt": "[F6] जाँचें  [F7] अभी नहीं",
   "wizard.provider.detected": "  · इस डिवाइस पर मिला",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] दोबारा सुझाव न दें)",
   "wizard.provider.help": "खोजने के लिए टाइप करें; ऐरो खिसकाते हैं; Enter खाते का प्रदाता चुनता है।",
@@ -623,5 +623,6 @@
   "channels.cli.log_empty": "पिछले 7 दिनों में कोई डिलीवरी नहीं।",
   "cli.backup.history_large": "बैकअप में {size} MiB इतिहास है; इसे कॉपी करने में समय लग सकता है।",
   "cli.restore.merge": "मिलाएँ",
-  "cli.restore.rows": "पंक्तियाँ: {rows}, यहाँ नई: {new}"
+  "cli.restore.rows": "पंक्तियाँ: {rows}, यहाँ नई: {new}",
+  "cli.list_providers.aggregator": " (एग्रीगेटर)"
 }

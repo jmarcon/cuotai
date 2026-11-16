@@ -519,7 +519,7 @@
   "wizard.params.none": "У этого провайдера нет дополнительных параметров.",
   "wizard.params.none.keys": "Enter — далее; Shift+Tab — назад.",
   "wizard.params.required": " (обязательно)",
-  "wizard.provider.detect_prompt": "[F6] Проверить  [F7] Не сейчас · Поискать на этом устройстве ИИ-инструменты, которыми вы уже пользуетесь? Cuotai лишь проверяет, существуют ли папки, заданы ли переменные окружения (значения не читаются) и есть ли локальный 9router на 127.0.0.1; больше ничего не читается.",
+  "wizard.provider.detect_prompt": "[F6] Проверить  [F7] Не сейчас",
   "wizard.provider.detected": "  · найдено на этом устройстве",
   "wizard.provider.detected_hint": "{hint} · {found} ([F8] больше не предлагать)",
   "wizard.provider.help": "Вводите для поиска; стрелки — перемещение; Enter выбирает провайдера записи.",
@@ -635,5 +635,6 @@
   "channels.cli.log_empty": "За последние 7 дней доставок не было.",
   "cli.backup.history_large": "Резервная копия содержит {size} МиБ истории; копирование может занять время.",
   "cli.restore.merge": "объединить",
-  "cli.restore.rows": "строк: {rows}, новых здесь: {new}"
+  "cli.restore.rows": "строк: {rows}, новых здесь: {new}",
+  "cli.list_providers.aggregator": " (агрегатор)"
 }

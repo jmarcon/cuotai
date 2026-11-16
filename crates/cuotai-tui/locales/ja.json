@@ -504,7 +504,7 @@
   "wizard.params.none": "このプロバイダーに追加のパラメーターはありません。",
   "wizard.params.none.keys": "Enter で続行、Shift+Tab で戻ります。",
   "wizard.params.required": " （必須）",
-  "wizard.provider.detect_prompt": "[F6] 確認  [F7] 後で · 既に使っている AI ツールをこのデバイスで探しますか？Cuotai が確認するのは、フォルダーの有無、環境変数が設定されているか（値は読みません）、ローカルの 9router が 127.0.0.1 で応答するかだけです。それ以外は何も読み取りません。",
+  "wizard.provider.detect_prompt": "[F6] 確認  [F7] 後で",
   "wizard.provider.detected": "  · このデバイスで検出",
   "wizard.provider.detected_hint": "{hint} · {found}（[F8] 今後提案しない）",
   "wizard.provider.help": "入力して検索、矢印キーで移動、Enter でアカウントのプロバイダーを選択します。",
@@ -617,5 +617,6 @@
   "channels.cli.log_empty": "過去 7 日間に配信はありません。",
   "cli.backup.history_large": "バックアップには {size} MiB の履歴が含まれます。コピーに時間がかかる場合があります。",
   "cli.restore.merge": "統合",
-  "cli.restore.rows": "行: {rows}、ここでの新規: {new}"
+  "cli.restore.rows": "行: {rows}、ここでの新規: {new}",
+  "cli.list_providers.aggregator": " (アグリゲーター)"
 }
