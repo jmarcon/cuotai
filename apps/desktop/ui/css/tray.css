@@ -332,9 +332,10 @@ body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* PRD 0025 RF2.3 (DS-CMP-LIST-3): the accounts left out of the menu bar, under an inset muted label. */
+/* PRD 0025 RF2.3 (DS-CMP-LIST-3): the accounts left out of the menu bar, under an inset muted label on the rows'
+   content grid (re-validation V-13). */
 .pop-sub {
-  margin: var(--space-2) var(--space-1) var(--space-1);
+  margin: var(--space-2) var(--space-3) var(--space-1);
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }

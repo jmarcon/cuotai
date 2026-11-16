@@ -993,7 +993,8 @@ struct TrayMenuPayload {
     open: String,
     settings: String,
     quit: String,
-    /// PRD 0010 RF3.3: icon tooltip ("Cuotai · oldest reading: 42 min ago").
+    /// PRD 0010 RF3.3: icon tooltip ("Oldest reading: Claude, 42 min ago"); the
+    /// summary line before it carries the one "Cuotai" prefix (re-validation V-18).
     tooltip: String,
     /// PRD 0003 RF3.4: "Next notice: Claude 5h · today, 14:30", when one is ahead.
     #[serde(default)]

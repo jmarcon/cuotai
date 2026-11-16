@@ -24,8 +24,12 @@ const selftest = args.includes("--selftest");
 // `--zoom` (PRD 0020 RNF): the 200 % zoom pass. At 200 % a 1280×820 screen offers a 640×410 CSS viewport, so the main
 // window and Settings are checked there (the tray is a fixed 380 px popover whose content does not reflow).
 const zoom = args.includes("--zoom");
-// `--shard i/n` takes a value, which is not a locale.
-const locales = args.filter((a, k) => !a.startsWith("--") && args[k - 1] !== "--shard");
+// `--pages a,b` (PRD 0025 re-validation) checks only the pages whose names start with one of these prefixes, and
+// skips the themed and danger passes: a quick local look at the surfaces a change touched. CI runs everything.
+const pagesArg = args[args.indexOf("--pages") + 1];
+const only = args.includes("--pages") ? (pagesArg ?? "").split(",").filter(Boolean) : null;
+// `--shard i/n` and `--pages` take a value, which is not a locale.
+const locales = args.filter((a, k) => !a.startsWith("--") && args[k - 1] !== "--shard" && args[k - 1] !== "--pages");
 const LOCALES = locales.length ? locales : selftest ? ["en-US"] : ["en-US", "pt-BR", "es", "it", "de", "ru", "ko", "hi-IN", "id-ID", "tr", "vi", "zh-CN", "fr", "ja", "en-XA"];
 const ZOOM_PAGES = [
   ["zoom200-main", "index.html", 640, 410, {}],
@@ -70,6 +74,14 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
   ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
+  // PRD 0025 re-validation V-15/V-19: the Row display sub-page, a custom menu-bar selection (Settings and the popover's
+  // "Not in menu bar" group) and the non-Standard row layouts.
+  ["settings-rows", "settings.html?page=dashboard&sub=rows", 640, 460, {}],
+  ["settings-menubar-custom", "settings.html?page=menubar&traysel=3", 640, 460, {}],
+  ["tray-custom-selection", "tray.html?traysel=3", 380, 600, {}],
+  ["tray-rows-minimal", "tray.html?rows=minimal", 380, 600, {}],
+  ["tray-rows-detailed", "tray.html?rows=detailed", 380, 600, {}],
+  ["main-rows-minimal", "index.html?rows=minimal", 1200, 820, {}],
   ["settings-about", "settings.html?page=about", 640, 460, {}],
   // PRD 0020 re-validation V-15: the other pages, Integrations also with its disclosures open.
   ["settings-data", "settings.html?page=data", 640, 460, {}],
@@ -195,7 +207,9 @@ const PAGE_JS = `(() => {
   // Everything in a Settings group keeps the rows' inset from the card's edge; the group's label sits above the card.
   for (const s of document.querySelectorAll(".set-content .set-sec")) {
     const box = s.getBoundingClientRect();
-    if (!box.width) continue;
+    // An open sub-page turns its page's group into a transparent frame (settings.css); the sub-page's own cards are
+    // checked as sections of their own (PRD 0025 re-validation V-15).
+    if (!box.width || s.querySelector(":scope .set-subpage.on")) continue;
     for (const e of s.querySelectorAll("h2, h3, p, button, pre, code")) { if (e.closest("[hidden], dialog, .set-pop, .menu, summary") || !e.textContent.trim()) continue; const r = e.getBoundingClientRect(), inset = e.matches("button") ? 0 : parseFloat(getComputedStyle(e).paddingLeft); if (r.width && (e.matches("h2") ? r.bottom > box.top + 1 : r.left + inset < box.left + 8)) out.push({ kind: "flush-to-group-edge", ok: false, sel: sel(e), text: e.textContent.trim().slice(0, 50) }); }
   }
   // A Settings row's label never runs under its control (the control drops below when both do not fit).
@@ -311,10 +325,11 @@ function tasks() {
     for (const [name, page, w, h, storage, click, openModels] of PAGES) {
       // The selftest forces its string into the plain tray views only.
       if (selftest && (!page.startsWith("tray") || storage["cuotai.trayView"])) continue;
+      if (only && !only.some((p) => name.startsWith(p))) continue;
       list.push({ id: `${name}.${locale}`, run: () => checkPage(name, page, w, h, storage, click, openModels, locale) });
     }
   }
-  if (zoom || selftest) return list;
+  if (zoom || selftest || only) return list;
   for (const [name, page, w, h, storage] of THEME_PAGES) list.push({ id: `${name}.en-US`, run: () => themedPage(name, page, w, h, storage) });
   for (const theme of THEMES.filter((t) => !t.user)) {
     for (const mode of theme.modes) list.push({ id: `danger.${theme.id}.${mode}`, run: () => dangerButton(theme, mode) });

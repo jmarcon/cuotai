@@ -377,7 +377,9 @@ function plain(html) {
   assert.match(shell, /data-shell-close/);
   assert.match(shell, /<div class="dlg-shell-foot"><button>ok<\/button><\/div>/);
   const { stepHtml } = await import("../apps/desktop/ui/js/first-run.js");
-  assert.match(stepHtml({ updatePending: true }), /dlg-shell-head[\s\S]*dlg-shell-body[\s\S]*first-run-update[\s\S]*dlg-shell-foot[\s\S]*data-first-on/);
+  // PRD 0025 re-validation V-16: with the update question, the alerts' buttons come first, above that question.
+  assert.match(stepHtml({ updatePending: true }), /dlg-shell-head[\s\S]*dlg-shell-body[\s\S]*data-first-on[\s\S]*first-run-update/);
+  assert.match(stepHtml({ updatePending: false }), /dlg-shell-body[\s\S]*dlg-shell-foot[\s\S]*data-first-on/);
 }
 assert.deepEqual(long, [], "row labels over 4 words");
 console.log("PASS: Settings window pages follow DS-CMP-SEG-5, the sidebar navigates, every old dialog control renders on its page, and the rows keep the RF3/RF5 limits in every built-in language");

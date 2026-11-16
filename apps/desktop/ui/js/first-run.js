@@ -27,6 +27,10 @@ export const stepHtml = ({ updatePending, managed = null }) => shellHtml({
   <ul class="first-run-list"><li>${icon("bell")}<span>${te("firstrun.item.alerts")}</span></li></ul>
   <p class="hint">${te("firstrun.advanced")}</p>
   <p class="err" data-first-error role="alert"></p>
+  ${updatePending || managed?.command ? `<div class="dlg-actions first-run-alerts">
+    <button class="btn" data-first-later>${te("firstrun.later")}</button>
+    <button class="btn primary" data-first-on>${te("firstrun.on")}</button>
+  </div>` : ""}
   ${updatePending ? `<section class="first-run-update" aria-labelledby="first-run-update-title">
     <h3 id="first-run-update-title">${te("update.consent.title")}</h3>
     <p class="hint">${te("update.consent.body")}</p>
@@ -35,7 +39,9 @@ export const stepHtml = ({ updatePending, managed = null }) => shellHtml({
       <button class="btn" data-first-update-no>${te("update.consent.no")}</button>
       <button class="btn" data-first-update-yes>${te("update.consent.yes")}</button>
     </div></section>` : managed?.command ? managedHtml(managed) : ""}`,
-  foot: `<div class="dlg-actions">
+  // Re-validation V-16: with a second question the alerts' buttons sit under their own text, above that question, so
+  // Turn on never reads as its answer; alone they stay in the foot.
+  foot: updatePending || managed?.command ? "" : `<div class="dlg-actions">
     <button class="btn" data-first-later>${te("firstrun.later")}</button>
     <button class="btn primary" data-first-on>${te("firstrun.on")}</button>
   </div>`,
@@ -66,7 +72,10 @@ export async function maybeShowFirstRun(view, update) {
     p.className = "hint";
     p.setAttribute("role", "status");
     p.textContent = text;
+    p.tabIndex = -1;
     buttons[0].closest(".dlg-actions").replaceWith(p);
+    // Re-validation V-16: the focus moves to the question still open (or the answer), never to the page.
+    if (dlg.open) (dlg.querySelector(".dlg-actions button:not(:disabled)") ?? p).focus();
   };
   on.onclick = async () => {
     on.disabled = later.disabled = true;

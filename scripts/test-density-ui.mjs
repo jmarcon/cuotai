@@ -91,6 +91,28 @@ for (const layout of [{ preset: "standard" }, { preset: "minimal" }, { preset: "
 d.applyRowLayout({ preset: "minimal" });
 assert.equal((c.rowHtml(r, { title: "T" }).match(/class="stl[ "]/g) ?? []).length <= 1, true, "one status line");
 assert.ok(!c.rowHtml(r, { title: "T" }).includes("xline"), "Minimal has no extra line");
+// PRD 0025 re-validation V-09 (DS-CMP-DENS-2): with every status part off the row has no empty status line, and a
+// detail left without its label has no leading separator.
+const statusOff = { preset: "custom", elements: { status: false, ring: false, runs_out: false, returns: false } };
+d.applyRowLayout(statusOff);
+for (const x of view.reports.filter((y) => y.status === "ready")) {
+  const html = c.rowHtml(x, { title: "T" });
+  assert.ok(!/<span class="stl-l"><\/span><\/span>/.test(html), `${x.account}: an empty status line`);
+  assert.ok(!/class="det">· /.test(html), `${x.account}: a dangling separator`);
+}
+const exhausted = view.reports.find((y) => c.accountState(y).kind === "exhausted" || c.accountState(y).kind === "stale");
+if (exhausted) {
+  const line = c.statusLineHtml(exhausted, c.accountState(exhausted), { label: false });
+  assert.ok(!line.includes('class="det">· '), "no separator without the label");
+}
+assert.equal(c.statusLineHtml(r, c.accountState(r), { glyph: false, label: false, chips: false, reset: false }), "", "nothing shown: no line");
+// V-10: no switch is a no-op: while the main window's layout is edited, the elements a card does not have are
+// disabled with the reason; the shared or menu-bar layout keeps them all.
+const both = { tray: { preset: "standard" }, window: { preset: "detailed" }, separate: true };
+const win = rowdisplay.bodyHtml(both, "window");
+for (const k of rowdisplay.NOT_IN_CARDS) assert.match(win, new RegExp(`data-rows-el="${k}" disabled`), `window: ${k} disabled`);
+assert.match(win, /Not shown in main-window cards/);
+assert.ok(!/disabled/.test(rowdisplay.bodyHtml(both, "tray").match(/data-rows-el="sublimits"[^>]*/)[0]), "the menu bar keeps it");
 d.applyRowLayout({ preset: "standard" });
 
 // The sub-page in the four catalogs.

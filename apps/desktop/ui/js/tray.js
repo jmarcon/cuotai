@@ -12,7 +12,7 @@ import { mountTimeline } from "./timeline.js";
 import { costLineHtml, sourceFor } from "./cost.js";
 import {
   accountLabel, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
-  initHiddenAccounts, initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
+  initHiddenAccounts, splitByMenuBarKeys, initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   billingOverage, openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
   errText, isDesktop, hourlyStrip,
 } from "./lib.js";
@@ -83,14 +83,10 @@ root.addEventListener("toggle", (e) => {
 let traySel = null;
 if (window.__TAURI__) window.__TAURI__.event.listen("tray-prefs-changed", (e) => { if (e.payload) traySel = e.payload; render(); });
 /** PRD 0025 RF2.3: the menu-bar accounts first, in the menu bar's order; the others under "Not in menu bar". */
-function splitByMenuBar(reports, view) {
-  const sel = traySel ?? view?.tray;
-  const keys = sel?.selected ?? [];
-  const inBar = keys.map((k) => reports.find((r) => r.account_id === k)).filter(Boolean);
-  if (!inBar.length || inBar.length === reports.length) return { inBar: reports, rest: [] };
-  return { inBar, rest: reports.filter((r) => !inBar.includes(r)) };
-}
-const notInHtml = () => `<p class="pop-sub" role="presentation">${te("settings.menubar.not_in")}</p>`;
+const splitByMenuBar = (reports, view) => splitByMenuBarKeys(reports, (traySel ?? view?.tray)?.selected ?? []);
+/** PRD 0025 re-validation V-13: the accounts left out of the menu bar are a group named by its label, so assistive
+ *  technology announces where it starts. */
+const notInHtml = (rows) => `<div class="pop-group" role="group" aria-labelledby="pop-not-in"><p class="pop-sub" id="pop-not-in">${te("settings.menubar.not_in")}</p>${rows}</div>`;
 
 /** The chips a row carries besides its status line: extra usage (PRD 0023), the best account (PRD 0024 RF7) and a
  *  9router connection's own state (PRD 0036). */
@@ -305,7 +301,7 @@ function render() {
   else if (showStats) body = `<div data-stats-slot></div>`;
   // PRD 0036 RF8.1: an aggregator's own tab shows its instance view (pools and connections), whatever "All" does.
   else if (filter.startsWith("agg:") && reports[0]) body = aggregatorViewHtml(reports[0], view);
-  else body = `${listOf(inBar)}${rest.length ? notInHtml() + listOf(rest) : ""}${reports.length ? `${stripHtml()}<div data-timeline-slot></div>` : ""}`;
+  else body = `${listOf(inBar)}${rest.length ? notInHtml(listOf(rest)) : ""}${reports.length ? `${stripHtml()}<div data-timeline-slot></div>` : ""}`;
   if (view && all.length) loadStrip();
   syncTrayMenu(view);
   // DS-CMP-HEAD-2 and PRD 0022 RF7.3: the overview header holds the Cuotai mark button that opens the main window,
@@ -364,7 +360,8 @@ root.addEventListener("click", (e) => {
   const el = e.target;
   const tab = el.closest("[data-tab]");
   if (tab) return select(tab.dataset.tab);
-  if (el.closest("[data-more]")) { moreOpen = !moreOpen; return render(); }
+  // PRD 0025 re-validation V-11: the redraw keeps the focus on More, so the keyboard stays in the menu.
+  if (el.closest("[data-more]")) { moreOpen = !moreOpen; render(); root.querySelector("[data-more]")?.focus(); return; }
   if (openReference(el)) return;
   const toggle = el.closest("[data-agg-toggle]");
   if (toggle) {
@@ -427,6 +424,14 @@ root.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (moreOpen) { e.preventDefault(); moreOpen = false; render(); root.querySelector("[data-more]")?.focus(); return; }
   if (expanded || statsOpen) { e.preventDefault(); back(); }
+});
+// V-11: Escape closes the menu from anywhere in the document (the focus can sit outside the root after a redraw).
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || !moreOpen || root.contains(e.target)) return;
+  e.preventDefault();
+  moreOpen = false;
+  render();
+  root.querySelector("[data-more]")?.focus();
 });
 // PRD 0011 RF4.1: "Open status page" in an account's details.
 bindStatusLinks(root);

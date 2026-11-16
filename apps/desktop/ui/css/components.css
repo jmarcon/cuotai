@@ -506,6 +506,7 @@ dialog:focus-visible {
 }
 :root[data-rows-hide~="plan"] .plan-badge,
 :root[data-rows-hide~="label"] .r1 .ac,
+:root[data-rows-hide~="label"] .card .who p.ac,
 :root[data-rows-hide~="monogram"] .mono-badge,
 :root[data-rows-hide~="unit"] .fig small,
 :root[data-rows-hide~="corridor"] .mtr .pm,
@@ -515,7 +516,9 @@ dialog:focus-visible {
 :root[data-rows-hide~="ring"] .stl .sg,
 :root[data-rows-hide~="runs_out"] .stl .tchip,
 :root[data-rows-hide~="returns"] .stl .rst,
+:root[data-rows-hide~="returns"] .card .win-reset,
 :root[data-rows-hide~="incident"] .xline[data-incident],
+:root[data-rows-hide~="incident"] .card .incident-line,
 :root[data-rows-hide~="extra"] [data-overage-chip],
 :root[data-rows-hide~="extra"] [data-overage-row],
 :root[data-rows-hide~="sublimits"] .subl {

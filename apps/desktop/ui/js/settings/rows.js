@@ -193,7 +193,8 @@ function applySub() {
 
 async function closeSub() {
   const key = openSub;
-  if (!key || !(await (guards.get(key) ?? (() => true))())) return;
+  const guard = guards.get(key);
+  if (!key || (typeof guard === "function" && !(await guard()))) return;
   openSub = null;
   applySub();
   content.querySelector(`[data-open-sub="${CSS.escape(key)}"]`)?.focus();
@@ -226,8 +227,16 @@ function closePops(except = null) {
 /** Installs the delegated handlers on the page area; `onEscape` runs when nothing in the page took `Esc`. */
 export function initRows(area) {
   content = area;
+  // Re-validation V-15: the browser demo opens `?sub=<key>` once it is drawn, so the harness can check a sub-page.
+  let pendingSub = globalThis.__TAURI__ ? null : new URLSearchParams(globalThis.location?.search ?? "").get("sub");
   const upgrade = () => { for (const g of area.querySelectorAll(".seg")) upgradeSeg(g); };
-  new MutationObserver(() => { upgrade(); if (openSub) applySub(); }).observe(area, { childList: true, subtree: true });
+  new MutationObserver(() => {
+    upgrade();
+    // The key comes from the drawn sub-page, never from the query string itself.
+    const asked = pendingSub && [...area.querySelectorAll("[data-subpage]")].find((el) => el.dataset.subpage === pendingSub);
+    if (asked) { openSub = asked.dataset.subpage; pendingSub = null; }
+    if (openSub) applySub();
+  }).observe(area, { childList: true, subtree: true });
   area.addEventListener("click", (e) => {
     const radio = e.target.closest('.seg [role="radio"]');
     if (radio && !radio.disabled && radio.getAttribute("aria-checked") !== "true") { upgrade(); pick(radio.closest(".seg"), radio); }
