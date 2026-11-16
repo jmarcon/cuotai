@@ -177,7 +177,10 @@ pub fn summarize<Tz: TimeZone>(
         let mut hits = 0;
         let histories = store.account_history(account, range_start - LOOKBACK..=now)?;
         for metric in histories.iter().filter(|m| m.billing == Billing::Overage) {
-            // Highest amount of each billing cycle seen within the range.
+            // Highest amount of each billing cycle seen within the range. A
+            // negative or non-finite amount is unknown, never a credit that
+            // lowers the sum (re-validation S-04).
+            let known = |used: f64| used.is_finite() && used >= 0.0;
             let spent: f64 = metric
                 .windows
                 .iter()
@@ -188,12 +191,16 @@ pub fn summarize<Tz: TimeZone>(
                         .filter(|p| {
                             p.taken_at >= range_start.max(window.started_at)
                                 && p.taken_at <= now.min(window.ended_at)
+                                && known(p.used)
                         })
                         .map(|p| p.used)
                         .reduce(f64::max)
                 })
                 .sum();
-            let seen = metric.points.iter().any(|p| p.taken_at >= range_start);
+            let seen = metric
+                .points
+                .iter()
+                .any(|p| p.taken_at >= range_start && known(p.used));
             if seen {
                 match extra.iter_mut().find(|e| e.unit == metric.unit) {
                     Some(entry) => entry.amount += spent,
@@ -832,5 +839,46 @@ credential_env = "GROQ_KEY_BETA"
         let week = summary(&history, StatsRange::Days7, at(20, 12));
         let usd = week.extra_spent.unwrap();
         assert_eq!(usd.iter().find(|e| e.unit == "USD").unwrap().amount, 2.0);
+    }
+
+    /// Re-validation S-04: a negative overage amount (a credit, or a damaged
+    /// reading) is unknown; it never lowers the sum or makes it known alone.
+    #[test]
+    fn a_negative_overage_amount_is_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = store(dir.path());
+        let (alpha, beta) = (&accounts()[0], &accounts()[1]);
+        history
+            .record(
+                alpha,
+                at(18, 10),
+                &[overage("Extra", -5.0, "USD", at(25, 0))],
+            )
+            .unwrap();
+        history
+            .record(
+                alpha,
+                at(19, 10),
+                &[overage("Extra", -2.0, "USD", at(25, 0))],
+            )
+            .unwrap();
+        let only_negative = summary(&history, StatsRange::Days7, at(20, 12));
+        assert_eq!(only_negative.extra_spent, None);
+
+        history
+            .record(beta, at(18, 10), &[overage("Extra", 3.0, "EUR", at(25, 0))])
+            .unwrap();
+        history
+            .record(
+                beta,
+                at(19, 10),
+                &[overage("Extra", -9.0, "EUR", at(25, 0))],
+            )
+            .unwrap();
+        let mixed = summary(&history, StatsRange::Days7, at(20, 12))
+            .extra_spent
+            .unwrap();
+        assert_eq!(mixed.len(), 1, "the negative USD stays absent");
+        assert_eq!((mixed[0].unit.as_str(), mixed[0].amount), ("EUR", 3.0));
     }
 }

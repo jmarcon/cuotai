@@ -503,6 +503,7 @@ mod tests {
             ceiling: Some(CeilingPrune {
                 removed: 1200,
                 max_bytes: 64 << 20,
+                journal_removed: 0,
             }),
             dropped: 3,
             ..HistoryStatus::default()
