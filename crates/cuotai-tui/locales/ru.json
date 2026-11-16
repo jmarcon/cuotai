@@ -691,5 +691,7 @@
   "cli.restore.merge": "объединить",
   "cli.restore.rows": "строк: {rows}, новых здесь: {new}",
   "cli.list_providers.aggregator": " (агрегатор)",
-  "cost.plan.no_account": "Нет настроенного аккаунта с именем {account}; используйте его id или provider:name."
+  "cost.plan.no_account": "Нет настроенного аккаунта с именем {account}; используйте его id или provider:name.",
+  "status_line.unknown_account": "--account {value} не указывает ровно одну учётную запись; используйте id (из --json-v1, /v1/limits или строки id в TOML), ключ или уникальное имя. Id: {ids}.",
+  "status_line.no_accounts": "нет"
 }

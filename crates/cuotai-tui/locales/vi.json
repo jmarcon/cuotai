@@ -655,5 +655,7 @@
   "cli.restore.merge": "gộp",
   "cli.restore.rows": "dòng: {rows}, mới ở đây: {new}",
   "cli.list_providers.aggregator": " (bộ tổng hợp)",
-  "cost.plan.no_account": "Không có tài khoản đã cấu hình nào tên là {account}; hãy dùng id của nó hoặc provider:name."
+  "cost.plan.no_account": "Không có tài khoản đã cấu hình nào tên là {account}; hãy dùng id của nó hoặc provider:name.",
+  "status_line.unknown_account": "--account {value} không chỉ đúng một tài khoản; hãy dùng id (từ --json-v1, /v1/limits hoặc dòng id trong TOML), khóa hoặc tên duy nhất. Id: {ids}.",
+  "status_line.no_accounts": "không có"
 }

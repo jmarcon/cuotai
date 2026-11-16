@@ -22,6 +22,7 @@ impl Sandbox {
         fs::write(
             &aws,
             r#"#!/bin/sh
+echo "$*" >> "$(dirname "$0")/../aws.log"
 case "$*" in
   *"--profile broken"*) echo 'boom' >&2; exit 254;;
   *) echo '{"ResultsByTime":[{"Total":{"UnblendedCost":{"Amount":"12.34","Unit":"USD"}},"Estimated":false}]}';;
@@ -42,6 +43,32 @@ esac
             ),
         )
         .unwrap();
+        self.run_config(&config, extra)
+    }
+
+    /// The `aws` calls made so far, one line each.
+    fn aws_calls(&self) -> Vec<String> {
+        fs::read_to_string(self.0.join("aws.log"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Two Bedrock accounts: "Work" (profile dev, id `acc_work`) and
+    /// "Broken" (profile broken, id `acc_broken`).
+    fn run_two(&self, extra: &[&str]) -> Output {
+        let config = self.0.join("two.toml");
+        fs::write(
+            &config,
+            "[[accounts]]\nid = \"acc_work\"\nname = \"Work\"\nprovider = \"aws_bedrock\"\nparams = { profile = \"dev\" }\n\n\
+             [[accounts]]\nid = \"acc_broken\"\nname = \"Broken\"\nprovider = \"aws_bedrock\"\nparams = { profile = \"broken\" }\n",
+        )
+        .unwrap();
+        self.run_config(&config, extra)
+    }
+
+    fn run_config(&self, config: &std::path::Path, extra: &[&str]) -> Output {
         let home = self.0.join("home");
         let path = format!(
             "{}:{}",
@@ -50,7 +77,7 @@ esac
         );
         Command::new(env!("CARGO_BIN_EXE_cuotai"))
             .args(["--status-line", "--config"])
-            .arg(&config)
+            .arg(config)
             .args(extra)
             .env("HOME", &home)
             .env("XDG_DATA_HOME", home.join("data"))
@@ -318,4 +345,35 @@ fn from_server_exits_2_for_a_failed_account() {
         ],
     );
     assert_eq!(output.status.code(), Some(2), "{output:?}");
+}
+
+/// Re-validation V-01, R-01 and R-02: `--account` takes an id, a key or a
+/// unique name; only the chosen accounts are queried (the broken one's CLI
+/// never runs) and counted in the exit code; a value that names no account
+/// is a local error that lists the ids.
+#[test]
+fn account_accepts_ids_keys_and_names_and_queries_only_those() {
+    let sandbox = Sandbox::new("select");
+    for value in ["acc_work", "aws_bedrock:Work", "Work"] {
+        let output = sandbox.run_two(&["--account", value]);
+        assert_eq!(output.status.code(), Some(0), "{value}: {output:?}");
+        assert!(
+            sandbox
+                .aws_calls()
+                .iter()
+                .all(|call| !call.contains("broken")),
+            "{value}: {:?}",
+            sandbox.aws_calls()
+        );
+    }
+    let output = sandbox.run_two(&["--account", "Broken"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let output = sandbox.run_two(&["--account", "Wrok"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Wrok") && stderr.contains("acc_work (Work)"),
+        "{stderr}"
+    );
+    assert!(output.stdout.is_empty());
 }

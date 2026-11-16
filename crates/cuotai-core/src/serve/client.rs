@@ -125,6 +125,27 @@ pub async fn limits_views(
     base: &str,
     token: Option<&Token>,
 ) -> Result<Vec<AccountView>, ClientError> {
+    Ok(limits_accounts(base, token)
+        .await?
+        .into_iter()
+        .map(|account| account.view)
+        .collect())
+}
+
+/// One account of a server's `/v1/limits`: the view `tray::summary` takes
+/// (its `key` is the stable id) and the legacy `key`, which
+/// `--account` also accepts.
+#[derive(Debug, Clone)]
+pub struct ServerAccount {
+    pub view: AccountView,
+    pub key: String,
+}
+
+/// [`limits_views`] with each account's legacy key.
+pub async fn limits_accounts(
+    base: &str,
+    token: Option<&Token>,
+) -> Result<Vec<ServerAccount>, ClientError> {
     let url = limits_url(base)?;
     let client =
         crate::network::builder_with_own_roots(crate::network::ClientPurpose::LocalServer, TIMEOUT)
@@ -148,7 +169,7 @@ pub async fn limits_views(
     }
     let body = read_bounded(&mut response, MAX_BYTES).await?;
     let value: Value = serde_json::from_slice(&body).map_err(|_| ClientError::Incompatible)?;
-    views_from_limits(&value)
+    accounts_from_limits(&value)
 }
 
 /// S-03: challenge the server at `limits` (its `/health`) without sending
@@ -217,6 +238,14 @@ async fn read_bounded(
 /// fields and values are ignored (open enums, PRD 0031 RF5); a body
 /// without `accounts` is incompatible.
 pub fn views_from_limits(limits: &Value) -> Result<Vec<AccountView>, ClientError> {
+    Ok(accounts_from_limits(limits)?
+        .into_iter()
+        .map(|account| account.view)
+        .collect())
+}
+
+/// [`views_from_limits`] with each account's legacy key.
+pub fn accounts_from_limits(limits: &Value) -> Result<Vec<ServerAccount>, ClientError> {
     if limits.get("schema").and_then(Value::as_u64) != Some(1) {
         return Err(ClientError::Incompatible);
     }
@@ -224,7 +253,19 @@ pub fn views_from_limits(limits: &Value) -> Result<Vec<AccountView>, ClientError
         .get("accounts")
         .and_then(Value::as_array)
         .ok_or(ClientError::Incompatible)?;
-    Ok(accounts.iter().map(view).collect())
+    Ok(accounts
+        .iter()
+        .map(|account| ServerAccount {
+            view: view(account),
+            key: crate::text::strip_disguising(
+                account
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
+            .into_owned(),
+        })
+        .collect())
 }
 
 fn view(account: &Value) -> AccountView {

@@ -655,5 +655,7 @@
   "cli.restore.merge": "合并",
   "cli.restore.rows": "行：{rows}，此处新增：{new}",
   "cli.list_providers.aggregator": " (聚合器)",
-  "cost.plan.no_account": "没有名为 {account} 的已配置账户；请使用其 id 或 provider:name。"
+  "cost.plan.no_account": "没有名为 {account} 的已配置账户；请使用其 id 或 provider:name。",
+  "status_line.unknown_account": "--account {value} 没有对应唯一的账户；请使用 id（来自 --json-v1、/v1/limits 或 TOML 的 id 行）、键或唯一的名称。Id：{ids}。",
+  "status_line.no_accounts": "无"
 }

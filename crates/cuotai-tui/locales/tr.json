@@ -667,5 +667,7 @@
   "cli.restore.merge": "birleştir",
   "cli.restore.rows": "satır: {rows}, burada yeni: {new}",
   "cli.list_providers.aggregator": " (toplayıcı)",
-  "cost.plan.no_account": "{account} adında yapılandırılmış bir hesap yok; kimliğini veya provider:name kullanın."
+  "cost.plan.no_account": "{account} adında yapılandırılmış bir hesap yok; kimliğini veya provider:name kullanın.",
+  "status_line.unknown_account": "--account {value} tek bir hesabı göstermiyor; bir id (--json-v1, /v1/limits veya TOML'daki id satırından), bir anahtar ya da benzersiz bir ad kullanın. Id'ler: {ids}.",
+  "status_line.no_accounts": "yok"
 }

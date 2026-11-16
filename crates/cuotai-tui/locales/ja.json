@@ -655,5 +655,7 @@
   "cli.restore.merge": "統合",
   "cli.restore.rows": "行: {rows}、ここでの新規: {new}",
   "cli.list_providers.aggregator": " (アグリゲーター)",
-  "cost.plan.no_account": "{account} という名前の設定済みアカウントはありません。ID または provider:name を使ってください。"
+  "cost.plan.no_account": "{account} という名前の設定済みアカウントはありません。ID または provider:name を使ってください。",
+  "status_line.unknown_account": "--account {value} は 1 つのアカウントを指していません。id（--json-v1、/v1/limits、または TOML の id 行）、キー、または一意の名前を使ってください。id: {ids}。",
+  "status_line.no_accounts": "なし"
 }
