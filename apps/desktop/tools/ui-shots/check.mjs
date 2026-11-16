@@ -5,7 +5,9 @@
 // outside the window, (c) text clipped by an ancestor, (d) text spilling out of a chip, button, tab or card, (e)
 // overlapping text, and (f) a status line taller than one line. Elements that may truncate by design (account labels
 // and names, the status label after its fitting, one-line notices) are reported as allowed.
-// Usage: node apps/desktop/tools/ui-shots/check.mjs [--json] [--selftest] [--zoom] [locale ...]   Exit: 0 clean, 1 with problems.
+// Usage: node apps/desktop/tools/ui-shots/check.mjs [--json] [--selftest] [--zoom] [--shard i/n] [locale ...]
+//        node apps/desktop/tools/ui-shots/check.mjs --shard-selftest   Exit: 0 clean, 1 with problems, 2 bad --shard.
+// `--shard i/n` runs every n-th item of the run from the i-th (CI splits the full run in parallel jobs this way).
 // `--selftest` forces a long string into a figure and a tab of the tray and passes only when the check catches it.
 // Every full run also measures a danger button (Revoke token, Erase log, Remove) in every built-in theme and mode:
 // its computed text color on its computed fill must reach 4.5:1 (DS-COL-6), which no token-level gate can see when a
@@ -22,7 +24,8 @@ const selftest = args.includes("--selftest");
 // `--zoom` (PRD 0020 RNF): the 200 % zoom pass. At 200 % a 1280×820 screen offers a 640×410 CSS viewport, so the main
 // window and Settings are checked there (the tray is a fixed 380 px popover whose content does not reflow).
 const zoom = args.includes("--zoom");
-const locales = args.filter((a) => !a.startsWith("--"));
+// `--shard i/n` takes a value, which is not a locale.
+const locales = args.filter((a, k) => !a.startsWith("--") && args[k - 1] !== "--shard");
 const LOCALES = locales.length ? locales : selftest ? ["en-US"] : ["en-US", "pt-BR", "es", "it", "de", "ru", "ko", "hi-IN", "id-ID", "tr", "vi", "zh-CN", "fr", "ja", "en-XA"];
 const ZOOM_PAGES = [
   ["zoom200-main", "index.html", 640, 410, {}],
@@ -299,57 +302,93 @@ const PROBE_JS = `(() => {
   return out;
 })()`;
 
-async function themedPages() {
-  let bad = 0;
-  for (const [name, page, w, h, storage] of THEME_PAGES) {
-    await ui.open(page, { w, h, scale: 1, locale: "en-US", storage });
-    const found = [...((await ui.evaluate(PAGE_JS)) ?? []), ...((await ui.evaluate(PROBE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "probe failed" }])];
-    const problems = found.filter((f) => !f.ok);
-    bad += problems.length;
-    report[`${name}.en-US`] = found;
-    if (!json) console.log(`${problems.length ? "FAIL" : "ok  "} ${name} en-US (${w}×${h}): ${problems.length} problem(s), ${found.length - problems.length} allowed`);
-    if (!json) for (const f of problems) console.log(`       ${f.kind}: ${f.sel} "${f.text}"`);
-  }
-  return bad;
-}
-
-async function dangerButtons() {
-  let bad = 0;
-  for (const theme of THEMES.filter((t) => !t.user)) {
-    for (const mode of theme.modes) {
-      await ui.open("settings.html?page=general", { w: 640, h: 460, scale: 1, locale: "en-US", storage: { "cuotai.theme": theme.id, "cuotai.themeMode": mode } });
-      const ratios = (await ui.evaluate(DANGER_JS)) ?? [0];
-      const worst = Math.min(...ratios);
-      if (worst < 4.5) bad++;
-      if (!json || worst < 4.5) console.log(`${worst < 4.5 ? "FAIL" : "ok  "} danger button ${theme.id} ${mode}: ${worst.toFixed(2)}:1`);
+// Every unit of work of this run, in a fixed order: each page in each locale, then (full run) the themed pages and
+// the danger button of every built-in theme and mode. `--shard i/n` keeps every n-th item from the i-th, so the n
+// shards of CI cover the whole list exactly once whatever is added to it; `--shard-selftest` proves that.
+function tasks() {
+  const list = [];
+  for (const locale of LOCALES) {
+    for (const [name, page, w, h, storage, click, openModels] of PAGES) {
+      // The selftest forces its string into the plain tray views only.
+      if (selftest && (!page.startsWith("tray") || storage["cuotai.trayView"])) continue;
+      list.push({ id: `${name}.${locale}`, run: () => checkPage(name, page, w, h, storage, click, openModels, locale) });
     }
   }
-  return bad;
+  if (zoom || selftest) return list;
+  for (const [name, page, w, h, storage] of THEME_PAGES) list.push({ id: `${name}.en-US`, run: () => themedPage(name, page, w, h, storage) });
+  for (const theme of THEMES.filter((t) => !t.user)) {
+    for (const mode of theme.modes) list.push({ id: `danger.${theme.id}.${mode}`, run: () => dangerButton(theme, mode) });
+  }
+  return list;
 }
+
+/** `i/n` (1 ≤ i ≤ n) → the items of shard i; anything else is a usage error. */
+function parseShard(value) {
+  const m = /^(\d+)\/(\d+)$/.exec(value ?? "");
+  const [i, n] = m ? [Number(m[1]), Number(m[2])] : [0, 0];
+  if (!m || n < 1 || i < 1 || i > n) {
+    console.error(`ui-shots check: --shard needs i/n with 1 <= i <= n, got ${JSON.stringify(value)}`);
+    process.exit(2);
+  }
+  return [i, n];
+}
+const pick = (list, i, n) => list.filter((_, k) => k % n === i - 1);
+
+async function checkPage(name, page, w, h, storage, click, openModels, locale) {
+  const target = locale === "en-XA" ? `${page}${page.includes("?") ? "&" : "?"}pseudo` : page;
+  await ui.open(target, { w, h, scale: 1, locale: locale === "en-XA" ? "en-US" : locale, storage });
+  if (click) await ui.click(...[].concat(click));
+  if (openModels) await ui.evaluate(OPEN_MODELS);
+  if (selftest) await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
+  const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];
+  const bad = found.filter((f) => !f.ok);
+  report[`${name}.${locale}`] = found;
+  if (!json) console.log(`${bad.length ? "FAIL" : "ok  "} ${name} ${locale} (${w}×${h}): ${bad.length} problem(s), ${found.length - bad.length} allowed`);
+  if (!json) for (const f of bad) console.log(`       ${f.kind}: ${f.sel} "${f.text}"`);
+  return bad.length;
+}
+
+async function themedPage(name, page, w, h, storage) {
+  await ui.open(page, { w, h, scale: 1, locale: "en-US", storage });
+  const found = [...((await ui.evaluate(PAGE_JS)) ?? []), ...((await ui.evaluate(PROBE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "probe failed" }])];
+  const problems = found.filter((f) => !f.ok);
+  report[`${name}.en-US`] = found;
+  if (!json) console.log(`${problems.length ? "FAIL" : "ok  "} ${name} en-US (${w}×${h}): ${problems.length} problem(s), ${found.length - problems.length} allowed`);
+  if (!json) for (const f of problems) console.log(`       ${f.kind}: ${f.sel} "${f.text}"`);
+  return problems.length;
+}
+
+async function dangerButton(theme, mode) {
+  await ui.open("settings.html?page=general", { w: 640, h: 460, scale: 1, locale: "en-US", storage: { "cuotai.theme": theme.id, "cuotai.themeMode": mode } });
+  const ratios = (await ui.evaluate(DANGER_JS)) ?? [0];
+  const worst = Math.min(...ratios);
+  if (!json || worst < 4.5) console.log(`${worst < 4.5 ? "FAIL" : "ok  "} danger button ${theme.id} ${mode}: ${worst.toFixed(2)}:1`);
+  return worst < 4.5 ? 1 : 0;
+}
+
+const all = tasks();
+if (args.includes("--shard-selftest")) {
+  // The shards of every count up to 8 must partition the full list: each item in exactly one shard.
+  const ids = all.map((t) => t.id);
+  let failed = new Set(ids).size !== ids.length ? "duplicate item ids" : "";
+  for (let n = 1; n <= 8 && !failed; n++) {
+    const seen = [];
+    for (let i = 1; i <= n; i++) seen.push(...pick(ids, i, n));
+    if (seen.length !== ids.length || [...ids].sort().join("\n") !== [...seen].sort().join("\n")) failed = `the ${n} shards do not cover the list exactly once`;
+  }
+  console.error(failed ? `shard selftest FAILED: ${failed}` : `shard selftest: ${ids.length} items, shards of 1 to 8 each cover them exactly once`);
+  process.exit(failed ? 1 : 0);
+}
+const shardArg = args.indexOf("--shard");
+const [shardIndex, shardCount] = shardArg < 0 ? [1, 1] : parseShard(args[shardArg + 1]);
+const mine = pick(all, shardIndex, shardCount);
+if (shardCount > 1) console.error(`ui-shots check: shard ${shardIndex}/${shardCount}, ${mine.length} of ${all.length} items`);
 
 const ui = await launch();
 const report = {};
 let problems = 0;
 try {
-  for (const locale of LOCALES) {
-    for (const [name, page, w, h, storage, click, openModels] of PAGES) {
-      const target = locale === "en-XA" ? `${page}${page.includes("?") ? "&" : "?"}pseudo` : page;
-      await ui.open(target, { w, h, scale: 1, locale: locale === "en-XA" ? "en-US" : locale, storage });
-      if (click) await ui.click(...[].concat(click));
-      if (openModels) await ui.evaluate(OPEN_MODELS);
-      if (selftest) {
-        if (!page.startsWith("tray") || storage["cuotai.trayView"]) continue;
-        await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
-      }
-      const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];
-      const bad = found.filter((f) => !f.ok);
-      problems += bad.length;
-      report[`${name}.${locale}`] = found;
-      if (!json) console.log(`${bad.length ? "FAIL" : "ok  "} ${name} ${locale} (${w}×${h}): ${bad.length} problem(s), ${found.length - bad.length} allowed`);
-      if (!json) for (const f of bad) console.log(`       ${f.kind}: ${f.sel} "${f.text}"`);
-    }
-  }
-  if (!zoom && !selftest) problems += await themedPages() + await dangerButtons();
+  for (const task of mine) problems += await task.run();
 } finally {
   ui.close();
 }

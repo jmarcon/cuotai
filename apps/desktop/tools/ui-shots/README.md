@@ -22,6 +22,8 @@ repository root.
 | `node apps/desktop/tools/ui-shots/keyboard.mjs` | PRD 0032: drives Settings › Alerts › Quiet hours with the keyboard only (Tab, Shift+Tab, Enter, Space, typed digits): open the sub-page, switch on, add, type a time, remove, repeat on every day, reach the three-interval limit. Then Report a problem and What's new: focus must land on their first control after the content loads and return to the opener on Escape; exits 1 on the first step that needs a mouse |
 | `node apps/desktop/tools/ui-shots/csp-smoke.mjs [--json]` | PRD 0050 RF1.4: serves the repository with the Content Security Policy of `tauri.conf.json` as a header on every HTML page (a Node server, no Python), loads the main window, the tray and Settings and fails on any `securitypolicyviolation`; then inserts a user theme that asks for `https://example.com/pixel` and fails unless the policy blocks it (`img-src`) |
 | `node apps/desktop/tools/ui-shots/check.mjs --selftest` | Forces a long string into a tray figure and passes only if the check catches it |
+| `node apps/desktop/tools/ui-shots/check.mjs --shard i/n [--zoom] [locale …]` | Runs only every n-th item of the run (a page in a locale, a themed page or a danger-button theme), from the i-th: the n shards together are the full run. CI splits the full check this way |
+| `node apps/desktop/tools/ui-shots/check.mjs --shard-selftest` | Without a browser: passes only if the shards of every count from 1 to 8 cover the items of the run exactly once |
 
 `screens.tsv` columns: name, page (with its query), width, height, theme, mode, language, clicks
 (`|`-separated selectors) and storage presets (`key=value;…`, for example `cuotai.trayView=rings`) and an optional `selector:px` to scroll an element before the shot (the scrolled mockups).
@@ -57,7 +59,8 @@ taller than one line, a horizontal scroll, and a tray document that scrolls (the
 labels and names, the status label after its fitting, account names in the Stats rows, one-line notices and access lines, the
 Settings sidebar labels in its icon-rail width) is listed as allowed in `ALLOWED`.
 
-CI (`ui-checks` job, macOS): the overflow check, the 200 % zoom pass, the selftest and the axe pass block (an axe-core
+CI (`ui-checks` job, macOS, a matrix of four parallel parts: the full overflow check in two `--shard` halves; locale-smoke,
+keyboard and CSP; and the 200 % zoom pass, the selftest, axe and timing): the overflow check, the 200 % zoom pass, the selftest and the axe pass block (an axe-core
 download failure, exit 3, is only a warning), and so do the timing probes (`--strict`): they time the main-thread work
 of an interaction (click, render, forced layout), a few milliseconds against the 16 ms budget, and print the time to
 the next presented frame (which includes the vsync wait) only for information. CI allowance: when `CI` or

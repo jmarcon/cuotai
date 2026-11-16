@@ -415,31 +415,66 @@ jobs:
   # the 200 % zoom sizes), the axe-core pass (serious/critical; a CDN failure
   # only warns) and the open-time and interaction-work probes block. The demo
   # binds to 127.0.0.1 only and reads no credential.
+  #
+  # One serial job took 28 minutes (run 43772724697: the full overflow check
+  # 13.7, locale-smoke 5.6, axe 3.4, the rest 4.9), so the matrix splits it
+  # into parts of 6 to 7 minutes: the full overflow check in `--shard i/n`
+  # parts (every n-th page of the run, so a new page or locale always lands in
+  # one), and the other scripts in two groups. `workflow-check` requires the
+  # `shard` rows to be exactly 1/n to n/n, and each part runs check.mjs
+  # `--shard-selftest`. A failed part fails `ui-checks`, which `CI result`
+  # waits for. `cargo xtask preflight` runs the same scripts unsharded.
   ui-checks:
-    name: ui checks (overflow, 200 % zoom, accessibility, timing)
+    name: ui checks (${{ matrix.part }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: overflow 1/2
+            group: overflow
+            shard: 1/2
+          - part: overflow 2/2
+            group: overflow
+            shard: 2/2
+          - part: locales, keyboard, CSP
+            group: locales
+          - part: zoom, accessibility, timing
+            group: zoom
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Overflow check (all languages)
-        run: node apps/desktop/tools/ui-shots/check.mjs
-      - name: Overflow check at 200 % zoom
-        run: node apps/desktop/tools/ui-shots/check.mjs --zoom en-US pt-BR
-      - name: Overflow check self-test
-        run: node apps/desktop/tools/ui-shots/check.mjs --selftest
+      - name: The overflow shards cover every page exactly once
+        if: matrix.group == 'overflow'
+        run: node apps/desktop/tools/ui-shots/check.mjs --shard-selftest
+      - name: Overflow check (all languages, shard ${{ matrix.shard }})
+        if: matrix.group == 'overflow'
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: node apps/desktop/tools/ui-shots/check.mjs --shard "$SHARD"
       - name: No Portuguese outside pt-BR (PRD 0034 RF7)
+        if: matrix.group == 'locales'
         run: node apps/desktop/tools/ui-shots/locale-smoke.mjs
       - name: Quiet-hours editor works from the keyboard (PRD 0032)
+        if: matrix.group == 'locales'
         run: node apps/desktop/tools/ui-shots/keyboard.mjs
       - name: Main, tray and Settings under the real CSP (PRD 0050 RF1.4)
+        if: matrix.group == 'locales'
         run: node apps/desktop/tools/ui-shots/csp-smoke.mjs
+      - name: Overflow check at 200 % zoom
+        if: matrix.group == 'zoom'
+        run: node apps/desktop/tools/ui-shots/check.mjs --zoom en-US pt-BR
+      - name: Overflow check self-test
+        if: matrix.group == 'zoom'
+        run: node apps/desktop/tools/ui-shots/check.mjs --selftest
       # Blocking on serious/critical violations; exit 3 (axe-core could not be fetched from the CDN or failed its
       # checksum) is reported as a warning rather than failing the run on a network hiccup.
       - name: Accessibility pass (axe-core)
+        if: matrix.group == 'zoom'
         run: |
           set +e
           node apps/desktop/tools/ui-shots/a11y.mjs
@@ -448,6 +483,7 @@ jobs:
           exit "$code"
       # Strict: the interaction probes time the main-thread work (well under the 16 ms frame), not the vsync wait.
       - name: Settings open time and render time
+        if: matrix.group == 'zoom'
         run: node apps/desktop/tools/ui-shots/perf.mjs --strict
 
   # Dependency licenses, advisories and sources (PRD 0019, RF1.3). cargo-deny

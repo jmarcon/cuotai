@@ -406,6 +406,7 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
     }
     if name == "ci.yml" {
         check_ci_result_policy(jobs)?;
+        check_ui_checks_matrix(jobs)?;
         // PRD 0039 RF2.2: a push is gated from its previous tip through the
         // fail-closed `--before` resolution, never a hand-made fallback range.
         if !text.contains("changelog-gate --before \"$BEFORE\"") {
@@ -628,6 +629,64 @@ fn check_ci_result_policy(jobs: &Mapping) -> Res<()> {
                 "ci.yml job ci-result must wait for job {job} (it is the only required check)"
             ));
         }
+    }
+    Ok(())
+}
+
+/// The UI checks run as a matrix of parts. Every step but the checkout runs
+/// in one `group` (`if: matrix.group == '...'`); each group must have a row
+/// and each row a group with steps, so no script falls out of every part. The
+/// rows of the `overflow` group split check.mjs with `shard`, which must be
+/// exactly 1/n to n/n, so no shard of its pages is left out.
+fn check_ui_checks_matrix(jobs: &Mapping) -> Res<()> {
+    let job = mapping(need(jobs, "ui-checks", "ci jobs")?, "ui-checks job")?;
+    let strategy = mapping(need(job, "strategy", "ui-checks")?, "ui-checks strategy")?;
+    let matrix = mapping(
+        need(strategy, "matrix", "ui-checks strategy")?,
+        "ui-checks matrix",
+    )?;
+    let rows = need(matrix, "include", "ui-checks matrix")?
+        .as_sequence()
+        .ok_or_else(|| Error::Msg("ui-checks matrix include must be a sequence".into()))?;
+    let mut groups = BTreeSet::new();
+    let mut shards = Vec::new();
+    for row in rows {
+        let row = mapping(row, "ui-checks matrix row")?;
+        let group = scalar(row, "group")
+            .ok_or_else(|| Error::Msg("every ui-checks matrix row needs a group".into()))?;
+        groups.insert(group.to_string());
+        match (group, scalar(row, "shard")) {
+            ("overflow", Some(shard)) => shards.push(shard.to_string()),
+            ("overflow", None) => return err("every ui-checks overflow row needs a shard (i/n)"),
+            (_, Some(_)) => return err("only the ui-checks overflow rows take a shard"),
+            _ => {}
+        }
+    }
+    let n = shards.len();
+    let expected: BTreeSet<String> = (1..=n).map(|i| format!("{i}/{n}")).collect();
+    if n == 0 || shards.iter().cloned().collect::<BTreeSet<_>>() != expected {
+        return err(format!(
+            "the ui-checks overflow shards must be exactly 1/{n} to {n}/{n}, found {shards:?}"
+        ));
+    }
+    let mut stepped = BTreeSet::new();
+    for step in steps(job)?.into_iter().skip(1) {
+        let condition = scalar(step, "if").unwrap_or_default();
+        let group = condition
+            .strip_prefix("matrix.group == '")
+            .and_then(|rest| rest.strip_suffix('\''))
+            .ok_or_else(|| {
+                Error::Msg(format!(
+                    "ui-checks step {:?} must run in one group: if: matrix.group == '<group>'",
+                    scalar(step, "name").unwrap_or_default()
+                ))
+            })?;
+        stepped.insert(group.to_string());
+    }
+    if stepped != groups {
+        return err(format!(
+            "the ui-checks groups with steps {stepped:?} differ from the matrix groups {groups:?}"
+        ));
     }
     Ok(())
 }
@@ -1509,6 +1568,39 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("release-preflight"));
+    }
+
+    #[test]
+    fn ui_checks_parts_cover_every_shard_and_group() {
+        let missing_shard = CI_WORKFLOW.replacen(
+            "          - part: overflow 2/2\n            group: overflow\n            shard: 2/2\n",
+            "",
+            1,
+        );
+        assert!(check_text(Path::new("ci.yml"), &missing_shard)
+            .unwrap_err()
+            .to_string()
+            .contains("1/1"));
+        let wrong_count = CI_WORKFLOW.replacen("shard: 2/2", "shard: 2/3", 1);
+        assert!(check_text(Path::new("ci.yml"), &wrong_count).is_err());
+        let orphan_group = CI_WORKFLOW.replacen(
+            "          - part: locales, keyboard, CSP\n            group: locales\n",
+            "",
+            1,
+        );
+        assert!(check_text(Path::new("ci.yml"), &orphan_group)
+            .unwrap_err()
+            .to_string()
+            .contains("locales"));
+        let ungrouped = CI_WORKFLOW.replacen(
+            "        if: matrix.group == 'zoom'\n        run: node apps/desktop/tools/ui-shots/perf.mjs",
+            "        run: node apps/desktop/tools/ui-shots/perf.mjs",
+            1,
+        );
+        assert!(check_text(Path::new("ci.yml"), &ungrouped)
+            .unwrap_err()
+            .to_string()
+            .contains("one group"));
     }
 
     #[test]
