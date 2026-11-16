@@ -2,6 +2,8 @@
 
 [`i3status.sh`](../../examples/integrations/i3status.sh) prints one block object of the [i3bar protocol](https://i3wm.org/docs/i3bar-protocol.html). Add it to the block array your `status_command` wrapper already emits (for example the wrapper around `i3status`, `i3blocks` or `bumblebee-status`), or run it from a small loop of your own. See the [index](README.md) for requirements and the environment variables.
 
+**Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy. The script below keeps the token off command lines and proxies too.
+
 ```sh
 # one block, refreshed by your wrapper every 30 seconds
 CUOTAI_TOKEN_FILE=$HOME/.local/share/cuotai/serve/token /path/to/i3status.sh

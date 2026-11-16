@@ -60,7 +60,12 @@ cuotai --config cuotai.toml --json-v1
 
 # Read-only local server on 127.0.0.1:6738, refreshed in the background (Ctrl+C stops it)
 cuotai --config cuotai.toml --serve
-curl -s http://127.0.0.1:6738/v1/limits
+# A token is required (its file is announced on stderr); it goes to curl on
+# stdin, never on the command line, and no proxy sees it. See docs/local-server.md.
+printf 'header = "Authorization: Bearer %s"\n' "$(cat "<token file announced on stderr>")" \
+  | curl -q -K - --noproxy '*' --proto '=http' --max-redirs 0 -fsS http://127.0.0.1:6738/v1/limits
+# Or, for a status bar, the same read without curl:
+cuotai --status-line --from-server
 
 # One NDJSON event per real transition (threshold crossed, exhausted, reset, failure…)
 cuotai --config cuotai.toml --watch --jsonl | jq -c 'select(.event == "quota_exhausted")'

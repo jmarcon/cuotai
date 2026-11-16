@@ -8,20 +8,48 @@
 #   cuotai_severity  ok | warning | critical | outage
 #   cuotai_reset     its reset time (RFC 3339) or empty
 #
-# Environment: CUOTAI_URL (default http://127.0.0.1:6738), CUOTAI_TOKEN or
-# CUOTAI_TOKEN_FILE (the file `cuotai --serve` keeps in its data directory).
+# Environment: CUOTAI_URL (default http://127.0.0.1:6738; only a loopback
+# http://127.0.0.1:PORT, http://[::1]:PORT or http://localhost:PORT, read as
+# 127.0.0.1), CUOTAI_TOKEN_FILE (the file `cuotai --serve` keeps in its data
+# directory) or CUOTAI_TOKEN.
 # Returns 1 when the server cannot be read, so a bar can show "offline".
+#
+# The token never reaches a command line: `printf` is a shell builtin and
+# hands the header to curl as a config on stdin (-K -), so `ps` cannot show
+# it. curl ignores ~/.curlrc (-q) and every proxy (--noproxy '*'), speaks
+# only http (--proto '=http'), follows no redirect and stops after 3 seconds or
+# 4 MiB. Prefer `cuotai --status-line --from-server` for a one-line bar.
+
+cuotai_get() {
+  curl -q -g -K - --noproxy '*' --proto '=http' --max-redirs 0 --max-time 3 \
+    --max-filesize 4194304 -fsS "$cuotai_url/v1/limits"
+}
 
 cuotai_read() {
   cuotai_url=${CUOTAI_URL:-http://127.0.0.1:6738}
+  cuotai_url=${cuotai_url%/}
+  case $cuotai_url in
+    http://127.0.0.1:*) cuotai_port=${cuotai_url#http://127.0.0.1:} cuotai_host=127.0.0.1 ;;
+    http://localhost:*) cuotai_port=${cuotai_url#http://localhost:} cuotai_host=127.0.0.1 ;;
+    'http://[::1]:'*) cuotai_port=${cuotai_url#'http://[::1]:'} cuotai_host='[::1]' ;;
+    *) return 1 ;;
+  esac
+  case $cuotai_port in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  cuotai_url=http://$cuotai_host:$cuotai_port
   cuotai_token=${CUOTAI_TOKEN:-}
   if [ -z "$cuotai_token" ] && [ -n "${CUOTAI_TOKEN_FILE:-}" ]; then
     cuotai_token=$(cat "$CUOTAI_TOKEN_FILE") || return 1
   fi
   if [ -n "$cuotai_token" ]; then
-    cuotai_body=$(curl -fsS --max-time 3 -H "Authorization: Bearer $cuotai_token" "$cuotai_url/v1/limits") || return 1
+    # RFC 6750 characters only, so the token cannot break out of the config.
+    case $cuotai_token in
+      *[!A-Za-z0-9._~+/=-]*) return 1 ;;
+    esac
+    cuotai_body=$(printf 'header = "Authorization: Bearer %s"\n' "$cuotai_token" | cuotai_get) || return 1
   else
-    cuotai_body=$(curl -fsS --max-time 3 "$cuotai_url/v1/limits") || return 1
+    cuotai_body=$(cuotai_get </dev/null) || return 1
   fi
   cuotai_fields=$(printf '%s' "$cuotai_body" | jq -r '
     (.summary.tightest // {}) as $t

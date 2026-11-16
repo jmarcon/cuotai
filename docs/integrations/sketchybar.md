@@ -2,6 +2,8 @@
 
 An item whose plugin is [`sketchybar.sh`](../../examples/integrations/sketchybar.sh). SketchyBar passes the item name in `$NAME` and the script sets its label and colour. See the [index](README.md) for requirements and the environment variables.
 
+**Prefer `cuotai --status-line --from-server`** for a one-line bar: it reads the same running server, takes the token from its file, and never puts the token on a command line or sends it through a proxy. The script below keeps the token off command lines and proxies too.
+
 ```sh
 # ~/.config/sketchybar/sketchybarrc
 sketchybar --add item cuotai right \
