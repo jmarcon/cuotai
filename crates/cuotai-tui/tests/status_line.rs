@@ -170,7 +170,8 @@ fn from_server_reads_the_running_servers_limits() {
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
-        "22% · Main"
+        // Automatic names the provider (PRD 0025 re-validation V-07).
+        "22% · Claude"
     );
     assert_eq!(job.join().unwrap(), "GET /v1/limits HTTP/1.1");
 }

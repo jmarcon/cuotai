@@ -7476,7 +7476,6 @@ mod tests {
         let min = chrono::DateTime::<chrono::Utc>::MIN_UTC;
         for at in [max, min] {
             let _ = super::local_at(at);
-            let _ = crate::tray_bar::local_hhmm(at);
         }
         let east = chrono::FixedOffset::east_opt(14 * 3600).unwrap();
         assert!(cuotai_core::instant::format_local(max, &east, "%H:%M").ends_with(" UTC"));

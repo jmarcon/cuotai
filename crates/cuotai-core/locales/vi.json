@@ -2023,6 +2023,7 @@
   "tray.item.stale": "{item} (lần đọc cũ)",
   "tray.item.unknown": "{name}: không có dữ liệu",
   "tray.join": "{first}; {rest}",
+  "tray.more": "{item}; +{count} mục khác",
   "tray.outage": "{item}; sự cố nhà cung cấp",
   "tray.strip": "{item}; 24 giờ qua dưới dạng cột theo giờ",
   "tray.tooltip": "Cuotai — {label}",

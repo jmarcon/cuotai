@@ -3,9 +3,10 @@
 //! marks and width budget are the core's; this module only picks the style
 //! and the accounts, and optionally paints the line.
 
+use std::fmt::Display;
 use std::path::Path;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use cuotai_core::{
     freshness::Freshness,
     serve::{self, client},
@@ -18,15 +19,23 @@ pub(crate) const STYLES: [&str; 2] = ["tightest_percent", "logos_percent"];
 
 /// The one line for `snapshot`, in `config`'s account order. `ids` empty
 /// selects every account; otherwise only those ids, in the order given.
-pub(crate) fn render(
+/// Times read in `tz` and `locale`, as the core writes them (PRD 0025
+/// re-validation V-02: the same clock as the desktop menu bar).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render<Tz>(
     config: &Config,
     snapshot: &Snapshot,
     style: TrayStyle,
     ids: &[String],
     color: bool,
     now: DateTime<Utc>,
-    at: impl Fn(DateTime<Utc>) -> String,
-) -> String {
+    tz: &Tz,
+    locale: &str,
+) -> String
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
     let views: Vec<AccountView> = config
         .accounts
         .iter()
@@ -41,25 +50,30 @@ pub(crate) fn render(
             AccountView::from_report(account, Some(report), freshness)
         })
         .collect();
-    render_views(&views, style, ids, color, now, at)
+    render_views(&views, style, ids, color, now, tz, locale)
 }
 
 /// The one line for `views`, already in order (the same rules as
 /// [`render`]).
-pub(crate) fn render_views(
+pub(crate) fn render_views<Tz>(
     views: &[AccountView],
     style: TrayStyle,
     ids: &[String],
     color: bool,
     now: DateTime<Utc>,
-    at: impl Fn(DateTime<Utc>) -> String,
-) -> String {
+    tz: &Tz,
+    locale: &str,
+) -> String
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
     let selection = if ids.is_empty() {
         TraySelection::Auto
     } else {
         TraySelection::Custom(ids.to_vec())
     };
-    let summary = tray::summary(views, style, &selection, now, at);
+    let summary = tray::summary(views, style, &selection, now, tz, locale);
     let title = summary.title.unwrap_or_default();
     let level = summary
         .items
@@ -105,7 +119,15 @@ pub(crate) async fn from_server(
     let views = client::limits_views(&url, token.as_ref())
         .await
         .map_err(|error| error.l10n().resolve(locale))?;
-    let line = render_views(&views, style, ids, color, Utc::now(), crate::ui::local_time);
+    let line = render_views(
+        &views,
+        style,
+        ids,
+        color,
+        Utc::now(),
+        &chrono::Local,
+        locale,
+    );
     let failing = views
         .iter()
         .filter(|view| ids.is_empty() || ids.contains(&view.key))
@@ -191,12 +213,47 @@ mod tests {
         ]);
         let ids: Vec<String> = ids.iter().map(|s| (*s).to_owned()).collect();
         let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 1, 0).unwrap();
-        render(&cfg, &snap, style, &ids, color, now, |t| t.to_rfc3339())
+        render(&cfg, &snap, style, &ids, color, now, &Utc, "en-US")
     }
 
+    /// Automatic names the provider (PRD 0025 re-validation V-07); a
+    /// chosen account is named.
     #[test]
     fn tightest_percent_names_the_tightest_account() {
-        assert_eq!(line(TrayStyle::TightestPercent, &[], false), "22% · main");
+        assert_eq!(line(TrayStyle::TightestPercent, &[], false), "22% · Claude");
+        let id = config(&["main", "side"]).accounts[0].id().to_string();
+        assert_eq!(
+            line(TrayStyle::TightestPercent, &[&id], false),
+            "22% · main"
+        );
+    }
+
+    /// V-02: a return on another day reads as the weekday, in the core's
+    /// clock, never a bare time and never cut by the alert mark.
+    #[test]
+    fn a_return_on_another_day_reads_as_its_weekday() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 1, 0).unwrap();
+        let view = AccountView {
+            key: "acc_a".into(),
+            provider: "claude".into(),
+            provider_label: "Claude".into(),
+            name: "Work".into(),
+            remaining: Some(0.0),
+            exhausted: true,
+            alert: true,
+            resets_at: Some(Utc.with_ymd_and_hms(2026, 1, 4, 23, 30, 0).unwrap()),
+            ..AccountView::default()
+        };
+        let line = render_views(
+            &[view],
+            TrayStyle::TightestPercent,
+            &[],
+            false,
+            now,
+            &Utc,
+            "en-US",
+        );
+        assert_eq!(line, "! 0% → Sun · Claude");
     }
 
     #[test]
@@ -217,7 +274,7 @@ mod tests {
     fn colour_wraps_the_line_by_its_level() {
         assert_eq!(
             line(TrayStyle::TightestPercent, &[], true),
-            "\x1b[31m22% · main\x1b[0m"
+            "\x1b[31m22% · Claude\x1b[0m"
         );
     }
 

@@ -2023,6 +2023,7 @@
   "tray.item.stale": "{item} (pembacaan lama)",
   "tray.item.unknown": "{name}: tidak ada data",
   "tray.join": "{first}; {rest}",
+  "tray.more": "{item}; +{count} lainnya",
   "tray.outage": "{item}; insiden penyedia",
   "tray.strip": "{item}; 24 jam terakhir dalam batang per jam",
   "tray.tooltip": "Cuotai — {label}",

@@ -2023,6 +2023,7 @@
   "tray.item.stale": "{item}（古い読み取り）",
   "tray.item.unknown": "{name}：データなし",
   "tray.join": "{first}、{rest}",
+  "tray.more": "{item}; 他 {count} 件",
   "tray.outage": "{item}、プロバイダーの障害",
   "tray.strip": "{item}、直近 24 時間の時間別バー",
   "tray.tooltip": "Cuotai — {label}",
