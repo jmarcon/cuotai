@@ -28,7 +28,7 @@ body:
     id: os
     attributes:
       label: Operating system
-      description: For example, macOS 15, Windows 11, Ubuntu 24.04.
+      description: For example, macOS 15, Windows 11, Ubuntu 24.04. Prefilled by "Report a problem" in About.
     validations:
       required: true
   - type: textarea
@@ -44,6 +44,11 @@ body:
       label: What you expected and what happened
     validations:
       required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Optional. Prefilled by "Report a problem" in About (version, system and install channel, never personal data).
   - type: checkboxes
     id: confirmation
     attributes:
