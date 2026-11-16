@@ -481,7 +481,7 @@ fn private_overage_pool_and_windowless_texts_carry_no_names_or_amounts() {
                 private.title.resolve(locale),
                 private.body.resolve(locale),
                 digest.title.resolve(locale),
-                digest.body.resolve(locale)
+                digest.text(locale)
             );
             for word in forbidden {
                 assert!(!text.contains(word), "{locale} {:?}: {text}", event.kind);

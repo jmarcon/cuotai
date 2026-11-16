@@ -1918,8 +1918,7 @@
   "query.subscriptions.unsupported_provider": "{provider}은(는) 다른 어댑터가 조회합니다.",
   "query.timeout": "조회 제한 시간이 초과되었습니다.",
   "query.transport": "네트워크 오류 또는 조회 제한 시간 초과.",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "other": "외 {count}건"
   },

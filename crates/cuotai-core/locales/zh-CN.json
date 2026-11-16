@@ -1918,8 +1918,7 @@
   "query.subscriptions.unsupported_provider": "{provider} 由另一个适配器处理。",
   "query.timeout": "查询超时。",
   "query.transport": "查询时网络故障或超时。",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}：{body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "other": "还有 {count} 条"
   },

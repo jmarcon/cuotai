@@ -1918,8 +1918,7 @@
   "query.subscriptions.unsupported_provider": "{provider} do bộ điều hợp khác xử lý.",
   "query.timeout": "Truy vấn hết thời gian chờ.",
   "query.transport": "Lỗi mạng hoặc truy vấn hết thời gian chờ.",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "other": "và {count} mục nữa"
   },

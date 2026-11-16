@@ -12,8 +12,10 @@ use std::path::Path;
 struct Fake(RefCell<Vec<(String, String)>>);
 
 impl Notifier for Fake {
-    fn deliver(&self, title: &str, body: &str) -> Result<(), String> {
-        self.0.borrow_mut().push((title.into(), body.into()));
+    fn deliver(&self, shown: &Shown) -> Result<(), String> {
+        self.0
+            .borrow_mut()
+            .push((shown.title().into(), shown.body().into()));
         Ok(())
     }
 }
@@ -351,4 +353,57 @@ fn the_next_notice_follows_quiet_hours() {
     let (event, _) = notices.next(&config(), &[Some(&after)], now).unwrap();
     assert_eq!(event.notify_at, at(4, 8, 0));
     assert_eq!(event.resets_at, at(4, 8, 20));
+}
+
+/// PRD 0032 re-validation C-01: the digest reaches the notification
+/// center with one line per item, a newline inside an account name forges
+/// none, and "and N more" closes a long list. Linux daemons read markup,
+/// so the text is escaped there (checked on CI's Linux runner).
+#[test]
+fn the_digest_is_delivered_one_line_per_item() {
+    let dir = tempfile::tempdir().unwrap();
+    let resets = at(4, 12, 0);
+    let mut desktop = process(dir.path(), true, false);
+    let mut named = config();
+    named.accounts[0].name = "Work\nForged & <Co>".into();
+    let seven = |checked_at, used| {
+        let mut report = reading(checked_at, used, resets);
+        report.account = "Work\nForged & <Co>".into();
+        let first = report.metrics[0].clone();
+        report.metrics = (0..7)
+            .map(|i| {
+                let mut metric = first.clone();
+                metric.label = format!("Metric {i}");
+                metric
+            })
+            .collect();
+        report
+    };
+    let fake = Fake::default();
+    let before = seven(at(2, 22, 55), 70.0);
+    let crossed = seven(at(2, 23, 0), 92.0);
+    let events = desktop.assess(Some(&before), &crossed, crossed.checked_at, None);
+    desktop.record(Some(&before), &crossed, events, crossed.checked_at, None);
+    desktop.tick(&named, &[Some(&crossed)], crossed.checked_at, &fake);
+    assert_eq!(fake.count(), 0);
+    let late = seven(at(3, 8, 0), 94.0);
+    desktop.tick(&named, &[Some(&late)], late.checked_at, &fake);
+    assert_eq!(fake.count(), 1);
+    let (title, body) = fake.0.borrow()[0].clone();
+    assert_eq!(title, "Cuotai: 7 usage alerts held during quiet hours");
+    assert!(body.chars().count() <= cuotai_core::text::NOTICE_LINES_BODY_MAX);
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 2 && lines.len() <= 6, "{body}");
+    assert!(lines.last().unwrap().starts_with("and "), "{body}");
+    assert!(
+        lines[..lines.len() - 1]
+            .iter()
+            .all(|line| line.contains("Metric")),
+        "{body}"
+    );
+    if cfg!(target_os = "linux") {
+        assert!(body.contains("&amp; &lt;Co&gt;"), "{body}");
+    } else {
+        assert!(body.contains("WorkForged & <Co>"), "{body}");
+    }
 }

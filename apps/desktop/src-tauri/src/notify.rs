@@ -25,7 +25,78 @@ const DEFAULT_LOCALE: &str = "en-US";
 
 /// Delivers one notice to the operating system; tests use a fake.
 pub trait Notifier {
-    fn deliver(&self, title: &str, body: &str) -> Result<(), String>;
+    fn deliver(&self, shown: &Shown) -> Result<(), String>;
+}
+
+/// A notice's text as the notification center shows it. Only the cleaning
+/// constructors build one, so no path can deliver text that skipped the
+/// filter, and the test notifiers record the text as delivered (PRD 0032
+/// re-validation C-01).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Shown {
+    title: String,
+    body: String,
+}
+
+impl Shown {
+    /// A one-line notice (reset notices, usage alerts, channel failures):
+    /// without controls or bidi overrides, capped, and escaped where the
+    /// notification daemon reads markup (Linux). PRD 0003 re-validation
+    /// S-04.
+    pub fn single(title: &str, body: &str) -> Self {
+        use cuotai_core::text::{notice_safe, NOTICE_BODY_MAX};
+        Shown {
+            title: Self::title_of(title),
+            body: notice_safe(body, NOTICE_BODY_MAX, markup()),
+        }
+    }
+
+    /// A notice of several lines (the quiet-hours and weekly digests): each
+    /// line cleaned on its own and kept on its own line, whole lines within
+    /// [`cuotai_core::text::NOTICE_LINES_BODY_MAX`], ending with "and N
+    /// more" when some are left out.
+    pub fn lines(
+        title: &str,
+        lines: &[String],
+        hidden: usize,
+        more: impl Fn(usize) -> String,
+    ) -> Self {
+        use cuotai_core::text::{notice_lines, LineJoin, NOTICE_LINES_BODY_MAX};
+        Shown {
+            title: Self::title_of(title),
+            body: notice_lines(
+                lines,
+                hidden,
+                more,
+                NOTICE_LINES_BODY_MAX,
+                markup(),
+                LineJoin::Breaks,
+            ),
+        }
+    }
+
+    fn title_of(title: &str) -> String {
+        use cuotai_core::text::{notice_safe, NOTICE_TITLE_MAX};
+        notice_safe(title, NOTICE_TITLE_MAX, markup())
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn body(&self) -> &str {
+        &self.body
+    }
+}
+
+/// Linux notification daemons read markup; the other systems show text as
+/// written.
+fn markup() -> cuotai_core::text::NoticeMarkup {
+    if cfg!(target_os = "linux") {
+        cuotai_core::text::NoticeMarkup::Escape
+    } else {
+        cuotai_core::text::NoticeMarkup::Plain
+    }
 }
 
 /// PRD 0043 RF4.3: for this long after a digest was posted, the next time
@@ -54,34 +125,16 @@ pub fn take_digest_open() -> bool {
 pub struct SystemNotifier(pub tauri::AppHandle);
 
 impl Notifier for SystemNotifier {
-    fn deliver(&self, title: &str, body: &str) -> Result<(), String> {
+    fn deliver(&self, shown: &Shown) -> Result<(), String> {
         use tauri_plugin_notification::NotificationExt;
-        let (title, body) = shown_text(title, body);
         self.0
             .notification()
             .builder()
-            .title(title)
-            .body(body)
+            .title(shown.title())
+            .body(shown.body())
             .show()
             .map_err(|e| e.to_string())
     }
-}
-
-/// Every system notification (reset notices, usage alerts, digests, channel
-/// failures) without controls or bidi overrides, capped, and escaped where
-/// the notification daemon reads markup (Linux). PRD 0003 re-validation
-/// S-04.
-fn shown_text(title: &str, body: &str) -> (String, String) {
-    use cuotai_core::text::{notice_safe, NoticeMarkup, NOTICE_BODY_MAX, NOTICE_TITLE_MAX};
-    let markup = if cfg!(target_os = "linux") {
-        NoticeMarkup::Escape
-    } else {
-        NoticeMarkup::Plain
-    };
-    (
-        notice_safe(title, NOTICE_TITLE_MAX, markup),
-        notice_safe(body, NOTICE_BODY_MAX, markup),
-    )
 }
 
 /// PRD 0046 RF4.1: whether the system lets the app notify, without asking:
@@ -632,7 +685,7 @@ impl Notices {
         };
         let locale = self.locale();
         for failing in channels.tick(locale, now) {
-            let _ = notifier.deliver("Cuotai", &failing.text().resolve(locale));
+            let _ = notifier.deliver(&Shown::single("Cuotai", &failing.text().resolve(locale)));
         }
     }
 
@@ -749,8 +802,10 @@ impl Notices {
                     self.prefs.private,
                 );
                 let locale = self.locale();
-                let _ =
-                    notifier.deliver(&notice.title.resolve(locale), &notice.body.resolve(locale));
+                let _ = notifier.deliver(&Shown::single(
+                    &notice.title.resolve(locale),
+                    &notice.body.resolve(locale),
+                ));
             }
             tick.delivered = sent.len();
             tick.next = min_of(tick.next, plan.next.map(|event| event.notify_at));
@@ -835,9 +890,10 @@ impl Notices {
             .iter()
             .map(|line| line.resolve(locale))
             .collect();
-        let posted = notifier
-            .deliver(&digest.title().resolve(locale), &body.join("\n"))
-            .is_ok();
+        let shown = Shown::lines(&digest.title().resolve(locale), &body, 0, |count| {
+            cuotai_core::quiet::Digest::more(count).resolve(locale)
+        });
+        let posted = notifier.deliver(&shown).is_ok();
         if posted {
             *DIGEST_POSTED_AT.lock().unwrap_or_else(|e| e.into_inner()) =
                 Some(std::time::Instant::now());
@@ -894,7 +950,16 @@ impl Notices {
             now,
         );
         let locale = self.locale();
-        let _ = notifier.deliver(&notice.title.resolve(locale), &notice.body.resolve(locale));
+        let _ = notifier.deliver(&Shown::lines(
+            &notice.title.resolve(locale),
+            &notice
+                .lines
+                .iter()
+                .map(|line| line.resolve(locale))
+                .collect::<Vec<_>>(),
+            notice.hidden,
+            |count| quiet::Digest::more(count).resolve(locale),
+        ));
         self.last_alert = Some(now);
         (1, None)
     }
@@ -990,7 +1055,10 @@ impl Notices {
             );
         }
         let locale = self.locale();
-        let _ = notifier.deliver(&notice.title.resolve(locale), &notice.body.resolve(locale));
+        let _ = notifier.deliver(&Shown::single(
+            &notice.title.resolve(locale),
+            &notice.body.resolve(locale),
+        ));
         self.last_alert = Some(now);
         (1, None)
     }
@@ -1019,8 +1087,10 @@ mod tests {
     struct FakeNotifier(RefCell<Vec<(String, String)>>);
 
     impl Notifier for FakeNotifier {
-        fn deliver(&self, title: &str, body: &str) -> Result<(), String> {
-            self.0.borrow_mut().push((title.into(), body.into()));
+        fn deliver(&self, shown: &Shown) -> Result<(), String> {
+            self.0
+                .borrow_mut()
+                .push((shown.title().into(), shown.body().into()));
             Ok(())
         }
     }
@@ -1037,9 +1107,12 @@ mod tests {
     /// has no bidi override or control and is capped.
     #[test]
     fn shown_text_is_cleaned_and_capped() {
-        let (title, body) = shown_text("Claude\u{202E}: reset", &"x".repeat(400));
-        assert_eq!(title, "Claude: reset");
-        assert_eq!(body.chars().count(), cuotai_core::text::NOTICE_BODY_MAX);
+        let shown = Shown::single("Claude\u{202E}: reset", &"x".repeat(400));
+        assert_eq!(shown.title(), "Claude: reset");
+        assert_eq!(
+            shown.body().chars().count(),
+            cuotai_core::text::NOTICE_BODY_MAX
+        );
     }
 
     #[test]
@@ -1096,6 +1169,12 @@ mod tests {
         assert!(
             fake.0.borrow()[0].0.contains("2026-02-23"),
             "last week's title"
+        );
+        // PRD 0032 re-validation C-01: the body is delivered through
+        // `Shown::lines`, cleaned and kept as its own lines.
+        assert_eq!(
+            fake.0.borrow()[0].1,
+            cuotai_core::digest::Digest::empty_line().resolve("en-US")
         );
         // Three days after the slot the catch-up window is over.
         let mut late = Notices {
@@ -1726,7 +1805,7 @@ mod tests {
     struct RefusingNotifier(RefCell<usize>);
 
     impl Notifier for RefusingNotifier {
-        fn deliver(&self, _: &str, _: &str) -> Result<(), String> {
+        fn deliver(&self, _: &Shown) -> Result<(), String> {
             *self.0.borrow_mut() += 1;
             Err("denied".into())
         }

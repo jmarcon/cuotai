@@ -1935,8 +1935,7 @@
   "query.subscriptions.unsupported_provider": "{provider} की जाँच किसी और एडेप्टर से होती है।",
   "query.timeout": "जाँच की समय सीमा खत्म हो गई।",
   "query.transport": "नेटवर्क विफलता या जाँच की समय सीमा।",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "one": "और {count}",
     "other": "और {count}"

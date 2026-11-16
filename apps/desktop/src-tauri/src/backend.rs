@@ -8282,8 +8282,8 @@ mod tests {
         use cuotai_core::MetricWindow::Window5h;
         struct Titles(std::cell::RefCell<Vec<String>>);
         impl crate::notify::Notifier for Titles {
-            fn deliver(&self, title: &str, _: &str) -> Result<(), String> {
-                self.0.borrow_mut().push(title.into());
+            fn deliver(&self, shown: &crate::notify::Shown) -> Result<(), String> {
+                self.0.borrow_mut().push(shown.title().into());
                 Ok(())
             }
         }

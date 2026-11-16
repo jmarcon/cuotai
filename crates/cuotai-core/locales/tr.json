@@ -1935,8 +1935,7 @@
   "query.subscriptions.unsupported_provider": "{provider} başka bir bağdaştırıcı tarafından işleniyor.",
   "query.timeout": "Sorgu zaman aşımına uğradı.",
   "query.transport": "Ağ hatası veya sorgu zaman aşımı.",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "one": "ve {count} tane daha",
     "other": "ve {count} tane daha"

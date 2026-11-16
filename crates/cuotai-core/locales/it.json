@@ -2078,12 +2078,11 @@
     "one": "Cuotai: {count} avviso di utilizzo trattenuto durante le ore di silenzio",
     "other": "Cuotai: {count} avvisi di utilizzo trattenuti durante le ore di silenzio"
   },
-  "quiet.digest.join": "{first}\n{rest}",
   "quiet.digest.more": {
     "one": "e un altro",
     "other": "e altri {count}"
   },
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "hooks.error.quiet": "Il quiet della regola \"{name}\" deve essere \"run\" o \"skip\".",
   "detect.hint.env": "{variable} è impostata in questo ambiente",
   "detect.consent.env": "L'account conserverà solo il nome {variable}; il valore non viene mai letto né salvato.",

@@ -1918,8 +1918,7 @@
   "query.subscriptions.unsupported_provider": "{provider} ditangani oleh adaptor lain.",
   "query.timeout": "Waktu kueri habis.",
   "query.transport": "Kegagalan jaringan atau waktu kueri habis.",
-  "quiet.digest.join": "{first}\n{rest}",
-  "quiet.digest.line": "{title}: {body}",
+  "quiet.digest.line": "{title} — {body}",
   "quiet.digest.more": {
     "other": "dan {count} lainnya"
   },
