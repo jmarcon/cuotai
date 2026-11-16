@@ -647,7 +647,7 @@
   "edit_error.param.org": "Ungültige Organisation: Verwenden Sie nur Buchstaben, Ziffern und Bindestriche.",
   "edit_error.param.product": "Verwenden Sie computer für Computer Analytics oder lassen Sie das Feld für Perplexity/Sonar leer.",
   "edit_error.param.profile_arn": "Ungültiger ARN: Er muss mit „arn:“ beginnen und nur AWS-Zeichen enthalten.",
-  "edit_error.param.resource_id": "{name} muss die vollständige ARM-ID innerhalb des angegebenen Abonnements sein: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}.",
+  "edit_error.param.resource_id": "{name} muss die vollständige ARM-ID innerhalb des angegebenen Abonnements sein: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{account}.",
   "edit_error.param.resource_id_chars": "params.{key} enthält ungültige Zeichen für eine Ressourcenkennung.",
   "edit_error.param.system_id": "Ungültige System-ID: Verwenden Sie Buchstaben, Ziffern, Bindestrich oder Unterstrich.",
   "edit_error.refresh_cycle_diff": "Das neue Kontolayout wurde von der Prüfung des Aktualisierungszyklus abgelehnt: {detail}.",

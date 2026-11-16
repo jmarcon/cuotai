@@ -633,7 +633,7 @@
   "edit_error.param.org": "Tổ chức không hợp lệ: chỉ dùng chữ cái, chữ số và dấu gạch ngang.",
   "edit_error.param.product": "Dùng computer cho Computer Analytics, hoặc để trống cho Perplexity/Sonar.",
   "edit_error.param.profile_arn": "ARN không hợp lệ: phải bắt đầu bằng \"arn:\" và chỉ dùng ký tự AWS.",
-  "edit_error.param.resource_id": "{name} phải là ID ARM đầy đủ nằm trong đăng ký đã cho: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}.",
+  "edit_error.param.resource_id": "{name} phải là ID ARM đầy đủ nằm trong đăng ký đã cho: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{account}.",
   "edit_error.param.resource_id_chars": "params.{key} chứa ký tự không hợp lệ cho mã định danh tài nguyên.",
   "edit_error.param.system_id": "System ID không hợp lệ: hãy dùng chữ cái, chữ số, dấu gạch ngang hoặc gạch dưới.",
   "edit_error.refresh_cycle_diff": "Bố cục tài khoản mới bị kiểm tra chu kỳ làm mới từ chối: {detail}.",

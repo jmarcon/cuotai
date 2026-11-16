@@ -633,7 +633,7 @@
   "edit_error.param.org": "Organisasi tidak valid: gunakan hanya huruf, angka, dan tanda hubung.",
   "edit_error.param.product": "Gunakan computer untuk Computer Analytics, atau kosongkan untuk Perplexity/Sonar.",
   "edit_error.param.profile_arn": "ARN tidak valid: harus diawali \"arn:\" dan hanya memakai karakter AWS.",
-  "edit_error.param.resource_id": "{name} harus berupa ID ARM lengkap di dalam langganan yang diberikan: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{name}.",
+  "edit_error.param.resource_id": "{name} harus berupa ID ARM lengkap di dalam langganan yang diberikan: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/accounts/{account}.",
   "edit_error.param.resource_id_chars": "params.{key} berisi karakter yang tidak valid untuk pengenal sumber daya.",
   "edit_error.param.system_id": "System ID tidak valid: gunakan huruf, angka, tanda hubung, atau garis bawah.",
   "edit_error.refresh_cycle_diff": "Tata letak akun baru ditolak oleh pemeriksaan siklus penyegaran: {detail}.",
