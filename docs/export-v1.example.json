@@ -547,7 +547,8 @@
               {
                 "origin": "embedded",
                 "effective": "2026-10-15",
-                "source": "https://claude.com/pricing#api"
+                "source": "https://claude.com/pricing#api",
+                "age_days": 5
               }
             ],
             "notice": {
@@ -602,7 +603,8 @@
               {
                 "origin": "embedded",
                 "effective": "2026-10-15",
-                "source": "https://claude.com/pricing#api"
+                "source": "https://claude.com/pricing#api",
+                "age_days": 5
               }
             ],
             "notice": {
@@ -670,7 +672,8 @@
               {
                 "origin": "embedded",
                 "effective": "2026-10-15",
-                "source": "https://claude.com/pricing#api"
+                "source": "https://claude.com/pricing#api",
+                "age_days": 5
               }
             ],
             "notice": {
@@ -736,7 +739,17 @@
                 "cache_write_1h": 0
               }
             }
-          ]
+          ],
+          "unpriced_models": [
+            "claude-mystery-9"
+          ],
+          "unpriced": {
+            "id": "cost.prices.unpriced",
+            "params": {
+              "models": "claude-mystery-9"
+            },
+            "fallback": "No price for: claude-mystery-9"
+          }
         }
       },
       {
@@ -832,7 +845,8 @@
         {
           "origin": "embedded",
           "effective": "2026-10-15",
-          "source": "https://claude.com/pricing#api"
+          "source": "https://claude.com/pricing#api",
+          "age_days": 5
         }
       ],
       "notice": {

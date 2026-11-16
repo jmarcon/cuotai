@@ -1577,21 +1577,26 @@
     "one": "{count} línea inválida ignorada",
     "other": "{count} líneas inválidas ignoradas"
   },
-  "cost.disabled": "{source} desactivado; {removed} registro(s) derivado(s) borrado(s).",
+  "cost.disabled": {
+    "one": "{source} desactivado; {count} registro derivado borrado.",
+    "other": "{source} desactivado; {count} registros derivados borrados."
+  },
   "cost.enabled": "{source} activado. Los registros se leen en segundo plano mientras la TUI o la app de escritorio están abiertas, o ahora con cuotai --cost-scan.",
-  "cost.erased": "Índice de costo local borrado: {removed} registro(s).",
+  "cost.erased": {
+    "one": "Índice de costo local borrado: {count} registro.",
+    "other": "Índice de costo local borrado: {count} registros."
+  },
   "cost.error.unknown_period": "Período desconocido: {name}. Períodos: {known}.",
   "cost.estimate.notice": "Estimación a precios de API, no es un cargo; importes en USD.",
   "cost.prices.age": "Precios de hace {days} días",
   "cost.prices.unpriced": "Sin precio para: {models}",
-  "cost.plan.ratio": "{source}: ≈ {estimate} a precios de API (estimación) · plan {plans} · ≈ {ratio}× el precio del plan",
-  "cost.plan.ratio_rate": "{source}: ≈ {estimate} a precios de API (estimación) · plan {plans} · ≈ {ratio}× el precio del plan, a su tipo de cambio",
-  "cost.plan.side": "{source}: ≈ {estimate} a precios de API (estimación) · plan {plans}",
   "cost.plan.unknown": "{source}: costo a precios de API desconocido (modelos sin precio) · plan {plans}",
-  "cost.plan.partial": "{amount}, sin los modelos que no tienen precio",
-  "cost.plan.combined": "Cuentas de {source}",
-  "cost.display.line": "≈ {amount} a su tipo de cambio (definido hace {days} días)",
-  "cost.display.line_stale": "≈ {amount} a su tipo de cambio (definido hace {days} días); actualice el tipo de cambio",
+  "cost.plan.combined": {
+    "one": "{source}, {count} cuenta combinada: {estimate} · planes {plans} · {value}",
+    "other": "{source}, {count} cuentas combinadas: {estimate} · planes {plans} · {value}"
+  },
+  "cost.display.line": "≈ {amount} a su tipo de cambio ({age})",
+  "cost.display.line_stale": "≈ {amount} a su tipo de cambio ({age}); actualice el tipo de cambio",
   "cost.error.invalid_plan": "Plan no válido: un precio mayor que cero, una moneda de tres letras y un día de ciclo de 1 a 28.",
   "cost.error.invalid_rate": "Tipo de cambio no válido: una moneda de tres letras distinta de USD y una tasa mayor que cero.",
   "cost.pricing.error.currency": "pricing.json solo acepta precios en USD.",
@@ -1652,12 +1657,18 @@
   "cost.block.local_estimate": "Estimación local",
   "cost.block.active": "activo",
   "cost.block.closed": "cerrado",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} sesión(es), {projects} proyecto(s)",
-  "cost.block.hours_saved": "{source}: bloques de {hours} hora(s).",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "one": "{source}: bloques de {count} hora.",
+    "other": "{source}: bloques de {count} horas."
+  },
   "cost.label.saved": "Etiqueta de {short} guardada en el índice local de costos.",
   "cost.label.removed": "Etiqueta de {short} eliminada.",
   "cost.folder_hint.on": "{source}: el último nombre de carpeta de cada proyecto se guarda en este equipo para proponer su etiqueta.",
-  "cost.folder_hint.off": "{source}: ya no se guardan nombres de carpeta; {removed} eliminado(s).",
+  "cost.folder_hint.off": {
+    "one": "{source}: ya no se guardan nombres de carpeta; {count} eliminado.",
+    "other": "{source}: ya no se guardan nombres de carpeta; {count} eliminados."
+  },
   "cost.error.invalid_label": "Una etiqueta tiene de 1 a {max} caracteres.",
   "cost.error.unknown_prefix": "Ninguna sesión ni proyecto empieza con ese prefijo (al menos {min} caracteres hexadecimales).",
   "cost.error.ambiguous_prefix": "Más de una sesión o proyecto empieza con ese prefijo; escriba más caracteres.",
@@ -2414,5 +2425,51 @@
   "doctor.title.cost_pricing": "Precios locales (pricing.json)",
   "doctor.cost_pricing.none": "No hay pricing.json; se usan los precios integrados.",
   "doctor.cost_pricing.ok": "Es válido y tiene prioridad sobre los precios integrados.",
-  "doctor.fix.cost_pricing": "Corrija o elimine pricing.json; solo se usan los precios integrados."
+  "doctor.fix.cost_pricing": "Corrija o elimine pricing.json; solo se usan los precios integrados.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + desconocido",
+  "cost.rate.age.today": "definido hoy",
+  "cost.rate.age.yesterday": "definido ayer",
+  "cost.rate.age.days": {
+    "one": "definido hace {count} día",
+    "other": "definido hace {count} días"
+  },
+  "cost.error.rate_too_small": "El tipo de cambio es demasiado pequeño: use al menos 0.000001.",
+  "cost.block.sessions": {
+    "one": "{count} sesión",
+    "other": "{count} sesiones"
+  },
+  "cost.block.projects": {
+    "one": "{count} proyecto",
+    "other": "{count} proyectos"
+  },
+  "cost.plan.estimate": "≈ {amount} a precios de API (estimación)",
+  "cost.plan.estimate_partial": "≈ {amount} a precios de API para los modelos con precio (estimación)",
+  "cost.plan.single": "{source}: {estimate} · plan {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · plan {plans}",
+  "cost.plan.combined_side": {
+    "one": "{source}, {count} cuenta combinada: {estimate} · planes {plans}",
+    "other": "{source}, {count} cuentas combinadas: {estimate} · planes {plans}"
+  },
+  "cost.plan.combined_some": {
+    "one": "{source}, {count} cuenta combinada: {estimate} · planes de {planned} de ellas: {plans}; los registros no se pueden separar, así que no hay proporción",
+    "other": "{source}, {count} cuentas combinadas: {estimate} · planes de {planned} de ellas: {plans}; los registros no se pueden separar, así que no hay proporción"
+  },
+  "cost.plan.combined_label": {
+    "one": "{source}, {count} cuenta combinada",
+    "other": "{source}, {count} cuentas combinadas"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ {ratio}× el precio del plan",
+  "cost.plan.times_rate": "≈ {ratio}× el precio del plan, a su tipo de cambio",
+  "cost.plan.times_plans": "≈ {ratio}× el precio de los planes",
+  "cost.plan.times_plans_rate": "≈ {ratio}× el precio de los planes, a su tipo de cambio",
+  "cost.plan.share": "≈ {percent}% del precio del plan",
+  "cost.plan.share_rate": "≈ {percent}% del precio del plan, a su tipo de cambio",
+  "cost.plan.share_plans": "≈ {percent}% del precio de los planes",
+  "cost.plan.share_plans_rate": "≈ {percent}% del precio de los planes, a su tipo de cambio",
+  "cost.plan.share_small": "menos del 1% del precio del plan",
+  "cost.plan.share_small_rate": "menos del 1% del precio del plan, a su tipo de cambio",
+  "cost.plan.share_small_plans": "menos del 1% del precio de los planes",
+  "cost.plan.share_small_plans_rate": "menos del 1% del precio de los planes, a su tipo de cambio"
 }

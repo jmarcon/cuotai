@@ -308,7 +308,10 @@
   "config.warning.unknown_key": "{path} Cuotai के इस संस्करण के लिए अज्ञात है; इसे अनदेखा किया जाता है और फ़ाइल सहेजते समय रखा जाता है।",
   "cost.confirm.answer": "हां",
   "cost.confirm.question": "चालू करने के लिए \"{answer}\" टाइप करें और Enter दबाएँ (कोई और जवाब मना माना जाता है):",
-  "cost.disabled": "{source} बंद किया गया; {removed} व्युत्पन्न रिकॉर्ड मिटाए गए।",
+  "cost.disabled": {
+    "one": "{source} बंद किया गया; {count} व्युत्पन्न रिकॉर्ड मिटाया गया।",
+    "other": "{source} बंद किया गया; {count} व्युत्पन्न रिकॉर्ड मिटाए गए।"
+  },
   "cost.disclosure.accept": "पढ़ना चालू करें",
   "cost.disclosure.directories": "केवल इन डायरेक्टरी की {pattern} फ़ाइलें पढ़ता है:",
   "cost.disclosure.directory": "{path}",
@@ -317,10 +320,13 @@
   "cost.disclosure.never_v2": "बातचीत की सामग्री, प्रॉम्प्ट, उत्तर, फ़ाइल नाम और प्रोजेक्ट पथ कभी इंडेक्स में नहीं पढ़े जाते, सहेजे या दिखाए नहीं जाते; प्रोजेक्ट के फ़ोल्डर का अंतिम नाम केवल तभी रखा जाता है जब आप इसे चालू करें। इस कंप्यूटर से कुछ भी बाहर नहीं जाता।",
   "cost.disclosure.off": "स्रोत बंद करने पर हर पढ़ना रुक जाता है और उससे बना सब कुछ मिट जाता है।",
   "cost.disclosure.purpose": "केवल इसी कंप्यूटर पर, {source} के उपयोग के टोकन और API कीमतों पर लागत का अनुमान दिन और मॉडल के हिसाब से लगाने के लिए।",
-  "cost.display.line": "≈ {amount} आपकी दर पर ({days} दिन पहले तय)",
-  "cost.display.line_stale": "≈ {amount} आपकी दर पर ({days} दिन पहले तय); अपनी दर अपडेट करें",
+  "cost.display.line": "≈ {amount} आपकी दर पर ({age})",
+  "cost.display.line_stale": "≈ {amount} आपकी दर पर ({age}); अपनी दर अपडेट करें",
   "cost.enabled": "{source} चालू हुआ। TUI या डेस्कटॉप ऐप खुला होने पर लॉग बैकग्राउंड में पढ़े जाते हैं, या अभी cuotai --cost-scan से।",
-  "cost.erased": "स्थानीय लागत इंडेक्स मिटाया गया: {removed} रिकॉर्ड।",
+  "cost.erased": {
+    "one": "स्थानीय लागत इंडेक्स मिटाया गया: {count} रिकॉर्ड।",
+    "other": "स्थानीय लागत इंडेक्स मिटाया गया: {count} रिकॉर्ड।"
+  },
   "cost.error.consent_changed": "इस स्रोत की डायरेक्टरी दिखाए जाने के बाद बदल गई हैं; दोबारा जाँचें और पुष्टि करें।",
   "cost.error.days_bounds": "दिनों की संख्या {min} से {max} तक होती है।",
   "cost.error.declined": "स्रोत चालू नहीं किया गया; कोई लॉग नहीं पढ़ा गया।",
@@ -343,11 +349,10 @@
   "cost.period.last_30_days": "पिछले 30 दिन",
   "cost.period.last_7_days": "पिछले 7 दिन",
   "cost.period.today": "आज",
-  "cost.plan.combined": "{source} के खाते",
-  "cost.plan.partial": "{amount}, बिना कीमत वाले मॉडल छोड़कर",
-  "cost.plan.ratio": "{source}: API कीमतों पर ≈ {estimate} (अनुमान) · प्लान {plans} · प्लान की कीमत का ≈ {ratio}×",
-  "cost.plan.ratio_rate": "{source}: API कीमतों पर ≈ {estimate} (अनुमान) · प्लान {plans} · प्लान की कीमत का ≈ {ratio}×, आपकी दर पर",
-  "cost.plan.side": "{source}: API कीमतों पर ≈ {estimate} (अनुमान) · प्लान {plans}",
+  "cost.plan.combined": {
+    "one": "{source}, {count} खाता संयुक्त: {estimate} · प्लान {plans} · {value}",
+    "other": "{source}, {count} खाते संयुक्त: {estimate} · प्लान {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: API कीमतों पर लागत अज्ञात (बिना कीमत वाले मॉडल) · प्लान {plans}",
   "cost.prices.age": "{days} दिन पुरानी कीमतें",
   "cost.prices.unpriced": "इनकी कीमत नहीं: {models}",
@@ -420,12 +425,18 @@
   "cost.block.local_estimate": "स्थानीय अनुमान",
   "cost.block.active": "सक्रिय",
   "cost.block.closed": "बंद",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} सत्र, {projects} प्रोजेक्ट",
-  "cost.block.hours_saved": "{source}: {hours} घंटे के ब्लॉक।",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "one": "{source}: {count} घंटे के ब्लॉक।",
+    "other": "{source}: {count} घंटे के ब्लॉक।"
+  },
   "cost.label.saved": "{short} का लेबल स्थानीय लागत इंडेक्स में सहेजा गया।",
   "cost.label.removed": "{short} का लेबल हटाया गया।",
   "cost.folder_hint.on": "{source}: हर प्रोजेक्ट के फ़ोल्डर का अंतिम नाम इस कंप्यूटर पर रखा जाता है ताकि उसका लेबल पहले से भरा जा सके।",
-  "cost.folder_hint.off": "{source}: फ़ोल्डर नाम अब नहीं रखे जाते; {removed} हटाए गए।",
+  "cost.folder_hint.off": {
+    "one": "{source}: फ़ोल्डर नाम अब नहीं रखे जाते; {count} हटाया गया।",
+    "other": "{source}: फ़ोल्डर नाम अब नहीं रखे जाते; {count} हटाए गए।"
+  },
   "cost.error.invalid_label": "लेबल में 1 से {max} वर्ण होते हैं।",
   "cost.error.unknown_prefix": "कोई सत्र या प्रोजेक्ट इस उपसर्ग से शुरू नहीं होता (कम से कम {min} हेक्साडेसिमल वर्ण)।",
   "cost.error.ambiguous_prefix": "एक से अधिक सत्र या प्रोजेक्ट इस उपसर्ग से शुरू होते हैं; और वर्ण लिखें।",
@@ -2417,5 +2428,51 @@
   "doctor.title.cost_pricing": "स्थानीय मूल्य (pricing.json)",
   "doctor.cost_pricing.none": "कोई pricing.json नहीं; अंतर्निहित मूल्य उपयोग होते हैं।",
   "doctor.cost_pricing.ok": "यह मान्य है और अंतर्निहित मूल्यों पर प्राथमिकता रखता है।",
-  "doctor.fix.cost_pricing": "pricing.json ठीक करें या हटाएँ; केवल अंतर्निहित मूल्य उपयोग होते हैं।"
+  "doctor.fix.cost_pricing": "pricing.json ठीक करें या हटाएँ; केवल अंतर्निहित मूल्य उपयोग होते हैं।",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + अज्ञात",
+  "cost.rate.age.today": "आज तय",
+  "cost.rate.age.yesterday": "कल तय",
+  "cost.rate.age.days": {
+    "one": "{count} दिन पहले तय",
+    "other": "{count} दिन पहले तय"
+  },
+  "cost.error.rate_too_small": "दर बहुत छोटी है: कम से कम 0.000001 इस्तेमाल करें।",
+  "cost.block.sessions": {
+    "one": "{count} सत्र",
+    "other": "{count} सत्र"
+  },
+  "cost.block.projects": {
+    "one": "{count} प्रोजेक्ट",
+    "other": "{count} प्रोजेक्ट"
+  },
+  "cost.plan.estimate": "API कीमतों पर ≈ {amount} (अनुमान)",
+  "cost.plan.estimate_partial": "कीमत वाले मॉडलों के लिए API कीमतों पर ≈ {amount} (अनुमान)",
+  "cost.plan.single": "{source}: {estimate} · प्लान {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · प्लान {plans}",
+  "cost.plan.combined_side": {
+    "one": "{source}, {count} खाता संयुक्त: {estimate} · प्लान {plans}",
+    "other": "{source}, {count} खाते संयुक्त: {estimate} · प्लान {plans}"
+  },
+  "cost.plan.combined_some": {
+    "one": "{source}, {count} खाता संयुक्त: {estimate} · इनमें से {planned} के प्लान: {plans}; लॉग अलग नहीं किए जा सकते, इसलिए कोई अनुपात नहीं है",
+    "other": "{source}, {count} खाते संयुक्त: {estimate} · इनमें से {planned} के प्लान: {plans}; लॉग अलग नहीं किए जा सकते, इसलिए कोई अनुपात नहीं है"
+  },
+  "cost.plan.combined_label": {
+    "one": "{source}, {count} खाता संयुक्त",
+    "other": "{source}, {count} खाते संयुक्त"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "प्लान की कीमत का ≈ {ratio}×",
+  "cost.plan.times_rate": "प्लान की कीमत का ≈ {ratio}×, आपकी दर पर",
+  "cost.plan.times_plans": "प्लानों की कीमत का ≈ {ratio}×",
+  "cost.plan.times_plans_rate": "प्लानों की कीमत का ≈ {ratio}×, आपकी दर पर",
+  "cost.plan.share": "प्लान की कीमत का ≈ {percent}%",
+  "cost.plan.share_rate": "प्लान की कीमत का ≈ {percent}%, आपकी दर पर",
+  "cost.plan.share_plans": "प्लानों की कीमत का ≈ {percent}%",
+  "cost.plan.share_plans_rate": "प्लानों की कीमत का ≈ {percent}%, आपकी दर पर",
+  "cost.plan.share_small": "प्लान की कीमत के 1% से कम",
+  "cost.plan.share_small_rate": "प्लान की कीमत के 1% से कम, आपकी दर पर",
+  "cost.plan.share_small_plans": "प्लानों की कीमत के 1% से कम",
+  "cost.plan.share_small_plans_rate": "प्लानों की कीमत के 1% से कम, आपकी दर पर"
 }

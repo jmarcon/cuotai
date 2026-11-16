@@ -783,7 +783,7 @@ pub fn by_empty_text() -> Localized {
 }
 
 /// RF3.2: one block for a list: "Claude Code · 2026-10-25 14:00–19:00 ·
-/// active · 2 session(s), 1 project(s)".
+/// active · 2 sessions, 1 project".
 pub fn block_line(block: &BlockSummary, zone: DayZone) -> Localized {
     let state = if block.active {
         Localized::fixed("cost.block.active", "active")
@@ -796,10 +796,26 @@ pub fn block_line(block: &BlockSummary, zone: DayZone) -> Localized {
             ("source", block.source.label().into()),
             ("window", block.window_text(zone).into()),
             ("state", ParamValue::l10n(state)),
-            ("sessions", block.sessions.into()),
-            ("projects", block.projects.into()),
+            (
+                "sessions",
+                ParamValue::l10n(Localized::plural(
+                    "cost.block.sessions",
+                    params([("count", block.sessions.into())]),
+                    "{count} session",
+                    "{count} sessions",
+                )),
+            ),
+            (
+                "projects",
+                ParamValue::l10n(Localized::plural(
+                    "cost.block.projects",
+                    params([("count", block.projects.into())]),
+                    "{count} project",
+                    "{count} projects",
+                )),
+            ),
         ]),
-        "{source} · {window} · {state} · {sessions} session(s), {projects} project(s)",
+        "{source} · {window} · {state} · {sessions}, {projects}",
     )
 }
 
@@ -890,13 +906,15 @@ pub fn hidden_saved_text(digest: &str, hidden: bool) -> Localized {
 
 /// RF3.1: the block length of `source` was saved.
 pub fn block_hours_text(source: SourceId, hours: u8) -> Localized {
-    Localized::with_params(
+    Localized::plural(
         "cost.block.hours_saved",
         params([
             ("source", source.label().into()),
+            ("count", u64::from(hours).into()),
             ("hours", u64::from(hours).into()),
         ]),
-        "{source}: blocks of {hours} hour(s).",
+        "{source}: blocks of {count} hour.",
+        "{source}: blocks of {count} hours.",
     )
 }
 
@@ -911,13 +929,15 @@ pub fn folder_hint_text(source: SourceId, on: bool, removed: usize) -> Localized
             "{source}: the last folder name of each project is kept on this computer to prefill its label.",
         )
     } else {
-        Localized::with_params(
+        Localized::plural(
             "cost.folder_hint.off",
             params([
                 ("source", source.label().into()),
+                ("count", removed.into()),
                 ("removed", removed.into()),
             ]),
-            "{source}: folder names are no longer kept; {removed} deleted.",
+            "{source}: folder names are no longer kept; {count} deleted.",
+            "{source}: folder names are no longer kept; {count} deleted.",
         )
     }
 }

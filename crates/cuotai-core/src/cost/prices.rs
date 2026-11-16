@@ -364,6 +364,14 @@ pub struct TableInfo {
     pub origin: PriceOrigin,
     pub effective: NaiveDate,
     pub source: Option<String>,
+    /// PRD 0030 C-06: days from `effective` to the summary's day; set by
+    /// the summary only (absent elsewhere).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub age_days: Option<u32>,
+    /// RF3.1: "Prices from N days ago" for this table, only from
+    /// [`PRICE_AGE_NOTICE_DAYS`] days on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub age: Option<crate::text::Localized>,
 }
 
 impl TableInfo {
@@ -470,6 +478,8 @@ impl Prices {
                 origin,
                 effective: table.effective,
                 source: table.source.clone(),
+                age_days: None,
+                age: None,
             })
             .collect();
         info.reverse();

@@ -382,6 +382,9 @@ pub enum CostError {
     /// PRD 0030 RF6.1: a rate or currency code out of bounds.
     #[error("Invalid rate: a three-letter currency other than USD and a rate above zero.")]
     InvalidRate,
+    /// PRD 0030 L-01: a positive rate below the smallest one kept.
+    #[error("The rate is too small: use at least 0.000001.")]
+    RateTooSmall,
     /// PRD 0042 RF2.2/RF4.2: an empty, too long or control-character label.
     #[error("A label has 1 to 48 characters.")]
     InvalidLabel,
@@ -428,6 +431,9 @@ impl CostError {
             Self::RelativePath => Localized::fixed("cost.error.relative_path", self.to_string()),
             Self::InvalidPlan => Localized::fixed("cost.error.invalid_plan", self.to_string()),
             Self::InvalidRate => Localized::fixed("cost.error.invalid_rate", self.to_string()),
+            Self::RateTooSmall => {
+                Localized::fixed("cost.error.rate_too_small", self.to_string())
+            }
             Self::InvalidLabel => Localized::with_param(
                 "cost.error.invalid_label",
                 "max",
@@ -582,20 +588,26 @@ pub fn enabled_text(source: SourceId) -> Localized {
 /// `source` was turned off and `removed` derived rows were erased.
 pub fn disabled_text(source: SourceId, removed: usize) -> Localized {
     let label = source.label();
-    Localized::with_params(
+    // C-08: `removed` stays for consumers written for it.
+    Localized::plural(
         "cost.disabled",
-        params([("source", label.into()), ("removed", removed.into())]),
-        "{source} turned off; {removed} derived record(s) erased.",
+        params([
+            ("source", label.into()),
+            ("count", removed.into()),
+            ("removed", removed.into()),
+        ]),
+        "{source} turned off; {count} derived record erased.",
+        "{source} turned off; {count} derived records erased.",
     )
 }
 
 /// The whole index was erased (`removed` rows).
 pub fn erased_text(removed: usize) -> Localized {
-    Localized::with_param(
+    Localized::plural(
         "cost.erased",
-        "removed",
-        removed,
-        "Local cost index erased: {removed} record(s).",
+        params([("count", removed.into()), ("removed", removed.into())]),
+        "Local cost index erased: {count} record.",
+        "Local cost index erased: {count} records.",
     )
 }
 

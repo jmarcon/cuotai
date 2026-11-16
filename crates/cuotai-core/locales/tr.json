@@ -308,7 +308,10 @@
   "config.warning.unknown_key": "{path}, Cuotai'nin bu sürümü tarafından bilinmiyor; yok sayılır ve dosya kaydedilirken korunur.",
   "cost.confirm.answer": "evet",
   "cost.confirm.question": "Açmak için \"{answer}\" yazın ve Enter'a basın (başka herhangi bir yanıt reddeder):",
-  "cost.disabled": "{source} kapatıldı; {removed} türetilmiş kayıt silindi.",
+  "cost.disabled": {
+    "one": "{source} kapatıldı; {count} türetilmiş kayıt silindi.",
+    "other": "{source} kapatıldı; {count} türetilmiş kayıt silindi."
+  },
   "cost.disclosure.accept": "Okumayı aç",
   "cost.disclosure.directories": "Yalnızca şu dizinlerdeki {pattern} dosyalarını okur:",
   "cost.disclosure.directory": "{path}",
@@ -317,10 +320,13 @@
   "cost.disclosure.never_v2": "Konuşma içeriği, istemler, yanıtlar, dosya adları ve proje yolları dizine hiç okunmaz, saklanmaz ya da gösterilmez; bir projenin son klasör adı yalnızca siz açarsanız saklanır. Hiçbir şey bu bilgisayardan çıkmaz.",
   "cost.disclosure.off": "Kaynağı kapatmak her okumayı durdurur ve ondan türetilen her şeyi siler.",
   "cost.disclosure.purpose": "{source} kullanımınızın gün ve model başına token'larını ve API fiyatlarındaki maliyetini yalnızca bu bilgisayarda tahmin etmek için.",
-  "cost.display.line": "≈ {amount}, kurunuzla ({days} gün önce ayarlandı)",
-  "cost.display.line_stale": "≈ {amount}, kurunuzla ({days} gün önce ayarlandı); kurunuzu güncelleyin",
+  "cost.display.line": "≈ {amount}, kurunuzla ({age})",
+  "cost.display.line_stale": "≈ {amount}, kurunuzla ({age}); kurunuzu güncelleyin",
   "cost.enabled": "{source} açıldı. Günlükler, TUI veya masaüstü uygulaması açıkken arka planda ya da şimdi cuotai --cost-scan ile okunur.",
-  "cost.erased": "Yerel maliyet dizini silindi: {removed} kayıt.",
+  "cost.erased": {
+    "one": "Yerel maliyet dizini silindi: {count} kayıt.",
+    "other": "Yerel maliyet dizini silindi: {count} kayıt."
+  },
   "cost.error.consent_changed": "Bu kaynağın dizinleri gösterildiklerinden beri değişti; gözden geçirip yeniden onaylayın.",
   "cost.error.days_bounds": "Gün sayısı {min} ile {max} arasındadır.",
   "cost.error.declined": "Kaynak açılmadı; hiçbir günlük okunmadı.",
@@ -343,11 +349,10 @@
   "cost.period.last_30_days": "Son 30 gün",
   "cost.period.last_7_days": "Son 7 gün",
   "cost.period.today": "Bugün",
-  "cost.plan.combined": "{source} hesapları",
-  "cost.plan.partial": "{amount}, fiyatı olmayan modeller hariç",
-  "cost.plan.ratio": "{source}: API fiyatlarında ≈ {estimate} (tahmin) · plan {plans} · plan fiyatının ≈ {ratio} katı",
-  "cost.plan.ratio_rate": "{source}: API fiyatlarında ≈ {estimate} (tahmin) · plan {plans} · kurunuzla plan fiyatının ≈ {ratio} katı",
-  "cost.plan.side": "{source}: API fiyatlarında ≈ {estimate} (tahmin) · plan {plans}",
+  "cost.plan.combined": {
+    "one": "{source}, {count} hesap birlikte: {estimate} · planlar {plans} · {value}",
+    "other": "{source}, {count} hesap birlikte: {estimate} · planlar {plans} · {value}"
+  },
   "cost.plan.unknown": "{source}: API fiyatlarındaki maliyet bilinmiyor (fiyatı olmayan modeller) · plan {plans}",
   "cost.prices.age": "{days} gün öncesinin fiyatları",
   "cost.prices.unpriced": "Fiyatı olmayanlar: {models}",
@@ -420,12 +425,18 @@
   "cost.block.local_estimate": "Yerel tahmin",
   "cost.block.active": "etkin",
   "cost.block.closed": "kapandı",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} oturum, {projects} proje",
-  "cost.block.hours_saved": "{source}: {hours} saatlik bloklar.",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "one": "{source}: {count} saatlik bloklar.",
+    "other": "{source}: {count} saatlik bloklar."
+  },
   "cost.label.saved": "{short} etiketi yerel maliyet dizinine kaydedildi.",
   "cost.label.removed": "{short} etiketi kaldırıldı.",
   "cost.folder_hint.on": "{source}: her projenin son klasör adı, etiketini önceden doldurmak için bu bilgisayarda saklanır.",
-  "cost.folder_hint.off": "{source}: klasör adları artık saklanmıyor; {removed} silindi.",
+  "cost.folder_hint.off": {
+    "one": "{source}: klasör adları artık saklanmıyor; {count} ad silindi.",
+    "other": "{source}: klasör adları artık saklanmıyor; {count} ad silindi."
+  },
   "cost.error.invalid_label": "Bir etiket 1 ile {max} karakter arasındadır.",
   "cost.error.unknown_prefix": "Bu önekle başlayan oturum ya da proje yok (en az {min} onaltılık karakter).",
   "cost.error.ambiguous_prefix": "Bu önekle birden fazla oturum ya da proje başlıyor; daha fazla karakter yazın.",
@@ -2417,5 +2428,51 @@
   "doctor.title.cost_pricing": "Yerel fiyatlar (pricing.json)",
   "doctor.cost_pricing.none": "pricing.json yok; yerleşik fiyatlar kullanılıyor.",
   "doctor.cost_pricing.ok": "Geçerli ve yerleşik fiyatlara göre önceliklidir.",
-  "doctor.fix.cost_pricing": "pricing.json dosyasını düzeltin veya kaldırın; yalnızca yerleşik fiyatlar kullanılır."
+  "doctor.fix.cost_pricing": "pricing.json dosyasını düzeltin veya kaldırın; yalnızca yerleşik fiyatlar kullanılır.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + bilinmeyen",
+  "cost.rate.age.today": "bugün ayarlandı",
+  "cost.rate.age.yesterday": "dün ayarlandı",
+  "cost.rate.age.days": {
+    "one": "{count} gün önce ayarlandı",
+    "other": "{count} gün önce ayarlandı"
+  },
+  "cost.error.rate_too_small": "Kur çok küçük: en az 0.000001 kullanın.",
+  "cost.block.sessions": {
+    "one": "{count} oturum",
+    "other": "{count} oturum"
+  },
+  "cost.block.projects": {
+    "one": "{count} proje",
+    "other": "{count} proje"
+  },
+  "cost.plan.estimate": "API fiyatlarında ≈ {amount} (tahmin)",
+  "cost.plan.estimate_partial": "fiyatı olan modeller için API fiyatlarında ≈ {amount} (tahmin)",
+  "cost.plan.single": "{source}: {estimate} · plan {plans} · {value}",
+  "cost.plan.single_side": "{source}: {estimate} · plan {plans}",
+  "cost.plan.combined_side": {
+    "one": "{source}, {count} hesap birlikte: {estimate} · planlar {plans}",
+    "other": "{source}, {count} hesap birlikte: {estimate} · planlar {plans}"
+  },
+  "cost.plan.combined_some": {
+    "one": "{source}, {count} hesap birlikte: {estimate} · bunlardan {planned} tanesinin planları: {plans}; günlükler ayrılamadığı için oran yok",
+    "other": "{source}, {count} hesap birlikte: {estimate} · bunlardan {planned} tanesinin planları: {plans}; günlükler ayrılamadığı için oran yok"
+  },
+  "cost.plan.combined_label": {
+    "one": "{source}, {count} hesap birlikte",
+    "other": "{source}, {count} hesap birlikte"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "plan fiyatının ≈ {ratio}×",
+  "cost.plan.times_rate": "kurunuzla plan fiyatının ≈ {ratio}×",
+  "cost.plan.times_plans": "planların fiyatının ≈ {ratio}×",
+  "cost.plan.times_plans_rate": "kurunuzla planların fiyatının ≈ {ratio}×",
+  "cost.plan.share": "plan fiyatının ≈ %{percent}",
+  "cost.plan.share_rate": "kurunuzla plan fiyatının ≈ %{percent}",
+  "cost.plan.share_plans": "planların fiyatının ≈ %{percent}",
+  "cost.plan.share_plans_rate": "kurunuzla planların fiyatının ≈ %{percent}",
+  "cost.plan.share_small": "plan fiyatının %1'inden az",
+  "cost.plan.share_small_rate": "kurunuzla plan fiyatının %1'inden az",
+  "cost.plan.share_small_plans": "planların fiyatının %1'inden az",
+  "cost.plan.share_small_plans_rate": "kurunuzla planların fiyatının %1'inden az"
 }

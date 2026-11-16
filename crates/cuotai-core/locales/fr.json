@@ -308,7 +308,10 @@
   "config.warning.unknown_key": "{path} est inconnu de cette version de Cuotai ; il est ignoré et conservé lors de l'enregistrement du fichier.",
   "cost.confirm.answer": "oui",
   "cost.confirm.question": "Pour l’activer, tapez « {answer} » et appuyez sur Entrée (toute autre réponse la refuse) :",
-  "cost.disabled": "{source} désactivé ; {removed} enregistrement(s) dérivé(s) supprimé(s).",
+  "cost.disabled": {
+    "one": "{source} désactivé ; {count} enregistrement dérivé supprimé.",
+    "other": "{source} désactivé ; {count} enregistrements dérivés supprimés."
+  },
   "cost.disclosure.accept": "Activer la lecture",
   "cost.disclosure.directories": "Ne lit que les fichiers {pattern} de ces dossiers :",
   "cost.disclosure.directory": "{path}",
@@ -317,10 +320,13 @@
   "cost.disclosure.never_v2": "Le contenu des conversations, les prompts, les réponses, les noms de fichiers et les chemins de projet ne sont jamais lus dans l’index, enregistrés ni affichés ; le dernier nom de dossier d’un projet n’est conservé que si vous l’activez. Rien ne quitte cet ordinateur.",
   "cost.disclosure.off": "Désactiver la source arrête toute lecture et efface tout ce qui en découle.",
   "cost.disclosure.purpose": "Pour estimer, sur cet ordinateur uniquement, les tokens et le coût aux prix de l’API de votre utilisation de {source}, par jour et par modèle.",
-  "cost.display.line": "≈ {amount} à votre taux de change (défini il y a {days} jours)",
-  "cost.display.line_stale": "≈ {amount} à votre taux de change (défini il y a {days} jours) ; mettez à jour le taux",
+  "cost.display.line": "≈ {amount} à votre taux de change ({age})",
+  "cost.display.line_stale": "≈ {amount} à votre taux de change ({age}) ; mettez à jour le taux",
   "cost.enabled": "{source} activé. Les journaux sont lus en arrière-plan tant que la TUI ou l’application de bureau est ouverte, ou maintenant avec cuotai --cost-scan.",
-  "cost.erased": "Index du coût local effacé : {removed} enregistrement(s).",
+  "cost.erased": {
+    "one": "Index du coût local effacé : {count} enregistrement.",
+    "other": "Index du coût local effacé : {count} enregistrements."
+  },
   "cost.error.consent_changed": "Les dossiers de cette source ont changé depuis leur affichage ; vérifiez-les et confirmez à nouveau.",
   "cost.error.days_bounds": "Le nombre de jours va de {min} à {max}.",
   "cost.error.declined": "La source n’a pas été activée ; aucun journal n’a été lu.",
@@ -343,11 +349,10 @@
   "cost.period.last_30_days": "30 derniers jours",
   "cost.period.last_7_days": "7 derniers jours",
   "cost.period.today": "Aujourd’hui",
-  "cost.plan.combined": "Comptes de {source}",
-  "cost.plan.partial": "{amount}, sans les modèles qui n’ont pas de prix",
-  "cost.plan.ratio": "{source} : ≈ {estimate} aux prix de l’API (estimation) · forfait {plans} · ≈ {ratio}× le prix du forfait",
-  "cost.plan.ratio_rate": "{source} : ≈ {estimate} aux prix de l’API (estimation) · forfait {plans} · ≈ {ratio}× le prix du forfait, à votre taux de change",
-  "cost.plan.side": "{source} : ≈ {estimate} aux prix de l’API (estimation) · forfait {plans}",
+  "cost.plan.combined": {
+    "one": "{source}, {count} compte combiné : {estimate} · forfaits {plans} · {value}",
+    "other": "{source}, {count} comptes combinés : {estimate} · forfaits {plans} · {value}"
+  },
   "cost.plan.unknown": "{source} : coût aux prix de l’API inconnu (modèles sans prix) · forfait {plans}",
   "cost.prices.age": "Prix d’il y a {days} jours",
   "cost.prices.unpriced": "Sans prix pour : {models}",
@@ -420,12 +425,18 @@
   "cost.block.local_estimate": "Estimation locale",
   "cost.block.active": "actif",
   "cost.block.closed": "terminé",
-  "cost.block.line": "{source} · {window} · {state} · {sessions} session(s), {projects} projet(s)",
-  "cost.block.hours_saved": "{source} : blocs de {hours} heure(s).",
+  "cost.block.line": "{source} · {window} · {state} · {sessions}, {projects}",
+  "cost.block.hours_saved": {
+    "one": "{source} : blocs de {count} heure.",
+    "other": "{source} : blocs de {count} heures."
+  },
   "cost.label.saved": "Libellé de {short} enregistré dans l’index local des coûts.",
   "cost.label.removed": "Libellé de {short} supprimé.",
   "cost.folder_hint.on": "{source} : le dernier nom de dossier de chaque projet est conservé sur cet ordinateur pour préremplir son libellé.",
-  "cost.folder_hint.off": "{source} : les noms de dossier ne sont plus conservés ; {removed} supprimé(s).",
+  "cost.folder_hint.off": {
+    "one": "{source} : les noms de dossier ne sont plus conservés ; {count} supprimé.",
+    "other": "{source} : les noms de dossier ne sont plus conservés ; {count} supprimés."
+  },
   "cost.error.invalid_label": "Un libellé comporte de 1 à {max} caractères.",
   "cost.error.unknown_prefix": "Aucune session ni aucun projet ne commence par ce préfixe (au moins {min} caractères hexadécimaux).",
   "cost.error.ambiguous_prefix": "Plusieurs sessions ou projets commencent par ce préfixe ; saisissez plus de caractères.",
@@ -2417,5 +2428,51 @@
   "doctor.title.cost_pricing": "Prix locaux (pricing.json)",
   "doctor.cost_pricing.none": "Aucun pricing.json ; les prix intégrés sont utilisés.",
   "doctor.cost_pricing.ok": "Il est valide et prime sur les prix intégrés.",
-  "doctor.fix.cost_pricing": "Corrigez ou supprimez pricing.json ; seuls les prix intégrés sont utilisés."
+  "doctor.fix.cost_pricing": "Corrigez ou supprimez pricing.json ; seuls les prix intégrés sont utilisés.",
+  "cost.amount.under": "< {amount}",
+  "cost.display.partial": "{amount} + inconnu",
+  "cost.rate.age.today": "défini aujourd’hui",
+  "cost.rate.age.yesterday": "défini hier",
+  "cost.rate.age.days": {
+    "one": "défini il y a {count} jour",
+    "other": "défini il y a {count} jours"
+  },
+  "cost.error.rate_too_small": "Le taux est trop petit : utilisez au moins 0.000001.",
+  "cost.block.sessions": {
+    "one": "{count} session",
+    "other": "{count} sessions"
+  },
+  "cost.block.projects": {
+    "one": "{count} projet",
+    "other": "{count} projets"
+  },
+  "cost.plan.estimate": "≈ {amount} aux prix de l’API (estimation)",
+  "cost.plan.estimate_partial": "≈ {amount} aux prix de l’API pour les modèles ayant un prix (estimation)",
+  "cost.plan.single": "{source} : {estimate} · forfait {plans} · {value}",
+  "cost.plan.single_side": "{source} : {estimate} · forfait {plans}",
+  "cost.plan.combined_side": {
+    "one": "{source}, {count} compte combiné : {estimate} · forfaits {plans}",
+    "other": "{source}, {count} comptes combinés : {estimate} · forfaits {plans}"
+  },
+  "cost.plan.combined_some": {
+    "one": "{source}, {count} compte combiné : {estimate} · forfaits de {planned} d’entre eux : {plans} ; les journaux ne peuvent pas être séparés, il n’y a donc pas de rapport",
+    "other": "{source}, {count} comptes combinés : {estimate} · forfaits de {planned} d’entre eux : {plans} ; les journaux ne peuvent pas être séparés, il n’y a donc pas de rapport"
+  },
+  "cost.plan.combined_label": {
+    "one": "{source}, {count} compte combiné",
+    "other": "{source}, {count} comptes combinés"
+  },
+  "cost.plan.list": "{first} · {rest}",
+  "cost.plan.times": "≈ {ratio}× le prix du forfait",
+  "cost.plan.times_rate": "≈ {ratio}× le prix du forfait, à votre taux de change",
+  "cost.plan.times_plans": "≈ {ratio}× le prix des forfaits",
+  "cost.plan.times_plans_rate": "≈ {ratio}× le prix des forfaits, à votre taux de change",
+  "cost.plan.share": "≈ {percent} % du prix du forfait",
+  "cost.plan.share_rate": "≈ {percent} % du prix du forfait, à votre taux de change",
+  "cost.plan.share_plans": "≈ {percent} % du prix des forfaits",
+  "cost.plan.share_plans_rate": "≈ {percent} % du prix des forfaits, à votre taux de change",
+  "cost.plan.share_small": "moins de 1 % du prix du forfait",
+  "cost.plan.share_small_rate": "moins de 1 % du prix du forfait, à votre taux de change",
+  "cost.plan.share_small_plans": "moins de 1 % du prix des forfaits",
+  "cost.plan.share_small_plans_rate": "moins de 1 % du prix des forfaits, à votre taux de change"
 }
