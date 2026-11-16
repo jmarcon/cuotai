@@ -14,7 +14,10 @@
 // probe over budget is measured once more; the median of both batches decides, so a real regression still fails.
 // CI allowance (owner decision, 2026-11-05): on a CI runner (`CI` or `GITHUB_ACTIONS` set) `tray-expand-account` is
 // held to 24 ms instead of 16 ms. GitHub's macOS runners measure it at a 13 to 21 ms median for the same code, so the
-// 16 ms frame budget flaked there; 16 ms stays the PRD budget on the reference machine and in local runs. An explicit
+// 16 ms frame budget flaked there; 16 ms stays the PRD budget on the reference machine and in local runs.
+// `tray-open-stats` has the same allowance (PRD 0026 re-validation, 2026-11-16): the same commit measured 10.9, 20.1
+// and 21.5 ms medians on three macOS runner runs (single runs 8 to 29 ms) while the reference machine measures 4.4 ms
+// (3.9 ms before PRD 0026; 10.3 ms with the per-text formatters the demo built, since cached). An explicit
 // `--frame-budget` applies to every probe and overrides the allowance. The report names the budget used and why.
 // Usage: node apps/desktop/tools/ui-shots/perf.mjs [--json] [--strict] [--runs N] [--open-budget MS] [--frame-budget MS]
 import { launch } from "./driver.mjs";
@@ -28,7 +31,7 @@ const OPEN_BUDGET = flag("--open-budget", 300);
 const FRAME_BUDGET = flag("--frame-budget", 16);
 const CI_ENV = ["GITHUB_ACTIONS", "CI"].find((k) => process.env[k] && process.env[k] !== "false" && process.env[k] !== "0");
 // Probes with a wider budget on CI runners only (see the CI allowance above); not applied when --frame-budget is given.
-const CI_FRAME_BUDGET = { "tray-expand-account": 24 };
+const CI_FRAME_BUDGET = { "tray-expand-account": 24, "tray-open-stats": 24 };
 const frameBudget = (name) => {
   if (CI_ENV && !args.includes("--frame-budget") && CI_FRAME_BUDGET[name] != null) {
     return { budget: CI_FRAME_BUDGET[name], budget_reason: `CI allowance (${CI_ENV} is set; PRD budget ${FRAME_BUDGET} ms on the reference machine)` };
