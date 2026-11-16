@@ -3180,7 +3180,33 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
 
     // PRD 0045 RF6.2: the account's breakdown rows.
     lines.extend(crate::breakdown_view::detail_lines(report, tui_locale()));
-    if !report.notes.is_empty() {
+    // DS-CMP-DIAG-1: "What changed", the sentence, the field paths in the
+    // code style (cyan, as ids and links) and the privacy note.
+    if let Some(drift) = crate::report_problem::drift_texts(report, tui_locale()) {
+        lines.push(Line::default());
+        lines.push(Line::styled(
+            format!("  {}", drift.heading),
+            Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+        ));
+        lines.push(Line::from(Span::styled(
+            format!("  {}", safe(&drift.sentence)),
+            Style::default().fg(YELLOW),
+        )));
+        for path in &drift.paths {
+            lines.push(Line::styled(
+                format!("    {path}"),
+                Style::default().fg(CYAN),
+            ));
+        }
+        lines.push(Line::styled(
+            format!("  {}", drift.privacy),
+            Style::default().fg(MUTED),
+        ));
+    }
+    let shown_notes = (0..report.notes.len())
+        .filter(|idx| !crate::report_problem::is_drift_note(report, *idx))
+        .count();
+    if shown_notes > 0 {
         lines.push(Line::default());
         lines.push(Line::styled(
             tr("dashboard.detail.notes", "  NOTES"),
@@ -3192,6 +3218,9 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     // vector when a note is somehow missing from the sidecar.
     let mut note_texts: Vec<String> = Vec::with_capacity(report.notes.len());
     for (idx, fallback_text) in report.notes.iter().enumerate() {
+        if crate::report_problem::is_drift_note(report, idx) {
+            continue;
+        }
         note_texts.push(match report.notes_l10n.get(idx) {
             Some(note) => resolve_l10n(note),
             None => fallback_text.clone(),
