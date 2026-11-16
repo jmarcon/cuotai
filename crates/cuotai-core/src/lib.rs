@@ -1180,6 +1180,7 @@ impl Monitor {
                     // Another process paid for this interval's query.
                     metered_record::Decision::Reuse(report) => {
                         let mut report = *report;
+                        metered_record::rebind(&mut report, account);
                         report.drop_implausible_instants();
                         self.apply_budgets(account, &mut report);
                         return report;
@@ -2656,6 +2657,7 @@ credential_env = "OPENAI_ADMIN_KEY"
         // No AWS CLI ran: the report is the recorded one, with its time.
         assert_eq!(reused.status, Status::Ready);
         assert_eq!(reused.checked_at, cached.checked_at);
+        assert_eq!(reused.account_id, Some(account.id()));
         let file = std::fs::read_dir(dir.path())
             .unwrap()
             .filter_map(Result::ok)
