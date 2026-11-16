@@ -239,7 +239,7 @@ Each line carries a time, a level, the app (`cli`, `tui` or `desktop`), a stable
 |---|---|
 | `CUOTAI_CONFIG` | Accounts file to use (terminal and desktop). |
 | `CUOTAI_LANG` | Language of the terminal interface and of the core's texts (any of the 14 interface languages: `en-US`, `pt-BR`, `es`, `it`, `de`, `fr`, `ja`, `zh-CN`...; system forms such as `pt_BR.UTF-8` are normalized). Without it the system language is used, and English when that is not one of them. |
-| `CUOTAI_FALLBACK_LOCALE` | Language of the localized `fallback` texts and plain `notes` in `--json`, `--json-v1`, `--serve` and `--watch --jsonl` (the code of any core catalog, such as `pt-BR`, `es`, `it` or `de`; English without it). Same as `--fallback-locale`. |
+| `CUOTAI_FALLBACK_LOCALE` | Language of the localized `fallback` texts and plain `notes` in `--json`, `--json-v1`, `--serve` and `--watch --jsonl` (the code of a core catalog: `pt-BR`, `es`, `it`, `zh-CN`, `fr`, `de`, `ja`, `ru`, `ko`, `hi-IN`, `id-ID`, `tr` or `vi`; English without it or with `en-US`). Same as `--fallback-locale`. |
 | `CUOTAI_PACE_UNIT` | `points` (default) or `percent`: how the terminal shows the pace deviation (`--pace-unit` wins). |
 | `CUOTAI_STATUS=1` | Show providers' public status in the terminal and `--once` / `--json` (`--no-status` always wins). |
 | `CUOTAI_NO_ANIMATIONS=1`, `CUOTAI_ANIMATIONS=1` | Turn terminal animations off or back on (see [`tui.md`](tui.md#animations)). |

@@ -654,11 +654,9 @@ struct Args {
         value_parser = clap::value_parser!(u32).range(0..=1440)
     )]
     reset_lead: Option<u32>,
-    /// Renders the `fallback` texts (and the plain `notes`) of --json,
-    /// --json-v1, --serve and --watch --jsonl in this language (pt-BR, es or
-    /// it) for consumers that show them verbatim; also
-    /// CUOTAI_FALLBACK_LOCALE. Without it they are English.
-    #[arg(long, value_name = "LOCALE")]
+    // The help lists the languages from the core registry, so it cannot
+    // drift from what the flag accepts (`fallback_locale_help`).
+    #[arg(long, value_name = "LOCALE", help = fallback_locale_help())]
     fallback_locale: Option<String>,
     /// Lists the local cost sources (Claude Code, Codex CLI, Gemini CLI):
     /// whether they are on, the exact directories they read (or would read) and what the
@@ -2235,15 +2233,38 @@ fn fallback_locale_of(flag: Option<&str>, machine: bool) -> Result<Option<String
 fn fallback_locale_codes() -> String {
     let source = cuotai_core::text::Locale::resolve("").code();
     let mut codes = vec![source];
-    codes.extend(
-        cuotai_core::text::catalog_locales()
-            .into_iter()
-            .filter(|code| *code != source),
-    );
+    codes.extend(fallback_catalog_codes());
+    or_list(&codes)
+}
+
+/// The languages `--fallback-locale` renders into: every core catalog but
+/// the source language's, in registry order (PRD 0034 RF5.2).
+fn fallback_catalog_codes() -> Vec<&'static str> {
+    let source = cuotai_core::text::Locale::resolve("").code();
+    cuotai_core::text::catalog_locales()
+        .into_iter()
+        .filter(|code| *code != source)
+        .collect()
+}
+
+/// `a, b or c`.
+fn or_list(codes: &[&str]) -> String {
     match codes.split_last() {
         Some((last, rest)) if !rest.is_empty() => format!("{} or {last}", rest.join(", ")),
         _ => codes.join(""),
     }
+}
+
+/// The English `--help` of `--fallback-locale`, its language list built
+/// from the core registry (PRD 0034 re-validation V-15).
+fn fallback_locale_help() -> String {
+    let source = cuotai_core::text::Locale::resolve("").code();
+    format!(
+        "Renders the `fallback` texts (and the plain `notes`) of --json, --json-v1, --serve \
+         and --watch --jsonl in this language ({}) for consumers that show them verbatim; \
+         also CUOTAI_FALLBACK_LOCALE. Without it, or with {source}, they are English.",
+        or_list(&fallback_catalog_codes())
+    )
 }
 
 /// `json` with its `fallback` texts in `locale` (unchanged without one).
