@@ -1003,4 +1003,89 @@ mod tests {
         );
         assert!(snapshot.account_mut("groq:Other").is_none());
     }
+
+    /// The writer's output for a representative set of accounts, committed
+    /// so the macOS extension's decoder and render check read exactly what
+    /// this core writes (`apps/desktop/tools/widget-shots/macos/render.sh
+    /// --check`, run by CI). A change to the file's shape fails here until
+    /// the fixture is regenerated with `CUOTAI_REGENERATE_FIXTURES=1`, and
+    /// the Swift check then proves the extension still decodes and draws it.
+    #[test]
+    fn writer_output_matches_the_extension_contract_fixture() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/widget/writer.json");
+        let mut work = account("Work", Provider::Claude);
+        work.params.insert("email".into(), "ana@example.com".into());
+        let personal = account("Personal", Provider::Copilot);
+        let spare = account("Spare", Provider::Groq);
+        let config = Config {
+            accounts: vec![work.clone(), personal.clone(), spare.clone()],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let session = Metric {
+            window: Some(MetricWindow::Window5h),
+            ..quota("Session (5h)", 12.0, 100.0, 3)
+        };
+        finish(
+            &mut cycle,
+            0,
+            report(
+                &work,
+                Status::Ready,
+                vec![quota("Week", 39.0, 100.0, 80), session],
+                3,
+            ),
+        );
+        // Over its limit, as an exhausted plan reads: the share passes 1.
+        let premium = Metric {
+            window: Some(MetricWindow::Monthly),
+            ..quota("Premium requests", 7001.0, 7000.0, 300)
+        };
+        finish(
+            &mut cycle,
+            1,
+            report(&personal, Status::Ready, vec![premium], 20),
+        );
+        finish(
+            &mut cycle,
+            2,
+            report(&spare, Status::AuthenticationError, Vec::new(), 90),
+        );
+        let export = build(
+            &config,
+            &cycle,
+            Options {
+                include_identity: true,
+            },
+        );
+        let mut snapshot = WidgetSnapshot::from_export(&export, 6);
+        let key = snapshot
+            .accounts
+            .iter()
+            .find(|account| account.name == "Work")
+            .map(|account| account.id.clone())
+            .unwrap();
+        snapshot.account_mut(&key).unwrap().history = (0..12)
+            .map(|step| HistoryPoint {
+                taken_at: now() - chrono::TimeDelta::hours(11 - step),
+                used_fraction: 0.2 + 0.0175 * step as f64,
+            })
+            .collect();
+        let json = serde_json::to_string_pretty(&snapshot).unwrap() + "\n";
+        if std::env::var_os("CUOTAI_REGENERATE_FIXTURES").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &json).unwrap();
+        }
+        // A checkout with `core.autocrlf` must not read as drift.
+        let committed = std::fs::read_to_string(&path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n");
+        assert!(
+            committed == json,
+            "the widget writer changed its output: run \
+             `CUOTAI_REGENERATE_FIXTURES=1 cargo test -p cuotai-core widget_snapshot` \
+             and then `apps/desktop/tools/widget-shots/macos/render.sh --check` on macOS"
+        );
+    }
 }

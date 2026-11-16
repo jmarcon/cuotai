@@ -628,7 +628,18 @@ fn widgets(context: &Context) -> Outcome {
     );
     let outcome = run_task(&task, &context.root);
     let _ = std::fs::remove_dir_all(&out);
-    outcome
+    if !matches!(outcome, Outcome::Passed) {
+        return outcome;
+    }
+    // The decoder reads what the core writes, and every widget lays out
+    // under the unbounded proposals macOS 27.2 measures with.
+    run_task(
+        &Task::new(
+            "sh",
+            &["apps/desktop/tools/widget-shots/macos/render.sh", "--check"],
+        ),
+        &context.root,
+    )
 }
 
 fn run_step(step: Step, context: &Context) -> Outcome {
