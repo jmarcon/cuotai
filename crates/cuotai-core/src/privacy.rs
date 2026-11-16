@@ -210,10 +210,10 @@ static ARTIFACTS: &[Artifact] = &[
         "desktop.settings",
         Config,
         "desktop.json",
-        "desktop preferences: language, theme, notifications, server, widgets",
+        "desktop preferences: language, theme, notifications, server, widgets; the menu-bar style and the ids of the accounts it shows, the row layouts, the first-run record, and the ids (or 9router connection keys) of accounts hidden from the dashboard",
         Unversioned,
         UNTIL_ERASED,
-        "0020",
+        "0020, 0025",
     ),
     file(
         "history.db",
