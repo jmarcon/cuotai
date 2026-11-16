@@ -25,6 +25,7 @@
   "about.section.theme.note": "組み込みテーマが準拠するオープンなパレット。",
   "about.thanks": "Cuotai は各コミュニティが保守するオープンソースプロジェクトの上に成り立っています。開発者の皆さんに感謝します。ロゴは各所有者の商標です。",
   "about.title": " 情報 ",
+  "canary.foreign_folder": "そのフォルダーには既に他のファイルがあります。空のフォルダーか、canary が作成したフォルダーを選んでください。何も書き込まれていません。",
   "canary.no_data_dir": "カナリア用のローカルデータディレクトリがありません。",
   "changelog.this_version": "  （このバージョン）",
   "cli.account_not_found": "設定にアカウントが見つかりません：{name}",

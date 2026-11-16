@@ -25,6 +25,7 @@
   "about.section.theme.note": "Palet terbuka yang diikuti tema bawaan.",
   "about.thanks": "Cuotai dibangun di atas proyek sumber terbuka yang dikelola komunitasnya. Terima kasih kepada semua yang mengembangkannya. Logo adalah merek dagang milik pemiliknya masing-masing.",
   "about.title": " TENTANG ",
+  "canary.foreign_folder": "Folder itu sudah berisi file lain: pilih folder kosong atau folder yang dibuat canary. Tidak ada yang ditulis.",
   "canary.no_data_dir": "Tidak ada direktori data lokal untuk canary.",
   "changelog.this_version": "  (versi ini)",
   "cli.account_not_found": "Akun tidak ditemukan di konfigurasi: {name}",

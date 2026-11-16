@@ -12,6 +12,8 @@
 
 Exit code: `0` no drift, `2` drift, `1` local error. `--dry-run` computes and prints everything without writing a file. `--out DIR` chooses another directory.
 
+The canary keeps to its own folder. It writes only into a folder that does not exist yet (it then creates it private, `0700`), an empty folder, or a folder that holds its marker file `.cuotai-canary`; it adds the marker on its first write. Any other folder, such as one of your own documents, is a local error (exit `1`) and is left exactly as it was: no file is written or pruned and its permissions are not changed. A marked folder keeps its permissions; the files are written `0600`. The default folder that an older canary filled before the marker existed (only `run-*.json`, `report.md` and `verified_on.json`) is adopted. When a stored run is read back, every path, label and word in it is held to what the canary writes, so an edited file cannot bring control or bidirectional characters into the report or the drafts.
+
 Fingerprints are recorded for the adapters that decode through the shared JSON helpers; an account answered from the metered-query record (a provider billed per query, inside its minimum interval) makes no request and so carries no fingerprint that run.
 
 CI never holds a provider secret: its `canary-dry-run` job runs the detector, the report, the issue draft and the evidence list against a fixture provider with one fixture mutated between runs (`crates/cuotai-tui/tests/canary.rs`).

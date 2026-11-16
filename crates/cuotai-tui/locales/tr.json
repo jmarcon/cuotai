@@ -25,6 +25,7 @@
   "about.section.theme.note": "Yerleşik temaların izlediği açık paletler.",
   "about.thanks": "Cuotai, toplulukları tarafından sürdürülen açık kaynak projeler üzerine kuruludur. Onları geliştiren herkese teşekkürler. Logolar ilgili sahiplerinin ticari markalarıdır.",
   "about.title": " HAKKINDA ",
+  "canary.foreign_folder": "Bu klasörde zaten başka dosyalar var: boş bir klasör ya da canary'nin oluşturduğu bir klasör seçin. Hiçbir şey yazılmadı.",
   "canary.no_data_dir": "Canary için yerel veri dizini yok.",
   "changelog.this_version": "  (bu sürüm)",
   "cli.account_not_found": "Hesap yapılandırmada bulunamadı: {name}",

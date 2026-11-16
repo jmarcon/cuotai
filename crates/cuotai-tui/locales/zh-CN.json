@@ -25,6 +25,7 @@
   "about.section.theme.note": "内置主题所遵循的开放调色板。",
   "about.thanks": "Cuotai 建立在由各自社区维护的开源项目之上。感谢所有开发者。各标志均为其各自所有者的商标。",
   "about.title": " 关于 ",
+  "canary.foreign_folder": "该文件夹已包含其他文件：请选择一个空文件夹或由 canary 创建的文件夹。未写入任何内容。",
   "canary.no_data_dir": "没有供探测使用的本地数据目录。",
   "changelog.this_version": "  （当前版本）",
   "cli.account_not_found": "配置中未找到该账户：{name}",

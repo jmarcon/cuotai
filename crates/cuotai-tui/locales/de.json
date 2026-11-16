@@ -25,6 +25,7 @@
   "about.section.theme.note": "Offene Paletten, denen die eingebauten Themen folgen.",
   "about.thanks": "Cuotai baut auf Open-Source-Projekten auf, die von ihren Communitys gepflegt werden. Danke an alle, die daran arbeiten. Logos sind Marken ihrer jeweiligen Inhaber.",
   "about.title": " ÜBER ",
+  "canary.foreign_folder": "Dieser Ordner enthält bereits andere Dateien: Wähle einen leeren Ordner oder einen, den der Canary angelegt hat. Es wurde nichts geschrieben.",
   "canary.no_data_dir": "Kein lokales Datenverzeichnis für den Canary.",
   "changelog.this_version": "  (diese Version)",
   "cli.account_not_found": "Konto nicht in der Konfiguration gefunden: {name}",
