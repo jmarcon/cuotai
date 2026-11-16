@@ -2,18 +2,26 @@
 //! every process of the user so one Cost Explorer request serves them all
 //! within the account's interval.
 //!
+//! The record is the cross-process billing gate. A one-shot process never
+//! queries a metered account it cannot record; a long-lived one queries at
+//! most once per interval on its own and says the record is unavailable
+//! (PRD 0033 re-validation M-1).
+//!
 //! The file `<dir>/<account digest>.json` (`0600`, in a `0700` directory)
-//! holds the time of the last successful query and its report: a report
-//! already carries no credential, URL or response body. An advisory lock on
-//! a sibling `.lock` file serializes the read-decide-claim and the write
-//! steps; it is never held while the network is used.
+//! holds the time of the last successful query, its report (a report
+//! already carries no credential, URL or response body) and a digest of the
+//! account's settings. An OS advisory lock beside it (bounded wait, never
+//! broken by age, released when the process dies) serializes the
+//! read-decide-claim and the write steps; it is never held while the
+//! network is used. A link, a file in place of the folder or another
+//! user's file is refused ([`crate::private_fs::decide_locked`]).
 
-use std::fs::{File, OpenOptions};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::private_fs::UpdateError;
 use crate::{Account, Report, Status};
 
 /// Debug builds only: the folder of the metered records instead of the
@@ -21,11 +29,11 @@ use crate::{Account, Report, Status};
 #[cfg_attr(not(debug_assertions), allow(dead_code))]
 pub(crate) const DEBUG_ENV: &str = "CUOTAI_METERED_DIR";
 
-/// How long another process's claim on the next query is respected.
-const CLAIM_TTL: TimeDelta = TimeDelta::minutes(2);
-
 /// The record format: 2 binds the record to the account's settings.
 const SCHEMA: u32 = 2;
+
+/// How long a reader waits for another process's lock on a record.
+pub(crate) const LOCK_WAIT: std::time::Duration = crate::private_fs::UPDATE_LOCK_WAIT;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Record {
@@ -38,27 +46,99 @@ struct Record {
     #[serde(default)]
     settings: Option<String>,
     queried_at: Option<DateTime<Utc>>,
-    claimed_at: Option<DateTime<Utc>>,
+    /// A process is querying until then: longer than its query can take
+    /// (PRD 0033 re-validation L-1).
+    #[serde(default)]
+    claim_until: Option<DateTime<Utc>>,
     report: Option<Report>,
 }
 
+impl Record {
+    /// The record of `settings` in `bytes`; absent (a default record of
+    /// these settings) when missing, damaged, of another schema or of
+    /// other settings, so the next query overwrites it.
+    fn of(bytes: Option<&[u8]>, settings: &str) -> Self {
+        bytes
+            .and_then(|bytes| serde_json::from_slice::<Record>(bytes).ok())
+            .filter(|record| {
+                record.schema == SCHEMA && record.settings.as_deref() == Some(settings)
+            })
+            .unwrap_or_else(|| Record {
+                schema: SCHEMA,
+                settings: Some(settings.to_owned()),
+                ..Record::default()
+            })
+    }
+
+    fn ready_report(&self) -> Option<&Report> {
+        self.report
+            .as_ref()
+            .filter(|report| report.status == Status::Ready)
+    }
+
+    fn fresh(&self, interval: TimeDelta, now: DateTime<Utc>) -> bool {
+        self.ready_report().is_some()
+            && self
+                .queried_at
+                .is_some_and(|at| at <= now && now - at < interval)
+    }
+
+    fn claimed(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        self.claim_until.filter(|until| *until > now)
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, Unavailable> {
+        serde_json::to_vec(self).map_err(|_| Unavailable::Io)
+    }
+}
+
 /// What [`Store::begin`] decided.
+#[derive(Debug)]
 pub(crate) enum Decision {
-    /// Another process queried within the interval: use its report.
+    /// A process queried within the interval, or is querying now and an
+    /// earlier reading exists: use this report.
     Reuse(Box<Report>),
-    /// Query now.
+    /// Query now; the claim is taken.
     Query,
+    /// Another process is querying and no reading exists yet: wait for
+    /// its reading until `until`.
+    Pending { until: DateTime<Utc> },
+}
+
+/// Why the record cannot be used (PRD 0033 re-validation M-1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Unavailable {
+    /// Another process held the lock for longer than [`LOCK_WAIT`].
+    Busy,
+    /// A link, a file in place of the folder, or another user's file.
+    NotPrivate,
+    /// Reading or writing failed (read-only or full disk, no folder).
+    Io,
+}
+
+impl<E> From<UpdateError<E>> for Unavailable {
+    fn from(error: UpdateError<E>) -> Self {
+        match error {
+            UpdateError::Busy => Self::Busy,
+            UpdateError::NotPrivate => Self::NotPrivate,
+            UpdateError::Refused(_) | UpdateError::Io(_) => Self::Io,
+        }
+    }
 }
 
 /// The directory of the records (`<OS local data dir>/cuotai/metered`).
 #[derive(Debug, Clone)]
 pub(crate) struct Store {
     dir: PathBuf,
+    wait: std::time::Duration,
 }
 
 impl Store {
     pub(crate) fn new(dir: PathBuf) -> Self {
-        Self { dir }
+        Self {
+            dir,
+            wait: LOCK_WAIT,
+        }
     }
 
     /// PRD 0033 re-validation M-4: one fixed per-user place,
@@ -76,12 +156,13 @@ impl Store {
 
     /// The record of `account`, named after a digest of its stable id
     /// (PRD 0029 RF2). A record written under the legacy name key by an
-    /// earlier build moves to the id name the first time it is looked up.
+    /// earlier build moves to the id name the first time it is looked up
+    /// (it has no settings digest, so it then counts as absent once).
     fn path(&self, account: &Account) -> PathBuf {
         let path = self.file(&account.state_key());
-        if !path.exists() {
+        if std::fs::symlink_metadata(&path).is_err() {
             let legacy = self.file(&account.key());
-            if legacy.exists() {
+            if std::fs::symlink_metadata(&legacy).is_ok_and(|meta| meta.is_file()) {
                 let _ = std::fs::rename(&legacy, &path);
             }
         }
@@ -93,100 +174,111 @@ impl Store {
         self.dir.join(format!("{digest}.json"))
     }
 
-    fn lock(&self, path: &Path) -> std::io::Result<File> {
-        crate::private_fs::ensure_dir(&self.dir)?;
-        let lock = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(path.with_extension("lock"))?;
-        lock.lock()?;
-        Ok(lock)
-    }
-
-    fn read(path: &Path) -> Record {
-        std::fs::read(path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default()
-    }
-
-    fn write(path: &Path, record: &Record) {
-        if let Ok(bytes) = serde_json::to_vec(record) {
-            let _ = crate::private_fs::write_file(path, &bytes);
-        }
+    /// Run `decide` on the record of `account` under its lock; it returns
+    /// its answer and, when the record changes, the new record.
+    fn decide<T>(
+        &self,
+        account: &Account,
+        decide: impl FnOnce(Record) -> (T, Option<Record>),
+    ) -> Result<T, Unavailable> {
+        let settings = crate::models::restore_fingerprint(account);
+        let path = self.path(account);
+        crate::private_fs::decide_locked(&path, self.wait, |current| {
+            let record = Record::of(current.as_deref(), &settings);
+            let (answer, next) = decide(record);
+            let bytes = next.as_ref().map(Record::bytes).transpose()?;
+            Ok::<_, Unavailable>((answer, bytes))
+        })
+        .map_err(|error| match error {
+            UpdateError::Refused(reason) => reason,
+            other => other.into(),
+        })
     }
 
     /// Decide whether `account` may be queried at `now`. A query claims the
-    /// next slot so a concurrent process reuses the previous report
-    /// instead of paying for a second request. Any I/O problem lets the
-    /// query go ahead: the record is an optimization, never a gate.
+    /// next slot until `now + claim_for`, so a concurrent process waits for
+    /// or reuses its reading instead of paying for a second request.
     pub(crate) fn begin(
         &self,
         account: &Account,
         interval: TimeDelta,
+        claim_for: TimeDelta,
         now: DateTime<Utc>,
-    ) -> Decision {
-        let path = self.path(account);
-        let Ok(lock) = self.lock(&path) else {
-            return Decision::Query;
-        };
-        let settings = crate::models::restore_fingerprint(account);
-        let mut record = Self::read(&path);
-        // PRD 0033 re-validation H-1: a record written for other settings
-        // (an edited profile, another config sharing the id, a schema-1
-        // record without a digest) is never reused nor its claim honoured;
-        // the next query overwrites it.
-        if record.schema != SCHEMA || record.settings.as_deref() != Some(settings.as_str()) {
-            record = Record {
-                schema: SCHEMA,
-                settings: Some(settings),
-                ..Record::default()
-            };
-        }
-        let fresh = record
-            .queried_at
-            .is_some_and(|at| at <= now && now - at < interval);
-        let claimed = record
-            .claimed_at
-            .is_some_and(|at| at <= now && now - at < CLAIM_TTL);
-        let decision = match record.report.clone() {
-            Some(report) if report.status == Status::Ready && (fresh || claimed) => {
-                Decision::Reuse(Box::new(report))
+    ) -> Result<Decision, Unavailable> {
+        self.decide(account, |mut record| {
+            if record.fresh(interval, now) {
+                let report = record.report.take().expect("a fresh record has a report");
+                return (Decision::Reuse(Box::new(report)), None);
             }
-            _ => Decision::Query,
-        };
-        if matches!(decision, Decision::Query) {
-            record.claimed_at = Some(now);
-            Self::write(&path, &record);
-        }
-        drop(lock);
-        decision
+            if let Some(until) = record.claimed(now) {
+                return match record.report.take() {
+                    Some(report) if report.status == Status::Ready => {
+                        (Decision::Reuse(Box::new(report)), None)
+                    }
+                    _ => (Decision::Pending { until }, None),
+                };
+            }
+            record.claim_until = Some(now + claim_for);
+            (Decision::Query, Some(record))
+        })
     }
 
-    /// Record the outcome of the query `begin` allowed.
-    pub(crate) fn finish(&self, account: &Account, report: &Report, now: DateTime<Utc>) {
-        let path = self.path(account);
-        let Ok(lock) = self.lock(&path) else {
-            return;
-        };
-        let settings = crate::models::restore_fingerprint(account);
-        let mut record = Self::read(&path);
-        if record.schema != SCHEMA || record.settings.as_deref() != Some(settings.as_str()) {
-            record = Record {
-                schema: SCHEMA,
-                settings: Some(settings),
-                ..Record::default()
-            };
-        }
-        record.claimed_at = None;
-        if report.status == Status::Ready {
-            record.queried_at = Some(now);
-            record.report = Some(report.clone());
-        }
-        Self::write(&path, &record);
-        drop(lock);
+    /// Record the outcome of the query `begin` allowed, and drop the claim.
+    pub(crate) fn finish(
+        &self,
+        account: &Account,
+        report: &Report,
+        now: DateTime<Utc>,
+    ) -> Result<(), Unavailable> {
+        self.decide(account, |mut record| {
+            record.claim_until = None;
+            if report.status == Status::Ready {
+                record.queried_at = Some(now);
+                record.report = Some(report.clone());
+            }
+            ((), Some(record))
+        })
     }
+
+    /// Test-only: a store whose lock wait is `wait`.
+    #[cfg(test)]
+    pub(crate) fn with_wait(mut self, wait: std::time::Duration) -> Self {
+        self.wait = wait;
+        self
+    }
+}
+
+/// `note.metered.record_unavailable` / `record_busy`: why a one-shot
+/// command did not query a metered account (PRD 0033 re-validation M-1).
+pub(crate) fn note_unavailable(reason: Unavailable) -> crate::text::Localized {
+    match reason {
+        Unavailable::Busy => crate::text::Localized::fixed(
+            "note.metered.record_busy",
+            "Not queried: another Cuotai program held the shared record of billed AWS Cost Explorer queries for too long. Try again in a moment.",
+        ),
+        Unavailable::NotPrivate | Unavailable::Io => crate::text::Localized::fixed(
+            "note.metered.record_unavailable",
+            "Not queried: Cuotai could not use its shared record of billed AWS Cost Explorer queries. Run `cuotai --doctor` to see the folder and how to fix it.",
+        ),
+    }
+}
+
+/// `note.metered.pending`: another process kept its claim past this
+/// process's timeout.
+pub(crate) fn note_pending() -> crate::text::Localized {
+    crate::text::Localized::fixed(
+        "note.metered.pending",
+        "Not queried: another Cuotai program is querying this account now. Try again in a moment to see its reading.",
+    )
+}
+
+/// `note.metered.record_unavailable_shared`: a long-lived process queried
+/// on its own record.
+pub(crate) fn note_unavailable_shared() -> crate::text::Localized {
+    crate::text::Localized::fixed(
+        "note.metered.record_unavailable_shared",
+        "The shared record of billed queries is unavailable, so other Cuotai programs may also query this account.",
+    )
 }
 
 /// PRD 0033 re-validation H-1 (R-2): a reused report belongs to the
@@ -218,6 +310,21 @@ pub(crate) fn rebind(report: &mut Report, account: &Account) {
 mod tests {
     use super::*;
     use crate::Provider;
+
+    const CLAIM: TimeDelta = TimeDelta::minutes(6);
+
+    fn begin(
+        store: &Store,
+        account: &Account,
+        interval: TimeDelta,
+        now: DateTime<Utc>,
+    ) -> Decision {
+        store.begin(account, interval, CLAIM, now).unwrap()
+    }
+
+    fn finish(store: &Store, account: &Account, report: &Report, now: DateTime<Utc>) {
+        store.finish(account, report, now).unwrap();
+    }
 
     fn account() -> Account {
         Account {
@@ -256,18 +363,18 @@ mod tests {
         let interval = TimeDelta::hours(1);
         let t0 = Utc::now();
         assert!(matches!(
-            first.begin(&account, interval, t0),
+            begin(&first, &account, interval, t0),
             Decision::Query
         ));
-        first.finish(&account, &report(Status::Ready), t0);
+        finish(&first, &account, &report(Status::Ready), t0);
         let soon = t0 + TimeDelta::minutes(59);
         assert!(matches!(
-            second.begin(&account, interval, soon),
+            begin(&second, &account, interval, soon),
             Decision::Reuse(_)
         ));
         let later = t0 + TimeDelta::minutes(61);
         assert!(matches!(
-            second.begin(&account, interval, later),
+            begin(&second, &account, interval, later),
             Decision::Query
         ));
     }
@@ -279,10 +386,13 @@ mod tests {
         let account = account();
         let t0 = Utc::now();
         let hour = TimeDelta::hours(1);
-        assert!(matches!(store.begin(&account, hour, t0), Decision::Query));
-        store.finish(&account, &report(Status::Error), t0);
+        assert!(matches!(begin(&store, &account, hour, t0), Decision::Query));
+        finish(&store, &account, &report(Status::Error), t0);
         let next = t0 + TimeDelta::seconds(1);
-        assert!(matches!(store.begin(&account, hour, next), Decision::Query));
+        assert!(matches!(
+            begin(&store, &account, hour, next),
+            Decision::Query
+        ));
     }
 
     /// PRD 0029 RF2: the record follows the stable id across a rename, and
@@ -301,24 +411,25 @@ mod tests {
         let hour = TimeDelta::hours(1);
         // Written under the legacy name key, as before the stable id.
         let legacy = store.file(&account.key());
-        Store::write(
-            &legacy,
-            &Record {
-                queried_at: Some(t0),
-                report: Some(report(Status::Ready)),
-                ..Record::default()
-            },
-        );
+        let old = Record {
+            queried_at: Some(t0),
+            report: Some(report(Status::Ready)),
+            ..Record::default()
+        };
+        crate::private_fs::write_file(&legacy, &old.bytes().unwrap()).unwrap();
         let soon = t0 + TimeDelta::minutes(5);
-        assert!(matches!(store.begin(&account, hour, soon), Decision::Query));
+        assert!(matches!(
+            begin(&store, &account, hour, soon),
+            Decision::Query
+        ));
         assert!(!legacy.exists());
-        store.finish(&account, &report(Status::Ready), soon);
+        finish(&store, &account, &report(Status::Ready), soon);
         let renamed = Account {
             name: "renamed".into(),
             ..account.clone()
         };
         let later = soon + TimeDelta::minutes(1);
-        let Decision::Reuse(mut reused) = store.begin(&renamed, hour, later) else {
+        let Decision::Reuse(mut reused) = begin(&store, &renamed, hour, later) else {
             panic!("same settings under a new name must reuse");
         };
         rebind(&mut reused, &renamed);
@@ -336,21 +447,24 @@ mod tests {
         account.params.insert("profile".into(), "first".into());
         let t0 = Utc::now();
         let hour = TimeDelta::hours(1);
-        assert!(matches!(store.begin(&account, hour, t0), Decision::Query));
-        store.finish(&account, &report(Status::Ready), t0);
+        assert!(matches!(begin(&store, &account, hour, t0), Decision::Query));
+        finish(&store, &account, &report(Status::Ready), t0);
         account.params.insert("profile".into(), "second".into());
         let soon = t0 + TimeDelta::minutes(1);
-        assert!(matches!(store.begin(&account, hour, soon), Decision::Query));
-        store.finish(&account, &report(Status::Ready), soon);
+        assert!(matches!(
+            begin(&store, &account, hour, soon),
+            Decision::Query
+        ));
+        finish(&store, &account, &report(Status::Ready), soon);
         let later = soon + TimeDelta::minutes(1);
         assert!(matches!(
-            store.begin(&account, hour, later),
+            begin(&store, &account, hour, later),
             Decision::Reuse(_)
         ));
         // The first profile's record was overwritten: going back queries.
         account.params.insert("profile".into(), "first".into());
         assert!(matches!(
-            store.begin(&account, hour, later),
+            begin(&store, &account, hour, later),
             Decision::Query
         ));
     }
@@ -370,9 +484,9 @@ mod tests {
         };
         let t0 = Utc::now();
         let hour = TimeDelta::hours(1);
-        assert!(matches!(store.begin(&first, hour, t0), Decision::Query));
-        store.finish(&first, &report(Status::Ready), t0);
-        assert!(matches!(store.begin(&second, hour, t0), Decision::Query));
+        assert!(matches!(begin(&store, &first, hour, t0), Decision::Query));
+        finish(&store, &first, &report(Status::Ready), t0);
+        assert!(matches!(begin(&store, &second, hour, t0), Decision::Query));
     }
 
     /// The reused report drops the writer's interval note for the reader's.
@@ -388,5 +502,96 @@ mod tests {
         rebind(&mut report, &reader);
         assert!(report.notes_l10n.is_empty());
         assert!(report.notes.is_empty());
+    }
+
+    /// PRD 0033 re-validation L-1: a claim with no reading yet makes the
+    /// other process wait for it, never query beside it.
+    #[test]
+    fn a_claim_before_the_first_reading_is_pending() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let account = account();
+        let t0 = Utc::now();
+        let hour = TimeDelta::hours(1);
+        assert!(matches!(begin(&store, &account, hour, t0), Decision::Query));
+        let soon = t0 + TimeDelta::seconds(30);
+        assert!(matches!(
+            begin(&store, &account, hour, soon),
+            Decision::Pending { until } if until == t0 + CLAIM
+        ));
+        // Past the claim, a new query is allowed.
+        let late = t0 + CLAIM + TimeDelta::seconds(1);
+        assert!(matches!(
+            begin(&store, &account, hour, late),
+            Decision::Query
+        ));
+    }
+
+    /// A damaged record counts as absent and is overwritten.
+    #[test]
+    fn a_damaged_record_counts_as_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().to_path_buf());
+        let account = account();
+        let path = store.file(&account.state_key());
+        crate::private_fs::write_file(&path, b"{not json").unwrap();
+        let t0 = Utc::now();
+        assert!(matches!(
+            begin(&store, &account, TimeDelta::hours(1), t0),
+            Decision::Query
+        ));
+    }
+
+    /// PRD 0033 re-validation M-1/M-2: a file in place of the folder and a
+    /// lock held past the bounded wait are reported, never a query.
+    #[test]
+    fn an_unusable_folder_or_a_held_lock_is_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let account = account();
+        let t0 = Utc::now();
+        let hour = TimeDelta::hours(1);
+        let file = dir.path().join("metered");
+        std::fs::write(&file, b"x").unwrap();
+        let blocked = Store::new(file);
+        assert!(blocked.begin(&account, hour, CLAIM, t0).is_err());
+
+        let store =
+            Store::new(dir.path().join("ok")).with_wait(std::time::Duration::from_millis(200));
+        finish(&store, &account, &report(Status::Ready), t0);
+        let path = store.file(&account.state_key());
+        let lock = path.with_file_name(format!(
+            ".{}.lock",
+            path.file_name().unwrap().to_string_lossy()
+        ));
+        let held = std::fs::OpenOptions::new().write(true).open(&lock).unwrap();
+        held.lock().unwrap();
+        let started = std::time::Instant::now();
+        assert_eq!(
+            store.begin(&account, hour, CLAIM, t0).unwrap_err(),
+            Unavailable::Busy
+        );
+        assert!(started.elapsed() < std::time::Duration::from_secs(4));
+        drop(held);
+        assert!(store.begin(&account, hour, CLAIM, t0).is_ok());
+    }
+
+    /// A link in place of the record is refused.
+    #[cfg(unix)]
+    #[test]
+    fn a_linked_record_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::new(dir.path().join("records"));
+        let account = account();
+        let path = store.file(&account.state_key());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let target = dir.path().join("elsewhere.json");
+        std::fs::write(&target, b"{}").unwrap();
+        std::os::unix::fs::symlink(&target, &path).unwrap();
+        assert_eq!(
+            store
+                .begin(&account, TimeDelta::hours(1), CLAIM, Utc::now())
+                .unwrap_err(),
+            Unavailable::NotPrivate
+        );
     }
 }

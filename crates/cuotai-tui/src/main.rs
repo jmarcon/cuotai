@@ -1630,6 +1630,12 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             monitor = monitor.with_history(store);
         }
         monitor.mark_history_removed();
+        // PRD 0033 re-validation M-1: `--watch`, `--serve` and `--notify`
+        // are long-lived; every other mode here is a one-shot command that
+        // never queries a metered account it cannot record.
+        if args.serve || args.watch || args.notify {
+            monitor = monitor.with_metered_policy(cuotai_core::MeteredPolicy::LongLived);
+        }
         if args.serve || args.watch {
             let serve = args.serve.then_some(serve::ServeArgs {
                 port: args.port,

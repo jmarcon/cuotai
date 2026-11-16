@@ -2476,5 +2476,9 @@
   "doctor.title.metered": "Registro compartilhado de consultas cobradas {path}",
   "doctor.metered.unusable": "Não é uma pasta privada do seu usuário, ou não pode ser gravada; comandos de execução única não consultam o AWS Bedrock até que seja corrigida.",
   "doctor.fix.metered": "Remova o que estiver neste caminho (um arquivo, um link ou a pasta de outro usuário) ou transforme-o em uma pasta que só o seu usuário possa ler e gravar; o Cuotai a recria.",
-  "doctor.metered.absent": "Ainda não foi criado; a primeira consulta cobrada o cria."
+  "doctor.metered.absent": "Ainda não foi criado; a primeira consulta cobrada o cria.",
+  "note.metered.record_unavailable": "Não consultado: o Cuotai não conseguiu usar seu registro compartilhado de consultas cobradas do AWS Cost Explorer. Execute `cuotai --doctor` para ver a pasta e como corrigi-la.",
+  "note.metered.record_busy": "Não consultado: outro programa do Cuotai segurou por tempo demais o registro compartilhado de consultas cobradas do AWS Cost Explorer. Tente de novo em instantes.",
+  "note.metered.pending": "Não consultado: outro programa do Cuotai está consultando esta conta agora. Tente de novo em instantes para ver a leitura dele.",
+  "note.metered.record_unavailable_shared": "O registro compartilhado de consultas cobradas não está disponível, então outros programas do Cuotai também podem consultar esta conta."
 }

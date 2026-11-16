@@ -274,6 +274,20 @@ pub(crate) fn update_locked_with<E>(
     wait: std::time::Duration,
     change: impl FnOnce(Option<Vec<u8>>) -> Result<Vec<u8>, E>,
 ) -> Result<(), UpdateError<E>> {
+    decide_locked(path, wait, |current| {
+        change(current).map(|bytes| ((), Some(bytes)))
+    })
+}
+
+/// [`update_locked_with`] for a reader that may also decide to leave the
+/// file as it is: `change` returns its answer and, when the file must be
+/// replaced, the new bytes. The same lock, link and owner checks apply to
+/// the read. PRD 0033 re-validation M-2: the metered record's gate.
+pub(crate) fn decide_locked<T, E>(
+    path: &Path,
+    wait: std::time::Duration,
+    change: impl FnOnce(Option<Vec<u8>>) -> Result<(T, Option<Vec<u8>>), E>,
+) -> Result<T, UpdateError<E>> {
     let dir = path
         .parent()
         .filter(|dir| !dir.as_os_str().is_empty())
@@ -293,7 +307,10 @@ pub(crate) fn update_locked_with<E>(
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(error.into()),
     };
-    let bytes = change(current).map_err(UpdateError::Refused)?;
+    let (answer, bytes) = change(current).map_err(UpdateError::Refused)?;
+    let Some(bytes) = bytes else {
+        return Ok(answer);
+    };
     let (prefix, suffix) = temp_affixes(path);
     let mut tmp = tempfile::Builder::new()
         .prefix(&prefix)
@@ -313,7 +330,7 @@ pub(crate) fn update_locked_with<E>(
     persist(tmp, path)?;
     sync_dir(dir)?;
     clean_orphans(path);
-    Ok(())
+    Ok(answer)
 }
 
 /// PRD 0051 RF4 acceptance: test-only failures injected at the write, sync

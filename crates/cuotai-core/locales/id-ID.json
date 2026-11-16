@@ -2448,5 +2448,9 @@
   "doctor.title.metered": "Catatan bersama kueri berbayar {path}",
   "doctor.metered.unusable": "Ini bukan folder pribadi pengguna Anda, atau tidak dapat ditulisi; perintah sekali jalan tidak mengkueri AWS Bedrock sampai diperbaiki.",
   "doctor.fix.metered": "Hapus apa pun yang ada di jalur ini (file, tautan, atau folder pengguna lain) atau jadikan folder yang hanya dapat dibaca dan ditulis oleh pengguna Anda; Cuotai membuatnya kembali.",
-  "doctor.metered.absent": "Belum dibuat; kueri berbayar pertama akan membuatnya."
+  "doctor.metered.absent": "Belum dibuat; kueri berbayar pertama akan membuatnya.",
+  "note.metered.record_unavailable": "Tidak dikueri: Cuotai tidak dapat memakai catatan bersama kueri AWS Cost Explorer berbayar miliknya. Jalankan `cuotai --doctor` untuk melihat foldernya dan cara memperbaikinya.",
+  "note.metered.record_busy": "Tidak dikueri: program Cuotai lain menahan catatan bersama kueri AWS Cost Explorer berbayar terlalu lama. Coba lagi sebentar lagi.",
+  "note.metered.pending": "Tidak dikueri: program Cuotai lain sedang mengkueri akun ini sekarang. Coba lagi sebentar lagi untuk melihat hasil bacaannya.",
+  "note.metered.record_unavailable_shared": "Catatan bersama kueri berbayar tidak tersedia, jadi program Cuotai lain mungkin juga mengkueri akun ini."
 }
