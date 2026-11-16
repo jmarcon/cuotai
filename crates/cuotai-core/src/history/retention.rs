@@ -119,11 +119,14 @@ pub struct PruneReport {
     pub ceiling: Option<CeilingPrune>,
 }
 
-/// The size ceiling forced pruning: `removed` samples, the oldest first.
+/// The size ceiling forced pruning: `removed` samples and `journal_removed`
+/// event-journal rows, the oldest of the two tables first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CeilingPrune {
     pub removed: usize,
     pub max_bytes: u64,
+    /// PRD 0026 re-validation S-01: journal rows removed with the samples.
+    pub journal_removed: usize,
 }
 
 /// Export file format (RF4.4).
@@ -360,10 +363,12 @@ impl HistoryStore {
             )?,
             ..PruneReport::default()
         };
-        // RF3.3: the event journal keeps the history's retention.
+        // RF3.3: the event journal keeps the history's retention; rows
+        // dated more than five minutes ahead of `now` go too (S-02).
         super::journal::prune(
             &db,
             millis(now - TimeDelta::days(i64::from(self.retention.keep_days()))),
+            super::future_sample_cutoff(now),
         )?;
         report.reduced = self.reduce(&mut db, now)?;
         report.ceiling = self.enforce_ceiling(&mut db)?;
@@ -468,29 +473,48 @@ impl HistoryStore {
         Ok(reduced)
     }
 
-    /// RF4.3: delete the oldest samples of the file while its live pages
-    /// exceed the ceiling.
+    /// RF4.3: delete the oldest rows of the file while its live pages exceed
+    /// the ceiling. Samples and event-journal rows go together, the oldest of
+    /// the two tables first (re-validation S-01), so a noisy journal cannot
+    /// empty the readings while the file stays over the ceiling.
     fn enforce_ceiling(&self, db: &mut Connection) -> Result<Option<CeilingPrune>, HistoryError> {
         let max_bytes = self.retention.max_bytes();
         if used_bytes(db)? <= max_bytes {
             return Ok(None);
         }
         let target = max_bytes / 100 * CEILING_TARGET_PERCENT;
-        let mut removed = 0;
+        let (mut removed, mut journal_removed) = (0, 0);
         loop {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let deleted = tx.execute(
-                "DELETE FROM samples WHERE (series_id, taken_at) IN (
-                    SELECT series_id, taken_at FROM samples ORDER BY taken_at LIMIT ?1)",
+            // The instant of the BATCH-th oldest row across both tables: every
+            // row up to it goes (ties included), whichever table holds it.
+            let until: Option<i64> = tx.query_row(
+                "SELECT MAX(at) FROM (
+                    SELECT at FROM (
+                        SELECT taken_at AS at FROM samples
+                        UNION ALL SELECT occurred_at FROM journal)
+                    ORDER BY at LIMIT ?1)",
                 [BATCH],
+                |row| row.get(0),
             )?;
+            let Some(until) = until else {
+                tx.commit()?;
+                break;
+            };
+            let samples = tx.execute("DELETE FROM samples WHERE taken_at <= ?1", [until])?;
+            let journal = tx.execute("DELETE FROM journal WHERE occurred_at <= ?1", [until])?;
             tx.commit()?;
-            removed += deleted;
-            if deleted == 0 || used_bytes(db)? <= target {
+            removed += samples;
+            journal_removed += journal;
+            if samples + journal == 0 || used_bytes(db)? <= target {
                 break;
             }
         }
-        Ok(Some(CeilingPrune { removed, max_bytes }))
+        Ok(Some(CeilingPrune {
+            removed,
+            max_bytes,
+            journal_removed,
+        }))
     }
 
     /// RF4.4: write the samples of `accounts` (of this configuration), of
@@ -590,7 +614,9 @@ impl HistoryStore {
         if format == ExportFormat::Csv {
             // RF3.3: the journal follows the samples as a second table after
             // a blank line, with its own header.
-            let entries = self.journal_between(start, end, accounts, usize::MAX)?;
+            let entries = self
+                .journal_between(start, end, accounts, usize::MAX)?
+                .entries;
             write(out, &format!("\n{JOURNAL_CSV_HEADER}\n"))?;
             for entry in &entries {
                 write(out, &(JournalRow::of(entry).csv() + "\n"))?;
@@ -599,7 +625,9 @@ impl HistoryStore {
         if format == ExportFormat::Json {
             // RF3.3: the journal travels in its own section.
             write(out, "\n],\"journal\":[")?;
-            let entries = self.journal_between(start, end, accounts, usize::MAX)?;
+            let entries = self
+                .journal_between(start, end, accounts, usize::MAX)?
+                .entries;
             for (index, entry) in entries.iter().enumerate() {
                 let json = serde_json::to_string(&JournalRow::of(entry))
                     .map_err(|_| HistoryError::Export)?;

@@ -235,3 +235,168 @@ fn overage_and_projection_events_fill_spent_currency_and_projected_at() {
     assert_eq!(started.spent, Some(12.5));
     assert_eq!(started.currency.as_deref(), Some("USD"));
 }
+
+/// Re-validation S-01: the size ceiling trims the oldest rows of both
+/// tables, so a journal holding the oldest rows goes first and the newest
+/// readings survive, and the file ends under the ceiling.
+#[test]
+fn the_size_ceiling_trims_the_oldest_journal_rows_with_the_samples() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("history.sqlite3");
+    let max = 1 << 20;
+    let history =
+        store(&path, "one").with_retention(Retention::days(90).unwrap().with_max_bytes(max));
+    let accounts = config(CONFIG).accounts;
+    let alpha = &accounts[0];
+    // A flapping account: 9,000 journal rows, one a minute, the oldest rows
+    // of the file.
+    let flaps: Vec<Event> = (0..9_000)
+        .map(|minute| {
+            let kind = if minute % 2 == 0 {
+                EventKind::RefreshFailed
+            } else {
+                EventKind::RefreshRecovered
+            };
+            let mut flap = event(alpha, kind, minute);
+            flap.current = Values {
+                category: Some(FailureCategory::Offline),
+                ..Values::default()
+            };
+            flap
+        })
+        .collect();
+    assert_eq!(history.journal_record(&flaps), Ok(9_000));
+    // 50 newer readings, after the journal.
+    let after = t0() + TimeDelta::minutes(9_000);
+    for n in 0..50 {
+        history
+            .record(
+                alpha,
+                after + TimeDelta::minutes(n),
+                &[super::super::tests::quota(
+                    "5h",
+                    Some(n as f64),
+                    Some(100.0),
+                )],
+            )
+            .unwrap();
+    }
+    let now = after + TimeDelta::hours(2);
+    let report = history.prune(now).unwrap();
+    let ceiling = report.ceiling.expect("the file was over the ceiling");
+    assert!(ceiling.journal_removed > 0, "{ceiling:?}");
+    assert_eq!(
+        ceiling.removed, 0,
+        "the newer readings survive: {ceiling:?}"
+    );
+
+    let raw = rusqlite::Connection::open(&path).unwrap();
+    let count = |sql: &str| raw.query_row(sql, [], |row| row.get::<_, i64>(0)).unwrap();
+    assert_eq!(count("SELECT COUNT(*) FROM samples"), 50);
+    let left = count("SELECT COUNT(*) FROM journal");
+    assert!(left > 0 && left < 9_000, "{left}");
+    // The oldest journal rows went first: what is left is the newest.
+    let oldest_left = count("SELECT MIN(occurred_at) FROM journal");
+    assert_eq!(
+        oldest_left,
+        (t0() + TimeDelta::minutes(9_000 - left)).timestamp_millis()
+    );
+    let used = count(
+        "SELECT (page_count - freelist_count) * page_size
+         FROM pragma_page_count, pragma_freelist_count, pragma_page_size",
+    );
+    assert!(used as u64 <= max, "{used} bytes over the {max} ceiling");
+}
+
+/// Re-validation S-02: an event more than five minutes ahead of the clock
+/// is refused, and one already stored (an older release) is pruned.
+#[test]
+fn rows_dated_in_the_future_are_refused_and_pruned() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("history.sqlite3");
+    let history = store(&path, "one");
+    let accounts = config(CONFIG).accounts;
+    let alpha = &accounts[0];
+    let now = Utc::now();
+    let mut ahead = event(alpha, EventKind::QuotaExhausted, 0);
+    ahead.occurred_at = now + TimeDelta::days(3650);
+    let mut soon = event(alpha, EventKind::QuotaReset, 0);
+    soon.occurred_at = now + TimeDelta::minutes(2);
+    assert_eq!(history.journal_record(&[ahead.clone(), soon]), Ok(1));
+
+    // As an older release wrote it: straight into the table.
+    let raw = rusqlite::Connection::open(&path).unwrap();
+    raw.execute(
+        "INSERT INTO journal (config_key, account_digest, occurred_at, minute, kind,
+            metric_digest) SELECT config_key, account_digest, ?1, ?1 / 60000,
+            'quota_exhausted', metric_digest FROM journal LIMIT 1",
+        [ahead.occurred_at.timestamp_millis()],
+    )
+    .unwrap();
+    let rows = |raw: &rusqlite::Connection| {
+        raw.query_row("SELECT COUNT(*) FROM journal", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap()
+    };
+    assert_eq!(rows(&raw), 2);
+    history.prune(now).unwrap();
+    assert_eq!(rows(&raw), 1, "the row ten years ahead is pruned");
+}
+
+/// Re-validation S-03: an unreadable row is skipped and counted, and a
+/// provider status a newer release added reads as a neutral entry; neither
+/// fails the journal or the export.
+#[test]
+fn an_unreadable_row_is_skipped_and_counted() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("history.sqlite3");
+    let history = store(&path, "one");
+    let accounts = config(CONFIG).accounts;
+    let alpha = &accounts[0];
+    let events: Vec<Event> = (0..5)
+        .map(|minute| event(alpha, EventKind::QuotaThresholdCrossed, minute))
+        .collect();
+    let mut incident = event(alpha, EventKind::ProviderIncident, 10);
+    incident.current = Values {
+        incident: Some(IncidentState::Degraded),
+        ..Values::default()
+    };
+    assert_eq!(history.journal_record(&events), Ok(5));
+    assert_eq!(history.journal_record(&[incident]), Ok(1));
+    let raw = rusqlite::Connection::open(&path).unwrap();
+    raw.execute(
+        "UPDATE journal SET incident = 'from_a_newer_release' WHERE kind = 'provider_incident'",
+        [],
+    )
+    .unwrap();
+    // A damaged row: a text where a number belongs.
+    raw.execute(
+        "UPDATE journal SET used_ratio = 'not a number' WHERE rowid =
+            (SELECT MIN(rowid) FROM journal)",
+        [],
+    )
+    .unwrap();
+    raw.execute(
+        "UPDATE journal SET projected_at = 9223372036854775807 WHERE rowid =
+            (SELECT MAX(rowid) FROM journal WHERE kind = 'quota_threshold_crossed')",
+        [],
+    )
+    .unwrap();
+
+    let read = history.journal_read(.., &accounts, 20).unwrap();
+    assert_eq!(read.skipped, 1);
+    assert_eq!(read.entries.len(), 5);
+    let neutral = &read.entries[0];
+    assert_eq!(neutral.kind, EventKind::ProviderIncident);
+    assert_eq!(neutral.summary.text(), "Provider status: Status unknown");
+    assert!(read.entries.iter().all(|e| e.projected_at.is_none()));
+    assert_eq!(history.journal(.., &accounts, 20).unwrap().len(), 5);
+
+    let mut json = Vec::new();
+    history
+        .export(&accounts, None, .., ExportFormat::Json, &mut json)
+        .unwrap();
+    let parsed: serde_json::Value = serde_json::from_slice(&json).unwrap();
+    assert_eq!(parsed["journal"].as_array().unwrap().len(), 5);
+}

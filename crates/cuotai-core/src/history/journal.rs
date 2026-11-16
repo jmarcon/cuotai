@@ -7,7 +7,7 @@
 //! metric label and numbers, and the failure *category*; never a message,
 //! note, URL, e-mail or token. Retention and erasure follow the history.
 
-use super::{instant, millis, tag, untag, HistoryError, HistoryStore};
+use super::{future_sample_cutoff, instant, millis, tag, untag, HistoryError, HistoryStore};
 use crate::events::{Event, EventKind, FailureCategory, MetricRef, Values};
 use crate::incidents::IncidentState;
 use crate::models::digest;
@@ -89,6 +89,16 @@ pub struct JournalEntry {
     pub summary: Localized,
 }
 
+/// A journal read: the entries that could be read, and how many stored rows
+/// could not (a damaged row, or a value a newer release wrote in a form this
+/// one cannot read). Skipped rows are counted, never guessed and never fail
+/// the whole read (re-validation S-03).
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct JournalRead {
+    pub entries: Vec<JournalEntry>,
+    pub skipped: usize,
+}
+
 /// "Removed account": what stands for an account that left the configuration.
 pub fn removed_account() -> Localized {
     Localized::fixed("journal.removed_account", "Removed account")
@@ -110,13 +120,19 @@ fn failure_category(name: &str) -> Option<FailureCategory> {
 
 impl HistoryStore {
     /// RF3.2: append `events` to the journal, skipping `usage_updated`,
-    /// sample events and any entry already written (same account, event,
-    /// metric and minute). Returns how many rows were new. Creates the store
-    /// when needed; the caller decides whether recording is on.
+    /// sample events, events more than five minutes ahead of the wall clock
+    /// (as samples, FIX-10) and any entry already written (same account,
+    /// event, metric and minute). Returns how many rows were new. Creates the
+    /// store when needed; the caller decides whether recording is on.
     pub fn journal_record(&self, events: &[Event]) -> Result<usize, HistoryError> {
+        let cutoff = future_sample_cutoff(Utc::now());
         let events: Vec<&Event> = events
             .iter()
-            .filter(|event| event.event != EventKind::UsageUpdated && !event.sample)
+            .filter(|event| {
+                event.event != EventKind::UsageUpdated
+                    && !event.sample
+                    && millis(event.occurred_at) <= cutoff
+            })
             .collect();
         if events.is_empty() {
             return Ok(0);
@@ -168,13 +184,25 @@ impl HistoryStore {
     /// RF3.4: the newest `limit` entries of this configuration that
     /// occurred within `range`, newest first. `accounts` resolves digests to
     /// current names; entries of accounts not in it carry `account: None`.
-    /// A store that does not exist yet has an empty journal.
+    /// A store that does not exist yet has an empty journal. Rows that
+    /// cannot be read are left out; [`Self::journal_read`] also counts them.
     pub fn journal(
         &self,
         range: impl RangeBounds<DateTime<Utc>>,
         accounts: &[Account],
         limit: usize,
     ) -> Result<Vec<JournalEntry>, HistoryError> {
+        Ok(self.journal_read(range, accounts, limit)?.entries)
+    }
+
+    /// [`Self::journal`], with the number of stored rows that could not be
+    /// read (S-03), for a view to say so.
+    pub fn journal_read(
+        &self,
+        range: impl RangeBounds<DateTime<Utc>>,
+        accounts: &[Account],
+        limit: usize,
+    ) -> Result<JournalRead, HistoryError> {
         let (start, end) = super::span(range);
         self.journal_between(start, end, accounts, limit)
     }
@@ -186,9 +214,9 @@ impl HistoryStore {
         end: i64,
         accounts: &[Account],
         limit: usize,
-    ) -> Result<Vec<JournalEntry>, HistoryError> {
+    ) -> Result<JournalRead, HistoryError> {
         let Some(db) = self.open_existing()? else {
-            return Ok(Vec::new());
+            return Ok(JournalRead::default());
         };
         let mut query = db.prepare(
             "SELECT account_digest, occurred_at, kind, metric_label, threshold, used_ratio,
@@ -206,84 +234,109 @@ impl HistoryStore {
             end,
             i64::try_from(limit).unwrap_or(i64::MAX)
         ])?;
-        let mut entries = Vec::new();
+        let mut read = JournalRead::default();
         while let Some(row) = rows.next()? {
-            let Some(kind) = EventKind::from_name(&row.get::<_, String>(2)?) else {
-                continue; // an event of a newer release: not shown, not guessed
-            };
-            let who: String = row.get(0)?;
-            let account_index = digests.iter().position(|known| *known == who);
-            let parent_digest: Option<String> = row.get(12)?;
-            let parent_index = parent_digest
-                .as_deref()
-                .and_then(|wanted| digests.iter().position(|known| known == wanted));
-            let category = row
-                .get::<_, Option<String>>(7)?
-                .and_then(|name| failure_category(&name));
-            let incident = row
-                .get::<_, Option<String>>(8)?
-                .map(untag::<IncidentState>)
-                .transpose()?;
-            let metric_label: Option<String> = row.get(3)?;
-            let occurred_at = instant(row.get(1)?)?;
-            let current = Values {
-                threshold: row
-                    .get::<_, Option<i64>>(4)?
-                    .and_then(|value| u8::try_from(value).ok()),
-                used_ratio: row.get(5)?,
-                resets_at: crate::instant::plausible(
-                    row.get::<_, Option<i64>>(6)?
-                        .and_then(DateTime::from_timestamp_millis),
-                ),
-                category,
-                incident,
-                projected_at: row.get::<_, Option<i64>>(9)?.map(instant).transpose()?,
-                ..Values::default()
-            };
-            let event = Event {
-                parent: Default::default(),
-                schema: crate::events::SCHEMA,
-                event: kind,
-                occurred_at,
-                account_key: String::new(),
-                account_id: String::new(),
-                account_name: String::new(),
-                // Only its summary is used, which never names the provider.
-                provider: None,
-                accounts: Vec::new(),
-                metric: metric_label
-                    .clone()
-                    .map(|label| MetricRef::new(label, None)),
-                current: current.clone(),
-                previous: None,
-                sample: false,
-                row: None,
-            };
-            entries.push(JournalEntry {
-                occurred_at,
-                kind,
-                account: account_index.map(|index| accounts[index].name.clone()),
-                account_index,
-                parent: parent_index.map(|index| accounts[index].name.clone()),
-                is_connection: parent_digest.is_some(),
-                metric: metric_label,
-                threshold: current.threshold,
-                used_ratio: current.used_ratio,
-                resets_at: current.resets_at,
-                category,
-                projected_at: current.projected_at,
-                spent: row.get(10)?,
-                currency: row.get(11)?,
-                summary: event.summary(),
-            });
+            match journal_entry(row, &digests, accounts) {
+                Ok(Some(entry)) => read.entries.push(entry),
+                // An event of a newer release: not shown, not guessed.
+                Ok(None) => {}
+                // A damaged row, or a value this release cannot read.
+                Err(_) => read.skipped += 1,
+            }
         }
-        Ok(entries)
+        Ok(read)
     }
 }
 
-/// RF3.3: remove the journal rows older than `before`.
-pub(super) fn prune(db: &Connection, before: i64) -> rusqlite::Result<usize> {
-    db.execute("DELETE FROM journal WHERE occurred_at < ?1", [before])
+/// One stored row as a [`JournalEntry`]: `None` for an event kind of a newer
+/// release, an error for a row that cannot be read.
+fn journal_entry(
+    row: &rusqlite::Row<'_>,
+    digests: &[String],
+    accounts: &[Account],
+) -> rusqlite::Result<Option<JournalEntry>> {
+    let Some(kind) = EventKind::from_name(&row.get::<_, String>(2)?) else {
+        return Ok(None);
+    };
+    let who: String = row.get(0)?;
+    let account_index = digests.iter().position(|known| *known == who);
+    let parent_digest: Option<String> = row.get(12)?;
+    let parent_index = parent_digest
+        .as_deref()
+        .and_then(|wanted| digests.iter().position(|known| known == wanted));
+    let category = row
+        .get::<_, Option<String>>(7)?
+        .and_then(|name| failure_category(&name));
+    // A state a newer release added reads as unknown: a neutral
+    // "Provider status" entry, never a failed read (S-03).
+    let incident = row
+        .get::<_, Option<String>>(8)?
+        .map(|tag| untag::<IncidentState>(tag).unwrap_or(IncidentState::Unknown));
+    let metric_label: Option<String> = row.get(3)?;
+    let occurred_at = instant(row.get(1)?)?;
+    let current = Values {
+        threshold: row
+            .get::<_, Option<i64>>(4)?
+            .and_then(|value| u8::try_from(value).ok()),
+        used_ratio: row.get(5)?,
+        resets_at: crate::instant::plausible(
+            row.get::<_, Option<i64>>(6)?
+                .and_then(DateTime::from_timestamp_millis),
+        ),
+        category,
+        incident,
+        projected_at: crate::instant::plausible(
+            row.get::<_, Option<i64>>(9)?
+                .and_then(DateTime::from_timestamp_millis),
+        ),
+        ..Values::default()
+    };
+    let event = Event {
+        parent: Default::default(),
+        schema: crate::events::SCHEMA,
+        event: kind,
+        occurred_at,
+        account_key: String::new(),
+        account_id: String::new(),
+        account_name: String::new(),
+        // Only its summary is used, which never names the provider.
+        provider: None,
+        accounts: Vec::new(),
+        metric: metric_label
+            .clone()
+            .map(|label| MetricRef::new(label, None)),
+        current: current.clone(),
+        previous: None,
+        sample: false,
+        row: None,
+    };
+    Ok(Some(JournalEntry {
+        occurred_at,
+        kind,
+        account: account_index.map(|index| accounts[index].name.clone()),
+        account_index,
+        parent: parent_index.map(|index| accounts[index].name.clone()),
+        is_connection: parent_digest.is_some(),
+        metric: metric_label,
+        threshold: current.threshold,
+        used_ratio: current.used_ratio,
+        resets_at: current.resets_at,
+        category,
+        projected_at: current.projected_at,
+        spent: row.get(10)?,
+        currency: row.get(11)?,
+        summary: event.summary(),
+    }))
+}
+
+/// RF3.3: remove the journal rows older than `before`, and those dated after
+/// `after` (more than five minutes ahead of the clock, written while it was
+/// set ahead or by an older release: S-02).
+pub(super) fn prune(db: &Connection, before: i64, after: i64) -> rusqlite::Result<usize> {
+    db.execute(
+        "DELETE FROM journal WHERE occurred_at < ?1 OR occurred_at > ?2",
+        [before, after],
+    )
 }
 
 /// RF3.3: remove the journal rows of one account.
