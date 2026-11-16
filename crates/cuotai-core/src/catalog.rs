@@ -518,24 +518,56 @@ pub fn catalog() -> Vec<CatalogEntry> {
 // Search (RF2)
 // ---------------------------------------------------------------------------
 
-/// Lower-cases and strips accents. Equivalent to NFKD folding for the Latin
-/// letters the supported languages use (no normalization crate is
-/// available); combining marks are dropped and anything that is not a letter
-/// or digit becomes a single space.
+/// RF2 (PRD 0027 re-validation C-09): the longest query the search reads,
+/// in characters; the rest is ignored, so a pasted wall of text costs no
+/// more than a name.
+pub const MAX_QUERY_CHARS: usize = 256;
+
+/// The first [`MAX_QUERY_CHARS`] characters of `query`.
+pub fn bounded_query(query: &str) -> &str {
+    match query.char_indices().nth(MAX_QUERY_CHARS) {
+        Some((end, _)) => &query[..end],
+        None => query,
+    }
+}
+
+/// Lower-cases and strips accents: NFKD-equivalent folding for the Latin
+/// letters the supported languages use, the full-width forms and the
+/// Turkish dotted capital I (no normalization crate is available).
+/// Full-width ASCII (U+FF01–FF5E) becomes ASCII and the ideographic space a
+/// space; combining marks (U+0300–036F, so the dot `İ` lower-cases with)
+/// are dropped; anything that is not a letter or digit becomes a single
+/// space; and a word boundary is inserted where ASCII letters or digits
+/// meet letters of another script, so "APIキー" and "API キー" fold alike.
 fn fold(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    let push = |c: char, out: &mut String| {
+    // Whether the last character pushed was an ASCII letter or digit.
+    let mut last_ascii: Option<bool> = None;
+    let mut push = |c: char, out: &mut String| {
         if c.is_alphanumeric() {
+            let ascii = c.is_ascii_alphanumeric();
+            if last_ascii.is_some_and(|prev| prev != ascii) {
+                out.push(' ');
+            }
             out.push(c);
-        } else if !out.ends_with(' ') && !out.is_empty() {
-            out.push(' ');
+            last_ascii = Some(ascii);
+        } else {
+            if !out.ends_with(' ') && !out.is_empty() {
+                out.push(' ');
+            }
+            last_ascii = None;
         }
     };
     for c in text.chars() {
-        if ('\u{300}'..='\u{36f}').contains(&c) {
-            continue;
-        }
+        let c = match c {
+            '\u{ff01}'..='\u{ff5e}' => char::from_u32(c as u32 - 0xfee0).unwrap_or(c),
+            '\u{3000}' => ' ',
+            _ => c,
+        };
         for lower in c.to_lowercase() {
+            if ('\u{300}'..='\u{36f}').contains(&lower) {
+                continue;
+            }
             match base_letter(lower) {
                 Some(base) => base.chars().for_each(|b| push(b, &mut out)),
                 None => push(lower, &mut out),
@@ -670,7 +702,7 @@ pub fn search_with_extensions(
 }
 
 fn search_in(entries: &[CatalogEntry], query: &str, locale: &str) -> Vec<CatalogMatch> {
-    let folded = fold(query);
+    let folded = fold(bounded_query(query));
     if folded.is_empty() {
         let mut grouped: Vec<CatalogMatch> = entries
             .iter()
@@ -1232,6 +1264,47 @@ mod tests {
         assert_eq!(fold("a\u{301}"), "a");
         assert_eq!(fold("ÇÃO"), "cao");
         assert_eq!(fold("x.ai"), "x ai");
+        // C-08: full-width forms, the ideographic space, CJK without
+        // spaces and the Turkish dotted capital I.
+        assert_eq!(fold("ｃｏｄｅｘ"), "codex");
+        assert_eq!(fold("ＣＬＡＵＤＥ\u{3000}ＣＯＤＥ"), "claude code");
+        assert_eq!(fold("APIキー"), fold("API キー"));
+        assert_eq!(fold("API密钥"), "api 密钥");
+        assert_eq!(fold("API키"), "api 키");
+        assert_eq!(fold("KİMİ"), "kimi");
+        assert_eq!(fold("11labs"), "11labs");
+    }
+
+    /// C-08: the same queries find the providers in the search.
+    #[test]
+    fn full_width_cjk_and_turkish_queries_find_their_providers() {
+        assert_eq!(names("ｃｏｄｅｘ", "en-US"), names("codex", "en-US"));
+        assert!(names("ｃｌａｕｄｅ", "en-US").contains(&"claude"));
+        for (locale, query, spaced) in [
+            ("ja", "APIキー", "API キー"),
+            ("zh-CN", "API密钥", "API 密钥"),
+            ("ko", "API키", "API 키"),
+        ] {
+            let unspaced = names(query, locale);
+            assert!(!unspaced.is_empty(), "{locale}: {query}");
+            assert_eq!(unspaced, names(spaced, locale), "{locale}");
+        }
+        assert_eq!(names("KİMİ", "tr"), ["kimi"]);
+    }
+
+    /// C-09: a pasted wall of text is cut to the first 256 characters and
+    /// answers within the search budget.
+    #[test]
+    fn a_huge_query_is_bounded() {
+        let huge = "claude ".repeat(100_000 / 7 + 1);
+        let head: String = huge.chars().take(MAX_QUERY_CHARS).collect();
+        assert_eq!(bounded_query(&huge), head);
+        assert_eq!(bounded_query("ｃｏｄｅｘ"), "ｃｏｄｅｘ");
+        assert_eq!(search(&huge, "en-US"), search(&head, "en-US"));
+        let _warm = search(&huge, "en-US");
+        crate::assert_within_budget("huge query", std::time::Duration::from_millis(5), 5, || {
+            let _ = search(&huge, "pt-BR");
+        });
     }
 
     const CATALOG_START: &str =
