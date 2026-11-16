@@ -2886,28 +2886,43 @@ impl Wizard {
             Step::Name => {
                 let provider = crate::ui::provider_label(self.provider);
                 let peer = self.peer();
+                // PRD 0029 RF3.5 (V-04): "optional" only when it is; the
+                // core rule says so up front, not only after Enter.
+                let required = edit::name_required(&self.base, self.provider, self.editing);
                 let marker = |focused: bool| if focused { "> " } else { "  " };
-                let name = if self.name.is_empty() && peer.is_none() {
+                let name = if self.name.is_empty() && !required {
                     Span::styled(provider.clone(), Style::default().fg(DRACULA_COMMENT))
                 } else {
                     Span::raw(crate::ui::safe(&self.name).into_owned())
                 };
+                let (label, help) = if required {
+                    (
+                        tr("wizard.name.label_required", "Account name:").to_string(),
+                        trf(
+                            "wizard.name.help_required",
+                            "Required: you have another {provider} account. It cannot repeat another account.",
+                            &[("provider", &provider)],
+                        ),
+                    )
+                } else {
+                    (
+                        tr("wizard.name.label", "Account name (optional):").to_string(),
+                        trf(
+                            "wizard.name.help",
+                            "Optional; needed when you add another {provider} account. It cannot repeat another account.",
+                            &[("provider", &provider)],
+                        ),
+                    )
+                };
                 let mut lines = vec![
-                    Line::from(tr("wizard.name.label", "Account name (optional):")),
+                    Line::from(label),
                     Line::default(),
                     Line::from(vec![
                         Span::raw(marker(!self.peer_focus || peer.is_none())),
                         name,
                     ]),
                     Line::default(),
-                    Line::from(Span::styled(
-                        trf(
-                            "wizard.name.help",
-                            "Optional; needed when you add another {provider} account. It cannot repeat another account.",
-                            &[("provider", &provider)],
-                        ),
-                        Style::default().fg(DRACULA_COMMENT),
-                    )),
+                    Line::from(Span::styled(help, Style::default().fg(DRACULA_COMMENT))),
                 ];
                 if peer.is_some() {
                     lines.extend([
@@ -4572,6 +4587,35 @@ mod tests {
         let mut wiz = Wizard::new(&config, Some(0));
         wiz.interval = interval.into();
         wiz
+    }
+
+    /// PRD 0029 RF3.5 (V-04): the field says "optional" only when the
+    /// core rule makes it so, and says up front when it is required.
+    #[test]
+    fn the_name_field_says_optional_only_when_it_is() {
+        let empty = Config {
+            accounts: Vec::new(),
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&empty, None);
+        wiz.provider = Provider::OpenAiApi;
+        wiz.step = Step::Name;
+        let screen = crate::l10n::with_locale("en-US", || screen_of(&mut wiz, 100, 30));
+        assert!(screen.contains("Account name (optional):"), "{screen}");
+
+        // Adding beside a named account, and editing one of two.
+        let config = Config {
+            accounts: vec![account("Work", "A_KEY"), account("Side", "B_KEY")],
+            ..Config::default()
+        };
+        for editing in [None, Some(0)] {
+            let mut wiz = Wizard::new(&config, editing);
+            wiz.provider = Provider::OpenAiApi;
+            wiz.step = Step::Name;
+            let screen = crate::l10n::with_locale("en-US", || screen_of(&mut wiz, 100, 30));
+            assert!(!screen.contains("(optional)"), "{editing:?}: {screen}");
+            assert!(screen.contains("Required: you have another"), "{screen}");
+        }
     }
 
     /// PRD 0029 RF3.3/RF3.5: the name is optional for a provider's only

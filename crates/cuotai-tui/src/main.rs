@@ -2216,12 +2216,36 @@ fn localized(mut json: serde_json::Value, locale: &Option<String>) -> serde_json
 
 /// PRD 0010 RF5.2: `--once` account heading with the measurement age.
 fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
+    let provider = ui::provider_label(report.provider);
+    // PRD 0029 RF3.4 (V-07): an unnamed account names its provider once
+    // (an unnamed extension account is titled by its extension's name).
+    let display = report.display_name();
+    let name = if report.named() || report.provider == cuotai_core::Provider::Extension {
+        display.as_ref()
+    } else {
+        ""
+    };
+    let (display, provider) = match cuotai_core::display_title(&provider, name) {
+        (display, Some(provider)) => (display, provider),
+        (provider, None) => {
+            return l10n::trf(
+                "once.heading_unnamed",
+                "{provider} — {status} · queried {age}{as_of}",
+                &[
+                    ("provider", &ui::safe(provider)),
+                    ("status", &ui::status_label(report.status)),
+                    ("age", &ui::age_text(report.checked_at, now)),
+                    ("as_of", &ui::data_as_of_suffix(report)),
+                ],
+            );
+        }
+    };
     l10n::trf(
         "once.heading",
         "{account} / {provider} — {status} · queried {age}{as_of}",
         &[
-            ("account", &ui::safe(&report.display_name())),
-            ("provider", &ui::provider_label(report.provider)),
+            ("account", &ui::safe(display)),
+            ("provider", &provider),
             ("status", &ui::status_label(report.status)),
             ("age", &ui::age_text(report.checked_at, now)),
             ("as_of", &ui::data_as_of_suffix(report)),
@@ -2731,6 +2755,13 @@ mod tests {
         assert_eq!(
             report_heading(&report, now),
             "Work / Claude — Rate limit · consultado há 2 min"
+        );
+        // PRD 0029 V-07: an unnamed account names its provider once.
+        let unnamed = self::report("", Status::RateLimited, Vec::new());
+        let heading = report_heading(&unnamed, now);
+        assert!(
+            heading.starts_with("Claude — ") && !heading.contains(" / "),
+            "{heading}"
         );
         // PRD 0010 re-validation V-05: the age reads naturally in ja.
         let heading = crate::l10n::with_locale("ja", || report_heading(&report, report.checked_at));
