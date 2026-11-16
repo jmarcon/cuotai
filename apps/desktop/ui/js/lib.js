@@ -911,21 +911,22 @@ export function fmtAge(iso, now = Date.now()) {
 }
 /** Core freshness of the reading on screen; a failure without a reading has none (only the attempt's age). */
 const freshnessOf = (r) => (isStaleReading(r) ? "stale" : r.status === "ready" ? r.freshness : null);
-/** Plain text: "Stale · 42 min ago", "Fresh · 3 min ago", or just the age. */
-export const ageText = (r) => {
+/** Plain text: "Stale · 42 min ago", "Fresh · 3 min ago", or just the age; then "data as of …" when the provider's data
+ *  lags the query, unless `asOf` is false (the card's status line already says it). */
+export const ageText = (r, { asOf: withAsOf = true } = {}) => {
   const f = freshnessOf(r);
   const age = f ? `${t(`freshness.${f}`)} · ${fmtAge(shownAt(r))}` : fmtAge(shownAt(r));
   // PRD 0033 RF3.2: the provider states its data is older than the query ("data as of 06:00").
-  const asOf = !isStaleReading(r) && r.data_as_of ? coreClock(r.data_as_of) : null;
+  const asOf = withAsOf && !isStaleReading(r) && r.data_as_of ? coreClock(r.data_as_of) : null;
   return asOf ? `${age} · ${t("freshness.data_as_of", { time: asOf })}` : age;
 };
 const FRESHNESS_ICON = { fresh: "check", aging: "clock", stale: "warn" };
 /** Age chip with the freshness icon and text (never color alone); the absolute time is in the tooltip. */
-export function ageHtml(r) {
+export function ageHtml(r, opts) {
   const f = freshnessOf(r);
   const title = [t("age.measuredAt", { time: fmtReset(shownAt(r)) ?? "—" }), (isStaleReading(r) ? r.last_good.clock_adjusted : r.clock_adjusted) ? t("age.clockAdjusted") : ""]
     .filter(Boolean).join(" · ");
-  return `<span class="age ${f ?? ""}" data-age data-freshness="${f ?? ""}" title="${esc(title)}">${icon(FRESHNESS_ICON[f] ?? "clock")}<span>${esc(ageText(r))}</span></span>`;
+  return `<span class="age ${f ?? ""}" data-age data-freshness="${f ?? ""}" title="${esc(title)}">${icon(FRESHNESS_ICON[f] ?? "clock")}<span>${esc(ageText(r, opts))}</span></span>`;
 }
 /** The report with the preserved metrics in place of the failed ones, for drawing only: the status stays the
  *  failure and nothing from the old reading feeds the binding, alerts or ordering. */

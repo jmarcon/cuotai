@@ -103,8 +103,9 @@ pub struct AccountExport {
     /// provider states the time of its data.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_age_seconds: Option<u64>,
-    /// [`freshness::assess`] of `report.checked_at` against the account's
-    /// effective interval; `null` without a report.
+    /// [`freshness::presented`]: [`freshness::assess`] of the reading's
+    /// measurement time (`checked_at`, or an agent feed's `as_of`) against
+    /// the account's effective interval; `null` without a report.
     pub freshness: Option<Freshness>,
     /// `report.checked_at` lies in the future (the clock went backwards);
     /// the age then reads zero.
@@ -658,7 +659,7 @@ impl SubScope<'_> {
             },
             report: reading.map(|report| scrub.report(report)),
             age_seconds: reading.map(|report| age(report.checked_at)),
-            freshness: reading.map(|report| freshness::assess(report.checked_at, interval, now)),
+            freshness: reading.map(|report| freshness::presented(report, interval, now)),
             clock_adjusted: reading
                 .is_some_and(|report| freshness::clock_adjusted(report.checked_at, now)),
             stale: last_good.is_some(),
@@ -1190,7 +1191,7 @@ fn account_export(
         data_age_seconds: report
             .and_then(|report| freshness::data_age(report, now))
             .map(|age| age.as_secs()),
-        freshness: report.map(|report| freshness::assess(report.checked_at, interval, now)),
+        freshness: report.map(|report| freshness::presented(report, interval, now)),
         clock_adjusted: report
             .is_some_and(|report| freshness::clock_adjusted(report.checked_at, now)),
         stale: last_good.is_some(),
@@ -2168,7 +2169,9 @@ mod tests {
             export(&config, &cycle, Options::default())["accounts"][0].clone()
         };
         let aged = json_of(40);
-        assert_eq!(aged["freshness"], "fresh", "the query itself is fresh");
+        // PRD 0033 re-validation V-03: freshness follows the agent's own
+        // time too, so a 40-minute-old feed is not "up to date".
+        assert_eq!(aged["freshness"], "stale");
         assert!(aged["pace"][0].is_null());
         assert!(aged["allowance"][0].is_null());
         let recent = json_of(2);

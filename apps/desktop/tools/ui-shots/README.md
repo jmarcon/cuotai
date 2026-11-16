@@ -34,6 +34,13 @@ the `*.fixture` captures compare with `assets/0022/after/` (01, 03, 10, 11); `&b
 (the "Billed per query" chip); `?mono=XY` gives the first account a monogram override (DS-CMP-MONO-4); `?aggwarn` gives
 the 9router instance both standing warnings (PRD 0036 RF2.3/RF2.4); `?paste-session` makes the core offer the Xiaomi MiMo
 account a new paste, so its card and details show Paste session (not with `?fixture=six`, which has no MiMo account).; `?strip` gives the tray the 24-hour strip of the account the menu bar follows (PRD 0043 RF4.2).
+PRD 0033 (they combine with each other and with the default set, and come first in the list): `?renewed` adds a preserved
+Claude reading whose 5-hour window renewed beside a current week, a restored Kimi reading whose only quota renewed, and
+an exhausted binding week beside a paced 5-hour window (the card's labelled pace line); `?lagging` adds a fresh and an
+aging OpenAI API reading whose provider data lags the query by hours (`data_as_of`); `?metered` adds the AWS Bedrock
+account in the core's report shape (also used by `?fixture=six&bedrock`). `check.mjs` renders them as `main-renewed`,
+`main-renewed-narrow`, `main-lagging` (`?lagging&metered`), `tray-renewed` (`?renewed&lagging`), `details-renewed` and,
+with `--zoom`, `zoom200-main-renewed`; `dialog-add-bedrock` opens the add-account form with AWS Bedrock chosen.
 
 [`components.html`](components.html) is the PRD 0022 RF10.5 component fixture page: meters, state rings, the extra-usage
 chip and sub-row, the forecast callout, rows with monograms, the filter tabs with an aggregator tab and the chips, drawn

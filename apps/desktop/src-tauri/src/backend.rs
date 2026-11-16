@@ -1413,7 +1413,7 @@ fn report_view(
         model_count,
         binding,
         binding_rank,
-        freshness: assess(report.checked_at, interval, now),
+        freshness: cuotai_core::freshness::presented(report, interval, now),
         clock_adjusted: clock_adjusted(report.checked_at, now),
         last_good: None,
         pending: false,

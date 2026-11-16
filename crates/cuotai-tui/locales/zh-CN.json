@@ -386,7 +386,7 @@
   },
   "stats.unknown_return": "恢复时间未知",
   "ui.account_changed": "文件中的账户已更改；请重新打开向导。",
-  "ui.data_as_of": " · 数据来自 {at}",
+  "ui.data_as_of": " · 数据截至 {at}",
   "ui.delete.account_n": "账户 #{index}",
   "ui.delete.already_removed": "账户已被移除。",
   "ui.delete.confirm.body": "删除账户 {account}？\n\n它将从 {path} 中移除。\n\n此步骤不会删除或撤销环境变量、钥匙串凭据以及在提供商处的访问权限。",
