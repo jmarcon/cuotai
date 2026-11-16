@@ -133,11 +133,18 @@ drawn once, after the second).
 
 | Platform | Text styles (Tightest %, Logos + %) | Meters | Icon only | Outage or alert | Screen readers |
 |---|---|---|---|---|---|
-| macOS | Template image (follows the light and dark menu bar) plus the title as system text | Monochrome template image with up to four bars | Template image | Cut-out notch in the template image (alert: hollow); colored variant: a dot in the level color | The summary is the tooltip and the status item's accessibility label (VoiceOver) |
-| Windows | No tray title: the tightest figure (two digits, `!` for an active alert, `-` when unknown) is drawn white on a dark plate in the icon's corner; the full summary is the tooltip | The icon plus the tooltip | The icon | Colored dot | Tooltip (Narrator reads it) |
-| Linux, KDE Plasma | Title shown next to the icon (StatusNotifierItem label) | Meter image | The icon | Colored dot | Tooltip |
-| Linux, GNOME with the AppIndicator extension | Title shown as the indicator label | Meter image | The icon | Colored dot | Tooltip |
-| Linux, other trays (XFCE, Cinnamon, MATE, plain XEmbed) | The label is ignored where the tray does not support it; the full summary stays in the tooltip | Meter image | The icon | Colored dot | Tooltip |
+| macOS | Template image (follows the light and dark menu bar) plus the title as system text | Monochrome template image with up to four bars | Template ring of the tightest share | Cut-out notch in the image, in every style (alert: hollow) | The tooltip holds the summary and the freshness lines; VoiceOver reads the summary alone (the status item's accessibility label) |
+| Windows | No tray title: the tightest figure (two digits, `1` for a share below 0.5 %, `!` for an active alert, `-` when unknown) is drawn white on a dark plate in the icon's corner; the tooltip puts the freshness line first and is cut at 127 characters | Up to four bars in a neutral gray legible on light and dark taskbars | Ring in the neutral gray | Notch in the top corner when the figure's plate takes the bottom one, else the bottom corner | Tooltip (Narrator reads it) |
+| Linux, KDE Plasma | Title shown next to the icon (StatusNotifierItem label) | Bars in the neutral gray | Ring in the neutral gray | Notch, in every style | Tooltip |
+| Linux, GNOME with the AppIndicator extension | Title shown as the indicator label | Bars in the neutral gray | Ring in the neutral gray | Notch, in every style | Tooltip |
+| Linux, other trays (XFCE, Cinnamon, MATE, plain XEmbed) | The label is ignored where the tray does not support it; the full summary stays in the tooltip | Bars in the neutral gray | Ring in the neutral gray | Notch, in every style | Tooltip |
+
+With the **colored variant** (Settings › Menu bar, every platform) the bars,
+the ring and the strip take fixed level colors that reach 3:1 on light and
+dark bars, the text styles show the ring in the level color instead of the
+mark, and the outage notch stays monochrome. Under Automatic the title names
+the provider, never an account; accounts hidden from the dashboard never
+reach the item.
 
 The **24-hour strip** style (PRD 0043 RF4.2) is offered on macOS only: a
 monochrome template image of 24 hourly bars of the tightest chosen account
