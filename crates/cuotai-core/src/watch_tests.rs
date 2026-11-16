@@ -6,6 +6,7 @@
 use super::*;
 use crate::config_file::ConfigIdentity;
 use crate::headless::Driver;
+use crate::Provider;
 use crate::{oauth, Account, Credentials, Monitor};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -269,9 +270,12 @@ fn interval_is_bounded_and_respects_overrides_and_the_metered_floor() {
     };
     let fast = with_interval(&config, 60).unwrap();
     fast.validate().unwrap();
-    assert_eq!(effective(&fast), [60, 45, 900, 3_600]);
+    assert_eq!(effective(&fast), [60, 45, 3_600, 3_600]);
     let slow = with_interval(&config, 900).unwrap();
-    assert_eq!(effective(&slow), [900, 45, 900, 3_600]);
+    assert_eq!(effective(&slow), [900, 45, 3_600, 3_600]);
+    // PRD 0033 re-validation M-5: never faster than its own interval.
+    let hourly = with_interval(&config, 7_200).unwrap();
+    assert_eq!(effective(&hourly), [7_200, 45, 3_600, 3_600]);
 }
 
 #[test]
