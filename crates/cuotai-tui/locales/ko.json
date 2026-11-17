@@ -24,7 +24,8 @@
       "feed.forget.failed",
       "wizard.login.choose",
       "wizard.login.confirm",
-      "feed.read_timeout"
+      "feed.read_timeout",
+      "cost.by.requests"
     ]
   },
   "about.brazil": "특별히 감사드립니다: 브라질 개발자들이 만든 프로젝트",
@@ -700,6 +701,9 @@
   "cli.restore.rows": "행: {rows}, 여기서 새 항목: {new}",
   "cli.list_providers.aggregator": " (애그리게이터)",
   "cost.plan.no_account": "{account}(이)라는 이름의 설정된 계정이 없습니다. ID 또는 provider:name을 사용하세요.",
+  "cost.by.requests": {
+    "other": "요청 {count}개"
+  },
   "status_line.unknown_account": "--account {value}에 해당하는 계정이 하나로 정해지지 않습니다. id(--json-v1, /v1/limits 또는 TOML의 id 줄), 키 또는 고유한 이름을 사용하세요. Id: {ids}.",
   "status_line.no_accounts": "없음",
   "headless.strict_exit_no_ready": "cuotai: 종료 코드 2(--strict-exit): 서버가 멈추기 전까지 정상 조회값을 얻은 계정이 없습니다.",

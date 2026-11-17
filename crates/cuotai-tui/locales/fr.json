@@ -235,7 +235,8 @@
       "feed.forget.failed",
       "wizard.login.choose",
       "wizard.login.confirm",
-      "feed.read_timeout"
+      "feed.read_timeout",
+      "cost.by.requests"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -929,6 +930,10 @@
   "cli.restore.rows": "lignes : {rows}, nouvelles ici : {new}",
   "cli.list_providers.aggregator": " (agrégateur)",
   "cost.plan.no_account": "Aucun compte configuré ne s’appelle {account} ; utilisez son identifiant ou provider:name.",
+  "cost.by.requests": {
+    "one": "{count} requête",
+    "other": "{count} requêtes"
+  },
   "status_line.unknown_account": "--account {value} ne désigne aucun compte unique ; utilisez un id (de --json-v1, /v1/limits ou la ligne id du TOML), une clé ou un nom unique. Ids : {ids}.",
   "status_line.no_accounts": "aucun",
   "headless.strict_exit_no_ready": "cuotai : code de sortie 2 (--strict-exit) : aucun compte n’a eu de relevé correct avant l’arrêt du serveur.",

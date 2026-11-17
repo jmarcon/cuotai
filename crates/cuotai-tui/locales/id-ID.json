@@ -678,6 +678,9 @@
   "cli.restore.rows": "baris: {rows}, baru di sini: {new}",
   "cli.list_providers.aggregator": " (agregator)",
   "cost.plan.no_account": "Tidak ada akun terkonfigurasi bernama {account}; gunakan id-nya atau provider:name.",
+  "cost.by.requests": {
+    "other": "{count} permintaan"
+  },
   "status_line.unknown_account": "--account {value} tidak menunjuk satu akun pun secara tunggal; gunakan id (dari --json-v1, /v1/limits, atau baris id di TOML), kunci, atau nama yang unik. Id: {ids}.",
   "status_line.no_accounts": "tidak ada",
   "headless.strict_exit_no_ready": "cuotai: kode keluar 2 (--strict-exit): tidak ada akun yang mendapat pembacaan sehat sebelum server berhenti.",

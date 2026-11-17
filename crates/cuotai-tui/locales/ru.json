@@ -24,7 +24,8 @@
       "feed.forget.failed",
       "wizard.login.choose",
       "wizard.login.confirm",
-      "feed.read_timeout"
+      "feed.read_timeout",
+      "cost.by.requests"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -754,6 +755,12 @@
   "cli.restore.rows": "строк: {rows}, новых здесь: {new}",
   "cli.list_providers.aggregator": " (агрегатор)",
   "cost.plan.no_account": "Нет настроенной учётной записи с именем {account}; используйте её id или provider:name.",
+  "cost.by.requests": {
+    "one": "{count} запрос",
+    "few": "{count} запроса",
+    "many": "{count} запросов",
+    "other": "{count} запроса"
+  },
   "status_line.unknown_account": "--account {value} не указывает ровно одну учётную запись; используйте id (из --json-v1, /v1/limits или строки id в TOML), ключ или уникальное имя. Id: {ids}.",
   "status_line.no_accounts": "нет",
   "headless.strict_exit_no_ready": "cuotai: код выхода 2 (--strict-exit): ни одна учётная запись не получила исправного показания до остановки сервера.",

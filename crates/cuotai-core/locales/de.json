@@ -199,7 +199,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -599,10 +603,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "{count} weitere; --all listet alle auf.",
   "cost.by.empty": "Kein Verbrauch in den gelesenen Logs für diesen Zeitraum.",
+  "cost.by.code_help_session": "Der Code in Klammern stammt von Cuotai: die ersten Zeichen eines Einweg-Fingerabdrucks der Sitzung, die cuotai --cost-label session annimmt. Er ist nicht die Sitzungs-ID des Tools, die nie gespeichert wird.",
+  "cost.by.code_help_project": "Der Code in Klammern stammt von Cuotai: die ersten Zeichen eines Einweg-Fingerabdrucks des Ordners, die cuotai --cost-label project annimmt. Der Pfad des Ordners wird nie gespeichert.",
   "cost.error.unknown_breakdown": "Unbekannte Aufschlüsselung: {name}. Aufschlüsselungen: {known}.",
   "cost.duration.minutes": "{m} Min.",
   "cost.duration.hours": "{h} Std. {m} Min.",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "Sitzung · {start}–{end} · {duration}",
   "cost.live.line": "Dieser Block ≈ {cost} · {rate} Tok./Min.",
   "cost.live.line_unknown": "Dieser Block: {tokens} Token, Kosten unbekannt · {rate} Tok./Min.",
@@ -617,6 +623,7 @@
     "other": "Verbrauchsrate: braucht mindestens {min} Anfragen in den letzten {minutes} Minuten; bisher {count}."
   },
   "cost.live.rate_young": "Verbrauchsrate: Der Block hat vor {elapsed} begonnen; sie braucht {min} Minuten.",
+  "cost.live.source_off": "{source} ist ausgeschaltet; cuotai --cost-enable {slug} schaltet die Quelle ein.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Projekt {short}",
   "cost.project.none": "Kein Projekt",
@@ -2887,6 +2894,7 @@
   },
   "cost.error.rate_too_small": "Der Kurs ist zu klein: Verwenden Sie mindestens 0.000001.",
   "cost.error.label_characters": "Eine Bezeichnung darf keine unsichtbaren Zeichen oder Richtungszeichen enthalten.",
+  "cost.error.top_needs_list": "--top N (1 oder mehr) und --all gelten nur für --cost --by session oder --by project.",
   "cost.block.sessions": {
     "one": "{count} Sitzung",
     "other": "{count} Sitzungen"

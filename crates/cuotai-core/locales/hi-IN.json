@@ -194,7 +194,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -594,10 +598,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "{count} और; --all सभी दिखाता है।",
   "cost.by.empty": "इस अवधि के लिए पढ़े गए लॉग में कोई उपयोग नहीं।",
+  "cost.by.code_help_session": "कोष्ठक में दिया कोड Cuotai का अपना है: सत्र के एकतरफ़ा फ़िंगरप्रिंट के पहले अक्षर, जिन्हें cuotai --cost-label session लेता है। यह टूल की सत्र आईडी नहीं है, जो कभी नहीं रखी जाती।",
+  "cost.by.code_help_project": "कोष्ठक में दिया कोड Cuotai का अपना है: फ़ोल्डर के एकतरफ़ा फ़िंगरप्रिंट के पहले अक्षर, जिन्हें cuotai --cost-label project लेता है। फ़ोल्डर का पथ कभी नहीं रखा जाता।",
   "cost.error.unknown_breakdown": "अज्ञात विभाजन: {name}। विभाजन: {known}।",
   "cost.duration.minutes": "{m} मि॰",
   "cost.duration.hours": "{h} घं॰ {m} मि॰",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "सत्र · {start}–{end} · {duration}",
   "cost.live.line": "यह ब्लॉक ≈ {cost} · {rate} टोकन/मिनट",
   "cost.live.line_unknown": "यह ब्लॉक: {tokens} टोकन, लागत अज्ञात · {rate} टोकन/मिनट",
@@ -612,6 +618,7 @@
     "other": "खपत दर: पिछले {minutes} मिनट में कम से कम {min} अनुरोध चाहिए; अभी तक {count}।"
   },
   "cost.live.rate_young": "खपत दर: ब्लॉक {elapsed} पहले शुरू हुआ; इसके लिए {min} मिनट चाहिए।",
+  "cost.live.source_off": "{source} बंद है; cuotai --cost-enable {slug} इसे चालू करता है।",
   "cost.project.labelled": "{label}",
   "cost.project.name": "प्रोजेक्ट {short}",
   "cost.project.none": "कोई प्रोजेक्ट नहीं",
@@ -2882,6 +2889,7 @@
   },
   "cost.error.rate_too_small": "दर बहुत छोटी है: कम से कम 0.000001 इस्तेमाल करें।",
   "cost.error.label_characters": "लेबल में अदृश्य या दिशा बदलने वाले वर्ण नहीं हो सकते।",
+  "cost.error.top_needs_list": "--top N (1 या अधिक) और --all केवल --cost --by session या --by project पर लागू होते हैं।",
   "cost.block.sessions": {
     "one": "{count} सत्र",
     "other": "{count} सत्र"

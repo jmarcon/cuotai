@@ -1,0 +1,18 @@
+Projects (Last 2 days)
+Estimate at API prices, not a charge; amounts in USD.
+The code in brackets is Cuotai's own: the first characters of a one-way fingerprint of the folder, which cuotai --cost-label project takes. The folder's path is never kept.
+Last 2 days: 164K tokens · $0.56
+
+Client work [a2cce485] · 2026-11-10
+  1 session: 101K tokens · $0.35 · 4 requests
+    claude-opus-4-5: 20.2K tokens · $0.11
+    claude-sonnet-4-5-20250929: 80.6K tokens · $0.25
+
+Project 928aad1d · 2026-11-09–2026-11-10
+  1 session: 55.4K tokens · $0.18 · 2 requests
+    claude-opus-4-5: 5.2K tokens · $0.03
+    claude-sonnet-4-5-20250929: 50.2K tokens · $0.15
+
+No project · 2026-11-10
+  1 session: 8.2K tokens · $0.03 · 1 request
+    claude-sonnet-4-5-20250929: 8.2K tokens · $0.03

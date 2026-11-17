@@ -176,7 +176,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -576,10 +580,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "{count} tane daha; --all hepsini listeler.",
   "cost.by.empty": "Bu dönem için okunan günlüklerde kullanım yok.",
+  "cost.by.code_help_session": "Köşeli parantezdeki kod Cuotai'nin kendisine aittir: oturumun tek yönlü parmak izinin ilk karakterleridir ve cuotai --cost-label session bunu kabul eder. Aracın oturum kimliği değildir; o kimlik hiç saklanmaz.",
+  "cost.by.code_help_project": "Köşeli parantezdeki kod Cuotai'nin kendisine aittir: klasörün tek yönlü parmak izinin ilk karakterleridir ve cuotai --cost-label project bunu kabul eder. Klasörün yolu hiç saklanmaz.",
   "cost.error.unknown_breakdown": "Bilinmeyen döküm: {name}. Dökümler: {known}.",
   "cost.duration.minutes": "{m} dk",
   "cost.duration.hours": "{h} sa {m} dk",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "Oturum · {start}–{end} · {duration}",
   "cost.live.line": "Bu blok ≈ {cost} · {rate} token/dk",
   "cost.live.line_unknown": "Bu blok: {tokens} token, maliyet bilinmiyor · {rate} token/dk",
@@ -594,6 +600,7 @@
     "other": "Tüketim hızı: son {minutes} dakikada en az {min} istek gerekiyor; şu ana kadar {count}."
   },
   "cost.live.rate_young": "Tüketim hızı: blok {elapsed} önce başladı; {min} dakika gerekiyor.",
+  "cost.live.source_off": "{source} kapalı; cuotai --cost-enable {slug} onu açar.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Proje {short}",
   "cost.project.none": "Proje yok",
@@ -2864,6 +2871,7 @@
   },
   "cost.error.rate_too_small": "Kur çok küçük: en az 0.000001 kullanın.",
   "cost.error.label_characters": "Bir etiket görünmez karakterler veya yön karakterleri içeremez.",
+  "cost.error.top_needs_list": "--top N (1 veya daha fazla) ve --all yalnızca --cost --by session veya --by project ile geçerlidir.",
   "cost.block.sessions": {
     "one": "{count} oturum",
     "other": "{count} oturum"
