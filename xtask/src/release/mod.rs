@@ -6,6 +6,7 @@
 //! commits since the last release; feature and fix commits never touch them
 //! (RF1.3, enforced by [`crate::changelog_gate`]).
 
+pub mod edit;
 pub mod prepare;
 pub mod render;
 pub mod tag;
@@ -23,6 +24,29 @@ pub const LAST_INTERNAL_VERSION: Version = Version {
     minor: 79,
     patch: 0,
 };
+
+/// The newest release whose commit keeps the older, file-level check; every
+/// **later** version must be byte-identical to its re-render from the
+/// parent commit (F-02, the line-level check; the review calls this point
+/// `LINE_CHECK_FROM`).
+///
+/// 0.86.7 (`cdfdb5f0`) is the newest release when this check lands. Some
+/// release commits up to it carry hand edits of their section (0.86.4 moved
+/// two entries to another category, PRD 0039 re-validation V-01), which
+/// recorded `Changelog-Entry:` edits now replace. The rule is "greater than
+/// 0.86.7" rather than "from 0.86.8" so that it holds whatever bump the next
+/// release computes (0.86.8, 0.87.0 or a `Version-Override:`), without
+/// guessing the next number.
+pub const LINE_CHECK_AFTER: Version = Version {
+    major: 0,
+    minor: 86,
+    patch: 7,
+};
+
+/// Whether the release commit of `version` gets the line-level check.
+pub fn line_checked(version: &Version) -> bool {
+    *version > LINE_CHECK_AFTER
+}
 
 /// The files every release commit writes (RF4.4); plan files
 /// (`docs/**/*.md`, `README.md`) are added when they carry `vNEXT`.
@@ -60,6 +84,62 @@ impl Tree<'_> {
                 .map_err(|e| Error::Msg(format!("cannot read {rel}: {e}"))),
             Tree::Rev(root, rev) => git::run(root, &["show", &format!("{rev}:{rel}")])
                 .map_err(|_| Error::Msg(format!("{rel} does not exist at {rev}"))),
+        }
+    }
+
+    /// Several files at once (one `git cat-file --batch` for a commit); a
+    /// missing file is `None`.
+    pub fn read_many(&self, paths: &[String]) -> Res<Vec<Option<String>>> {
+        match self {
+            Tree::Work(_) => Ok(paths.iter().map(|p| self.read(p).ok()).collect()),
+            Tree::Rev(root, rev) => {
+                use std::io::Write;
+                let mut child = std::process::Command::new("git")
+                    .arg("-C")
+                    .arg(root)
+                    .args(["cat-file", "--batch"])
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .map_err(|e| Error::Msg(format!("cannot run git cat-file: {e}")))?;
+                let input: String = paths.iter().map(|p| format!("{rev}:{p}\n")).collect();
+                let mut stdin = child.stdin.take().expect("piped stdin");
+                let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
+                let output = child
+                    .wait_with_output()
+                    .map_err(|e| Error::Msg(format!("git cat-file failed: {e}")))?;
+                let _ = writer.join();
+                let bytes = output.stdout;
+                let mut out = Vec::with_capacity(paths.len());
+                let mut at = 0usize;
+                for path in paths {
+                    let Some(end) = bytes[at..].iter().position(|&b| b == b'\n') else {
+                        return err(format!("git cat-file stopped before {path}"));
+                    };
+                    let header = String::from_utf8_lossy(&bytes[at..at + end]).to_string();
+                    at += end + 1;
+                    if header.ends_with(" missing") || header.ends_with(" ambiguous") {
+                        out.push(None);
+                        continue;
+                    }
+                    let size: usize = header
+                        .rsplit(' ')
+                        .next()
+                        .and_then(|n| n.parse().ok())
+                        .ok_or_else(|| {
+                            Error::Msg(format!("git cat-file: bad header '{header}'"))
+                        })?;
+                    if !header.contains(" blob ") || at + size > bytes.len() {
+                        return err(format!("git cat-file: {path} at {rev} is not a file"));
+                    }
+                    out.push(Some(
+                        String::from_utf8_lossy(&bytes[at..at + size]).into_owned(),
+                    ));
+                    at += size + 1;
+                }
+                Ok(out)
+            }
         }
     }
 
@@ -256,6 +336,9 @@ pub struct Pending {
     pub version: Version,
     /// Its recorded `Version-Override:` (RF3.4), if any.
     pub version_override: Option<Version>,
+    /// Its recorded wording edits (`Changelog-Entry:`), which a refresh
+    /// keeps.
+    pub entry_edits: Vec<commits::EntryEdit>,
 }
 
 /// The newest `chore(release): <version>` commit of `base..rev`, when the
@@ -286,6 +369,7 @@ pub fn pending_release(
         sha: commit.sha,
         version: version.clone(),
         version_override,
+        entry_edits: commit.trailers.entry_edits,
     }))
 }
 
@@ -357,12 +441,17 @@ pub struct CheckOutcome {
     pub version: Version,
     pub base: Base,
     pub commits: usize,
+    /// Whether the line-level check ran (versions above
+    /// [`LINE_CHECK_AFTER`]) and passed.
+    pub line_checked: bool,
 }
 
 /// RF4.7: recomputes the release that `rev` (a release commit) claims and
 /// fails unless its version is the computed one (or a recorded valid
 /// override), every user-visible commit of `base..rev^` is covered by the
-/// section, no cited hash is foreign and no `vNEXT` remains.
+/// section, no cited hash is foreign and no `vNEXT` remains. Above
+/// [`LINE_CHECK_AFTER`] it also requires the commit to be exactly what
+/// `release prepare` writes on its parent ([`line_problems`], F-02).
 pub fn check_release(repo: &Path, rev: &str) -> Res<CheckOutcome> {
     let sha = git::run(
         repo,
@@ -423,12 +512,37 @@ pub fn check_release(repo: &Path, rev: &str) -> Res<CheckOutcome> {
         )),
         None => {}
     }
+    let line_check = line_checked(&version);
+    let edits = &release.trailers.entry_edits;
+    if !line_check && !edits.is_empty() {
+        problems.push(format!(
+            "Changelog-Entry: needs the line-level check, which applies to versions above {LINE_CHECK_AFTER}"
+        ));
+    }
+    // With recorded edits, a merged entry covers several sentences.
+    let items = if line_check {
+        match render::items(&commits, edits) {
+            Ok(items) => Some(items),
+            Err(problem) => {
+                problems.extend(problem.lines().map(str::to_string));
+                None
+            }
+        }
+    } else {
+        None
+    };
     let changelog = tree.read("CHANGELOG.md")?;
     let parsed = crate::changelog::parse(&changelog).map_err(|e| Error::Msg(e.to_string()))?;
     match parsed.releases.first() {
         Some(first) if first.version == version.to_string() => {
             for (commit, short) in &commits {
-                let wanted = commit.trailers.sentences.len();
+                let wanted = match &items {
+                    Some(items) => items
+                        .iter()
+                        .filter(|item| item.shas.contains(&commit.sha))
+                        .count(),
+                    None => commit.trailers.sentences.len(),
+                };
                 let cited = coverage_count(&first.body, &commit.sha);
                 if cited < wanted {
                     problems.push(format!(
@@ -457,14 +571,20 @@ pub fn check_release(repo: &Path, rev: &str) -> Res<CheckOutcome> {
             "CHANGELOG.md: the first released section is not [{version}]"
         )),
     }
-    for path in tree.plan_files()? {
-        let count = render::count_next(&tree.read(&path)?);
+    let plan_paths = tree.plan_files()?;
+    for (path, text) in plan_paths.iter().zip(tree.read_many(&plan_paths)?) {
+        let count = render::count_next(&text.unwrap_or_default());
         if count > 0 {
             problems.push(format!(
                 "{path} still has {count} '{}' token(s)",
                 render::NEXT_TOKEN
             ));
         }
+    }
+    // A broken `Changelog-Entry:` is already reported; the re-render would
+    // only repeat it.
+    if line_check && items.is_some() {
+        problems.extend(line_problems(repo, &sha)?);
     }
     if !problems.is_empty() {
         return err(format!(
@@ -478,12 +598,240 @@ pub fn check_release(repo: &Path, rev: &str) -> Res<CheckOutcome> {
         version,
         base,
         commits: commits.len(),
+        line_checked: line_check,
     })
+}
+
+/// The line-level check of a release commit (F-02): re-runs `release
+/// prepare` in memory against its parent, with the version of its subject
+/// (and its `Version-Override:`), the date of its `## [X.Y.Z] - DATE`
+/// heading and its recorded `Changelog-Entry:` edits, and lists every line
+/// where the commit's files differ from that re-render, as
+/// `path:line: expected …, found …`. A file the re-render does not write
+/// must not change at all. Empty when the commit is exactly what `release
+/// prepare` writes.
+///
+/// [`check_release`] runs it above [`LINE_CHECK_AFTER`]; it is public so
+/// the older release commits can be measured against it.
+pub fn line_problems(repo: &Path, rev: &str) -> Res<Vec<String>> {
+    line_problems_with(repo, rev, None)
+}
+
+/// [`line_problems`] with other recorded edits than the commit's own
+/// `Changelog-Entry:` trailers (`None` reads them): how an older release
+/// with a hand edit is shown to be reproducible with recorded edits.
+pub fn line_problems_with(
+    repo: &Path,
+    rev: &str,
+    edits: Option<Vec<commits::EntryEdit>>,
+) -> Res<Vec<String>> {
+    let sha = git::run(
+        repo,
+        &["rev-parse", "--verify", &format!("{rev}^{{commit}}")],
+    )?
+    .trim()
+    .to_string();
+    let message = git::run(repo, &["log", "-1", "--format=%B", &sha])?;
+    let subject = message.lines().next().unwrap_or_default().to_string();
+    let release = Commit::parse(&sha, &subject, &message);
+    let Some(version) = release.release_version() else {
+        return err(format!("{} is not a release commit", &sha[..7]));
+    };
+    let tree = Tree::Rev(repo, sha.clone());
+    let Some(date) = section_date(&tree.read("CHANGELOG.md")?, &version) else {
+        return Ok(vec![format!(
+            "CHANGELOG.md: no '## [{version}] - YYYY-MM-DD' heading to take the section date from"
+        )]);
+    };
+    let overridden = release.trailers.version_override.is_some();
+    let parent = format!("{sha}^");
+    let opts = prepare::Options {
+        date,
+        dry_run: true,
+        edits: Some(edits.unwrap_or_else(|| release.trailers.entry_edits.clone())),
+        ..prepare::Options::default()
+    };
+    let replay = prepare::Replay {
+        version: version.clone(),
+        overridden,
+    };
+    let parent_tree = Tree::Rev(repo, parent.clone());
+    let outcome = match prepare::compute(repo, &parent_tree, &parent, &opts, Some(&replay)) {
+        Ok(Some(outcome)) => outcome,
+        Ok(None) => {
+            return Ok(vec![format!(
+                "release prepare finds nothing to release on the parent of {}",
+                &sha[..7]
+            )])
+        }
+        Err(e) => {
+            return Ok(vec![format!(
+                "release prepare cannot re-render {version} from the parent of {}: {e}",
+                &sha[..7]
+            )])
+        }
+    };
+    let mut problems = Vec::new();
+    let expected_subject = outcome.message.lines().next().unwrap_or_default();
+    if expected_subject != subject.trim_end() {
+        problems.push(format!(
+            "the subject is '{subject}', but release prepare writes '{expected_subject}' on this parent"
+        ));
+    }
+    let changed = git::run(
+        repo,
+        &["diff", "--name-only", "--no-renames", &parent, &sha, "--"],
+    )?;
+    let mut paths: Vec<String> = changed.lines().map(str::to_string).collect();
+    paths.extend(outcome.changes.iter().map(|c| c.path.clone()));
+    paths.sort();
+    paths.dedup();
+    let before = parent_tree.read_many(&paths)?;
+    let after = tree.read_many(&paths)?;
+    for ((path, before), found) in paths.iter().zip(before).zip(after) {
+        let path = path.as_str();
+        let expected = match outcome.changes.iter().find(|c| c.path == path) {
+            Some(change) => Some(change.new.clone()),
+            None => before,
+        };
+        match (expected, found) {
+            (Some(expected), Some(found)) => {
+                problems.extend(line_differences(path, &expected, &found));
+            }
+            (Some(_), None) => problems.push(format!(
+                "{path}: the release commit deletes it; release prepare keeps it"
+            )),
+            (None, Some(found)) => {
+                problems.extend(line_differences(path, "", &found));
+            }
+            (None, None) => {}
+        }
+    }
+    Ok(problems)
+}
+
+/// The date of the `## [version] - DATE` heading of a changelog.
+pub fn section_date(changelog: &str, version: &Version) -> Option<String> {
+    let heading = format!("## [{version}] - ");
+    changelog
+        .lines()
+        .find_map(|line| line.strip_prefix(&heading))
+        .map(|date| date.trim().to_string())
+}
+
+/// At most this many differing lines are listed per file.
+const MAX_LINE_PROBLEMS: usize = 5;
+
+/// `path:line: expected "…", found "…"` for every line where `found`
+/// differs from `expected` (line numbers of `found`; a longest-common-
+/// subsequence alignment, so one inserted line is one problem, not a
+/// cascade).
+pub fn line_differences(path: &str, expected: &str, found: &str) -> Vec<String> {
+    if expected == found {
+        return Vec::new();
+    }
+    let a: Vec<&str> = expected.split_inclusive('\n').collect();
+    let b: Vec<&str> = found.split_inclusive('\n').collect();
+    let prefix = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+    let suffix = a[prefix..]
+        .iter()
+        .rev()
+        .zip(b[prefix..].iter().rev())
+        .take_while(|(x, y)| x == y)
+        .count();
+    let (am, bm) = (&a[prefix..a.len() - suffix], &b[prefix..b.len() - suffix]);
+    // Pairs of (expected line, found line) per differing run.
+    let mut runs: Vec<(Vec<&str>, Vec<&str>, usize)> = Vec::new();
+    let (n, m) = (am.len(), bm.len());
+    if n * m <= 4_000_000 {
+        let mut lcs = vec![vec![0u32; m + 1]; n + 1];
+        for i in (0..n).rev() {
+            for j in (0..m).rev() {
+                lcs[i][j] = if am[i] == bm[j] {
+                    lcs[i + 1][j + 1] + 1
+                } else {
+                    lcs[i + 1][j].max(lcs[i][j + 1])
+                };
+            }
+        }
+        let (mut i, mut j) = (0, 0);
+        let mut current: Option<(Vec<&str>, Vec<&str>, usize)> = None;
+        while i < n || j < m {
+            if i < n && j < m && am[i] == bm[j] {
+                runs.extend(current.take());
+                i += 1;
+                j += 1;
+                continue;
+            }
+            let run = current.get_or_insert_with(|| (Vec::new(), Vec::new(), prefix + j + 1));
+            if i < n && (j == m || lcs[i + 1][j] >= lcs[i][j + 1]) {
+                run.0.push(am[i]);
+                i += 1;
+            } else {
+                run.1.push(bm[j]);
+                j += 1;
+            }
+        }
+        runs.extend(current);
+    } else {
+        runs.push((am.to_vec(), bm.to_vec(), prefix + 1));
+    }
+    let show = |line: &str| {
+        let line = line.trim_end_matches(['\n', '\r']);
+        // Debug quoting: inner quotes, control and invisible characters
+        // show escaped, so the reader sees exactly what differs.
+        let short: String = line.chars().take(160).collect();
+        if short.len() < line.len() {
+            format!("{:?}", format!("{short}…"))
+        } else {
+            format!("{short:?}")
+        }
+    };
+    let mut out = Vec::new();
+    for (gone, added, start) in runs {
+        for k in 0..gone.len().max(added.len()) {
+            let line = start + k.min(added.len());
+            let text = match (gone.get(k), added.get(k)) {
+                (Some(e), Some(f)) => format!("expected {}, found {}", show(e), show(f)),
+                (Some(e), None) => format!("expected {}, found no line", show(e)),
+                (None, Some(f)) => format!("expected no line, found {}", show(f)),
+                (None, None) => continue,
+            };
+            out.push(format!("{path}:{line}: {text}"));
+        }
+    }
+    let total = out.len();
+    if total > MAX_LINE_PROBLEMS {
+        out.truncate(MAX_LINE_PROBLEMS);
+        out.push(format!(
+            "{path}: {} more differing line(s)",
+            total - MAX_LINE_PROBLEMS
+        ));
+    }
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn line_differences_align_inserted_lines() {
+        let expected = "a\nb\nc\n";
+        assert!(line_differences("f", expected, expected).is_empty());
+        assert_eq!(
+            line_differences("f", expected, "a\nx\nb\nc\n"),
+            vec!["f:2: expected no line, found \"x\""]
+        );
+        assert_eq!(
+            line_differences("f", expected, "a\nB\nc\n"),
+            vec!["f:2: expected \"b\", found \"B\""]
+        );
+        assert_eq!(
+            line_differences("f", expected, "a\nc\n"),
+            vec!["f:2: expected \"b\", found no line"]
+        );
+    }
 
     #[test]
     fn coverage_accepts_every_hex_abbreviation() {

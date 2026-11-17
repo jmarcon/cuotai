@@ -41,11 +41,22 @@ on demand by the owner (PRD 0039 D8):
    version upward (recorded as `Version-Override:`).
 3. **Release PR.** `git push -u origin release/vX.Y.Z`, then
    `gh pr create --base main --head release/vX.Y.Z --title "chore(release): X.Y.Z" --body "$(git log -1 --format=%b)"`.
-   CI runs `release-preflight` with `release prepare --check`. Fix wording
-   in the section on the branch (amend the release commit); if more commits
-   land on `main` first, rebase the branch and run
-   `cargo xtask release prepare --refresh`, which keeps every edited entry
-   and adds the new commits. For the first three releases (D7), also run
+   CI runs `release-preflight` with `release prepare --check`. From the
+   release after 0.86.7, that check is **line by line**: it re-runs
+   `release prepare` against the parent commit (with the version of the
+   subject, the date of the section heading and the recorded edits) and
+   requires every release file to be byte-identical, so any hand edit fails
+   with `path:line`, the expected line and the found line. Fix wording with
+   `cargo xtask release edit <hash>#<n> [--category C] --text "<sentence>"`
+   on the release branch (`n` is the sentence number in that commit; several
+   ids merge their entries into one). It amends the release commit with a
+   `Changelog-Entry: <hash>#<n> [Category] <sentence>` trailer, re-renders
+   the section and re-runs the release check; push again with
+   `git push --force-with-lease`. The commit gate lints that sentence like a
+   `Changelog:` one. If more commits land on `main` first, rebase the branch
+   and run `cargo xtask release prepare --refresh`, which re-applies the
+   recorded edits and adds the new commits. Do not edit `CHANGELOG.md` in
+   the release commit by hand. For the first three releases (D7), also run
    **Actions → Release → Run workflow** on `release/vX.Y.Z` with
    **full_rehearsal**.
 4. **Merge** with **Rebase and merge**.

@@ -10,10 +10,9 @@ use std::process::Command;
 
 use super::render::{self, Entries};
 use super::{
-    bump_of, coverage_count, pending_release, release_base, release_commits, workspace_version,
-    Base, Tree,
+    bump_of, pending_release, release_base, release_commits, workspace_version, Base, Tree,
 };
-use crate::commits::{self, Bump};
+use crate::commits::{self, Bump, EntryEdit};
 use crate::{err, git, Error, Res, Version};
 
 /// Command-line options of `release prepare`.
@@ -29,6 +28,12 @@ pub struct Options {
     /// Run `cargo metadata --locked --offline` on both workspaces after
     /// writing (off in the temp-repository tests).
     pub verify_lockfiles: bool,
+    /// The recorded wording edits (`Changelog-Entry:`). `None` keeps those
+    /// of the prepared release being refreshed (none for a new release).
+    pub edits: Option<Vec<EntryEdit>>,
+    /// Extra `Key: value` trailers of the release commit (a session's
+    /// `Co-Authored-By:`), after the generated ones.
+    pub trailers: Vec<String>,
 }
 
 /// One file the release writes: path, current and new content.
@@ -54,12 +59,24 @@ pub struct Outcome {
     pub message: String,
     /// The release branch, when one was created.
     pub branch: Option<String>,
+    /// The wording edits applied to the section.
+    pub edits: Vec<EntryEdit>,
+    /// `<short> <subject>: <reason>` for every `Changelog: skip` commit.
+    pub skipped: Vec<String>,
+}
+
+/// A release commit re-rendered from its parent (the line-level check and
+/// `release edit`): its version and whether it records a
+/// `Version-Override:`, instead of the computed version.
+#[derive(Clone, Debug)]
+pub(crate) struct Replay {
+    pub version: Version,
+    pub overridden: bool,
 }
 
 /// Computes the release; writes it unless `--dry-run`. `Ok(None)` means
 /// "nothing to release" (RF3.5).
 pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
-    let work = Tree::Work(repo);
     // Before anything is computed: the release file set must match HEAD. A
     // hand-edited version location would otherwise become the "current"
     // version and silently drop out of the files the release writes and
@@ -85,7 +102,87 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
             dirty.join("\n")
         ));
     }
-    let current = workspace_version(&work.read("Cargo.toml")?)?;
+    let Some(mut outcome) = compute(repo, &Tree::Work(repo), "HEAD", opts, None)? else {
+        return Ok(None);
+    };
+    if opts.dry_run {
+        return Ok(Some(outcome));
+    }
+
+    let paths: Vec<&str> = outcome.changes.iter().map(|c| c.path.as_str()).collect();
+    // Every path the release writes must be tracked and unmodified: an
+    // untracked file (another worktree user's draft with `vNEXT`) is
+    // refused, never adopted.
+    let mut status_args = vec!["status", "--porcelain", "--untracked-files=all", "--"];
+    status_args.extend(paths.iter().copied());
+    let dirty = git::run(repo, &status_args)?;
+    if !dirty.trim().is_empty() {
+        return err(format!(
+            "these release files are modified or untracked; commit, discard or move them first:\n{}",
+            dirty.trim_end()
+        ));
+    }
+    if opts.branch {
+        let staged = git::run(repo, &["diff", "--cached", "--name-only"])?;
+        if !staged.trim().is_empty() {
+            return err(format!(
+                "the index already holds staged changes, which the release commit would include; unstage them first:\n{}",
+                staged.trim_end()
+            ));
+        }
+    }
+    let branch = format!("release/v{}", outcome.version);
+    if opts.branch && git::run(repo, &["rev-parse", "--verify", "--quiet", &branch]).is_ok() {
+        return err(format!(
+            "branch {branch} already exists; delete it or check it out and use --refresh"
+        ));
+    }
+    write_changes(repo, &outcome.changes)?;
+    if opts.verify_lockfiles {
+        verify_lockfiles(repo)?;
+    }
+    crate::check::run(repo, None, None)?;
+    crate::plan_links::run(repo, &Tree::Work(repo).read("CHANGELOG.md")?)?;
+    if opts.branch {
+        git::run(repo, &["switch", "-c", &branch])?;
+        let mut add = vec!["add", "--"];
+        add.extend(paths.iter().copied());
+        git::run(repo, &add)?;
+        let mut only = vec!["--"];
+        only.extend(paths.iter().copied());
+        super::git_with_message(
+            repo,
+            "CUOTAI_RELEASE_MSG",
+            &outcome.message,
+            &["commit", "--cleanup=verbatim"],
+            &only,
+        )?;
+        outcome.branch = Some(branch);
+    }
+    Ok(Some(outcome))
+}
+
+/// Writes every change atomically.
+pub(crate) fn write_changes(repo: &Path, changes: &[FileChange]) -> Res<()> {
+    for change in changes {
+        write_atomic(&repo.join(&change.path), &change.new)?;
+    }
+    Ok(())
+}
+
+/// The release computed from `tree` (the working tree, or the parent of a
+/// release commit being re-rendered) and the history of `rev`, written
+/// nowhere. Every file is produced by deterministic text edits, so the same
+/// inputs give byte-identical files: the line-level release check relies
+/// on it.
+pub(crate) fn compute(
+    repo: &Path,
+    tree: &Tree,
+    rev: &str,
+    opts: &Options,
+    replay: Option<&Replay>,
+) -> Res<Option<Outcome>> {
+    let current = workspace_version(&tree.read("Cargo.toml")?)?;
     let mut warnings = Vec::new();
     if opts.refresh && opts.version.is_some() {
         return err("--refresh keeps the prepared version; it cannot be combined with --version");
@@ -93,20 +190,22 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     // The base is always published (a stable tag or the internal baseline);
     // a release prepared after it but not tagged yet is `pending`, and its
     // section is refreshed instead of getting a second one.
-    let base = release_base(repo, "HEAD", None)?;
-    let pending = pending_release(repo, &base, "HEAD", &current)?;
+    let base = release_base(repo, rev, replay.map(|r| &r.version))?;
+    let pending = pending_release(repo, &base, rev, &current)?;
     if current > base.version && pending.is_none() {
         return err(format!(
-            "HEAD declares {current}, above the release base {}, but no 'chore(release): {current}' commit prepared it: \
+            "{rev} declares {current}, above the release base {}, but no 'chore(release): {current}' commit prepared it: \
              a version was raised by hand; revert that change and let release prepare compute the version",
             base.describe()
         ));
     }
-    let commits = release_commits(repo, &base.sha, "HEAD")?;
+    let commits = release_commits(repo, &base.sha, rev)?;
     let (bump, rationale) = bump_of(&commits, &base.version);
     let computed = commits::next_version(&base.version, bump);
     let recorded = pending.as_ref().and_then(|p| p.version_override.clone());
-    let (version, overridden) = if opts.refresh {
+    let (version, overridden) = if let Some(replay) = replay {
+        (replay.version.clone(), replay.overridden)
+    } else if opts.refresh {
         if pending.is_none() {
             return err(format!(
                 "--refresh needs a prepared release without a stable tag, but {current} is the published base {}",
@@ -180,8 +279,22 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
 
     warnings.extend(near_duplicates(&commits));
 
-    // The section (RF4.2/RF4.6).
-    let changelog = work.read("CHANGELOG.md")?;
+    // The recorded wording edits: given, or kept from the release being
+    // refreshed.
+    let edits: Vec<EntryEdit> = match &opts.edits {
+        Some(edits) => edits.clone(),
+        None => pending
+            .as_ref()
+            .map(|p| p.entry_edits.clone())
+            .unwrap_or_default(),
+    };
+    let items = render::items(&commits, &edits).map_err(Error::Msg)?;
+
+    // The section (RF4.2/RF4.6). A new release carries the `[Unreleased]`
+    // entries; a refresh re-renders every entry of the release's commits
+    // from their trailers and the recorded edits, and keeps only the lines
+    // that cite none of them.
+    let changelog = tree.read("CHANGELOG.md")?;
     let v = version.to_string();
     let mut entries: Entries = if refreshing {
         let body = render::section_body(&changelog, &v).ok_or_else(|| {
@@ -189,47 +302,40 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
                 "the prepared release {v} has no [{v}] section in CHANGELOG.md"
             ))
         })?;
-        render::entries_of(&body)
+        let existing = render::entries_of(&body);
+        let mut kept = Entries::new();
+        for (category, lines) in existing {
+            for line in lines {
+                let cites = commits
+                    .iter()
+                    .any(|(c, _)| super::is_covered(&line, &c.sha));
+                if !cites {
+                    kept.entry(category).or_default().push(line);
+                } else if !items.iter().any(|item| item.line == line) {
+                    warnings.push(format!(
+                        "the [{v}] section had an entry the commits do not render, which is replaced: \"{line}\"; record a wording change with `cargo xtask release edit`"
+                    ));
+                }
+            }
+        }
+        if !opts.refresh
+            && replay.is_none()
+            && items
+                .iter()
+                .all(|item| body.lines().any(|l| l.trim_end() == item.line))
+        {
+            // Prepared and complete: the next step is the tag, not a new commit.
+            return Ok(None);
+        }
+        kept
     } else {
         render::entries_of(&render::unreleased_body(&changelog))
     };
-    let existing: String = entries
-        .values()
-        .flatten()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
-    let mut added = 0usize;
-    for (commit, short) in &commits {
-        // Every `Changelog:` sentence needs its own entry. On a refresh the
-        // entries already citing the commit count (edited wording wins), and
-        // only the missing ones are added back, preferring sentences whose
-        // generated line is not present verbatim.
-        let cited = if refreshing {
-            coverage_count(&existing, &commit.sha)
-        } else {
-            0
-        };
-        let mut missing = commit.trailers.sentences.len().saturating_sub(cited);
-        for sentence in &commit.trailers.sentences {
-            if missing == 0 {
-                break;
-            }
-            let line = render::entry(commit, &sentence.text, short);
-            if refreshing && existing.lines().any(|l| l == line) {
-                continue;
-            }
-            missing -= 1;
-            added += 1;
-            entries
-                .entry(commit.entry_category(sentence))
-                .or_default()
-                .push(line);
-        }
-    }
-    if refreshing && !opts.refresh && added == 0 {
-        // Prepared and complete: the next step is the tag, not a new commit.
-        return Ok(None);
+    for item in &items {
+        entries
+            .entry(item.category)
+            .or_default()
+            .push(item.line.clone());
     }
     let section = render::section(&v, &opts.date, &entries);
     let replace = refreshing.then_some(v.as_str());
@@ -252,31 +358,31 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     };
     if version != current {
         let (c, n) = (current.to_string(), v.clone());
-        let text = work.read("Cargo.toml")?;
+        let text = tree.read("Cargo.toml")?;
         push(
             "Cargo.toml",
             text.clone(),
             set_section_version(&text, "[workspace.package]", &c, &n, "Cargo.toml")?,
         );
         let path = "apps/desktop/src-tauri/Cargo.toml";
-        let text = work.read(path)?;
+        let text = tree.read(path)?;
         push(
             path,
             text.clone(),
             set_section_version(&text, "[package]", &c, &n, path)?,
         );
         let path = "apps/desktop/src-tauri/tauri.conf.json";
-        let text = work.read(path)?;
+        let text = tree.read(path)?;
         push(path, text.clone(), set_tauri_version(&text, &c, &n)?);
         let path = "crates/cuotai-tui/Cargo.toml";
-        let text = work.read(path)?;
+        let text = tree.read(path)?;
         push(path, text.clone(), set_core_requirement(&text, &version)?);
-        let text = work.read("Cargo.lock")?;
+        let text = tree.read("Cargo.lock")?;
         let new = set_lock_version(&text, "cuotai-core", &c, &n, "Cargo.lock")?;
         let new = set_lock_version(&new, "cuotai-tui", &c, &n, "Cargo.lock")?;
         push("Cargo.lock", text, new);
         let path = "apps/desktop/src-tauri/Cargo.lock";
-        let text = work.read(path)?;
+        let text = tree.read(path)?;
         let new = set_lock_version(&text, "cuotai-core", &c, &n, path)?;
         let new = set_lock_version(&new, "cuotai-desktop", &c, &n, path)?;
         push(path, text, new);
@@ -287,13 +393,14 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
     let all: Vec<(&commits::Commit, String)> =
         commits.iter().map(|(c, s)| (c, s.clone())).collect();
     let rows = render::control_rows(&v, &all);
-    for path in work.plan_files()? {
-        let text = work.read(&path)?;
+    let plan_paths = tree.plan_files()?;
+    for (path, text) in plan_paths.iter().zip(tree.read_many(&plan_paths)?) {
+        let text = text.ok_or_else(|| Error::Msg(format!("cannot read {path}")))?;
         let (mut new, _) = render::replace_next(&text, &v);
         if path.starts_with("docs/plans/0000_") {
             new = render::update_control(&new, &v, &opts.date, &rows);
         }
-        push(&path, text, new);
+        push(path, text, new);
     }
 
     let skipped: Vec<String> = commits
@@ -304,9 +411,18 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         })
         .collect();
     let message = message(
-        &base, &version, bump, &rationale, &skipped, &section, refreshing, overridden,
+        &base,
+        &version,
+        bump,
+        &rationale,
+        &skipped,
+        &edits,
+        &section,
+        refreshing,
+        overridden,
+        &opts.trailers,
     );
-    let mut outcome = Outcome {
+    Ok(Some(Outcome {
         base,
         current,
         version,
@@ -317,64 +433,9 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         warnings,
         message,
         branch: None,
-    };
-    if opts.dry_run {
-        return Ok(Some(outcome));
-    }
-
-    let paths: Vec<&str> = outcome.changes.iter().map(|c| c.path.as_str()).collect();
-    // Every path the release writes must be tracked and unmodified: an
-    // untracked file (another worktree user's draft with `vNEXT`) is
-    // refused, never adopted.
-    let mut status_args = vec!["status", "--porcelain", "--untracked-files=all", "--"];
-    status_args.extend(paths.iter().copied());
-    let dirty = git::run(repo, &status_args)?;
-    if !dirty.trim().is_empty() {
-        return err(format!(
-            "these release files are modified or untracked; commit, discard or move them first:\n{}",
-            dirty.trim_end()
-        ));
-    }
-    if opts.branch {
-        let staged = git::run(repo, &["diff", "--cached", "--name-only"])?;
-        if !staged.trim().is_empty() {
-            return err(format!(
-                "the index already holds staged changes, which the release commit would include; unstage them first:\n{}",
-                staged.trim_end()
-            ));
-        }
-    }
-    let branch = format!("release/v{}", outcome.version);
-    if opts.branch && git::run(repo, &["rev-parse", "--verify", "--quiet", &branch]).is_ok() {
-        return err(format!(
-            "branch {branch} already exists; delete it or check it out and use --refresh"
-        ));
-    }
-    for change in &outcome.changes {
-        write_atomic(&repo.join(&change.path), &change.new)?;
-    }
-    if opts.verify_lockfiles {
-        verify_lockfiles(repo)?;
-    }
-    crate::check::run(repo, None, None)?;
-    crate::plan_links::run(repo, &Tree::Work(repo).read("CHANGELOG.md")?)?;
-    if opts.branch {
-        git::run(repo, &["switch", "-c", &branch])?;
-        let mut add = vec!["add", "--"];
-        add.extend(paths.iter().copied());
-        git::run(repo, &add)?;
-        let mut only = vec!["--"];
-        only.extend(paths.iter().copied());
-        super::git_with_message(
-            repo,
-            "CUOTAI_RELEASE_MSG",
-            &outcome.message,
-            &["commit", "--cleanup=verbatim"],
-            &only,
-        )?;
-        outcome.branch = Some(branch);
-    }
-    Ok(Some(outcome))
+        edits,
+        skipped,
+    }))
 }
 
 /// The would-be section of the next release, for `changelog-draft` and the
@@ -460,9 +521,11 @@ fn message(
     bump: Bump,
     rationale: &[String],
     skipped: &[String],
+    edits: &[EntryEdit],
     section: &str,
     refresh: bool,
     overridden: bool,
+    trailers: &[String],
 ) -> String {
     let refresh = if refresh { " (refresh)" } else { "" };
     let mut out = format!("chore(release): {version}{refresh}\n\n");
@@ -487,12 +550,28 @@ fn message(
         }
         out.push('\n');
     }
+    if !edits.is_empty() {
+        // F-02: the wording edits of this release, recorded as trailers so
+        // the line-level check and a refresh re-apply them.
+        out.push_str("Wording edits:\n");
+        for edit in edits {
+            out.push_str(&format!("- {edit}\n"));
+        }
+        out.push('\n');
+    }
     out.push_str(section.trim_end());
     out.push_str(&format!(
         "\n\nVersion {version}.\n\nChangelog: skip release commit\n"
     ));
     if overridden {
         out.push_str(&format!("Version-Override: {version}\n"));
+    }
+    for edit in edits {
+        out.push_str(&format!("Changelog-Entry: {edit}\n"));
+    }
+    for trailer in trailers {
+        out.push_str(trailer.trim());
+        out.push('\n');
     }
     commits::neutralize_skip_markers(&out) + "\n"
 }

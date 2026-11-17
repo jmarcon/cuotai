@@ -177,6 +177,23 @@ pub fn repo() -> (tempfile::TempDir, PathBuf) {
     (dir, repo)
 }
 
+/// The fixture repository with its root commit at `version`, tagged
+/// `v<version>` (a published release, so it is the release base).
+pub fn repo_at(version: &str) -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = dir.path().to_path_buf();
+    write_tree(&repo, version);
+    git(&repo, &["init", "-b", "main", "-q"]);
+    git(&repo, &["config", "user.email", "noreply@example.com"]);
+    git(&repo, &["config", "user.name", "Test"]);
+    git(&repo, &["config", "commit.gpgsign", "false"]);
+    git(&repo, &["config", "tag.gpgsign", "false"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "chore: fixture"]);
+    git(&repo, &["tag", &format!("v{version}")]);
+    (dir, repo)
+}
+
 /// Writes `file` and commits it with `message`.
 pub fn commit(repo: &Path, message: &str, file: &str, content: &str) -> String {
     write_file(repo, file, content);
@@ -225,6 +242,8 @@ pub fn options(dry_run: bool, branch: bool) -> xtask::release::prepare::Options 
         branch,
         refresh: false,
         verify_lockfiles: false,
+        edits: None,
+        trailers: Vec::new(),
     }
 }
 
@@ -235,5 +254,21 @@ pub fn amend(repo: &Path, file: &str, content: &str) {
     git(
         repo,
         &["commit", "-q", "--amend", "--no-edit", "--cleanup=verbatim"],
+    );
+}
+
+/// Commits the index with `message` verbatim (a generated release message).
+pub fn git_commit_message(repo: &Path, message: &str) {
+    let file = repo.join(".git").join("TEST_MSG");
+    std::fs::write(&file, message).unwrap();
+    git(
+        repo,
+        &[
+            "commit",
+            "-q",
+            "--cleanup=verbatim",
+            "-F",
+            file.to_str().unwrap(),
+        ],
     );
 }
