@@ -110,12 +110,58 @@ pub(crate) struct FileState {
     /// the scanner before each read. Never serialized.
     #[serde(skip)]
     pub key: Option<ProjectKey>,
+    /// PRD 0042 S-06: the unkeyed session digest sealed with the key
+    /// ([`ProjectKey::seal`]), so the request keys that include it stay
+    /// the ones stored before the session digests were keyed. Unreadable
+    /// without the key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seal: Option<String>,
+}
+
+impl FileState {
+    /// PRD 0042 S-06: record the session whose unkeyed digest is `plain`:
+    /// `session` holds it keyed to this computer, `seal` the sealed
+    /// original.
+    pub(crate) fn set_session(&mut self, plain: String) {
+        match &self.key {
+            Some(key) => {
+                let keyed = key.keyed(&plain);
+                self.seal = Some(key.seal(&plain, &keyed));
+                self.session = Some(keyed);
+            }
+            None => {
+                self.seal = None;
+                self.session = Some(plain);
+            }
+        }
+    }
+
+    /// The unkeyed digest of the session in effect (empty without one),
+    /// as the request keys of Codex CLI and Gemini CLI include it.
+    pub(crate) fn plain_session(&self) -> String {
+        let Some(session) = &self.session else {
+            return String::new();
+        };
+        match (&self.key, &self.seal) {
+            (Some(key), Some(seal)) => key.unseal(seal, session).unwrap_or_else(|| session.clone()),
+            _ => session.clone(),
+        }
+    }
+
+    /// The key of a request the tool may write twice: [`anonymous`],
+    /// keyed to this computer.
+    pub(crate) fn request_key(&self, source: SourceId, value: &str) -> String {
+        keyed_anonymous(self.key.as_ref(), source, value)
+    }
 }
 
 /// S-03: the per-installation key of the project fingerprints
 /// (`cost/fingerprint.key`). A fingerprint is
 /// `HMAC-SHA256(key, sha256(normalized folder)[..16])[..16]`, so a guessed
-/// folder path cannot be confirmed from it without the key.
+/// folder path cannot be confirmed from it without the key. PRD 0042 S-06:
+/// the same key turns the session, request and log-file digests into
+/// `HMAC-SHA256(key, digest)` ([`ProjectKey::keyed`]), so a known session id,
+/// message id or log path cannot be matched either.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ProjectKey(std::sync::Arc<[u8; 32]>);
 
@@ -134,21 +180,79 @@ impl ProjectKey {
         &self.0
     }
 
-    /// The keyed fingerprint of an unkeyed one (`legacy`, 16 hex).
-    pub(crate) fn fingerprint(&self, legacy: &str) -> String {
+    fn mac(&self, parts: &[&[u8]]) -> [u8; 32] {
         use hmac::{Hmac, Mac};
         let mut mac = Hmac::<sha2::Sha256>::new_from_slice(self.0.as_slice())
             .expect("HMAC takes a key of any length");
-        mac.update(legacy.as_bytes());
-        let mut text: String = mac
-            .finalize()
-            .into_bytes()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
+        for part in parts {
+            mac.update(part);
+        }
+        mac.finalize().into_bytes().into()
+    }
+
+    /// The keyed fingerprint of an unkeyed one (`legacy`, 16 hex).
+    pub(crate) fn fingerprint(&self, legacy: &str) -> String {
+        let mut text = hex(&self.mac(&[legacy.as_bytes()]));
         text.truncate(16);
         text
     }
+
+    /// PRD 0042 S-06: a session, request or log-file digest keyed to this
+    /// computer: `HMAC-SHA256(key, unkeyed)` in full (64 hex). Empty stays
+    /// empty (usage without a session).
+    pub(crate) fn keyed(&self, unkeyed: &str) -> String {
+        if unkeyed.is_empty() {
+            return String::new();
+        }
+        hex(&self.mac(&[unkeyed.as_bytes()]))
+    }
+
+    /// The pad that seals the unkeyed session digest behind `keyed`: unique
+    /// per session, unreadable without the key.
+    fn pad(&self, keyed: &str) -> [u8; 32] {
+        self.mac(&[b"cuotai session seal\0", keyed.as_bytes()])
+    }
+
+    /// PRD 0042 S-06: `plain` (a 64-hex digest) XORed with a pad derived
+    /// from its keyed form, as hex. [`Self::unseal`] reverses it with the
+    /// key; without the key it reveals nothing of `plain`.
+    pub(crate) fn seal(&self, plain: &str, keyed: &str) -> String {
+        let pad = self.pad(keyed);
+        let bytes: Vec<u8> = unhex(plain)
+            .unwrap_or_default()
+            .iter()
+            .zip(pad.iter().cycle())
+            .map(|(b, p)| b ^ p)
+            .collect();
+        hex(&bytes)
+    }
+
+    /// The unkeyed digest [`Self::seal`] sealed, when `seal` belongs to
+    /// `keyed` under this key.
+    pub(crate) fn unseal(&self, seal: &str, keyed: &str) -> Option<String> {
+        let pad = self.pad(keyed);
+        let bytes: Vec<u8> = unhex(seal)?
+            .iter()
+            .zip(pad.iter().cycle())
+            .map(|(b, p)| b ^ p)
+            .collect();
+        let plain = hex(&bytes);
+        (self.keyed(&plain) == keyed).then_some(plain)
+    }
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn unhex(text: &str) -> Option<Vec<u8>> {
+    if !text.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..text.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(text.get(i..i + 2)?, 16).ok())
+        .collect()
 }
 
 /// [`project_digest`] keyed with `key` (unkeyed only without one, which
@@ -188,8 +292,16 @@ pub(crate) fn instant(value: &str) -> Option<DateTime<Utc>> {
 
 /// The anonymous identifier of `value` for `source`: a SHA-256 digest, so
 /// the index can count sessions without holding the tool's identifiers.
+/// The index stores it keyed ([`keyed_anonymous`]).
 pub(crate) fn anonymous(source: SourceId, value: &str) -> String {
     digest(format!("{}\0{value}", source.slug()).as_bytes())
+}
+
+/// PRD 0042 S-06: [`anonymous`] keyed with `key` (unkeyed only without
+/// one, which only the adapters' unit tests do), as [`keyed_project`].
+pub(crate) fn keyed_anonymous(key: Option<&ProjectKey>, source: SourceId, value: &str) -> String {
+    let plain = anonymous(source, value);
+    key.map_or(plain.clone(), |key| key.keyed(&plain))
 }
 
 /// PRD 0042 RF1.1: the project fingerprint of a working directory: the

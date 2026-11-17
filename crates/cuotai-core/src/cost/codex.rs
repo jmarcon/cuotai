@@ -157,7 +157,7 @@ impl Source for CodexCli {
             Some("session_meta") => match payload::<SessionMeta>(line) {
                 Some(meta) => {
                     if let Some(id) = meta.id {
-                        state.session = Some(anonymous(source, &id));
+                        state.set_session(anonymous(source, &id));
                     }
                     note_project(state, meta.cwd.as_deref());
                     Line::Skip
@@ -206,6 +206,9 @@ impl Source for CodexCli {
                     return Line::Skip;
                 }
                 let session = state.session.clone().unwrap_or_default();
+                // S-06: over the unkeyed session digest, so a rollout read
+                // after the keying meets the keys stored before it.
+                let plain = state.plain_session();
                 Line::usage(Entry {
                     at,
                     model: state
@@ -215,7 +218,7 @@ impl Source for CodexCli {
                     tokens,
                     // The same rollout under `archived_sessions/` repeats
                     // the session's cumulative totals: counted once.
-                    dedup: Some(anonymous(source, &format!("{session}\0{total}"))),
+                    dedup: Some(state.request_key(source, &format!("{plain}\0{total}"))),
                     session,
                     project: state.project.clone(),
                 })

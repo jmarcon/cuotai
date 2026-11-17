@@ -425,7 +425,10 @@ impl Scanner {
         let mut pending = Vec::new();
         for candidate in candidates {
             let key = format!("{}\0{}", source.slug(), candidate.path.to_string_lossy());
-            let file = digest(key.as_bytes());
+            // S-06: the path's digest keyed to this computer; the plain one
+            // only names the anonymous session of a file without one.
+            let plain = digest(key.as_bytes());
+            let file = window.key.keyed(&plain);
             let known = match CostIndex::file(db, source, &file)? {
                 Some(row)
                     if row.identity != candidate.identity || candidate.size < row.examined =>
@@ -437,9 +440,9 @@ impl Scanner {
                 Some(row) if row.examined == candidate.size => continue,
                 known => known,
             };
-            pending.push((candidate, file, known));
+            pending.push((candidate, (file, plain), known));
         }
-        for (candidate, file, known) in pending {
+        for (candidate, (file, plain), known) in pending {
             if budget.spent() {
                 scan.complete = false;
                 break;
@@ -455,15 +458,15 @@ impl Scanner {
                 Some(row) if row.backfill > 0 && row.position == 0 => FileRow {
                     backfill: row.backfill,
                     invalid: row.invalid,
-                    ..FileRow::fresh(source, &file, row.identity)
+                    ..FileRow::fresh(source, &plain, &window.key, row.identity)
                 },
                 Some(row) => row,
-                None => FileRow::fresh(source, &file, candidate.identity.clone()),
+                None => FileRow::fresh(source, &plain, &window.key, candidate.identity.clone()),
             };
             let mut entries = Vec::new();
             let (row, mut found) = match self.read_file(
                 source,
-                &file,
+                &plain,
                 &candidate.path,
                 row,
                 window,
@@ -615,7 +618,7 @@ impl Scanner {
     fn read_file(
         &self,
         source: SourceId,
-        file: &str,
+        plain: &str,
         path: &Path,
         mut row: FileRow,
         window: &Window,
@@ -633,7 +636,7 @@ impl Scanner {
         let mut found = FileRead::default();
         // Replaced between the listing and the opening: start over.
         if identity(&meta) != row.identity || size < row.position {
-            row = FileRow::fresh(source, file, identity(&meta));
+            row = FileRow::fresh(source, plain, &window.key, identity(&meta));
             found.restarted = true;
         }
         handle.seek(SeekFrom::Start(row.position))?;
@@ -735,22 +738,26 @@ struct Window {
     oldest: SystemTime,
     /// PRD 0042 RF4.3: the source keeps the last folder name of projects.
     keep_folders: bool,
-    /// S-03: the key of the project fingerprints.
+    /// S-03: the key of the project fingerprints (and, S-06, of every
+    /// session, request and log-file digest).
     key: ProjectKey,
 }
 
 impl FileRow {
     /// A file read from its start; its usage without a session identifier
-    /// counts as one anonymous session per file.
-    fn fresh(source: SourceId, file: &str, identity: String) -> Self {
+    /// counts as one anonymous session per file (from the unkeyed digest
+    /// of its path, `plain`, then keyed as every session).
+    fn fresh(source: SourceId, plain: &str, key: &ProjectKey, identity: String) -> Self {
+        let mut state = FileState {
+            key: Some(key.clone()),
+            ..FileState::default()
+        };
+        state.set_session(anonymous(source, plain));
         Self {
             identity,
             examined: 0,
             position: 0,
-            state: FileState {
-                session: Some(anonymous(source, file)),
-                ..FileState::default()
-            },
+            state,
             invalid: 0,
             backfill: 0,
         }

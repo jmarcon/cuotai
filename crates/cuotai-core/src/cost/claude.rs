@@ -156,11 +156,13 @@ impl Source for ClaudeCode {
         }
         let source = self.id();
         if let Some(session) = record.session_id.as_deref() {
-            state.session = Some(anonymous(source, session));
+            state.set_session(anonymous(source, session));
         }
         let dedup = match (message.id.as_deref(), record.request_id.as_deref()) {
-            (Some(id), Some(request)) => Some(anonymous(source, &format!("{id}\0{request}"))),
-            (Some(id), None) => Some(anonymous(source, id)),
+            (Some(id), Some(request)) => {
+                Some(state.request_key(source, &format!("{id}\0{request}")))
+            }
+            (Some(id), None) => Some(state.request_key(source, id)),
             _ => None,
         };
         Line::usage(Entry {
