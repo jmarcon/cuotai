@@ -13,6 +13,33 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.9] - 2026-11-17
+
+### Added
+
+- The new `--feed claude-statusline --forget` and a Settings button erase the stored Claude Code readings (PRD 0040 RF4.3, RF1.2; 396d6cf).
+- The export and `/v1/limits` add `reading_age_seconds`, the age of the reading itself (PRD 0040 RF3.2; 8b006ac).
+
+### Fixed
+
+- A new Claude Code window or Codex session that has not reported its limits yet no longer blanks the account, and a hybrid account falls back to the query (PRD 0040 RF3.4, RF4.1, RF5.1; a02e657).
+- The status line of a new Claude Code window shows the account's last known windows with their age (PRD 0040 RF3.4, RF4.1, RF5.1; a02e657).
+- The Codex CLI consent now says it also covers the rate-limit windows, so it is asked again (PRD 0040 RF4.3, RF1.2; 396d6cf).
+- Adding a Claude or ChatGPT account asks for the source first, skips the credential for a feed mode, and asks before it opens the browser to sign in (PRD 0040 RF3.5; de67df2).
+- The `--feed claude-statusline` and `--statusline-claude` commands give up on a silent input after a quarter of a second and print nothing, so a prompt is never held (PRD 0040 RF1.3, RF2.3; a9df27d).
+- The `--doctor` report and the account details count feed files that could not be read (PRD 0040 RF1.3, RF2.3; a9df27d).
+- Turning off Show live agent session now stops the sessions from being computed and from being shared by the local servers (PRD 0040 RF7.2, RF1.1, RF8.1; fb024e1).
+- Claude Code readings live in one fixed folder, so a desktop with a moved data folder sees them (PRD 0040 RF7.2, RF1.1, RF8.1; fb024e1).
+- The Claude Code snippet in Settings says it needs the terminal version and uses its full path when Cuotai finds it (PRD 0040 RF7.2, RF1.1, RF8.1; fb024e1).
+- A Claude Code or Codex CLI reading shows its real age and reads stale on the cards, in details, in the menu bar, in the widget, in `--once` and in `--status-line` (PRD 0040 RF3.2; 8b006ac).
+- The `--status-line` and `--statusline-claude` commands and the menu bar show an old or failed reading's age in parentheses instead of a dot that looked like the separator (PRD 0040 RF5.1, RF5.2, RF5.3; 75f29f4).
+- The `--statusline-claude --account` option takes an id, a key or a unique name like `--status-line`, and an unknown value is reported (PRD 0040 RF5.1, RF5.2, RF5.3; 75f29f4).
+- A Claude account fed by Claude Code, or one that fell back to the query, says on its card which source gave the figure (PRD 0040 RF3.4, RF6.1; 5667290).
+
+### Security
+
+- Turning the Codex CLI local source off erases the Codex rate-limit readings too, and nothing shows or exports them without that consent (PRD 0040 RF4.3, RF1.2; 396d6cf).
+
 ## [0.86.8] - 2026-11-17
 
 ### Fixed
@@ -1069,7 +1096,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.8...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.9...HEAD
+[0.86.9]: https://github.com/jmarcon/cuotai/compare/v0.86.8...v0.86.9
 [0.86.8]: https://github.com/jmarcon/cuotai/compare/v0.86.7...v0.86.8
 [0.86.7]: https://github.com/jmarcon/cuotai/compare/v0.86.6...v0.86.7
 [0.86.6]: https://github.com/jmarcon/cuotai/compare/v0.86.5...v0.86.6

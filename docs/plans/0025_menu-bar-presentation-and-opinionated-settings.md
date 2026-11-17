@@ -188,7 +188,7 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, `n
 | ~~Default style~~ | **Decided on 2026-10-23 (decision N):** `TightestPercent`. |
 | ~~Exact elements of Detailed, Standard and Minimal~~ | **Set by `docs/design-system.md` DS-CMP-DENS-1.** |
 | Should the first run also offer reset notices | No, per the PRD 0003 owner decision (off by default). |
-| ~~**Open (re-validation V-12):** the stale mark "·" sits against the separator " · " ("5%· · Old")~~ | **Closed by the PRD 0040 re-validation (V-04, vNEXT):** the title, `--status-line` and `--statusline-claude` end a stale figure with the reading's age in parentheses ("5% (2 h) · Old", "(stale)" when its time is unknown); DS-CMP-MENU-2 amended. |
+| ~~**Open (re-validation V-12):** the stale mark "·" sits against the separator " · " ("5%· · Old")~~ | **Closed by the PRD 0040 re-validation (V-04, 0.86.9):** the title, `--status-line` and `--statusline-claude` end a stale figure with the reading's age in parentheses ("5% (2 h) · Old", "(stale)" when its time is unknown); DS-CMP-MENU-2 amended. |
 | **Open (PRD 0040 re-validation V-04):** Meters and Icon only have no text, so a stale reading there is only left out of the tightest; it has no mark of its own | Needs a stale glyph drawn inside the template image (a design decision for the ring and the meters). |
 | **Open (V-14 item 3):** an account that needs sign-in or failed reads "No data" in Settings › Menu bar (the mockup says "Auth needed") | Needs a status in `AccountView`. |
 | **Open (V-14 item 4):** the "Saved" toast covers a check of the account list while it shows | PRD 0020 toast placement. |

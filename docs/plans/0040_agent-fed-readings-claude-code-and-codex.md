@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0040 |
-| Status | Awaiting owner verification (2026-11-17 re-validation fixes in vNEXT) |
+| Status | Awaiting owner verification (2026-11-17 re-validation fixes in 0.86.9) |
 | Owner | `cuotai-core` (feed store, feed readers, provider source mode, access descriptor, status-line composer), `cuotai-tui` (`--feed`, `--statusline-claude`), desktop (live-session chip, Settings rows) |
 | Consumers | Every front end (cards, details, tray, `--once`, `--json-v1`, `--serve`, `--watch`), status-bar recipes of PRD 0031 |
 | Depends on | PRD 0005 (access descriptor), PRD 0010 (freshness and age), PRD 0029 (stable account id, to bind a feed to an account) |
@@ -28,11 +28,11 @@
 
 **Owner verification:** the §11 smoke with a real Claude Code session (status line shows Claude's windows plus the tightest other account within one prompt, the card reads its age from the feed, closing Claude Code ages the reading) and one real Codex CLI log; listed in `0000_control.md` §2.1.
 
-### 2026-11-17 re-validation (vNEXT)
+### 2026-11-17 re-validation (0.86.9)
 
-The re-validation (Visual, Security, Review) found 2 high, 11 medium and 16 low findings; the fixes ship in vNEXT, one commit per group:
+The re-validation (Visual, Security, Review) found 2 high, 11 medium and 16 low findings; the fixes ship in 0.86.9, one commit per group:
 
-| Group | Findings | RF | Delivery (vNEXT) |
+| Group | Findings | RF | Delivery (0.86.9) |
 |---|---|---|---|
 | G1 | H-1, M-4, L-13 | RF3.2 | One core presentation, `freshness::present` (`measured_at`, age, freshness, "read"/"queried" wording); the TUI card, details and `--once` heading, the desktop age chip and tooltip, the menu-bar views, the widget and the status lines age a fed reading from when the agent wrote it; `--status-line` exits 2 on a stale selected account; the export and `/v1/limits` add `reading_age_seconds`. Cross-surface test `tests/stale_feed_surfaces.rs`, guard `freshness_guard_tests.rs`, `scripts/test-stale-feed-ui.mjs`. |
 | G2 | H-2 | RF3.4, RF4.1, RF5.1 | `feed::account_reading` merges per window (newest reading carrying each window with its reset ahead); the hybrid answers from the feed only when a reading with a limit window is younger than the interval; the status lines keep the account's windows in a new Claude Code window; Codex reads up to 16 logs of the last 24 h. Limitation: two Claude accounts in two Claude Code windows can mix (bind one). |
