@@ -158,8 +158,14 @@ impl Server {
             if status == 200 {
                 return serde_json::from_str(&body).unwrap();
             }
-            assert_eq!(status, 503, "{body}");
             assert!(Instant::now() < deadline, "no reading in time");
+            // A slow first sweep (a loaded runner) can outlast the per-peer burst of 20 polls:
+            // the server then answers 429, and one poll a second stays within its 60 a minute.
+            if status == 429 {
+                std::thread::sleep(Duration::from_secs(1));
+                continue;
+            }
+            assert_eq!(status, 503, "{body}");
             std::thread::sleep(Duration::from_millis(100));
         }
     }
