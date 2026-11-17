@@ -2256,7 +2256,7 @@
     "other": "{prefix} — finestra di {count} ore (%)"
   },
   "metric.label.window_seconds": "{prefix} — finestra di {n}s (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "metric.label.rate_limit_of": "{label} (limite di frequenza)",
   "metric.label.extra_usage_used": "Uso extra — utilizzato",
   "metric.unit.provider_units": "unità del provider",
   "metric.label.overage_of": "{label} (eccedenza)",

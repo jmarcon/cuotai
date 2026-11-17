@@ -117,6 +117,7 @@ fn every_fixture_text_has_an_english_display_text() {
 fn raw_metric_texts_never_reach_a_surface() {
     use crate::events::{Event, EventKind, MetricReading, MetricRef, Values};
     use crate::metric_text::metric_text;
+    use crate::text::ParamValue;
     use crate::{Account, Config, MetricKind, Provider, Report, Status};
     use chrono::TimeZone;
 
@@ -303,6 +304,45 @@ fn raw_metric_texts_never_reach_a_surface() {
                 let line = event.summary().resolve(locale);
                 problems.extend(leaks(kind.name(), locale, &[line]));
             }
+        }
+    }
+    // Paid extra usage counted in each adapter unit (PRD 0034 re-validation,
+    // G13): the state line, the chip summaries, the cap and the amount the
+    // alerts and events print.
+    for metric in metrics.iter().filter(|m| !m.unit.trim().is_empty()) {
+        let mut extra = metric.clone();
+        extra.used = Some(2.0);
+        extra.limit = Some(10.0);
+        let report = Report {
+            account_id: None,
+            diagnostic: None,
+            account: "Probe".into(),
+            provider: Provider::Groq,
+            checked_at: now,
+            status: Status::Ready,
+            metrics: vec![extra.overage()],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        let state = crate::overage::assess(&report).expect("an overage reading");
+        let export = crate::overage::OverageExport::from(&state);
+        let amounts = [state.cap_amount(), state.amount(), export.amount()];
+        for locale in ["en-US", "de"] {
+            let mut lines: Vec<String> = [state.text(), state.summary_with_limit_hit()]
+                .iter()
+                .map(|text| text.resolve(locale))
+                .collect();
+            lines.extend(amounts.iter().flatten().map(|amount| match amount {
+                ParamValue::Text(text) => text.clone(),
+                ParamValue::L10n(text) => text.resolve(locale),
+            }));
+            problems.extend(leaks("overage", locale, &lines));
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));

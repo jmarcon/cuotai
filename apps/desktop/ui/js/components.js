@@ -75,7 +75,7 @@ export function extraColumnHtml(r) {
   const title = t("card.extra.title");
   const cycle = fmtReset(o.cycle_ends_at);
   // PRD 0034 re-validation V-10: the cap amount's number never wraps away from its unit (`12 credits`).
-  const capText = cap != null ? fmtExtra(cap, o.unit, o.currency).replace(/ /g, "\u00a0") : null;
+  const capText = cap != null ? fmtExtra(cap, o.unit, o.currency, o.unit_name).replace(/ /g, "\u00a0") : null;
   const under = capText != null ? t("detail.extra.cap", { cap: capText }) : cycle ? t("detail.extra.cycle", { when: cycle }) : "";
   return `<div class="win extra" data-overage-row data-overage-state="${esc(o.state)}" title="${esc(tl(o.text))}">
     <div class="win-top"><span class="win-name">${esc(title)}</span></div>

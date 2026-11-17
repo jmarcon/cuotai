@@ -1750,8 +1750,8 @@ mod tests {
     /// PRD 0035 RF3.2: the desktop UI catalogs, against `en-US.json` (the
     /// UI source). en-US also carries core ids the core cannot give it
     /// (there is no en-US core catalog); the others take those from their
-    /// core catalog. pt-BR keeps two leftovers of its time as the source.
-    /// Both lists only shrink.
+    /// core catalog, so no other UI catalog carries a core id: its copy
+    /// would cover the core's text. The list only shrinks.
     #[test]
     fn desktop_ui_catalogs_are_in_parity() {
         const EN_US_ONLY: &[&str] = &[
@@ -1770,7 +1770,6 @@ mod tests {
             "status.rate_limited",
             "status.unsupported",
         ];
-        const PT_BR_EXTRA: &[&str] = &["status.ready", "edit_error.login_cleanup_failed"];
         let dir =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/desktop/ui/locales");
         let read = |code: &str| {
@@ -1799,18 +1798,20 @@ mod tests {
                 continue;
             }
             let catalog = read(row.code);
-            let extra = if row.code == "pt-BR" {
-                PT_BR_EXTRA
-            } else {
-                &[]
-            };
+            for id in EN_US_ONLY {
+                assert!(
+                    !catalog.contains_key(*id),
+                    "{}.json repeats the core id {id}, covering the core catalog's text",
+                    row.code
+                );
+            }
             problems.extend(parity::problems(
                 row,
                 &catalog,
                 &reference,
                 parity::Allowances {
                     missing: EN_US_ONLY,
-                    extra,
+                    extra: &[],
                     literal_braces: &[],
                 },
             ));

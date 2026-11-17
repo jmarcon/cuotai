@@ -123,12 +123,6 @@
   "settings.kw.live-session": "sessão ao vivo agente contexto custo claude code codex",
   "settings.liveSession.help": "A parcela de contexto e a estimativa de custo do próprio agente de cada sessão em andamento do Claude Code ou do Codex CLI, no cartão da conta e na bandeja. Só informação: nunca notificada.",
   "settings.liveSession.show": "Mostrar sessão ao vivo do agente",
-  "status.ready": "Atualizado",
-  "status.needs_configuration": "Configurar",
-  "status.unsupported": "Indisponível",
-  "status.authentication_error": "Autenticação",
-  "status.rate_limited": "Limite de uso",
-  "status.error": "Erro",
   "quota.count": {
     "one": "{count} quota",
     "other": "{count} quotas"
@@ -709,7 +703,6 @@
   "settings.refresh.saved": "Intervalo atualizado.",
   "settings.refresh.presets": "Atalhos",
   "settings.refresh.min": "mín. 30 s",
-  "edit_error.login_cleanup_failed": "A configuração e a nova credencial foram salvas; a credencial anterior permanece no cofre porque não foi possível removê-la.",
   "models.title": "Modelos",
   "models.search": "Buscar modelo por ID ou nome",
   "models.sync": "Sincronizar modelos",

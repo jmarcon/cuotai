@@ -2236,7 +2236,7 @@
     "other": "{prefix} — khung {count} giờ (%)"
   },
   "metric.label.window_seconds": "{prefix} — khung {n} giây (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "metric.label.rate_limit_of": "{label} (giới hạn tốc độ)",
   "metric.label.extra_usage_used": "Sử dụng thêm — đã dùng",
   "metric.unit.provider_units": "đơn vị của nhà cung cấp",
   "metric.label.overage_of": "{label} (vượt mức)",
