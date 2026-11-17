@@ -955,7 +955,7 @@ impl<'a> Instance<'a> {
             // of it) sending the request to its login page: authentication,
             // never followed and never retried.
             300..=399 => Err(redirected()),
-            _ => Err(http_error(code)),
+            _ => Err(super::http_failure(code)),
         }
     }
 }
@@ -1007,22 +1007,6 @@ fn redirected() -> QueryError {
     }
 }
 
-fn http_error(code: u16) -> QueryError {
-    QueryError {
-        diagnostic: None,
-        status: match code {
-            401 | 403 => Status::AuthenticationError,
-            429 => Status::RateLimited,
-            _ => Status::Error,
-        },
-        note: Localized::with_params(
-            "query.http",
-            params([("code", ParamValue::from(code))]),
-            "Query returned HTTP {code}. Check access and permissions.",
-        ),
-    }
-}
-
 /// Classify a response that is not a success without reading its body. A
 /// redirect (the client never follows one) is the instance sending the
 /// request to its login page.
@@ -1044,7 +1028,7 @@ fn check_status(response: &Response) -> Result<(), QueryError> {
             ),
         });
     }
-    Err(http_error(status.as_u16()))
+    Err(super::http_failure(status.as_u16()))
 }
 
 // ---------------------------------------------------------------------------

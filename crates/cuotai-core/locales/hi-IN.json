@@ -51,7 +51,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -1909,6 +1912,9 @@
   "query.eleven_labs.region": "रीजन अमान्य है: params.region में default, us, eu, in या sg इस्तेमाल करें।",
   "query.gemini_ai.unsupported": "Gemini AI (AI Studio API कुंजी, `generativelanguage.googleapis.com`) उपयोग या बचे कोटे का कोई सार्वजनिक एंडपॉइंट नहीं देता। मान केवल AI Studio डैशबोर्ड (https://aistudio.google.com/rate-limit) में दिखते हैं। प्रोग्राम से जाँच के लिए उसी खाते को OAuth से 'Gemini (Cloud Monitoring)' में पंजीकृत करें (`serviceruntime.googleapis.com/quota/limit` और `quota/rate/net_usage` पर monitoring.timeSeries.list)। स्रोत: {source}।",
   "query.http": "जाँच ने HTTP {code} लौटाया। पहुँच और अनुमतियाँ जाँचें।",
+  "query.http_redirect": "प्रदाता ने रीडायरेक्ट से जवाब दिया (HTTP {code}), जिसका Cuotai पालन नहीं करता; उसका पता या इंटरफ़ेस बदल गया हो सकता है।",
+  "query.http_server": "प्रदाता ने सर्वर त्रुटि से जवाब दिया (HTTP {code}); बाद में फिर कोशिश करें।",
+  "query.http_unavailable": "प्रदाता उपलब्ध नहीं है या रखरखाव में है (HTTP 503); बाद में फिर कोशिश करें।",
   "query.inference.grok_team_id_required": "console.x.ai/team/default/settings/team में दिखने वाली Team ID के साथ params.team_id सेट करें।",
   "query.inference.invalid_path_identifier": "params.{key} में पहचानकर्ता के लिए अमान्य अक्षर हैं।",
   "query.inference.missing_endpoint_credential": "इस एंडपॉइंट के लिए {class} कुंजी गायब है। {hint}",

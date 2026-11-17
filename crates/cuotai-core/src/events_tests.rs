@@ -541,6 +541,13 @@ fn failures_are_classified_by_status_and_note_id() {
             Some(C::InvalidOutput),
         ),
         (Status::Error, "query.http", Some(C::ProviderError)),
+        (Status::Error, "query.http_redirect", Some(C::ProviderError)),
+        (Status::Error, "query.http_server", Some(C::ProviderError)),
+        (
+            Status::Error,
+            "query.http_unavailable",
+            Some(C::ProviderError),
+        ),
         (
             Status::AuthenticationError,
             "query.http",

@@ -592,22 +592,68 @@ pub(crate) async fn json_checked<T: DeserializeOwned>(
     let response = send_checked(request, allow_private_http).await?;
     let code = response.status();
     if !code.is_success() {
-        return Err(QueryError {
-            diagnostic: None,
-            status: match code.as_u16() {
+        return Err(http_failure(code.as_u16()));
+    }
+    let bytes = read_body(response, BODY_LIMIT).await?;
+    decode_bytes(&bytes)
+}
+
+/// The failure for an answer that is not a success, by its HTTP code alone
+/// (PRD 0037 RF7): a redirect (the clients never follow one), a server
+/// error and a 503 maintenance each get their own explanation; 401/403 are
+/// an authentication error and 429 a rate limit; any other code keeps the
+/// generic "check access" note. Adapters with their own texts call it for
+/// the codes they do not classify themselves.
+pub(crate) fn http_failure(code: u16) -> QueryError {
+    let code_param = || params([("code", ParamValue::from(code))]);
+    let (status, note) = match code {
+        300..=399 => (
+            Status::Error,
+            Localized::with_params(
+                "query.http_redirect",
+                code_param(),
+                "The provider answered with a redirect (HTTP {code}), which Cuotai does not follow; its address or interface may have changed.",
+            ),
+        ),
+        503 => (
+            Status::Error,
+            Localized::fixed(
+                "query.http_unavailable",
+                "The provider is unavailable or in maintenance (HTTP 503); try again later.",
+            ),
+        ),
+        500..=599 => (
+            Status::Error,
+            Localized::with_params(
+                "query.http_server",
+                code_param(),
+                "The provider answered with a server error (HTTP {code}); try again later.",
+            ),
+        ),
+        _ => (
+            match code {
                 401 | 403 => Status::AuthenticationError,
                 429 => Status::RateLimited,
                 _ => Status::Error,
             },
-            note: Localized::with_params(
+            Localized::with_params(
                 "query.http",
-                params([("code", ParamValue::from(code.as_u16()))]),
+                code_param(),
                 "Query returned HTTP {code}. Check access and permissions.",
             ),
-        });
+        ),
+    };
+    QueryError {
+        diagnostic: None,
+        status,
+        note,
     }
-    let bytes = read_body(response, BODY_LIMIT).await?;
-    decode_bytes(&bytes)
+}
+
+/// Whether [`http_failure`] has its own explanation for `code` (a redirect
+/// or a server error), which beats an adapter's generic HTTP note.
+pub(crate) fn http_failure_is_specific(code: u16) -> bool {
+    matches!(code, 300..=399 | 500..=599)
 }
 
 /// Parse `bytes` as JSON and decode them as `T` with the shared decoder, so
@@ -775,6 +821,45 @@ pub(crate) fn retry_after_seconds(headers: &reqwest::header::HeaderMap) -> Optio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0037 RF7: every non-success code maps to one status and one note,
+    /// and only 401/403/429 and the other 4xx keep the "check access" note.
+    #[test]
+    fn http_failure_explains_redirects_server_errors_and_maintenance() {
+        for (code, status, id) in [
+            (301, Status::Error, "query.http_redirect"),
+            (302, Status::Error, "query.http_redirect"),
+            (307, Status::Error, "query.http_redirect"),
+            (308, Status::Error, "query.http_redirect"),
+            (400, Status::Error, "query.http"),
+            (401, Status::AuthenticationError, "query.http"),
+            (402, Status::Error, "query.http"),
+            (403, Status::AuthenticationError, "query.http"),
+            (404, Status::Error, "query.http"),
+            (429, Status::RateLimited, "query.http"),
+            (500, Status::Error, "query.http_server"),
+            (502, Status::Error, "query.http_server"),
+            (503, Status::Error, "query.http_unavailable"),
+            (504, Status::Error, "query.http_server"),
+            (599, Status::Error, "query.http_server"),
+        ] {
+            let failure = http_failure(code);
+            assert_eq!((failure.status, &*failure.note.id), (status, id), "{code}");
+            assert!(failure.diagnostic.is_none());
+            assert_eq!(
+                http_failure_is_specific(code),
+                !id.ends_with("query.http"),
+                "{code}"
+            );
+            let english = failure.note.resolve("en-US");
+            assert!(english.contains(&code.to_string()), "{english}");
+            assert_eq!(
+                english.contains("Check access"),
+                id == "query.http",
+                "{english}"
+            );
+        }
+    }
 
     #[tokio::test]
     async fn paginate_stops_on_repeated_token_and_page_limit() {

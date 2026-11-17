@@ -400,15 +400,7 @@ fn classify_http(code: u16, product: Product, expired: bool) -> QueryError {
             "query.open_router.rate_limited",
             "OpenRouter rate-limited the queries; the next refresh tries again.",
         ),
-        _ => QueryError {
-            status: Status::Error,
-            note: Localized::with_params(
-                "query.http",
-                params([("code", ParamValue::from(code))]),
-                "Query returned HTTP {code}. Check access and permissions.",
-            ),
-            diagnostic: None,
-        },
+        _ => super::http_failure(code),
     }
 }
 
@@ -1822,7 +1814,7 @@ mod tests {
         let error = key_err(ResponseTemplate::new(500)).await;
         assert_eq!(
             (error.status, &*error.note.id),
-            (Status::Error, "query.http")
+            (Status::Error, "query.http_server")
         );
         let server = serve(
             KEY_PATH,

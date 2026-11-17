@@ -113,6 +113,7 @@ async fn get(
                 ),
             });
         }
+        s if super::http_failure_is_specific(s) => return Err(super::http_failure(s)),
         s if !(200..300).contains(&s) => {
             return Err(QueryError {
                 diagnostic: None,
