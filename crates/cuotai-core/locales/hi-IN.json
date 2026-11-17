@@ -37,7 +37,12 @@
       "query.nine_router.not_nine_router",
       "query.nine_router.listener_foreign",
       "test.nine_router.listener_foreign",
-      "config.warning.private_http"
+      "config.warning.private_http",
+      "note.aggregator.figure_refused",
+      "note.aggregator.metrics_truncated",
+      "note.aggregator.instance_truncated",
+      "note.aggregator.duplicate_ids",
+      "note.litellm.truncated"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -1334,6 +1339,13 @@
   "network.clock_behind": "इस कंप्यूटर की घड़ी प्रदाताओं के सर्वरों से लगभग {minutes} मिनट पीछे है। समय, आयु और रीसेट गलत दिख सकते हैं: स्वचालित दिनांक और समय चालू करें, फिर रीफ़्रेश करें।",
   "network.trust_store_empty": "सिस्टम के सर्टिफ़िकेट स्टोर से कोई भरोसेमंद रूट सर्टिफ़िकेट लोड नहीं हो सका, इसलिए सुरक्षित कनेक्शन संभव नहीं है। सिस्टम सर्टिफ़िकेट ठीक या अपडेट करें और Cuotai फिर से शुरू करें।",
   "note.alibaba_billing.balance_field_semantics": "AvailableAmount = कुल उपलब्ध बैलेंस (नकद + क्रेडिट + वाउचर + कूपन)। AvailableCashAmount = केवल नकद। CreditAmount = Alibaba की कुल क्रेडिट सीमा (Mybank सहित)।",
+  "note.aggregator.figure_refused": "{aggregator} द्वारा बताया गया एक मान सीमा से बाहर था और नहीं दिखाया गया।",
+  "note.aggregator.duplicate_ids": {
+    "one": "{count} दोहराया गया कनेक्शन छोड़ दिया गया।",
+    "other": "{count} दोहराए गए कनेक्शन छोड़ दिए गए।"
+  },
+  "note.aggregator.instance_truncated": "इस इंस्टेंस की केवल पहली 4000 सीमाएँ दिखाई गई हैं; बाकी छोड़ दी गईं।",
+  "note.aggregator.metrics_truncated": "इस कनेक्शन की केवल कुछ सीमाएँ दिखाई गई हैं; बाकी छोड़ दी गईं।",
   "note.alibaba_billing.balance_metadata_currency": "मुद्रा: {currency}।",
   "note.alibaba_billing.balance_metadata_currency_cycle": "मुद्रा: {currency}। मौजूदा BillingCycle: {billing_cycle}।",
   "note.alibaba_billing.balance_metadata_cycle": "मौजूदा BillingCycle: {billing_cycle}।",
@@ -1453,6 +1465,7 @@
   "note.kimi.platform_key_scope": "platform.kimi.ai की कुंजी platform.kimi.com (Kimi Code/Membership सदस्यता) से स्वतंत्र है; कुंजी को किसी और एंडपॉइंट पर इस्तेमाल करने से 401 मिलता है।",
   "note.litellm.no_budgets": "LiteLLM में प्रदाता-वार बजट (provider_budget_config) नहीं हैं; दिखाने को कुछ नहीं।",
   "note.litellm.summary": "LiteLLM में बजट वाले {total} प्रदाता।",
+  "note.litellm.truncated": "LiteLLM में पढ़ने की सीमा (200) से ज़्यादा प्रदाता हैं; बाकी छोड़ दिए गए।",
   "note.metered.interval_raised": "कॉन्फ़िगर किया अंतराल {configured} सेकंड बढ़ाकर {effective} सेकंड कर दिया गया क्योंकि प्रदाता प्रति जाँच बिल करता है।",
   "note.mimo_platform.cash_balance": "चुकाया बैलेंस: {amount} {currency}।",
   "note.mimo_platform.console_api_reference": "स्रोत: {base}। वेब कंसोल के रूट सार्वजनिक रूप से दस्तावेज़ीकृत नहीं (संदर्भ: CodexBar MIT, MiMoUsageFetcher.swift); बिना सूचना बदल सकते हैं।",

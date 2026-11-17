@@ -13,7 +13,7 @@ use chrono::{TimeDelta, Utc};
 /// PRD 0033 RF2.2: restored readings older than this are not used.
 pub const RESTORE_MAX_AGE: TimeDelta = TimeDelta::hours(24);
 
-use crate::{Account, Config, Report, Snapshot, Status};
+use crate::{Account, Config, Provider, Report, Snapshot, Status};
 
 /// PRD 0033 RF1.2: the reset-driven query runs this long after the reset.
 pub const RESET_QUERY_DELAY: TimeDelta = TimeDelta::seconds(30);
@@ -331,6 +331,14 @@ impl RefreshCycle {
         let target = match done.runs.back() {
             Some(last) => target.max(*last + RESET_QUERY_SPACING),
             None => target,
+        };
+        // PRD 0036 RF4.4 (re-validation S-08): every refresh of an
+        // aggregator makes it query its upstreams, so its reset query keeps
+        // the interval floor after this reading too.
+        let target = if report.provider.is_aggregator() {
+            target.max(now + Duration::from_secs(Provider::AGGREGATOR_MIN_REFRESH_SECONDS))
+        } else {
+            target
         };
         let deadline = self.deadlines[index];
         // Moved, or the scheduled query already lands within a minute of
@@ -3630,5 +3638,67 @@ mod prd0033_rf2_tests {
         let (mut cycle, now) = cycle_with(Provider::NineRouter, 3600);
         finish_one(&mut cycle, instance(Some("claude:work")), now);
         assert_eq!(cycle.next_refresh_in(0, now), Duration::from_secs(3600));
+    }
+
+    /// PRD 0036 RF4.4 (re-validation S-08, R-01 item 8): a connection
+    /// reset 10 s after a reading arms nothing earlier than the reading
+    /// plus the 120 s floor, and still at most two per rolling hour.
+    #[test]
+    fn an_aggregator_reset_query_keeps_the_interval_floor() {
+        let instance = |after: TimeDelta| {
+            let reading = quota_report(Provider::Claude, &[after]);
+            let mut report = quota_report(Provider::NineRouter, &[]);
+            report.metrics.clear();
+            report.sub_reports = vec![crate::SubReport {
+                id: "c1".into(),
+                upstream: "claude".into(),
+                provider: Some(Provider::Claude),
+                label: "c1".into(),
+                status: Status::Ready,
+                metrics: reading.metrics,
+                notes_l10n: Vec::new(),
+                checked_at: reading.checked_at,
+                as_of: None,
+                enabled_upstream: Some(true),
+                duplicate_of: None,
+                plan: None,
+                via: None,
+                identity: None,
+            }];
+            report
+        };
+        let floor = Duration::from_secs(Provider::AGGREGATOR_MIN_REFRESH_SECONDS);
+        let (mut cycle, now) = cycle_with(Provider::NineRouter, 3600);
+        finish_one(&mut cycle, instance(TimeDelta::seconds(10)), now);
+        assert_eq!(cycle.next_refresh_in(0, now), floor);
+
+        // The hourly bound still holds: each reading brings a new reset
+        // (five minutes apart, so none is a repeat of a served one); only
+        // two of them arm a query within the hour.
+        let mut armed = 1;
+        let mut at = now;
+        for k in 1..6 {
+            at += cycle.next_refresh_in(0, at);
+            if at.duration_since(now) >= Duration::from_secs(3600) {
+                break;
+            }
+            let after = TimeDelta::seconds(10) + TimeDelta::minutes(5 * k);
+            finish_one(&mut cycle, instance(after), at);
+            let wait = cycle.next_refresh_in(0, at);
+            assert!(wait >= floor, "{wait:?}");
+            if wait < Duration::from_secs(3600) {
+                armed += 1;
+            }
+        }
+        assert_eq!(armed, 2);
+
+        // A direct account keeps the 30-s delay (no floor).
+        let (mut cycle, now) = cycle_with(Provider::Claude, 3600);
+        finish_one(
+            &mut cycle,
+            quota_report(Provider::Claude, &[TimeDelta::seconds(10)]),
+            now,
+        );
+        assert!(cycle.next_refresh_in(0, now) < floor);
     }
 }

@@ -36,6 +36,7 @@
 //!   hosts only with `allow_private_http`; everything else needs HTTPS.
 
 use super::{Context, Data, QueryError};
+use crate::aggregators;
 use crate::local_listener::{self, ListenerCheck, Verdict};
 use crate::model::{Metric, MetricKind, MetricWindow, Provider, Status, SubReport};
 use crate::providers::nine_router_tls as tls;
@@ -65,6 +66,8 @@ pub(crate) const VIA: &str = "https://github.com/decolua/9router/blob/f39d8f0748
 pub(crate) const TESTED_MIN: Option<&str> = None;
 /// Where an instance listens by default.
 pub(crate) const DEFAULT_BASE_URL: &str = "http://127.0.0.1:20128";
+/// The aggregator's name in texts that are shared with LiteLLM.
+const AGGREGATOR: &str = "9router";
 
 /// Hard caps of the discovery (PRD 0036 RF3.2).
 const PAGE_SIZE: usize = 100;
@@ -321,15 +324,19 @@ struct ConnectionsPage {
     pagination: Option<Pagination>,
 }
 
-/// Strip control characters, trim and bound a text taken from the instance.
+/// Strip control characters, trim and bound a text taken from the instance
+/// to `max` characters; a cut text ends with "…" (re-validation V-16), so a
+/// reader and the export can tell it was cut.
 fn clean_text(raw: &str, max: usize) -> String {
-    raw.chars()
-        .filter(|ch| !ch.is_control())
-        .collect::<String>()
-        .trim()
-        .chars()
-        .take(max)
-        .collect()
+    let clean: String = raw.chars().filter(|ch| !ch.is_control()).collect();
+    let clean = clean.trim();
+    if clean.chars().count() <= max {
+        return clean.to_string();
+    }
+    let mut cut: String = clean.chars().take(max.saturating_sub(1)).collect();
+    cut.truncate(cut.trim_end().len());
+    cut.push('…');
+    cut
 }
 
 /// True for a label that looks like a secret (an API key) rather than a name.
@@ -412,6 +419,24 @@ pub(crate) struct ParsedUsage {
     plan: Option<String>,
     metrics: Vec<Metric>,
     limit_reached: bool,
+    /// S-04: more quotas than [`aggregators::MAX_METRICS_PER_CONNECTION`].
+    truncated: bool,
+    /// S-08: a figure was out of range and left absent.
+    refused: bool,
+}
+
+impl ParsedUsage {
+    /// The connection notes of this reading (S-04, S-08).
+    fn notes(&self) -> Vec<Localized> {
+        let mut notes = Vec::new();
+        if self.truncated {
+            notes.push(aggregators::metrics_truncated_note());
+        }
+        if self.refused {
+            notes.push(aggregators::figure_refused_note(AGGREGATOR));
+        }
+        notes
+    }
 }
 
 /// A soft failure (`{ message }`): never shown verbatim, only classified.
@@ -458,6 +483,8 @@ pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
             .filter(|plan| !plan.is_empty()),
         metrics: Vec::new(),
         limit_reached: body.get("limitReached").and_then(Value::as_bool) == Some(true),
+        truncated: false,
+        refused: false,
     };
     for (label, quota) in quotas.into_iter().flatten() {
         let Some(quota) = quota.as_object() else {
@@ -471,10 +498,29 @@ pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
         if label.is_empty() {
             continue;
         }
-        let total = number(quota.get("total")).filter(|total| *total > 0.0);
-        let mut used = number(quota.get("used"));
-        let mut remaining = number(quota.get("remaining"));
-        let percentage = number(quota.get("remainingPercentage"));
+        // S-08: a negative or absurd figure is left absent, never 0, and
+        // the connection says a value was refused.
+        let mut checked = |value: Option<f64>| {
+            let (value, refused) = aggregators::check_figure(value);
+            parsed.refused |= refused;
+            value
+        };
+        let total = checked(number(quota.get("total"))).filter(|total| *total > 0.0);
+        let mut used = checked(number(quota.get("used")));
+        let mut remaining = checked(number(quota.get("remaining")));
+        let mut percentage = checked(number(quota.get("remainingPercentage")));
+        if percentage.is_some_and(|percentage| percentage > 100.0) {
+            percentage = None;
+            parsed.refused = true;
+        }
+        // A given remaining above the cap is impossible; used above the
+        // cap is real (over quota) and is kept.
+        if let (Some(total), Some(given)) = (total, remaining) {
+            if given > total {
+                remaining = None;
+                parsed.refused = true;
+            }
+        }
         let mut limit = total;
         let mut unit = String::new();
         if limit.is_none() {
@@ -482,7 +528,6 @@ pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
                 // Only a percentage is known: say so, do not invent a cap.
                 // Without a total, `used` and `remaining` are not percents
                 // (9router normalizes a missing one to 0), so neither is kept.
-                let percentage = percentage.clamp(0.0, 100.0);
                 limit = Some(100.0);
                 remaining = Some(percentage);
                 used = Some(100.0 - percentage);
@@ -494,6 +539,11 @@ pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
         if used.is_none() && remaining.is_none() {
             // Nothing measured: a missing value is not a zero.
             continue;
+        }
+        if parsed.metrics.len() >= aggregators::MAX_METRICS_PER_CONNECTION {
+            // S-04: one answer cannot flood memory or the history.
+            parsed.truncated = true;
+            break;
         }
         parsed.metrics.push(Metric {
             billing: Default::default(),
@@ -1123,7 +1173,21 @@ async fn discover(
     Ok((all, truncated))
 }
 
-fn sub_notes(extra: Option<Localized>) -> Vec<Localized> {
+/// S-08: the connections of a listing with each id once, the first kept,
+/// and how many repeats were left out. A repeated id would collide in the
+/// history, the preferences and "Refresh now".
+fn dedupe(connections: Vec<Connection>) -> (Vec<Connection>, usize) {
+    let mut seen = std::collections::HashSet::new();
+    let before = connections.len();
+    let kept: Vec<Connection> = connections
+        .into_iter()
+        .filter(|connection| seen.insert(connection.id.clone()))
+        .collect();
+    let repeated = before - kept.len();
+    (kept, repeated)
+}
+
+fn sub_notes(extra: Vec<Localized>) -> Vec<Localized> {
     let mut notes = vec![
         Localized::fixed(
             "note.nine_router.cached",
@@ -1145,7 +1209,7 @@ fn sub_report(
     status: Status,
     metrics: Vec<Metric>,
     plan: Option<String>,
-    extra: Option<Localized>,
+    extra: Vec<Localized>,
 ) -> SubReport {
     SubReport {
         id: sub_id(&connection.id),
@@ -1180,7 +1244,7 @@ async fn read_usage(
             error.status,
             Vec::new(),
             None,
-            Some(error.note),
+            vec![error.note],
         )
     };
     let Some(route) = Route::usage(&connection.id) else {
@@ -1217,6 +1281,7 @@ async fn read_usage(
                     derived_from: None,
                 });
             }
+            let notes = usage.notes();
             sub_report(
                 connection,
                 ordinal,
@@ -1224,7 +1289,7 @@ async fn read_usage(
                 Status::Ready,
                 usage.metrics,
                 usage.plan,
-                None,
+                notes,
             )
         }
         Ok(UsageOutcome::Message { auth_expired: true }) => failed(QueryError {
@@ -1264,7 +1329,7 @@ async fn read_one(
             Status::Unsupported,
             Vec::new(),
             None,
-            Some(Localized::fixed("note.nine_router.off", "Off in 9router.")),
+            vec![Localized::fixed("note.nine_router.off", "Off in 9router.")],
         );
         return (ordinal, report);
     }
@@ -1281,7 +1346,7 @@ async fn read_one(
             Status::Error,
             Vec::new(),
             None,
-            Some(QueryError::timeout().note),
+            vec![QueryError::timeout().note],
         )
     });
     (ordinal, report)
@@ -1367,6 +1432,7 @@ pub(crate) async fn fetch_connection_at(
     let deadline = tokio::time::Instant::now() + limits.instance;
     let (mut token, password, _) = start(&instance, account, ctx, now).await?;
     let (connections, _) = discover(&instance, &mut token, password.as_deref(), now).await?;
+    let (connections, _) = dedupe(connections);
     let Some((ordinal, connection)) = select(account, &connections)
         .into_iter()
         .find(|(_, connection)| sub_id(&connection.id) == wanted)
@@ -1422,6 +1488,7 @@ pub(crate) async fn fetch_with(
     let (mut token, password, sso) = start(&instance, account, ctx, now).await?;
     let (connections, truncated) =
         discover(&instance, &mut token, password.as_deref(), now).await?;
+    let (connections, repeated) = dedupe(connections);
 
     let selected = select(account, &connections);
 
@@ -1436,7 +1503,8 @@ pub(crate) async fn fetch_with(
         readings.extend(futures_util::future::join_all(batch).await);
     }
     readings.sort_by_key(|(ordinal, _)| *ordinal);
-    let sub_reports: Vec<SubReport> = readings.into_iter().map(|(_, report)| report).collect();
+    let mut sub_reports: Vec<SubReport> = readings.into_iter().map(|(_, report)| report).collect();
+    let capped = aggregators::cap_instance_metrics(&mut sub_reports);
 
     let mut notes = Notes::new();
     let ready = sub_reports
@@ -1475,6 +1543,12 @@ pub(crate) async fn fetch_with(
             "note.nine_router.truncated",
             "9router has more connections than the limit read (1000); the rest were left out.",
         );
+    }
+    if repeated > 0 {
+        notes.push_note(aggregators::duplicate_ids_note(repeated));
+    }
+    if capped {
+        notes.push_note(aggregators::instance_truncated_note());
     }
     if password.is_none() && !sso && !base_is_loopback(&instance.base) {
         notes.push(
@@ -2359,6 +2433,107 @@ mod tests {
         assert!(usage.metrics.is_empty());
     }
 
+    /// Re-validation S-08: the explicit figure rule. A negative or absurd
+    /// figure, or a given remaining above the cap, is left absent (never 0)
+    /// with a note naming the aggregator; over quota is real and kept.
+    #[test]
+    fn impossible_figures_are_left_absent_with_a_note() {
+        let ids = |usage: &ParsedUsage| -> Vec<String> {
+            usage
+                .notes()
+                .iter()
+                .map(|note| note.id.to_string())
+                .collect()
+        };
+        let usage = parsed(json!({ "quotas": { "q": { "used": 150, "total": 100 } } }));
+        let metric = &usage.metrics[0];
+        assert_eq!((metric.used, metric.limit), (Some(150.0), Some(100.0)));
+        assert!(ids(&usage).is_empty());
+
+        let usage =
+            parsed(json!({ "quotas": { "q": { "used": 10, "remaining": -5, "total": 100 } } }));
+        let metric = &usage.metrics[0];
+        assert_eq!(
+            (metric.used, metric.limit, metric.remaining),
+            (Some(10.0), Some(100.0), None)
+        );
+        assert_eq!(ids(&usage), ["note.aggregator.figure_refused"]);
+        let note = &usage.notes()[0];
+        assert!(note.fallback.contains("9router"), "{}", note.fallback);
+        assert!(!note.resolve("de").contains("{aggregator}"));
+
+        // The security run's figures: nothing of them is kept.
+        let usage = parsed(
+            json!({ "quotas": { "q": { "used": 1e308, "remaining": -5, "total": 1e308 } } }),
+        );
+        assert!(usage.metrics.is_empty());
+        assert!(usage.refused);
+
+        // A given remaining above the cap; a negative used.
+        let usage =
+            parsed(json!({ "quotas": { "q": { "used": 5, "remaining": 120, "total": 100 } } }));
+        assert_eq!(usage.metrics[0].remaining, None);
+        assert!(usage.refused);
+        let usage =
+            parsed(json!({ "quotas": { "q": { "used": -1, "remaining": 40, "total": 100 } } }));
+        assert_eq!(
+            (usage.metrics[0].used, usage.metrics[0].remaining),
+            (None, Some(40.0))
+        );
+        assert!(usage.refused);
+
+        // A percentage outside 0..=100 is no reading.
+        for bad in [-3.0, 150.0] {
+            let usage = parsed(json!({ "quotas": { "weekly": { "remainingPercentage": bad } } }));
+            assert!(usage.metrics.is_empty(), "{bad}");
+            assert!(usage.refused, "{bad}");
+        }
+    }
+
+    /// Re-validation S-04: one answer keeps at most 64 limits, and says so.
+    #[test]
+    fn a_connection_keeps_at_most_64_limits() {
+        let mut quotas = serde_json::Map::new();
+        for n in 0..70 {
+            quotas.insert(format!("q{n:03}"), json!({ "used": n, "total": 100 }));
+        }
+        let usage = parsed(json!({ "quotas": quotas }));
+        assert_eq!(
+            usage.metrics.len(),
+            crate::aggregators::MAX_METRICS_PER_CONNECTION
+        );
+        assert!(usage.truncated);
+        let ids: Vec<String> = usage
+            .notes()
+            .iter()
+            .map(|note| note.id.to_string())
+            .collect();
+        assert_eq!(ids, ["note.aggregator.metrics_truncated"]);
+
+        let mut quotas = serde_json::Map::new();
+        for n in 0..64 {
+            quotas.insert(format!("q{n:03}"), json!({ "used": n, "total": 100 }));
+        }
+        let usage = parsed(json!({ "quotas": quotas }));
+        assert_eq!(usage.metrics.len(), 64);
+        assert!(usage.notes().is_empty());
+    }
+
+    /// Re-validation V-16: a cut label ends with an ellipsis, within the
+    /// same bound; a short one is unchanged.
+    #[test]
+    fn a_cut_label_ends_with_an_ellipsis() {
+        let long = "Very long connection label for the shared Claude Max subscription of the team";
+        let cut = clean_text(long, 60);
+        assert_eq!(cut.chars().count(), 60);
+        assert!(cut.ends_with('…'), "{cut}");
+        assert!(cut.starts_with("Very long connection label"));
+        assert_eq!(clean_text("  work\u{7}  ", 60), "work");
+        assert_eq!(clean_text(&"x".repeat(60), 60), "x".repeat(60));
+        // No space before the ellipsis.
+        assert_eq!(clean_text("abcd efgh", 6), "abcd…");
+    }
+
     #[test]
     fn limit_reached_and_soft_failures_are_classified_without_the_text() {
         assert!(parsed(json!({ "limitReached": true, "quotas": {} })).limit_reached);
@@ -2625,11 +2800,16 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(data.sub_reports.len(), MAX_PAGES);
+        // Every page repeats the same id: it is listed once (S-08).
+        assert_eq!(data.sub_reports.len(), 1);
         assert!(data
             .notes_l10n
             .iter()
             .any(|n| n.id == "note.nine_router.truncated"));
+        assert!(data.notes_l10n.iter().any(|n| {
+            n.id == "note.aggregator.duplicate_ids"
+                && n.params.get("count") == Some(&ParamValue::from((MAX_PAGES - 1).to_string()))
+        }));
     }
 
     #[tokio::test]
@@ -3588,7 +3768,21 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(data.sub_reports.len(), 6);
+        // S-08: the repeated id is listed once, the first kept, and the
+        // instance says how many were left out.
+        assert_eq!(data.sub_reports.len(), 5);
+        let dup = data
+            .sub_reports
+            .iter()
+            .filter(|sub| sub.id == sub_id("dup"))
+            .collect::<Vec<_>>();
+        assert_eq!(dup.len(), 1);
+        assert_eq!(dup[0].label, "One");
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|note| note.id == "note.aggregator.duplicate_ids"
+                && note.params.get("count") == Some(&ParamValue::from("1".to_string()))));
         let seen = requests_of(&server.received_requests().await.unwrap());
         for (verb, target) in &seen {
             assert_eq!(verb, "GET", "{target}");

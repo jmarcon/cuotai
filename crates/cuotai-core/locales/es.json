@@ -860,6 +860,13 @@
   "network.clock_behind": "El reloj de este equipo va unos {minutes} min atrasado respecto a los servidores de los proveedores. Las horas, antigüedades y reinicios pueden verse mal: activa la fecha y hora automáticas y luego actualiza.",
   "network.trust_store_empty": "No se pudo cargar ningún certificado raíz de confianza del almacén de certificados del sistema, así que no es posible una conexión segura. Repara o actualiza los certificados del sistema y vuelve a iniciar Cuotai.",
   "note.alibaba_billing.balance_field_semantics": "AvailableAmount = saldo disponible total (cash + credit + voucher + coupons). AvailableCashAmount = solo efectivo. CreditAmount = límite total de crédito Alibaba (incluye Mybank como subconjunto).",
+  "note.aggregator.figure_refused": "Un valor que informó {aggregator} estaba fuera de rango y no se muestra.",
+  "note.aggregator.duplicate_ids": {
+    "one": "Se omitió {count} conexión repetida.",
+    "other": "Se omitieron {count} conexiones repetidas."
+  },
+  "note.aggregator.instance_truncated": "Solo se muestran los primeros 4000 límites de esta instancia; el resto se omitió.",
+  "note.aggregator.metrics_truncated": "Solo se muestran algunos de los límites de esta conexión; el resto se omitió.",
   "note.alibaba_billing.balance_metadata_currency": "Moneda: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Moneda: {currency}. BillingCycle actual: {billing_cycle}.",
   "note.alibaba_billing.balance_metadata_cycle": "BillingCycle actual: {billing_cycle}.",
@@ -1989,6 +1996,7 @@
   "query.litellm.base_url_forbidden": "La dirección base de LiteLLM no puede contener usuario, contraseña, consulta ni fragmento.",
   "query.litellm.base_url_insecure": "Fuera de esta máquina LiteLLM exige HTTPS (HTTP solo en red privada, con la opción explícita). No se envió nada.",
   "note.litellm.summary": "{total} proveedores con presupuesto en LiteLLM.",
+  "note.litellm.truncated": "LiteLLM tiene más proveedores que el límite leído (200); el resto se omitió.",
   "note.litellm.no_budgets": "LiteLLM no tiene presupuestos por proveedor (provider_budget_config); no hay nada que mostrar.",
   "query.nine_router.base_url": "Dirección base de 9router no válida: indica http(s)://host[:puerto][/prefijo].",
   "query.nine_router.base_url_forbidden": "La dirección base de 9router no puede contener usuario, contraseña, consulta ni fragmento.",

@@ -545,6 +545,89 @@ impl Pool {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Checked answers (PRD 0036 re-validation S-04, S-08): what an aggregator
+// reports is bounded and checked before it is shown, the same way for
+// 9router and LiteLLM.
+// ---------------------------------------------------------------------------
+
+/// S-04: the limits kept per connection (like extensions).
+pub(crate) const MAX_METRICS_PER_CONNECTION: usize = 64;
+/// S-04: the limits kept per instance, over all its connections.
+pub(crate) const MAX_METRICS_PER_INSTANCE: usize = 4000;
+/// S-08: a figure larger than this is not a real reading.
+const MAX_FIGURE: f64 = 1e15;
+
+/// S-08: one figure an aggregator reported, checked. A negative figure or
+/// one above [`MAX_FIGURE`] becomes absent (never 0) and is flagged as
+/// refused; absent stays absent.
+pub(crate) fn check_figure(value: Option<f64>) -> (Option<f64>, bool) {
+    match value {
+        Some(value) if !value.is_finite() => (None, false),
+        Some(value) if !(0.0..=MAX_FIGURE).contains(&value) => (None, true),
+        other => (other, false),
+    }
+}
+
+/// S-08: the connection note for a figure out of range.
+pub(crate) fn figure_refused_note(aggregator: &str) -> Localized {
+    Localized::with_param(
+        "note.aggregator.figure_refused",
+        "aggregator",
+        aggregator,
+        "A value {aggregator} reported was out of range and is not shown.",
+    )
+}
+
+/// S-04: the connection note when its limits were cut.
+pub(crate) fn metrics_truncated_note() -> Localized {
+    Localized::fixed(
+        "note.aggregator.metrics_truncated",
+        "Only some of the limits of this connection are shown; the rest were left out.",
+    )
+}
+
+/// S-04: the instance note when its limits were cut.
+pub(crate) fn instance_truncated_note() -> Localized {
+    Localized::fixed(
+        "note.aggregator.instance_truncated",
+        "Only the first 4000 limits of this instance are shown; the rest were left out.",
+    )
+}
+
+/// S-08: the instance note for connections reported more than once.
+pub(crate) fn duplicate_ids_note(count: usize) -> Localized {
+    Localized::plural(
+        "note.aggregator.duplicate_ids",
+        params([("count", ParamValue::from(count.to_string()))]),
+        "{count} repeated connection was left out.",
+        "{count} repeated connections were left out.",
+    )
+}
+
+/// S-04: keep at most [`MAX_METRICS_PER_INSTANCE`] limits over `subs`, in
+/// order. A connection that loses limits gets the connection note; `true`
+/// when anything was cut (the caller adds the instance note).
+pub(crate) fn cap_instance_metrics(subs: &mut [SubReport]) -> bool {
+    let mut left = MAX_METRICS_PER_INSTANCE;
+    let mut cut = false;
+    for sub in subs {
+        if sub.metrics.len() > left {
+            sub.metrics.truncate(left);
+            if !sub
+                .notes_l10n
+                .iter()
+                .any(|note| note.id == "note.aggregator.metrics_truncated")
+            {
+                sub.notes_l10n.push(metrics_truncated_note());
+            }
+            cut = true;
+        }
+        left -= sub.metrics.len();
+    }
+    cut
+}
+
 /// When a sub-account's exhausted quotas are all back: the latest reset of
 /// its exhausted metrics, or `None` if one of them has no reset time.
 fn returns_at(sub: &SubReport) -> Option<DateTime<Utc>> {
@@ -762,6 +845,54 @@ mod tests {
             via: None,
             identity: None,
         }
+    }
+
+    /// Re-validation S-04: an instance keeps at most 4000 limits over its
+    /// connections, in order; a connection that lost limits says so.
+    #[test]
+    fn an_instance_keeps_at_most_4000_limits() {
+        let full = || vec![quota(50.0, None); MAX_METRICS_PER_CONNECTION];
+        let mut subs: Vec<SubReport> = (0..70)
+            .map(|n| sub(&format!("c{n}"), "claude", Status::Ready, full()))
+            .collect();
+        assert!(cap_instance_metrics(&mut subs));
+        let kept: usize = subs.iter().map(|sub| sub.metrics.len()).sum();
+        assert_eq!(kept, MAX_METRICS_PER_INSTANCE);
+        // 62 full connections (3968), then 32 of the 63rd, then none.
+        assert_eq!(subs[61].metrics.len(), 64);
+        assert_eq!(subs[62].metrics.len(), 32);
+        assert!(subs[63..].iter().all(|sub| sub.metrics.is_empty()));
+        let noted = |sub: &SubReport| {
+            sub.notes_l10n
+                .iter()
+                .filter(|note| note.id == "note.aggregator.metrics_truncated")
+                .count()
+        };
+        assert_eq!(noted(&subs[61]), 0);
+        assert!(subs[62..].iter().all(|sub| noted(sub) == 1));
+
+        let mut small = vec![sub("a", "claude", Status::Ready, full())];
+        assert!(!cap_instance_metrics(&mut small));
+        assert_eq!(noted(&small[0]), 0);
+    }
+
+    #[test]
+    fn figures_out_of_range_are_absent_and_flagged() {
+        assert_eq!(check_figure(None), (None, false));
+        assert_eq!(check_figure(Some(0.0)), (Some(0.0), false));
+        assert_eq!(check_figure(Some(150.0)), (Some(150.0), false));
+        assert_eq!(check_figure(Some(-0.5)), (None, true));
+        assert_eq!(check_figure(Some(2e15)), (None, true));
+        assert_eq!(check_figure(Some(f64::NAN)), (None, false));
+        let note = figure_refused_note("LiteLLM");
+        assert!(note.fallback.contains("LiteLLM"));
+        assert!(!note.fallback.contains("9router"));
+        let note = duplicate_ids_note(1);
+        assert_eq!(note.fallback, "1 repeated connection was left out.");
+        assert_eq!(
+            duplicate_ids_note(3).fallback,
+            "3 repeated connections were left out."
+        );
     }
 
     fn report(status: Status, subs: Vec<SubReport>) -> Report {
