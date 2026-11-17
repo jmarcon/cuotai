@@ -200,6 +200,18 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["details-eleven", "index.html?eleven", 1200, 820, {}, '.card[data-card="eleven_labs::unlimited@example.com"] [data-details]'],
   ["details-eleven-incident", "index.html?eleven", 1200, 820, {}, '.card[data-card="eleven_labs::eu@example.com"] [data-details]'],
   ["dialog-add-eleven", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="eleven_labs"]']],
+  // PRD 0038 re-validation: the OpenRouter set (a key with its limit, spend by period and free-model counter, a key
+  // without a limit, a positive credit balance with spend by provider over completed UTC days, a negative balance under
+  // the low-balance threshold, a rate-limited key with its retry instant), its details and tray rows, and the Add
+  // account form.
+  ["main-openrouter", "index.html?openrouter", 1200, 820, {}],
+  ["main-openrouter-narrow", "index.html?openrouter", 520, 820, {}],
+  ["tray-openrouter", "tray.html?openrouter", 380, 600, {}],
+  ["details-openrouter", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::balance@example.com"] [data-details]'],
+  ["details-openrouter-key", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::key@example.com"] [data-details]'],
+  ["details-openrouter-negative", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::negative@example.com"] [data-details]'],
+  ["details-openrouter-limited", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::limited@example.com"] [data-details]'],
+  ["dialog-add-openrouter", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="open_router"]']],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [
