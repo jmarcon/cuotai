@@ -821,6 +821,49 @@ mod tests {
         assert_eq!((credits.limit, credits.remaining), (Some(0.0), Some(0.0)));
     }
 
+    /// PRD 0037 RF3: a disabled free plan with a zero character limit and
+    /// voice-slot counters reads as exhausted with a binding (no allowance),
+    /// never "Available".
+    #[tokio::test]
+    async fn zero_limit_with_voice_slots_is_exhausted() {
+        let mut body = base(0, 0);
+        body["status"] = json!("free_disabled");
+        body["voice_slots_used"] = json!(1);
+        body["voice_limit"] = json!(3);
+        body["professional_voice_slots_used"] = json!(0);
+        body["professional_voice_limit"] = json!(1);
+        let data = ok(body).await;
+        assert!(ids(&data).contains(&"note.eleven_labs.status.free_disabled"));
+        assert!(data
+            .metrics
+            .iter()
+            .any(|m| m.kind == crate::MetricKind::Usage));
+        let report = crate::Report {
+            account_id: None,
+            diagnostic: None,
+            account: "ElevenLabs".into(),
+            provider: Provider::ElevenLabs,
+            checked_at: Utc::now(),
+            status: crate::Status::Ready,
+            metrics: data.metrics.clone(),
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        assert_eq!(
+            crate::metrics::classify_report(Some(&report)),
+            crate::metrics::AccountClass::Exhausted
+        );
+        let binding = crate::metrics::binding(&report).expect("a binding");
+        assert_eq!(binding.reason, crate::metrics::BindingReason::Exhausted);
+        assert_eq!(binding.index, 0);
+    }
+
     #[tokio::test]
     async fn bad_count_is_a_schema_error_and_bad_limit_is_dropped() {
         for count in [json!("1000"), json!(-1), json!(null)] {

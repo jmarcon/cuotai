@@ -172,8 +172,12 @@ pub(crate) fn classify_parts(status: Status, metrics: &[Metric]) -> AccountClass
     if metrics.is_empty() {
         return AccountClass::Unmeasured;
     }
+    // Only metrics that can exhaust the account count (a `Usage` counter
+    // never does, PRD 0038 RF4.2), so a capped counter beside a quota with
+    // no positive cap does not hide that quota's exhaustion (PRD 0037 RF3).
     let has_quota = metrics.iter().any(|metric| {
         metric.billing == Billing::Included
+            && metric.kind != MetricKind::Usage
             && metric.scope.is_none()
             && metric
                 .limit
@@ -210,6 +214,10 @@ pub(crate) fn classify_parts(status: Status, metrics: &[Metric]) -> AccountClass
         // A `Usage` counter is shown, never a reason to mark the account
         // exhausted (PRD 0038 RF4.2: an exhausted `:free` counter on a paid key).
         let exhausts = metric.kind != MetricKind::Usage;
+        // PRD 0037 RF3: an explicit zero allowance is a fact, not unknown.
+        if explicit_zero_allowance(metric) {
+            return AccountClass::Exhausted;
+        }
         // `used = 0, limit = 0` with no remaining value is a sentinel for
         // unknown — never classify as exhausted or available from it alone.
         let has_unknown_zero_cap =
@@ -250,6 +258,16 @@ pub(crate) fn classify_parts(status: Status, metrics: &[Metric]) -> AccountClass
         return AccountClass::Exhausted;
     }
     AccountClass::Available
+}
+
+/// PRD 0037 RF3: the provider stated a zero allowance with nothing left
+/// (`limit == 0` and `remaining == 0`) on a `Quota` or `RateLimit`: "no
+/// allowance left", so the account is exhausted. Absent values never become
+/// zero, and the `used 0, limit 0, remaining None` sentinel stays unknown.
+pub fn explicit_zero_allowance(metric: &Metric) -> bool {
+    matches!(metric.kind, MetricKind::Quota | MetricKind::RateLimit)
+        && metric.limit == Some(0.0)
+        && metric.remaining == Some(0.0)
 }
 
 /// True when at least one of `used` or `remaining` is a finite number that
@@ -502,11 +520,18 @@ fn select_kind(
             || metric.kind != kind
             || metric.billing != Billing::Included
             || metric.scope.is_some() != scoped
-            || !metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0)
+            || !(metric.limit.is_some_and(|cap| cap.is_finite() && cap > 0.0)
+                || explicit_zero_allowance(metric))
         {
             continue;
         }
-        let (ratio, exhausted) = match classify_metric(metric) {
+        // PRD 0037 RF3: an explicit zero allowance binds as exhausted.
+        let state = if explicit_zero_allowance(metric) {
+            MetricState::Exhausted { no_cap: false }
+        } else {
+            classify_metric(metric)
+        };
+        let (ratio, exhausted) = match state {
             MetricState::Exhausted { no_cap: false } => (0.0, true),
             MetricState::Available {
                 ratio,
@@ -1413,6 +1438,50 @@ mod tests {
             text.resolve("en-US"),
             "Renewal due since 22:00; waiting for ElevenLabs to renew the window."
         );
+    }
+
+    /// PRD 0037 RF3: an explicit zero allowance (`limit 0`, `remaining 0`)
+    /// is exhausted with a binding, also beside capped `Usage` counters; the
+    /// `used 0, limit 0, remaining None` sentinel stays unknown.
+    #[test]
+    fn an_explicit_zero_allowance_is_exhausted_even_beside_usage_counters() {
+        let mut credits = metric("credits", Some(5.0), Some(0.0), Some(0.0));
+        credits.resets_at = Some(at(14));
+        let voices = kind(
+            MetricKind::Usage,
+            metric("voices", Some(1.0), Some(3.0), None),
+        );
+        let alone = report(Status::Ready, vec![credits.clone()]);
+        let mixed = report(Status::Ready, vec![credits.clone(), voices.clone()]);
+        for r in [&alone, &mixed] {
+            assert_eq!(classify_report(Some(r)), AccountClass::Exhausted);
+            let b = binding(r).expect("a binding");
+            assert_eq!(b.index, 0);
+            assert_eq!(b.reason, BindingReason::Exhausted);
+            assert_eq!(b.blocked_until, Some(at(14)));
+            assert_eq!((b.used_ratio, b.remaining), (1.0, 0.0));
+        }
+        // A rate limit reads the same; a `Usage` counter never exhausts.
+        let rate = kind(MetricKind::RateLimit, credits.clone());
+        assert_eq!(
+            classify_report(Some(&report(Status::Ready, vec![rate, voices.clone()]))),
+            AccountClass::Exhausted
+        );
+        let counter = kind(MetricKind::Usage, credits.clone());
+        assert_ne!(
+            classify_report(Some(&report(Status::Ready, vec![counter, voices.clone()]))),
+            AccountClass::Exhausted
+        );
+        // The sentinel stays unknown, never exhausted or available.
+        let sentinel = metric("credits", Some(0.0), Some(0.0), None);
+        assert_eq!(
+            classify_report(Some(&report(Status::Ready, vec![sentinel.clone()]))),
+            AccountClass::Unmeasured
+        );
+        assert_eq!(binding(&report(Status::Ready, vec![sentinel])), None);
+        // A missing limit is never read as zero.
+        let missing = metric("credits", Some(5.0), None, Some(0.0));
+        assert!(!explicit_zero_allowance(&missing));
     }
 
     /// V-04: the consumed share never rounds a sliver to 0 or an unreached

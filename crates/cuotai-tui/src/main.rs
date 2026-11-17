@@ -2843,6 +2843,31 @@ mod tests {
         }
     }
 
+    /// PRD 0037 RF3: a plan with an explicit zero allowance beside a capped
+    /// `Usage` counter (ElevenLabs voice slots) is blocked in `--once`,
+    /// never "Available".
+    #[test]
+    fn once_summary_blocks_an_explicit_zero_allowance() {
+        let reset = Utc.with_ymd_and_hms(2026, 1, 3, 14, 30, 0).unwrap();
+        let mut credits = quota(MetricWindow::Monthly, 0.0, Some(reset));
+        credits.limit = Some(0.0);
+        credits.remaining = Some(0.0);
+        let mut voices = quota(MetricWindow::Monthly, 1.0, None);
+        voices.kind = MetricKind::Usage;
+        voices.window = None;
+        voices.limit = Some(3.0);
+        let snapshot = Snapshot {
+            started_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            finished_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 1).unwrap(),
+            reports: vec![report("Voice", Status::Ready, vec![credits, voices])],
+        };
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string().into();
+        assert_eq!(
+            summary_lines(&snapshot, "en-US", at),
+            "Voice  blocked until 14:30 by the monthly window\n"
+        );
+    }
+
     #[test]
     fn once_summary_shows_binding_limit_per_account() {
         let week_reset = Utc.with_ymd_and_hms(2026, 1, 3, 14, 30, 0).unwrap();
