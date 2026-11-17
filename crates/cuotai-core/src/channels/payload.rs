@@ -541,6 +541,7 @@ pub fn sample_source(now: DateTime<Utc>) -> Source {
         overage: None,
         limit_change: None,
         row: None,
+        mark_key: None,
     };
     Source::Alerts {
         account,

@@ -447,6 +447,7 @@ fn alert(account: &Account, kind: AlertKind, threshold: u8) -> AlertEvent {
         overage: None,
         limit_change: None,
         row: None,
+        mark_key: None,
     }
 }
 

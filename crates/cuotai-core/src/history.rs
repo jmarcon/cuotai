@@ -362,11 +362,71 @@ pub struct HistoryStore {
 
 /// Stable identity of a metric's series: the digest of its kind, window,
 /// label and unit. A label that changes between adapter versions starts a
-/// new series.
+/// new series. A budget metric (PRD 0041 re-validation D2) is keyed by its
+/// budget's identity instead ([`crate::budget::budget_key`]), so renaming
+/// the budget or changing its amount keeps its series.
 pub fn metric_key(metric: &Metric) -> String {
-    let identity = serde_json::to_vec(&(metric.kind, metric.window, &metric.label, &metric.unit))
+    if let Some(from) = metric
+        .derived_from
+        .as_ref()
+        .filter(|from| !from.key.is_empty())
+    {
+        return budget_series_key(&from.key);
+    }
+    label_key(metric, &metric.label)
+}
+
+/// The [`metric_key`] of the series of the budget whose key is `key`.
+pub(crate) fn budget_series_key(key: &str) -> String {
+    digest(&serde_json::to_vec(&("budget", key)).expect("budget identity serializes"))
+}
+
+/// The [`metric_key`] `metric` would have under `label` by the label rule.
+fn label_key(metric: &Metric, label: &str) -> String {
+    let identity = serde_json::to_vec(&(metric.kind, metric.window, label, &metric.unit))
         .expect("metric identity serializes");
     digest(&identity)
+}
+
+/// PRD 0041 re-validation (D2): the series key a budget metric had before
+/// its series was keyed by the budget ([`crate::budget::legacy_label`]);
+/// `None` for any other metric.
+fn legacy_budget_key(metric: &Metric) -> Option<String> {
+    metric
+        .derived_from
+        .as_ref()
+        .filter(|from| !from.key.is_empty())?;
+    Some(label_key(metric, &crate::budget::legacy_label(metric)))
+}
+
+/// PRD 0041 re-validation (D2): move the series a budget metric of
+/// `metrics` had under its legacy label key to its budget key, once, when
+/// the new series does not exist yet and exactly one budget metric of the
+/// reading maps to that legacy key. An ambiguous legacy series (two
+/// budgets shared it) is left to age out. Scoped to the account.
+fn rekey_budget_series(
+    tx: &Connection,
+    config_key: &str,
+    account_digest: &str,
+    metrics: &[Metric],
+) -> rusqlite::Result<()> {
+    let legacy: Vec<(String, String)> = metrics
+        .iter()
+        .filter_map(|metric| Some((legacy_budget_key(metric)?, metric_key(metric))))
+        .collect();
+    for (old, new) in &legacy {
+        if legacy.iter().filter(|(other, _)| other == old).count() != 1
+            || series_id(tx, config_key, account_digest, new)?.is_some()
+        {
+            continue;
+        }
+        tx.execute(
+            "UPDATE series SET metric_key = ?4
+             WHERE config_key = ?1 AND account_digest = ?2 AND metric_key = ?3",
+            rusqlite::params![config_key, account_digest, old, new],
+        )?;
+    }
+    Ok(())
 }
 
 /// The last recorded reading of an account.
@@ -820,6 +880,7 @@ impl HistoryStore {
         let mut db = self.open()?;
         let account_digest = series_digest(&db, &self.config_key, account)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        rekey_budget_series(&tx, &self.config_key, &account_digest, metrics)?;
         let mut added = 0;
         {
             // The upsert returns the series id in both cases (insert and
@@ -1360,6 +1421,10 @@ impl HistoryStore {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "history/budget_keys_tests.rs"]
+mod budget_keys_tests;
 
 #[cfg(test)]
 mod tests {

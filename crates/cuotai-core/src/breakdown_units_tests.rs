@@ -314,8 +314,9 @@ fn a_budget_on_a_row_becomes_a_quota_of_that_row() {
     let mut next = report(5, vec![capped("k1", "Bot", 81.0)]);
     budget::apply_rows(&parent, &mut next, &none, at(5), &Utc);
     let events = alerts::evaluate_rows(Some(&reading), &next, &prefs, &state, at(5));
-    assert!(events.iter().any(|event| event.kind == AlertKind::Exhausted
-        && event.label.starts_with(budget::DEFAULT_LABEL_PREFIX)));
+    assert!(events
+        .iter()
+        .any(|event| event.kind == AlertKind::Exhausted && budget::is_default_label(&event.label)));
 
     // A row gone from the reading says so on the account, never zero.
     let mut gone = report(10, vec![capped("k2", "CI", 5.0)]);
