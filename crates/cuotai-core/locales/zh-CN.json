@@ -141,7 +141,10 @@
       "query.retry_after_until",
       "metric.label.byok_external",
       "metric.label.byok_total",
-      "metric.label.budget_other_scope"
+      "metric.label.budget_other_scope",
+      "query.open_router.low_balance",
+      "query.open_router.forbidden",
+      "query.open_router.out_of_credits"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2029,8 +2032,11 @@
   "query.oauth.invalid_response": "OAuth 响应无效；未接受任何凭据。",
   "query.oauth.network": "OAuth 认证期间网络故障。",
   "query.open_router.auth": "OpenRouter 拒绝了该密钥：缺失、无效或已过期。",
+  "query.open_router.forbidden": "OpenRouter 拒绝了该密钥；它可能已被停用，或被防护规则阻止。",
   "query.open_router.key_expired": "OpenRouter 密钥已过期；请在 openrouter.ai/settings/keys 创建新密钥。",
+  "query.open_router.low_balance": "参数无效：params.low_balance 必须是大于或等于 0 的数字，且仅能与 account 产品一起使用。",
   "query.open_router.management_key_required": "此操作需要管理密钥；请在 openrouter.ai/settings/management-keys 创建，或使用密钥的默认视图。",
+  "query.open_router.out_of_credits": "OpenRouter 报告此密钥或账户的额度不足（HTTP 402）。",
   "query.open_router.params": "参数无效：params.product 必须为 key 或 account，params.breakdown（仅与 account 一起）必须为 off、provider 或 model。",
   "query.open_router.rate_limited": "OpenRouter 限制了查询。",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio（QWEN_API_KEY）无法访问账户的计费余额。该密钥只授权通过 /api/v1/services/aigc/... 进行推理；Alibaba Cloud 余额需要使用主账户的 AccessKey ID/Secret 认证的 QueryAccountBalance（Financial Management API）。主要来源：{dashscope_docs} 和 {billing_docs}",

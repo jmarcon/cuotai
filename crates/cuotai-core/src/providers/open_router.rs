@@ -85,16 +85,26 @@ fn breakdown_of(params: &BTreeMap<String, String>) -> Option<Breakdown> {
 /// `Config::validate` (RF1.2): a known product, and a breakdown only with the
 /// account product.
 pub(crate) fn params_valid(params: &BTreeMap<String, String>) -> bool {
-    let product = product_of(params);
-    let low_balance_ok = match params.get("low_balance") {
+    product_and_breakdown_valid(params) && low_balance_valid(params)
+}
+
+/// A known product, and a breakdown only with the account product.
+fn product_and_breakdown_valid(params: &BTreeMap<String, String>) -> bool {
+    matches!(
+        (product_of(params), breakdown_of(params)),
+        (Some(_), Some(Breakdown::Off)) | (Some(Product::Account), Some(_))
+    )
+}
+
+/// `params.low_balance`, when present: a threshold of 0 or more, and only
+/// with the account product.
+fn low_balance_valid(params: &BTreeMap<String, String>) -> bool {
+    match params.get("low_balance") {
         None => true,
-        Some(text) => product == Some(Product::Account) && parse_threshold(text).is_some(),
-    };
-    low_balance_ok
-        && matches!(
-            (product, breakdown_of(params)),
-            (Some(_), Some(Breakdown::Off)) | (Some(Product::Account), Some(_))
-        )
+        Some(text) => {
+            product_of(params) == Some(Product::Account) && parse_threshold(text).is_some()
+        }
+    }
 }
 
 /// Default low-balance threshold, in the credits the endpoint reports: five.
@@ -119,10 +129,16 @@ async fn open_router_at(
     base: &str,
     now: DateTime<Utc>,
 ) -> Result<Data, QueryError> {
-    if !params_valid(&account.params) {
+    if !product_and_breakdown_valid(&account.params) {
         return Err(QueryError::config(
             "query.open_router.params",
             "Invalid parameters: params.product must be key or account and params.breakdown (account only) off, provider or model.",
+        ));
+    }
+    if !low_balance_valid(&account.params) {
+        return Err(QueryError::config(
+            "query.open_router.low_balance",
+            "Invalid parameters: params.low_balance must be a number of 0 or more, and only with the account product.",
         ));
     }
     let product = product_of(&account.params).unwrap_or(Product::Key);
@@ -392,8 +408,13 @@ fn classify_http(code: u16, product: Product, expired: bool) -> QueryError {
         ),
         403 => failure(
             Status::AuthenticationError,
-            "query.open_router.auth",
-            "OpenRouter rejected the key: missing, invalid or expired.",
+            "query.open_router.forbidden",
+            "OpenRouter refused this key; it may be disabled or blocked by a guardrail.",
+        ),
+        402 => failure(
+            Status::Error,
+            "query.open_router.out_of_credits",
+            "OpenRouter reports insufficient credits for this key or account (HTTP 402).",
         ),
         429 => failure(
             Status::RateLimited,
@@ -422,8 +443,10 @@ async fn get(
     .await?;
     let status = response.status();
     if status.is_redirection() {
-        // The key is never sent elsewhere: a redirect is a rejected response.
-        return Err(QueryError::insecure());
+        // The key is never sent elsewhere: a redirect is a rejected response,
+        // never followed (PRD 0038 re-validation F-17: the request itself
+        // went to OpenRouter over HTTPS).
+        return Err(super::http_failure(status.as_u16()));
     }
     if !status.is_success() {
         let code = status.as_u16();
@@ -789,19 +812,24 @@ fn count(object: &Map<String, Value>, key: &str) -> Option<u64> {
 /// (PRD 0023 section 4). It appears when the balance is at or below the
 /// threshold.
 fn low_balance_note(data: &mut Data, threshold: f64) {
-    let Some(remaining) = data
+    let Some((remaining, unit)) = data
         .metrics
         .iter()
         .find(|m| m.kind == MetricKind::Balance)
-        .and_then(|m| m.remaining)
+        .and_then(|m| Some((m.remaining?, m.unit.clone())))
     else {
         return;
     };
     if threshold > 0.0 && remaining <= threshold {
         let mut notes = Notes::new();
+        // PRD 0038 re-validation (F-11): in the reader's number format and
+        // the balance's own unit, as budget floors print theirs.
         notes.push_params(
             "note.open_router.low_balance",
-            params([("threshold", ParamValue::from(format!("{threshold}")))]),
+            params([(
+                "threshold",
+                crate::overage::format_amount(threshold, &unit, None),
+            )]),
             "The credit balance is at or below the low-balance threshold of {threshold}.",
         );
         let (texts, l10n) = notes.finish();
@@ -898,14 +926,29 @@ async fn activity(
 }
 
 /// A name that is safe to show: no control, direction or format characters
-/// ([`crate::text::is_disguising`]), bounded length.
+/// ([`crate::text::is_disguising`]). Never cut (PRD 0038 re-validation
+/// F-12): the name is the sum key, the label and the scope id, so two
+/// models that share a prefix stay apart. The response is bounded by
+/// [`ACTIVITY_ROW_LIMIT`] and its byte limit.
 fn clean_name(name: &str) -> String {
     let name: String = name
         .chars()
         .filter(|c| !crate::text::is_disguising(*c))
-        .take(60)
         .collect();
     name.trim().to_string()
+}
+
+/// Longest model name a scope label shows; a longer one ends with `…`.
+const SCOPE_LABEL_MAX: usize = 60;
+
+/// `name` cut for display at [`SCOPE_LABEL_MAX`] characters, with `…`.
+fn display_name(name: &str) -> String {
+    if name.chars().count() <= SCOPE_LABEL_MAX {
+        return name.to_string();
+    }
+    let mut cut: String = name.chars().take(SCOPE_LABEL_MAX - 1).collect();
+    cut.push('…');
+    cut
 }
 
 fn parse_activity(value: &Value, breakdown: Breakdown) -> Result<Vec<Metric>, QueryError> {
@@ -963,8 +1006,8 @@ fn parse_activity(value: &Value, breakdown: Breakdown) -> Result<Vec<Metric>, Qu
     };
     let mut metrics = Vec::new();
     for (name, sum) in ranked {
-        let scope =
-            (breakdown == Breakdown::Model).then(|| Scope::model(name.clone(), name.clone()));
+        let scope = (breakdown == Breakdown::Model)
+            .then(|| Scope::model(name.clone(), display_name(&name)));
         metrics.push(item(
             format!("Gasto 30 dias — {name}"),
             sum,
@@ -1757,6 +1800,72 @@ mod tests {
         assert!(metric.scope.is_some());
     }
 
+    /// PRD 0038 re-validation (F-12): a long model name is never cut, so two
+    /// models that share their first 60 characters stay apart; only the
+    /// scope label is shortened for display, with an ellipsis.
+    #[tokio::test]
+    async fn long_model_names_stay_apart_and_only_the_scope_label_is_cut() {
+        let prefix = format!("vendor/{}", "x".repeat(60));
+        let (one, two) = (format!("{prefix}-one"), format!("{prefix}-two"));
+        let rows = json!({"data": [
+            {"date": "2026-10-20", "model": one, "provider_name": "A", "usage": 3.0},
+            {"date": "2026-10-20", "model": two, "provider_name": "A", "usage": 2.0},
+        ]});
+        let (data, _server) = with_breakdown(
+            "model",
+            ResponseTemplate::new(200).set_body_json(rows),
+            None,
+        )
+        .await;
+        let data = data.expect("ready");
+        for (name, used) in [(&one, 3.0), (&two, 2.0)] {
+            let metric = find(&data, &format!("Gasto 30 dias — {name}"));
+            assert_eq!(metric.used, Some(used), "{name}");
+            let scope = metric.scope.as_ref().expect("a model scope");
+            assert_eq!(&scope.id, name);
+            assert_eq!(scope.label.chars().count(), SCOPE_LABEL_MAX);
+            assert!(scope.label.ends_with('…'));
+        }
+    }
+
+    /// PRD 0038 RF9.2 (re-validation R-02): pace and usage alerts follow the
+    /// key cap (a `Quota` with a positive cap and a window), never the
+    /// balance, the spend windows or the spend by model.
+    #[tokio::test]
+    async fn pace_and_alerts_follow_the_key_cap_never_balance_or_spend() {
+        let data = key_view(key_body(json!(100), json!(74.5), json!("monthly"))).await;
+        let cap = find(&data, "Limite da chave");
+        assert!(crate::pace::assess(cap, clock(), None).is_some(), "pace");
+        assert!(crate::alerts::eligible(cap), "alerts");
+        let spends: Vec<&Metric> = data
+            .metrics
+            .iter()
+            .filter(|m| m.kind == MetricKind::Spend)
+            .collect();
+        assert!(!spends.is_empty());
+        let (data, _server) = with_breakdown(
+            "model",
+            ResponseTemplate::new(200).set_body_json(activity_rows()),
+            None,
+        )
+        .await;
+        let data = data.expect("ready");
+        let balance = data
+            .metrics
+            .iter()
+            .find(|m| m.kind == MetricKind::Balance)
+            .expect("a balance");
+        for metric in spends.into_iter().chain(&data.metrics) {
+            assert!(
+                crate::pace::assess(metric, clock(), None).is_none(),
+                "{}",
+                metric.label
+            );
+            assert!(!crate::alerts::eligible(metric), "{}", metric.label);
+        }
+        assert!(!crate::alerts::eligible(balance));
+    }
+
     // F16
     #[tokio::test]
     async fn f16_activity_failure_keeps_the_balance_and_is_cached() {
@@ -1889,23 +1998,31 @@ mod tests {
             )
         );
         // The key product has no such diagnosis.
+        // PRD 0038 re-validation (F-15): on the key product a 403 is a
+        // refusal of a known key, never "missing, invalid or expired".
         let error = key_err(ResponseTemplate::new(403)).await;
-        assert_eq!(&*error.note.id, "query.open_router.auth");
+        assert_eq!(
+            (error.status, &*error.note.id),
+            (Status::AuthenticationError, "query.open_router.forbidden")
+        );
     }
 
     // F19
     #[tokio::test]
-    async fn f19_402_is_a_generic_http_error_without_the_body() {
-        let error = key_err(
+    async fn f19_402_says_out_of_credits_without_the_body() {
+        // PRD 0038 re-validation (F-16): 402 is insufficient credits, never a
+        // permission problem; the body is never copied.
+        let response = || {
             ResponseTemplate::new(402)
-                .set_body_json(json!({"error": {"message": "Insufficient credits SECRET"}})),
-        )
-        .await;
-        assert_eq!(
-            (error.status, &*error.note.id),
-            (Status::Error, "query.http")
-        );
-        assert!(!error.note.fallback.contains("SECRET"));
+                .set_body_json(json!({"error": {"message": "Insufficient credits SECRET"}}))
+        };
+        for error in [key_err(response()).await, credits_err(response()).await] {
+            assert_eq!(
+                (error.status, &*error.note.id),
+                (Status::Error, "query.open_router.out_of_credits")
+            );
+            assert!(!error.note.fallback.contains("SECRET"));
+        }
     }
 
     // F20
@@ -2042,7 +2159,14 @@ mod tests {
             ResponseTemplate::new(302).insert_header("Location", "https://evil.test/steal"),
         )
         .await;
-        assert_eq!(&*error.note.id, "query.insecure_transport");
+        // PRD 0038 re-validation (F-17): the request reached OpenRouter over
+        // HTTPS; only the redirect is refused, so the text never says that
+        // nothing was sent.
+        assert_eq!(
+            (error.status, &*error.note.id),
+            (Status::Error, "query.http_redirect")
+        );
+        assert!(!error.note.fallback.contains("evil.test"));
     }
 
     #[tokio::test]
@@ -2171,6 +2295,43 @@ mod tests {
         assert!(!params_valid(&bad.params), "only with the account product");
         acct.params.insert("low_balance".into(), "-1".into());
         assert!(!params_valid(&acct.params));
+        // PRD 0038 re-validation (F-10): a bad threshold gets its own message.
+        for (account, value) in [(&acct, "-1"), (&bad, "5")] {
+            let error = run_at(account, &server, clock()).await.unwrap_err();
+            assert_eq!(
+                (error.status, &*error.note.id),
+                (Status::NeedsConfiguration, "query.open_router.low_balance"),
+                "{value}"
+            );
+        }
+        let mut wrong = account(Some("key"), Some("model"));
+        wrong.params.insert("low_balance".into(), "5".into());
+        let error = run_at(&wrong, &server, clock()).await.unwrap_err();
+        assert_eq!(&*error.note.id, "query.open_router.params");
+    }
+
+    /// PRD 0038 re-validation (F-11): the threshold reads in the reader's
+    /// number format, with the balance's unit.
+    #[tokio::test]
+    async fn the_low_balance_threshold_is_a_localized_amount() {
+        let server = serve(
+            CREDITS_PATH,
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"data": {"total_credits": 10.0, "total_usage": 8.0}})),
+        )
+        .await;
+        let mut acct = account(Some("account"), None);
+        acct.params.insert("low_balance".into(), "2.5".into());
+        let data = run_at(&acct, &server, clock()).await.unwrap();
+        let note = data
+            .notes_l10n
+            .iter()
+            .find(|note| note.id == "note.open_router.low_balance")
+            .expect("2 <= 2.5");
+        let Some(ParamValue::L10n(amount)) = note.params.get("threshold") else {
+            panic!("an amount");
+        };
+        assert_eq!(amount.resolve("de"), "2,5\u{a0}Credits", "{amount:?}");
     }
 
     #[test]
