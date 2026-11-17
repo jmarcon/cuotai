@@ -26,6 +26,8 @@
       "catalog.hint.cursor_import",
       "channels.*",
       "config.warning.private_http",
+      "cost.by.code_help_project",
+      "cost.by.code_help_session",
       "cost.disclosure.*",
       "cost.estimate.notice",
       "cost.folder_hint.off",

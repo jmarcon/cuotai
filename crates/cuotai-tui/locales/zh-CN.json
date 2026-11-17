@@ -19,7 +19,8 @@
       "feed.forget.failed",
       "wizard.login.choose",
       "wizard.login.confirm",
-      "feed.read_timeout"
+      "feed.read_timeout",
+      "cost.by.requests"
     ]
   },
   "about.brazil": "特别感谢：由巴西人创建的项目",
@@ -695,6 +696,9 @@
   "cli.restore.rows": "行：{rows}，此处新增：{new}",
   "cli.list_providers.aggregator": " (聚合器)",
   "cost.plan.no_account": "没有名为 {account} 的已配置账户；请使用其 id 或 provider:name。",
+  "cost.by.requests": {
+    "other": "{count} 个请求"
+  },
   "status_line.unknown_account": "--account {value} 没有对应唯一的账户；请使用 id（来自 --json-v1、/v1/limits 或 TOML 的 id 行）、键或唯一的名称。Id：{ids}。",
   "status_line.no_accounts": "无",
   "headless.strict_exit_no_ready": "cuotai：退出代码 2（--strict-exit）：服务器停止前没有任何账户获得正常读数。",

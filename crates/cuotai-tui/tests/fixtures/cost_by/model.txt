@@ -1,0 +1,7 @@
+Models (Last 2 days)
+Estimate at API prices, not a charge; amounts in USD.
+
+Local usage of Claude Code on this computer
+  Last 2 days: 164K tokens · $0.56
+    claude-opus-4-5: 25.4K tokens · $0.14
+    claude-sonnet-4-5-20250929: 139K tokens · $0.43

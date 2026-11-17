@@ -54,7 +54,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -1746,10 +1750,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "{count} más; --all las lista todas.",
   "cost.by.empty": "Sin uso en los registros leídos para este período.",
+  "cost.by.code_help_session": "El código entre corchetes es propio de Cuotai: los primeros caracteres de una huella unidireccional de la sesión, que acepta cuotai --cost-label session. No es el id de sesión de la herramienta, que nunca se guarda.",
+  "cost.by.code_help_project": "El código entre corchetes es propio de Cuotai: los primeros caracteres de una huella unidireccional de la carpeta, que acepta cuotai --cost-label project. La ruta de la carpeta nunca se guarda.",
   "cost.error.unknown_breakdown": "Desglose desconocido: {name}. Desgloses: {known}.",
   "cost.duration.minutes": "{m} min",
   "cost.duration.hours": "{h} h {m} min",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "Sesión · {start}–{end} · {duration}",
   "cost.live.line": "Este bloque ≈ {cost} · {rate} tok/min",
   "cost.live.line_unknown": "Este bloque: {tokens} tokens, costo desconocido · {rate} tok/min",
@@ -1764,6 +1770,7 @@
     "other": "Ritmo de consumo: se necesitan al menos {min} solicitudes en los últimos {minutes} minutos; por ahora {count}."
   },
   "cost.live.rate_young": "Ritmo de consumo: el bloque empezó hace {elapsed}; se necesitan {min} minutos.",
+  "cost.live.source_off": "{source} está desactivado; cuotai --cost-enable {slug} lo activa.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Proyecto {short}",
   "cost.project.none": "Sin proyecto",
@@ -2742,6 +2749,7 @@
   },
   "cost.error.rate_too_small": "El tipo de cambio es demasiado pequeño: use al menos 0.000001.",
   "cost.error.label_characters": "Una etiqueta no puede contener caracteres invisibles ni de dirección.",
+  "cost.error.top_needs_list": "--top N (1 o más) y --all solo se aplican a --cost --by session o --by project.",
   "cost.block.sessions": {
     "one": "{count} sesión",
     "other": "{count} sesiones"

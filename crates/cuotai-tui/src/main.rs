@@ -1001,11 +1001,8 @@ fn cost_action(args: &mut Args) -> Option<cost::CostAction> {
         return Some(CostAction::Usage {
             days: args.days,
             by: args.by.take(),
-            top: if args.all {
-                None
-            } else {
-                Some(args.top.unwrap_or(cost::DEFAULT_TOP))
-            },
+            top: args.top,
+            all: args.all,
         });
     }
     if args.cost_live {

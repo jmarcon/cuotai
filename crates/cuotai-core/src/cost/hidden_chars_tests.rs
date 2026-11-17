@@ -84,7 +84,10 @@ fn labels_and_folder_names_stored_before_the_filter_read_back_clean() {
     db.execute(
         "INSERT OR REPLACE INTO project_hints (project, source, folder_hint)
          SELECT project, ?1, ?2 FROM projects",
-        [SourceId::ClaudeCode.slug().to_owned(), format!("secret{RLO}evil")],
+        [
+            SourceId::ClaudeCode.slug().to_owned(),
+            format!("secret{RLO}evil"),
+        ],
     )
     .unwrap();
     db.execute(

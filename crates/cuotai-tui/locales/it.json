@@ -693,6 +693,10 @@
   "cli.restore.rows": "righe: {rows}, nuove qui: {new}",
   "cli.list_providers.aggregator": " (aggregatore)",
   "cost.plan.no_account": "Nessun account configurato si chiama {account}; usa il suo id o provider:name.",
+  "cost.by.requests": {
+    "one": "{count} richiesta",
+    "other": "{count} richieste"
+  },
   "status_line.unknown_account": "--account {value} non indica un solo account; usa un id (da --json-v1, /v1/limits o dalla riga id del TOML), una chiave o un nome unico. Id: {ids}.",
   "status_line.no_accounts": "nessuno",
   "headless.strict_exit_no_ready": "cuotai: codice di uscita 2 (--strict-exit): nessun account ha avuto una lettura valida prima che il server si fermasse.",

@@ -1,0 +1,19 @@
+Last 2 days (2026-11-09 → 2026-11-10)
+Estimate at API prices, not a charge; amounts in USD.
+
+Local usage of Claude Code on this computer
+  Today: 114K tokens · $0.41
+  Yesterday: 50.2K tokens · $0.15
+  Last 2 days: 164K tokens · $0.56
+  This block ≈ $0.23 · 6.06K tok/min
+  At this rate ≈ $5.78 by 18:00
+  By model (Last 2 days)
+    claude-opus-4-5: 25.4K tokens · $0.14
+    claude-sonnet-4-5-20250929: 139K tokens · $0.43
+  By day
+    2026-11-09: 50.2K tokens · $0.15
+    2026-11-10: 114K tokens · $0.41
+
+Codex CLI: off; nothing is read.
+
+Gemini CLI: off; nothing is read.

@@ -1071,7 +1071,11 @@ fn sessions_and_projects_come_from_the_request_rows() {
     assert_eq!(labelled.label.as_deref(), Some("Client work"));
     assert_eq!(labelled.name.resolve("en-US"), "Client work");
     let page = f.scanner.sessions(&pricing, span, now(), None, 0).unwrap();
-    assert_eq!(page.sessions[0].name.resolve("en-US"), "Refactor");
+    // L-03: the label keeps the session's time and duration.
+    assert_eq!(
+        page.sessions[0].name.resolve("en-US"),
+        "Refactor · 2025-10-03 11:00–11:40 · 40m"
+    );
     index
         .set_label(LabelTarget::Project, &prefix, None)
         .unwrap();

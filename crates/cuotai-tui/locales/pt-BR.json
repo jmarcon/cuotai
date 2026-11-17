@@ -693,6 +693,10 @@
   "cli.restore.rows": "linhas: {rows}, novas aqui: {new}",
   "cli.list_providers.aggregator": " (agregador)",
   "cost.plan.no_account": "Nenhuma conta configurada se chama {account}; use o id dela ou provider:name.",
+  "cost.by.requests": {
+    "one": "{count} requisição",
+    "other": "{count} requisições"
+  },
   "status_line.unknown_account": "--account {value} não indica uma única conta; use um id (de --json-v1, /v1/limits ou da linha id do TOML), uma chave ou um nome único. Ids: {ids}.",
   "status_line.no_accounts": "nenhuma",
   "headless.strict_exit_no_ready": "cuotai: código de saída 2 (--strict-exit): nenhuma conta teve uma leitura saudável antes de o servidor parar.",

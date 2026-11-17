@@ -167,6 +167,18 @@ fn local_text(zone: DayZone, at: DateTime<Utc>, format: &str) -> String {
     }
 }
 
+/// L-01: the start and end of a range in the computer's time: the end
+/// carries its date only when it falls on another local day (a range
+/// across midnight, or a 24-hour block).
+fn range_text(zone: DayZone, start: DateTime<Utc>, end: DateTime<Utc>) -> (String, String) {
+    let full = "%Y-%m-%d %H:%M";
+    let same_day = local_text(zone, start, "%Y-%m-%d") == local_text(zone, end, "%Y-%m-%d");
+    (
+        local_text(zone, start, full),
+        local_text(zone, end, if same_day { "%H:%M" } else { full }),
+    )
+}
+
 /// RF2.1: one agent conversation.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SessionSummary {
@@ -186,15 +198,23 @@ pub struct SessionSummary {
     pub project: Option<String>,
     /// Tokens by kind, requests, cost and the models used.
     pub estimate: Estimate,
+    /// M-06: the project's label, "Project ab12cd34" or "No project".
+    pub project_name: Localized,
 }
 
-/// RF2.1: the sessions of `requests`, newest activity first.
+/// RF2.1: the sessions of `requests`, newest activity first, each with
+/// its project named from `known` (M-06).
 pub fn sessions(
     requests: &[Request],
     labels: &BTreeMap<String, String>,
+    known: &[ProjectRow],
     prices: &Prices,
     zone: DayZone,
 ) -> Vec<SessionSummary> {
+    let project_labels: BTreeMap<&str, &str> = known
+        .iter()
+        .filter_map(|p| p.label.as_deref().map(|label| (p.project.as_str(), label)))
+        .collect();
     let mut groups: BTreeMap<(SourceId, &str), Vec<&Request>> = BTreeMap::new();
     for request in requests {
         groups
@@ -218,26 +238,36 @@ pub fn sessions(
                 .and_then(|(project, _)| project.map(str::to_owned));
             let label = labels.get(session).cloned();
             let duration_minutes = minutes(last - first);
+            let (start, end) = range_text(zone, first, last);
+            let duration = || ParamValue::l10n(duration_text(duration_minutes));
+            // L-03: a labelled session keeps its time and duration.
             let name = match &label {
-                Some(label) => Localized::with_param(
+                Some(label) => Localized::with_params(
                     "cost.session.labelled",
-                    "label",
-                    label.as_str(),
-                    "{label}",
+                    params([
+                        ("label", label.as_str().into()),
+                        ("start", start.as_str().into()),
+                        ("end", end.as_str().into()),
+                        ("duration", duration()),
+                    ]),
+                    "{label} · {start}–{end} · {duration}",
                 ),
                 None => Localized::with_params(
                     "cost.session.name",
                     params([
-                        ("start", local_text(zone, first, "%Y-%m-%d %H:%M").into()),
-                        ("end", local_text(zone, last, "%H:%M").into()),
-                        (
-                            "duration",
-                            ParamValue::l10n(duration_text(duration_minutes)),
-                        ),
+                        ("start", start.as_str().into()),
+                        ("end", end.as_str().into()),
+                        ("duration", duration()),
                     ]),
                     "Session · {start}–{end} · {duration}",
                 ),
             };
+            let project_name = project_name(
+                project.as_deref(),
+                project
+                    .as_deref()
+                    .and_then(|p| project_labels.get(p).copied()),
+            );
             SessionSummary {
                 source,
                 short: short(session),
@@ -249,6 +279,7 @@ pub fn sessions(
                 duration_minutes,
                 project,
                 estimate: estimate_of(rows.iter().copied(), prices),
+                project_name,
             }
         })
         .collect();
@@ -266,13 +297,25 @@ pub struct ProviderWindow {
 }
 
 impl ProviderWindow {
-    /// The 5-hour window of the first ready account of `source`'s providers
-    /// in `reports` that carries a reset time.
+    /// The 5-hour window of `source`'s providers in `reports`, only when
+    /// exactly one ready account of them reports a 5-hour window and it
+    /// carries a reset time (R-04): the local block reads this computer's
+    /// logs, and with two accounts nothing tells which one they belong to.
     pub fn from_reports(reports: &[Report], source: SourceId) -> Option<Self> {
-        reports
+        let mut windowed = reports.iter().filter(|r| {
+            source.providers().contains(&r.provider)
+                && r.status == Status::Ready
+                && r.metrics
+                    .iter()
+                    .any(|m| m.window == Some(MetricWindow::Window5h))
+        });
+        let account = windowed.next()?;
+        if windowed.next().is_some() {
+            return None;
+        }
+        account
+            .metrics
             .iter()
-            .filter(|r| source.providers().contains(&r.provider) && r.status == Status::Ready)
-            .flat_map(|r| r.metrics.iter())
             .filter(|m| m.window == Some(MetricWindow::Window5h))
             .find_map(|m| {
                 let used_pct = if m.unit == "%" {
@@ -309,18 +352,17 @@ pub struct BlockSummary {
 }
 
 impl BlockSummary {
-    /// "2026-10-25 14:00–19:00" in the computer's time.
+    /// "2026-10-25 14:00–19:00" in the computer's time, with the end's
+    /// date when it is another day ("2026-10-25 22:00–2026-10-26 03:00").
     pub fn window_text(&self, zone: DayZone) -> String {
-        format!(
-            "{}–{}",
-            local_text(zone, self.start, "%Y-%m-%d %H:%M"),
-            local_text(zone, self.end, "%H:%M")
-        )
+        let (start, end) = range_text(zone, self.start, self.end);
+        format!("{start}–{end}")
     }
 }
 
-/// RF3.1: the blocks of `requests` (any order, any sources), newest first,
-/// with `hours` per source; the block containing `now` is active.
+/// RF3.1: the blocks of `requests` (any order, any sources), the active
+/// ones first (R-03), then newest first, with `hours` per source; the
+/// block containing `now` is active.
 pub fn blocks(
     requests: &[Request],
     hours: &dyn Fn(SourceId) -> u8,
@@ -387,7 +429,12 @@ pub fn blocks_shown(
         }
         close(start, &mut current);
     }
-    out.sort_by(|a, b| b.start.cmp(&a.start).then(a.source.cmp(&b.source)));
+    out.sort_by(|a, b| {
+        b.active
+            .cmp(&a.active)
+            .then(b.start.cmp(&a.start))
+            .then(a.source.cmp(&b.source))
+    });
     out
 }
 
@@ -844,7 +891,8 @@ impl Scanner {
         let requests = span.shown();
         let (prices, _) = Prices::with_user_file(pricing);
         let labels = self.index().session_labels()?;
-        let all = sessions(&requests, &labels, &prices, self.zone());
+        let known = self.index().projects()?;
+        let all = sessions(&requests, &labels, &known, &prices, self.zone());
         Ok(SessionPage {
             notice: super::estimate_notice(),
             count: all.len(),
@@ -860,7 +908,7 @@ impl Scanner {
     }
 
     /// RF3.1/RF3.2: the blocks that end inside `span` (only `source` when
-    /// given), newest first, with the provider windows of `reports`
+    /// given), the active ones first, then newest first, with the provider windows of `reports`
     /// attached to each source's active block.
     pub fn blocks(
         &self,
@@ -1042,6 +1090,45 @@ pub fn more_text(count: usize) -> Localized {
     )
 }
 
+/// The line under the notice of `--by session` and `--by project` that
+/// says what the code in brackets is: Cuotai's own fingerprint prefix,
+/// never the tool's session id or the folder's path (a privacy statement,
+/// protected from user packs).
+pub fn code_help_text(by: Breakdown) -> Option<Localized> {
+    match by {
+        Breakdown::Session => Some(Localized::fixed(
+            "cost.by.code_help_session",
+            "The code in brackets is Cuotai's own: the first characters of a one-way fingerprint of the session, which cuotai --cost-label session takes. It is not the tool's session id, which is never kept.",
+        )),
+        Breakdown::Project => Some(Localized::fixed(
+            "cost.by.code_help_project",
+            "The code in brackets is Cuotai's own: the first characters of a one-way fingerprint of the folder, which cuotai --cost-label project takes. The folder's path is never kept.",
+        )),
+        Breakdown::Day | Breakdown::Model | Breakdown::Block => None,
+    }
+}
+
+/// L-05: `--top` (1 or more) and `--all` only cut a list of sessions or
+/// projects.
+pub fn top_needs_list_text() -> Localized {
+    Localized::fixed(
+        "cost.error.top_needs_list",
+        "--top N (1 or more) and --all apply only to --cost --by session or --by project.",
+    )
+}
+
+/// L-06: `--cost-live --source SOURCE` with that source off.
+pub fn live_source_off_text(source: SourceId) -> Localized {
+    Localized::with_params(
+        "cost.live.source_off",
+        params([
+            ("source", source.label().into()),
+            ("slug", source.slug().into()),
+        ]),
+        "{source} is off; cuotai --cost-enable {slug} turns it on.",
+    )
+}
+
 /// RF5.1: nothing in the span for this breakdown.
 pub fn by_empty_text() -> Localized {
     Localized::fixed(
@@ -1198,6 +1285,9 @@ pub fn folder_hint_text(source: SourceId, on: bool, removed: usize) -> Localized
     }
 }
 
+#[cfg(test)]
+#[path = "breakdown_lists_tests.rs"]
+mod lists_tests;
 #[cfg(test)]
 #[path = "live_tests.rs"]
 mod live_tests;

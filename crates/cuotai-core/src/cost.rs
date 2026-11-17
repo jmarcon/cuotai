@@ -60,6 +60,7 @@ pub use breakdown::{
     BlockSummary, Breakdown, LiveBlock, ProjectPage, ProjectSummary, ProjectionKind,
     ProviderWindow, SessionPage, SessionSummary, BURN_WINDOW_MINUTES,
 };
+pub use breakdown::{code_help_text, live_source_off_text, top_needs_list_text};
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 pub use index::{
     CostIndex, DailyUsage, HiddenUsage, Indexed, LabelTarget, Labels, ProjectLabel, ProjectRow,

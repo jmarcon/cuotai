@@ -195,7 +195,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -586,10 +590,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "{count}개 더 있음. --all로 모두 표시합니다.",
   "cost.by.empty": "이 기간에 읽은 로그에 사용 내역이 없습니다.",
+  "cost.by.code_help_session": "대괄호 안의 코드는 Cuotai 고유의 것으로, 세션의 단방향 지문 앞부분 문자입니다. cuotai --cost-label session에 이 코드를 지정합니다. 도구의 세션 ID가 아니며, 세션 ID는 저장되지 않습니다.",
+  "cost.by.code_help_project": "대괄호 안의 코드는 Cuotai 고유의 것으로, 폴더의 단방향 지문 앞부분 문자입니다. cuotai --cost-label project에 이 코드를 지정합니다. 폴더 경로는 저장되지 않습니다.",
   "cost.error.unknown_breakdown": "알 수 없는 분류: {name}. 분류: {known}.",
   "cost.duration.minutes": "{m}분",
   "cost.duration.hours": "{h}시간 {m}분",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "세션 · {start}–{end} · {duration}",
   "cost.live.line": "이 블록 ≈ {cost} · 분당 {rate} 토큰",
   "cost.live.line_unknown": "이 블록: {tokens} 토큰, 비용 알 수 없음 · 분당 {rate} 토큰",
@@ -603,6 +609,7 @@
     "other": "소비 속도: 최근 {minutes}분 동안 요청이 {min}건 이상 필요합니다. 지금까지 {count}건."
   },
   "cost.live.rate_young": "소비 속도: 블록이 {elapsed} 전에 시작되었습니다. {min}분이 필요합니다.",
+  "cost.live.source_off": "{source}이(가) 꺼져 있습니다. cuotai --cost-enable {slug}로 켭니다.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "프로젝트 {short}",
   "cost.project.none": "프로젝트 없음",
@@ -2825,6 +2832,7 @@
   },
   "cost.error.rate_too_small": "환율이 너무 작습니다. 0.000001 이상을 사용하세요.",
   "cost.error.label_characters": "레이블에는 보이지 않는 문자나 방향 문자를 사용할 수 없습니다.",
+  "cost.error.top_needs_list": "--top N(1 이상)과 --all은 --cost --by session 또는 --by project에만 적용됩니다.",
   "cost.block.sessions": {
     "other": "세션 {count}개"
   },

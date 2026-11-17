@@ -49,11 +49,13 @@ pub(crate) enum CostAction {
     /// PRD 0030 RF4.2 `--cost-prices --template MODEL…`.
     PricesTemplate(Vec<String>),
     /// RF4.2 `--cost [--days N]`; PRD 0042 RF5.1 `--by BY [--top N | --all]`
-    /// (`top` is `None` with `--all`).
+    /// (`top` as typed; L-05 refuses it, and `--all`, outside `--by
+    /// session|project`, and refuses `--top 0`).
     Usage {
         days: Option<u32>,
         by: Option<String>,
         top: Option<usize>,
+        all: bool,
     },
     /// PRD 0042 RF5.2 `--cost-live [--source S] [--watch-interval S]`.
     Live {
@@ -90,6 +92,18 @@ pub(crate) enum CostAction {
 
 /// PRD 0042 RF5.1: the rows `--by session|project` shows without `--top`.
 pub(crate) const DEFAULT_TOP: usize = 20;
+
+/// L-05: the rows `--by` shows (`None`: all), or `None` outside when
+/// `--top`/`--all` do not apply or `--top 0` was typed.
+fn top_rows(by: Breakdown, top: Option<usize>, all: bool) -> Option<Option<usize>> {
+    let list = matches!(by, Breakdown::Session | Breakdown::Project);
+    match (top, all) {
+        (Some(0), _) => None,
+        (Some(_), _) | (None, true) if !list => None,
+        (_, true) => Some(None),
+        (top, false) => Some(Some(top.unwrap_or(DEFAULT_TOP))),
+    }
+}
 
 /// The foreground scan reads everything that changed, up to a bound.
 const FOREGROUND: Limits = Limits {
@@ -436,13 +450,15 @@ pub(crate) fn run(
             }
             Ok(scan_code(&report))
         }
-        CostAction::Usage { days, by, top } => {
+        CostAction::Usage { days, by, top, all } => {
             let span = days.map(Span::days).transpose().map_err(l10n)?;
             let by = match by.as_deref() {
                 None => Breakdown::Day,
                 Some(name) => Breakdown::from_slug(name)
                     .ok_or_else(|| cost::unknown_breakdown(name).resolve(locale))?,
             };
+            let top = top_rows(by, top, all)
+                .ok_or_else(|| cost::top_needs_list_text().resolve(locale))?;
             let pricing = PricingFile::in_data_dir().map_err(l10n)?;
             let scanner = Scanner::new(index, settings, env).with_limits(FOREGROUND);
             let now = chrono::Utc::now();
@@ -1182,7 +1198,7 @@ fn breakdown_text(
     locale: &str,
 ) -> Result<String, String> {
     let l10n = |error: cost::CostError| error.l10n().resolve(locale);
-    let zone = DayZone::Local;
+    let zone = scanner.zone();
     let safe =
         |text: &cuotai_core::text::Localized| crate::ui::safe(&text.resolve(locale)).into_owned();
     // M-05: the hidden projects' note under the notice.
@@ -1199,6 +1215,11 @@ fn breakdown_text(
         }
         out
     };
+    // The line that says what the code in brackets is (sessions, projects).
+    let code_help = |rows: bool| match cost::code_help_text(by) {
+        Some(help) if rows => format!("{}\n", help.resolve(locale)),
+        _ => String::new(),
+    };
     match by {
         Breakdown::Session => {
             let page = scanner.sessions(pricing, span, now, top, 0).map_err(l10n)?;
@@ -1208,6 +1229,7 @@ fn breakdown_text(
                     .map_err(|e| e.to_string());
             }
             let mut out = header(&page.span, &page.notice, &page.hidden_note);
+            out += &code_help(!page.sessions.is_empty());
             out += &format!(
                 "{}\n",
                 page.total.line(page.span.label.clone()).resolve(locale)
@@ -1222,13 +1244,11 @@ fn breakdown_text(
                     session.short,
                     session.source.label()
                 );
+                // M-06, L-02: the project by its label, then the requests.
                 out += &format!(
-                    "  {}\n",
-                    safe(
-                        &session
-                            .estimate
-                            .line(cost::project_name(session.project.as_deref(), None))
-                    )
+                    "  {} · {}\n",
+                    safe(&session.estimate.line(session.project_name.clone())),
+                    requests_text(session.estimate.requests, locale)
                 );
                 for model in &session.estimate.models {
                     out += &format!("    {}\n", safe(&model.line()));
@@ -1285,6 +1305,7 @@ fn breakdown_text(
             if page.hidden_note.is_some() {
                 out += &format!("{}\n", cost::hidden_unhide_text().resolve(locale));
             }
+            out += &code_help(!shown.is_empty());
             out += &format!(
                 "{}\n",
                 page.total.line(page.span.label.clone()).resolve(locale)
@@ -1298,14 +1319,24 @@ fn breakdown_text(
                 } else {
                     String::new()
                 };
+                // L-04: an unlabelled project's name already holds the code.
                 let short = project
                     .short
                     .as_deref()
+                    .filter(|_| project.label.is_some())
                     .map(|short| format!(" [{short}]"))
                     .unwrap_or_default();
-                out += &format!("\n{}{short}{hidden}\n", safe(&project.name));
+                // L-02: the days it was seen in the span.
+                let first = zone.day(project.first);
+                let last = zone.day(project.last);
+                let days = if first == last {
+                    first.to_string()
+                } else {
+                    format!("{first}–{last}")
+                };
+                out += &format!("\n{}{short}{hidden} · {days}\n", safe(&project.name));
                 out += &format!(
-                    "  {}\n",
+                    "  {} · {}\n",
                     safe(&project.estimate.line(trp_in(
                         locale,
                         "cost.project.sessions",
@@ -1313,8 +1344,12 @@ fn breakdown_text(
                         "{count} sessions",
                         usize::try_from(project.sessions).unwrap_or(usize::MAX),
                         &[],
-                    )))
+                    ))),
+                    requests_text(project.estimate.requests, locale)
                 );
+                for model in &project.estimate.models {
+                    out += &format!("    {}\n", safe(&model.line()));
+                }
             }
             let more = page.projects.len().saturating_sub(shown.len());
             if more > 0 {
@@ -1324,6 +1359,40 @@ fn breakdown_text(
         }
         Breakdown::Day | Breakdown::Model => Ok(String::new()),
     }
+}
+
+/// L-02: "12 requests" beside a session or project.
+fn requests_text(count: u64, locale: &str) -> String {
+    trp_in(
+        locale,
+        "cost.by.requests",
+        "{count} request",
+        "{count} requests",
+        usize::try_from(count).unwrap_or(usize::MAX),
+        &[],
+    )
+}
+
+/// L-13: `text` cut to a `cols` × `rows` terminal, so a redraw never
+/// scrolls: each line to the width, and the lines to the height less the
+/// one the quit hint takes.
+fn fit_to_screen(text: &str, cols: u16, rows: u16) -> String {
+    use unicode_width::UnicodeWidthChar;
+    let keep = usize::from(rows.saturating_sub(1)).max(1);
+    let width = usize::from(cols.max(1));
+    text.lines()
+        .take(keep)
+        .map(|line| {
+            let mut used = 0;
+            line.chars()
+                .take_while(|c| {
+                    used += c.width().unwrap_or(0);
+                    used <= width
+                })
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\r\n")
 }
 
 /// PRD 0042 RF5.2: the live blocks as text.
@@ -1382,8 +1451,31 @@ fn live_loop(
     use crossterm::event::{self, Event, KeyCode, KeyModifiers};
     let l10n = |error: cost::CostError| error.l10n().resolve(locale);
     let io_error = |error: io::Error| error.to_string();
+    // L-06: a source named with --source that is off is an exit 2 that
+    // names it, before any scan.
+    if let Some(only) = only {
+        let enabled = scanner
+            .settings()
+            .load()
+            .map_err(l10n)?
+            .enabled_sources(scanner.env());
+        if !enabled.contains(&only) {
+            let text = cost::live_source_off_text(only).resolve(locale);
+            if json {
+                eprintln!("{text}");
+            } else {
+                println!("{text}");
+            }
+            return Ok(2);
+        }
+    }
     let terminal = interval.is_some() && !json && io::stdout().is_terminal();
     let raw = terminal && crossterm::terminal::enable_raw_mode().is_ok();
+    // L-13: the in-place view draws on the alternate screen (only with raw
+    // mode, so q and Ctrl-C always restore the terminal), and never adds
+    // its frames to the scrollback.
+    let alternate =
+        raw && crossterm::execute!(io::stdout(), crossterm::terminal::EnterAlternateScreen).is_ok();
     let result = (|| -> Result<u8, String> {
         loop {
             let now = chrono::Utc::now();
@@ -1407,9 +1499,14 @@ fn live_loop(
                 .map_err(|e| e.to_string())?;
                 writeln!(stdout, "{text}").map_err(io_error)?;
             } else if terminal {
-                let text = live_text(&blocks, hidden.as_ref(), &on, locale).replace('\n', "\r\n");
-                let quit = tr_in(locale, "cost.live.quit", "q quits");
-                write!(stdout, "\x1b[2J\x1b[H{text}\r\n{quit}\r\n").map_err(io_error)?;
+                let (cols, rows) = crossterm::terminal::size().unwrap_or((u16::MAX, u16::MAX));
+                let text = fit_to_screen(
+                    &live_text(&blocks, hidden.as_ref(), &on, locale),
+                    cols,
+                    rows,
+                );
+                let quit = fit_to_screen(tr_in(locale, "cost.live.quit", "q quits"), cols, 2);
+                write!(stdout, "\x1b[H\x1b[2J{text}\r\n{quit}").map_err(io_error)?;
             } else {
                 write!(
                     stdout,
@@ -1445,6 +1542,9 @@ fn live_loop(
             }
         }
     })();
+    if alternate {
+        let _ = crossterm::execute!(io::stdout(), crossterm::terminal::LeaveAlternateScreen);
+    }
     if raw {
         let _ = crossterm::terminal::disable_raw_mode();
     }
@@ -1454,6 +1554,9 @@ fn live_loop(
 #[cfg(test)]
 #[path = "cost_sources_tests.rs"]
 mod cost_sources_tests;
+#[cfg(test)]
+#[path = "cost_goldens_tests.rs"]
+mod goldens_tests;
 
 #[cfg(test)]
 mod tests {

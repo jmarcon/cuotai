@@ -18,7 +18,8 @@
       "feed.forget.failed",
       "wizard.login.choose",
       "wizard.login.confirm",
-      "feed.read_timeout"
+      "feed.read_timeout",
+      "cost.by.requests"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -694,6 +695,9 @@
   "cli.restore.rows": "dòng: {rows}, mới ở đây: {new}",
   "cli.list_providers.aggregator": " (bộ tổng hợp)",
   "cost.plan.no_account": "Không có tài khoản đã cấu hình nào tên là {account}; hãy dùng id của nó hoặc provider:name.",
+  "cost.by.requests": {
+    "other": "{count} yêu cầu"
+  },
   "status_line.unknown_account": "--account {value} không chỉ đúng một tài khoản; hãy dùng id (từ --json-v1, /v1/limits hoặc dòng id trong TOML), khóa hoặc tên duy nhất. Id: {ids}.",
   "status_line.no_accounts": "không có",
   "headless.strict_exit_no_ready": "cuotai: mã thoát 2 (--strict-exit): không tài khoản nào có lần đọc hợp lệ trước khi máy chủ dừng.",

@@ -227,7 +227,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -645,10 +649,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "Ещё {count}; --all покажет все.",
   "cost.by.empty": "В прочитанных журналах за этот период использования нет.",
+  "cost.by.code_help_session": "Код в квадратных скобках принадлежит Cuotai: это первые символы одностороннего отпечатка сеанса, которые принимает cuotai --cost-label session. Это не идентификатор сеанса инструмента, он никогда не хранится.",
+  "cost.by.code_help_project": "Код в квадратных скобках принадлежит Cuotai: это первые символы одностороннего отпечатка папки, которые принимает cuotai --cost-label project. Путь к папке никогда не хранится.",
   "cost.error.unknown_breakdown": "Неизвестная разбивка: {name}. Разбивки: {known}.",
   "cost.duration.minutes": "{m} мин",
   "cost.duration.hours": "{h} ч {m} мин",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "Сеанс · {start}–{end} · {duration}",
   "cost.live.line": "Этот блок ≈ {cost} · {rate} ток./мин",
   "cost.live.line_unknown": "Этот блок: {tokens} токенов, стоимость неизвестна · {rate} ток./мин",
@@ -665,6 +671,7 @@
     "other": "Темп расхода: нужно не меньше {min} запр. за последние {minutes} мин.; пока {count}."
   },
   "cost.live.rate_young": "Темп расхода: блок начался {elapsed} назад; нужно не меньше {min} мин.",
+  "cost.live.source_off": "{source} выключен; cuotai --cost-enable {slug} включает его.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Проект {short}",
   "cost.project.none": "Без проекта",
@@ -3031,6 +3038,7 @@
   },
   "cost.error.rate_too_small": "Курс слишком мал: укажите не меньше 0.000001.",
   "cost.error.label_characters": "Метка не может содержать невидимые символы и символы направления.",
+  "cost.error.top_needs_list": "--top N (1 или больше) и --all применяются только к --cost --by session или --by project.",
   "cost.block.sessions": {
     "one": "{count} сеанс",
     "few": "{count} сеанса",

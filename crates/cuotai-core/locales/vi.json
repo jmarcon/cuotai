@@ -178,7 +178,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -569,10 +573,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "Còn {count}; --all liệt kê tất cả.",
   "cost.by.empty": "Không có mức dùng nào trong nhật ký đã đọc cho khoảng thời gian này.",
+  "cost.by.code_help_session": "Mã trong ngoặc vuông là của riêng Cuotai: các ký tự đầu của dấu vân tay một chiều của phiên, được cuotai --cost-label session chấp nhận. Đây không phải mã phiên của công cụ, mã đó không bao giờ được lưu.",
+  "cost.by.code_help_project": "Mã trong ngoặc vuông là của riêng Cuotai: các ký tự đầu của dấu vân tay một chiều của thư mục, được cuotai --cost-label project chấp nhận. Đường dẫn thư mục không bao giờ được lưu.",
   "cost.error.unknown_breakdown": "Cách chia không xác định: {name}. Các cách chia: {known}.",
   "cost.duration.minutes": "{m} phút",
   "cost.duration.hours": "{h} giờ {m} phút",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "Phiên · {start}–{end} · {duration}",
   "cost.live.line": "Khối này ≈ {cost} · {rate} token/phút",
   "cost.live.line_unknown": "Khối này: {tokens} token, chưa rõ chi phí · {rate} token/phút",
@@ -586,6 +592,7 @@
     "other": "Tốc độ tiêu thụ: cần ít nhất {min} yêu cầu trong {minutes} phút qua; hiện có {count}."
   },
   "cost.live.rate_young": "Tốc độ tiêu thụ: khối bắt đầu {elapsed} trước; cần {min} phút.",
+  "cost.live.source_off": "{source} đang tắt; cuotai --cost-enable {slug} sẽ bật nguồn này.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Dự án {short}",
   "cost.project.none": "Không có dự án",
@@ -2808,6 +2815,7 @@
   },
   "cost.error.rate_too_small": "Tỷ giá quá nhỏ: hãy dùng ít nhất 0.000001.",
   "cost.error.label_characters": "Nhãn không được chứa ký tự ẩn hoặc ký tự chỉ hướng.",
+  "cost.error.top_needs_list": "--top N (từ 1 trở lên) và --all chỉ áp dụng cho --cost --by session hoặc --by project.",
   "cost.block.sessions": {
     "other": "{count} phiên"
   },

@@ -214,7 +214,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -605,10 +609,12 @@
   "cost.by.heading": "{by}（{period}）",
   "cost.by.more": "还有 {count} 项；使用 --all 列出全部。",
   "cost.by.empty": "所读日志中此期间没有用量。",
+  "cost.by.code_help_session": "方括号中的代码是 Cuotai 自己的：会话单向指纹的前几个字符，可用于 cuotai --cost-label session。它不是工具的会话 ID，该 ID 从不保存。",
+  "cost.by.code_help_project": "方括号中的代码是 Cuotai 自己的：文件夹单向指纹的前几个字符，可用于 cuotai --cost-label project。文件夹路径从不保存。",
   "cost.error.unknown_breakdown": "未知的细分方式：{name}。可用：{known}。",
   "cost.duration.minutes": "{m} 分钟",
   "cost.duration.hours": "{h} 小时 {m} 分钟",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "会话 · {start}–{end} · {duration}",
   "cost.live.line": "本时段块 ≈ {cost} · {rate} 令牌/分钟",
   "cost.live.line_unknown": "本时段块：{tokens} 令牌，费用未知 · {rate} 令牌/分钟",
@@ -622,6 +628,7 @@
     "other": "消耗速度：最近 {minutes} 分钟内至少需要 {min} 个请求；目前 {count} 个。"
   },
   "cost.live.rate_young": "消耗速度：本时段块开始于 {elapsed} 前；需要 {min} 分钟。",
+  "cost.live.source_off": "{source} 已关闭；cuotai --cost-enable {slug} 可将其开启。",
   "cost.project.labelled": "{label}",
   "cost.project.name": "项目 {short}",
   "cost.project.none": "无项目",
@@ -2844,6 +2851,7 @@
   },
   "cost.error.rate_too_small": "汇率太小：至少使用 0.000001。",
   "cost.error.label_characters": "标签不能包含不可见字符或方向字符。",
+  "cost.error.top_needs_list": "--top N（1 或以上）和 --all 只适用于 --cost --by session 或 --by project。",
   "cost.block.sessions": {
     "other": "{count} 个会话"
   },

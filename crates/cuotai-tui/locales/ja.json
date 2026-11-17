@@ -45,7 +45,8 @@
       "feed.forget.failed",
       "wizard.login.choose",
       "wizard.login.confirm",
-      "feed.read_timeout"
+      "feed.read_timeout",
+      "cost.by.requests"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -721,6 +722,9 @@
   "cli.restore.rows": "行：{rows}、ここでの新規：{new}",
   "cli.list_providers.aggregator": " (アグリゲーター)",
   "cost.plan.no_account": "{account} という名前の設定済みアカウントはありません。ID または provider:name を使ってください。",
+  "cost.by.requests": {
+    "other": "リクエスト {count} 件"
+  },
   "status_line.unknown_account": "--account {value} は 1 つのアカウントを指していません。id（--json-v1、/v1/limits、または TOML の id 行）、キー、または一意の名前を使ってください。id: {ids}。",
   "status_line.no_accounts": "なし",
   "headless.strict_exit_no_ready": "cuotai：終了コード 2（--strict-exit）：サーバーが停止するまでに正常な読み取りを得たアカウントがありませんでした。",

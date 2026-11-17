@@ -1,0 +1,12 @@
+Blocks (Last 2 days)
+Estimate at API prices, not a charge; amounts in USD.
+Local estimate
+
+Claude Code · 2026-11-10 13:00–18:00 · active · 1 session, 1 project
+  Local estimate: 60.6K tokens · $0.23
+
+Claude Code · 2026-11-10 08:00–13:00 · closed · 2 sessions, 1 project
+  Local estimate: 48.4K tokens · $0.15
+
+Claude Code · 2026-11-09 23:00–2026-11-10 04:00 · closed · 1 session, 1 project
+  Local estimate: 55.4K tokens · $0.18

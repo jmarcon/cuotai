@@ -220,7 +220,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -611,10 +615,12 @@
   "cost.by.heading": "{by}（{period}）",
   "cost.by.more": "ほか {count} 件。--all ですべて表示します。",
   "cost.by.empty": "この期間に読み取ったログに使用はありません。",
+  "cost.by.code_help_session": "角かっこ内のコードは Cuotai 独自のもので、セッションの一方向フィンガープリントの先頭の文字です。cuotai --cost-label session で指定できます。ツールのセッション ID ではなく、それは保存されません。",
+  "cost.by.code_help_project": "角かっこ内のコードは Cuotai 独自のもので、フォルダーの一方向フィンガープリントの先頭の文字です。cuotai --cost-label project で指定できます。フォルダーのパスは保存されません。",
   "cost.error.unknown_breakdown": "不明な内訳：{name}。内訳：{known}。",
   "cost.duration.minutes": "{m}分",
   "cost.duration.hours": "{h}時間{m}分",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "セッション · {start}–{end} · {duration}",
   "cost.live.line": "このブロック ≈ {cost} · {rate} トークン/分",
   "cost.live.line_unknown": "このブロック：{tokens} トークン、費用不明 · {rate} トークン/分",
@@ -628,6 +634,7 @@
     "other": "消費ペース：直近 {minutes} 分で {min} 件以上のリクエストが必要です（現在 {count} 件）。"
   },
   "cost.live.rate_young": "消費ペース：ブロックは {elapsed} 前に始まりました。{min} 分必要です。",
+  "cost.live.source_off": "{source} はオフです。cuotai --cost-enable {slug} でオンにします。",
   "cost.project.labelled": "{label}",
   "cost.project.name": "プロジェクト {short}",
   "cost.project.none": "プロジェクトなし",
@@ -2850,6 +2857,7 @@
   },
   "cost.error.rate_too_small": "レートが小さすぎます。0.000001 以上を指定してください。",
   "cost.error.label_characters": "ラベルには不可視文字や方向制御文字を使用できません。",
+  "cost.error.top_needs_list": "--top N（1 以上）と --all は --cost --by session または --by project でのみ使えます。",
   "cost.block.sessions": {
     "other": "セッション {count} 件"
   },

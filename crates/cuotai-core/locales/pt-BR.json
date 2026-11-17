@@ -54,7 +54,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -454,10 +458,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "Mais {count}; --all lista todos.",
   "cost.by.empty": "Nenhum uso nos logs lidos neste período.",
+  "cost.by.code_help_session": "O código entre colchetes é do próprio Cuotai: os primeiros caracteres de uma impressão digital de mão única da sessão, que cuotai --cost-label session aceita. Não é o id de sessão da ferramenta, que nunca é guardado.",
+  "cost.by.code_help_project": "O código entre colchetes é do próprio Cuotai: os primeiros caracteres de uma impressão digital de mão única da pasta, que cuotai --cost-label project aceita. O caminho da pasta nunca é guardado.",
   "cost.error.unknown_breakdown": "Detalhamento desconhecido: {name}. Detalhamentos: {known}.",
   "cost.duration.minutes": "{m} min",
   "cost.duration.hours": "{h} h {m} min",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "Sessão · {start}–{end} · {duration}",
   "cost.live.line": "Este bloco ≈ {cost} · {rate} tok/min",
   "cost.live.line_unknown": "Este bloco: {tokens} tokens, custo desconhecido · {rate} tok/min",
@@ -472,6 +478,7 @@
     "other": "Ritmo de consumo: precisa de pelo menos {min} solicitações nos últimos {minutes} minutos; até agora, {count}."
   },
   "cost.live.rate_young": "Ritmo de consumo: o bloco começou há {elapsed}; precisa de {min} minutos.",
+  "cost.live.source_off": "{source} está desligado; cuotai --cost-enable {slug} o liga.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Projeto {short}",
   "cost.project.none": "Sem projeto",
@@ -2742,6 +2749,7 @@
   },
   "cost.error.rate_too_small": "O câmbio é pequeno demais: use pelo menos 0.000001.",
   "cost.error.label_characters": "Um rótulo não pode conter caracteres invisíveis ou de direção.",
+  "cost.error.top_needs_list": "--top N (1 ou mais) e --all valem só com --cost --by session ou --by project.",
   "cost.block.sessions": {
     "one": "{count} sessão",
     "other": "{count} sessões"

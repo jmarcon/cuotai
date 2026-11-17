@@ -1,0 +1,18 @@
+Sessions (Last 2 days)
+Estimate at API prices, not a charge; amounts in USD.
+The code in brackets is Cuotai's own: the first characters of a one-way fingerprint of the session, which cuotai --cost-label session takes. It is not the tool's session id, which is never kept.
+Last 2 days: 164K tokens · $0.56
+
+Parser refactor · 2026-11-10 12:50–13:58 · 1h 8m [f477aba3] · Claude Code
+  Client work: 101K tokens · $0.35 · 4 requests
+    claude-opus-4-5: 20.2K tokens · $0.11
+    claude-sonnet-4-5-20250929: 80.6K tokens · $0.25
+
+Session · 2026-11-10 08:05–08:05 · 0m [3d02c033] · Claude Code
+  No project: 8.2K tokens · $0.03 · 1 request
+    claude-sonnet-4-5-20250929: 8.2K tokens · $0.03
+
+Session · 2026-11-09 23:30–2026-11-10 01:15 · 1h 45m [ebb68492] · Claude Code
+  Project 928aad1d: 55.4K tokens · $0.18 · 2 requests
+    claude-opus-4-5: 5.2K tokens · $0.03
+    claude-sonnet-4-5-20250929: 50.2K tokens · $0.15

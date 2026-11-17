@@ -176,7 +176,11 @@
       "cost.hidden.note",
       "cost.hidden.unhide",
       "cost.error.label_characters",
-      "cost.sources.size"
+      "cost.sources.size",
+      "cost.by.code_help_session",
+      "cost.by.code_help_project",
+      "cost.live.source_off",
+      "cost.error.top_needs_list"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -567,10 +571,12 @@
   "cost.by.heading": "{by} ({period})",
   "cost.by.more": "{count} lainnya; --all menampilkan semuanya.",
   "cost.by.empty": "Tidak ada penggunaan di log yang dibaca untuk periode ini.",
+  "cost.by.code_help_session": "Kode dalam kurung siku adalah milik Cuotai: karakter pertama dari sidik jari satu arah sesi, yang diterima cuotai --cost-label session. Ini bukan id sesi alat, yang tidak pernah disimpan.",
+  "cost.by.code_help_project": "Kode dalam kurung siku adalah milik Cuotai: karakter pertama dari sidik jari satu arah folder, yang diterima cuotai --cost-label project. Jalur folder tidak pernah disimpan.",
   "cost.error.unknown_breakdown": "Rincian tidak dikenal: {name}. Rincian: {known}.",
   "cost.duration.minutes": "{m} mnt",
   "cost.duration.hours": "{h} j {m} mnt",
-  "cost.session.labelled": "{label}",
+  "cost.session.labelled": "{label} · {start}–{end} · {duration}",
   "cost.session.name": "Sesi · {start}–{end} · {duration}",
   "cost.live.line": "Blok ini ≈ {cost} · {rate} token/mnt",
   "cost.live.line_unknown": "Blok ini: {tokens} token, biaya tidak diketahui · {rate} token/mnt",
@@ -584,6 +590,7 @@
     "other": "Laju pemakaian: perlu minimal {min} permintaan dalam {minutes} menit terakhir; baru {count}."
   },
   "cost.live.rate_young": "Laju pemakaian: blok dimulai {elapsed} yang lalu; perlu {min} menit.",
+  "cost.live.source_off": "{source} nonaktif; cuotai --cost-enable {slug} mengaktifkannya.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Proyek {short}",
   "cost.project.none": "Tanpa proyek",
@@ -2806,6 +2813,7 @@
   },
   "cost.error.rate_too_small": "Kurs terlalu kecil: gunakan minimal 0.000001.",
   "cost.error.label_characters": "Label tidak boleh berisi karakter tak terlihat atau karakter arah.",
+  "cost.error.top_needs_list": "--top N (1 atau lebih) dan --all hanya berlaku untuk --cost --by session atau --by project.",
   "cost.block.sessions": {
     "other": "{count} sesi"
   },
