@@ -56,7 +56,13 @@
       "settings.claudeCode.cliFound",
       "settings.claudeCode.cliMissing",
       "settings.claudeCode.copyMain",
-      "settings.claudeCode.copyChained"
+      "settings.claudeCode.copyChained",
+      "settings.costBy.addLabel",
+      "settings.costBy.code",
+      "settings.costBy.codeHelp",
+      "settings.costBy.olderSessions",
+      "settings.costBy.blocksCaption",
+      "settings.costBy.kpi.partial"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -1090,7 +1096,7 @@
   "settings.cost.disable.title": "{source} ausschalten?",
   "settings.cost.disable.text": "Das Lesen endet, und alles aus den Logs von {source} Abgeleitete wird aus dem Index gelöscht.",
   "settings.cost.disable.yes": "Ausschalten und löschen",
-  "cost.live.tip": "Lokale Schätzung des aktuellen 5-Stunden-Blocks zu API-Preisen, keine Abrechnung.",
+  "cost.live.tip": "Lokale Schätzung des aktuellen {hours}-Stunden-Blocks zu API-Preisen, keine Abrechnung.",
   "settings.cost.reconsent": "Was gelesen wird, hat sich geändert (ein Projekt-Fingerabdruck kam hinzu): erneut einschalten, um es zu prüfen und weiterzulesen.",
   "settings.costBy.title": "Sitzungen, Blöcke und Projekte",
   "settings.costBy.help": "Aus dem lokalen Kostenindex der eingeschalteten Quellen, über den gespeicherten Zeitraum. Schätzungen zu API-Preisen, keine Abrechnungen; ein Projekt ist ein Einweg-Fingerabdruck seines Ordners.",
@@ -1106,6 +1112,7 @@
   "settings.costBy.kpi.requestsCaption": "im Zeitraum",
   "settings.costBy.kpi.tokens": "Token",
   "settings.costBy.kpi.tokensCaption": "alle Arten",
+  "settings.costBy.kpi.partial": "+ unbekannte Kosten für {amount} Tokens",
   "settings.costBy.empty": "Kein Verbrauch in den gelesenen Logs für diesen Zeitraum.",
   "settings.costBy.label": "Bezeichnung von {name}",
   "settings.costBy.col.source": "Quelle",
@@ -1117,10 +1124,6 @@
   "settings.costBy.col.project": "Projekt",
   "settings.costBy.minutes": "{m} Min.",
   "settings.costBy.hours": "{h} Std. {m} Min.",
-  "settings.costBy.moreSessions": {
-    "one": "{count} ältere Sitzung nicht aufgeführt.",
-    "other": "{count} ältere Sitzungen nicht aufgeführt."
-  },
   "settings.costBy.providerWindow": "Anbieterfenster: {pct}% verbraucht, Zurücksetzung um {at}",
   "settings.costBy.providerReset": "Anbieterfenster: Zurücksetzung um {at}",
   "settings.costBy.liveTitle": "Aktiver Block · {source}",
@@ -1136,6 +1139,14 @@
   "settings.costBy.hoursUnit": "Std.",
   "settings.costBy.hint": "Letzten Ordnernamen jedes Projekts behalten",
   "settings.costBy.hintHelp": "Standardmäßig aus. Eingeschaltet wird der letzte Ordnername jedes Projekts auf diesem Computer gespeichert, um seine Bezeichnung vorzuschlagen, ab den nächsten Zeilen, die das Tool schreibt; bereits gelesene Projekte erhalten ihn, sobald ihre Logs wachsen. Er wird nie exportiert. Das Ausschalten dieser Option oder der Quelle löscht die gespeicherten Namen.",
+  "settings.costBy.addLabel": "Bezeichnung hinzufügen",
+  "settings.costBy.code": "Code {short}",
+  "settings.costBy.codeHelp": "Der Code stammt von Cuotai: die ersten Zeichen eines Einweg-Fingerabdrucks der Sitzung oder des Ordners, den cuotai --cost-label annimmt. Er ist nicht die Sitzungs-ID des Tools, die nie gespeichert wird.",
+  "settings.costBy.olderSessions": {
+    "one": "{count} ältere Sitzung anzeigen",
+    "other": "{count} ältere Sitzungen anzeigen"
+  },
+  "settings.costBy.blocksCaption": "in Blöcken, die im Zeitraum enden",
   "hooks.banner.unconfirmed": "Hooks sind an, aber ihre Regeln haben sich seit Ihrer Bestätigung geändert: Nichts läuft, bis Sie sie prüfen.",
   "hooks.banner.invalid": "Hooks sind an, aber hooks.toml ist nicht verwendbar.",
   "extensions.title": "Erweiterungen",

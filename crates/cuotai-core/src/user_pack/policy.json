@@ -204,6 +204,7 @@
       "settings.costBy.help",
       "settings.costBy.hint",
       "settings.costBy.hintHelp",
+      "settings.costBy.codeHelp",
       "settings.detect.*",
       "settings.doctor.copyHelp",
       "settings.doctor.help",

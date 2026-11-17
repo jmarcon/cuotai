@@ -64,7 +64,13 @@
       "settings.claudeCode.cliFound",
       "settings.claudeCode.cliMissing",
       "settings.claudeCode.copyMain",
-      "settings.claudeCode.copyChained"
+      "settings.claudeCode.copyChained",
+      "settings.costBy.addLabel",
+      "settings.costBy.code",
+      "settings.costBy.codeHelp",
+      "settings.costBy.olderSessions",
+      "settings.costBy.blocksCaption",
+      "settings.costBy.kpi.partial"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -1132,7 +1138,7 @@
   "settings.cost.disable.title": "Выключить {source}?",
   "settings.cost.disable.text": "Чтение прекращается, а всё, полученное из логов {source}, удаляется из индекса.",
   "settings.cost.disable.yes": "Выключить и удалить",
-  "cost.live.tip": "Локальная оценка текущего 5-часового блока по ценам API, а не списание.",
+  "cost.live.tip": "Локальная оценка текущего {hours}-часового блока по ценам API, а не списание.",
   "settings.cost.reconsent": "Изменилось то, что читается (добавлен отпечаток проекта): включите снова, чтобы проверить и продолжить чтение.",
   "settings.costBy.title": "Сеансы, блоки и проекты",
   "settings.costBy.help": "Из локального индекса затрат включённых источников за сохранённый период. Оценки по ценам API, а не списания; проект — это односторонний отпечаток его папки.",
@@ -1148,6 +1154,7 @@
   "settings.costBy.kpi.requestsCaption": "за период",
   "settings.costBy.kpi.tokens": "Токены",
   "settings.costBy.kpi.tokensCaption": "всех видов",
+  "settings.costBy.kpi.partial": "+ неизвестная стоимость {amount} токенов",
   "settings.costBy.empty": "В прочитанных журналах за этот период использования нет.",
   "settings.costBy.label": "Метка: {name}",
   "settings.costBy.col.source": "Источник",
@@ -1159,12 +1166,6 @@
   "settings.costBy.col.project": "Проект",
   "settings.costBy.minutes": "{m} мин",
   "settings.costBy.hours": "{h} ч {m} мин",
-  "settings.costBy.moreSessions": {
-    "one": "{count} более старый сеанс не показан.",
-    "few": "{count} более старых сеанса не показаны.",
-    "many": "{count} более старых сеансов не показаны.",
-    "other": "{count} более старого сеанса не показаны."
-  },
   "settings.costBy.providerWindow": "Окно провайдера: использовано {pct}%, сброс в {at}",
   "settings.costBy.providerReset": "Окно провайдера: сброс в {at}",
   "settings.costBy.liveTitle": "Активный блок · {source}",
@@ -1180,6 +1181,16 @@
   "settings.costBy.hoursUnit": "ч",
   "settings.costBy.hint": "Хранить последнее имя папки каждого проекта",
   "settings.costBy.hintHelp": "По умолчанию выключено. Если включить, последнее имя папки каждого проекта хранится на этом компьютере, чтобы подставить метку, начиная со следующих строк, которые запишет инструмент; уже прочитанные проекты получат его, когда их логи пополнятся. Оно никогда не экспортируется. Выключение этого параметра или источника удаляет сохранённые имена.",
+  "settings.costBy.addLabel": "Добавить метку",
+  "settings.costBy.code": "код {short}",
+  "settings.costBy.codeHelp": "Это собственный код Cuotai: первые символы одностороннего отпечатка сеанса или папки, который принимает cuotai --cost-label. Это не идентификатор сеанса инструмента — он никогда не сохраняется.",
+  "settings.costBy.olderSessions": {
+    "one": "Показать {count} более старый сеанс",
+    "few": "Показать {count} более старых сеанса",
+    "many": "Показать {count} более старых сеансов",
+    "other": "Показать {count} более старого сеанса"
+  },
+  "settings.costBy.blocksCaption": "в блоках, заканчивающихся в этом периоде",
   "hooks.banner.unconfirmed": "Хуки включены, но их правила изменились после вашего подтверждения: ничего не выполняется, пока вы их не проверите.",
   "hooks.banner.invalid": "Хуки включены, но hooks.toml непригоден.",
   "extensions.title": "Расширения",

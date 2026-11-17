@@ -70,7 +70,13 @@
       "settings.claudeCode.cliFound",
       "settings.claudeCode.cliMissing",
       "settings.claudeCode.copyMain",
-      "settings.claudeCode.copyChained"
+      "settings.claudeCode.copyChained",
+      "settings.costBy.addLabel",
+      "settings.costBy.code",
+      "settings.costBy.codeHelp",
+      "settings.costBy.olderSessions",
+      "settings.costBy.blocksCaption",
+      "settings.costBy.kpi.partial"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -1087,7 +1093,7 @@
   "settings.cost.disable.title": "关闭 {source}？",
   "settings.cost.disable.text": "读取会停止，由 {source} 日志派生的所有内容都会从索引中清除。",
   "settings.cost.disable.yes": "关闭并清除",
-  "cost.live.tip": "按 API 价格对当前 5 小时时段块的本地估算，并非实际扣费。",
+  "cost.live.tip": "按 API 价格对当前 {hours} 小时时段块的本地估算，并非实际扣费。",
   "settings.cost.reconsent": "读取的内容已变化（新增了项目指纹）：请重新开启以查看并继续读取。",
   "settings.costBy.title": "会话、时段块和项目",
   "settings.costBy.help": "来自已开启来源的本地费用索引，按已保存的期间统计。按 API 价格估算，并非扣费；项目是其文件夹的单向指纹。",
@@ -1103,6 +1109,7 @@
   "settings.costBy.kpi.requestsCaption": "期间内",
   "settings.costBy.kpi.tokens": "令牌",
   "settings.costBy.kpi.tokensCaption": "所有类型",
+  "settings.costBy.kpi.partial": "+ {amount} token 的费用未知",
   "settings.costBy.empty": "所读日志中此期间没有用量。",
   "settings.costBy.label": "{name} 的标签",
   "settings.costBy.col.source": "来源",
@@ -1114,9 +1121,6 @@
   "settings.costBy.col.project": "项目",
   "settings.costBy.minutes": "{m} 分钟",
   "settings.costBy.hours": "{h} 小时 {m} 分钟",
-  "settings.costBy.moreSessions": {
-    "other": "另有 {count} 个较早的会话未列出。"
-  },
   "settings.costBy.providerWindow": "提供商窗口：已用 {pct}%，{at} 重置",
   "settings.costBy.providerReset": "提供商窗口：{at} 重置",
   "settings.costBy.liveTitle": "进行中的时段块 · {source}",
@@ -1132,6 +1136,13 @@
   "settings.costBy.hoursUnit": "小时",
   "settings.costBy.hint": "保留每个项目的最后一级文件夹名",
   "settings.costBy.hintHelp": "默认关闭。开启后，每个项目的最后一级文件夹名会保存在本机，用于预填其标签，从工具接下来写入的行开始生效；已读取的项目会在其日志增长时获得名称。从不导出。关闭此项或关闭该来源会删除已保存的名称。",
+  "settings.costBy.addLabel": "添加标签",
+  "settings.costBy.code": "代码 {short}",
+  "settings.costBy.codeHelp": "此代码是 Cuotai 自己的：会话或文件夹单向指纹的前几个字符，cuotai --cost-label 接受它。它不是工具的会话 ID，会话 ID 从不保存。",
+  "settings.costBy.olderSessions": {
+    "other": "显示 {count} 个较早的会话"
+  },
+  "settings.costBy.blocksCaption": "期间内结束的时段块中",
   "hooks.banner.unconfirmed": "钩子已开启，但其规则在您确认后已更改：在您检查之前不会运行任何内容。",
   "hooks.banner.invalid": "钩子已开启，但无法使用 hooks.toml。",
   "extensions.title": "扩展",
