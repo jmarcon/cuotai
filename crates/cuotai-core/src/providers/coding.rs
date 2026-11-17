@@ -211,6 +211,7 @@ mod tests {
     fn context(http: &reqwest::Client) -> Context<'_> {
         Context {
             http,
+            direct: http,
             credentials: &TestCredentials,
             timeout: Duration::from_secs(5),
         }

@@ -518,6 +518,7 @@ mod tests {
         let http = http_client();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: creds,
             timeout: Duration::from_secs(5),
         };
@@ -792,6 +793,7 @@ mod tests {
         };
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &creds,
             timeout: Duration::from_secs(5),
         };
@@ -835,6 +837,7 @@ mod tests {
         };
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &creds,
             timeout: Duration::from_secs(5),
         };

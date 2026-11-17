@@ -111,9 +111,16 @@ fn provider() -> Arc<CryptoProvider> {
 }
 
 /// The shared seam without the OS roots: a CA file or a pin is the whole
-/// trust of this client (PRD 0050 RF7.2).
-fn builder(timeout: Duration) -> reqwest::ClientBuilder {
-    crate::network::builder_with_own_roots(crate::network::ClientPurpose::Provider, timeout)
+/// trust of this client (PRD 0050 RF7.2). Re-validation S-02: an instance
+/// on a local or private host is never reached through an environment
+/// proxy (`proxy` is a test stand-in for one, applied before that rule).
+fn builder(timeout: Duration, url: &Url, proxy: Option<reqwest::Proxy>) -> reqwest::ClientBuilder {
+    crate::network::builder_with_own_roots_for(
+        crate::network::ClientPurpose::Provider,
+        timeout,
+        url,
+        proxy,
+    )
 }
 
 fn config_error(id: &'static str, message: &str) -> QueryError {
@@ -128,9 +135,23 @@ fn config_error(id: &'static str, message: &str) -> QueryError {
 /// mismatch.
 pub(crate) type OwnClient = (reqwest::Client, Option<Arc<AtomicBool>>);
 
-/// A client of its own for `mode` (`None` for the platform roots: the
-/// shared client is used).
-pub(crate) fn client(mode: &TlsMode, timeout: Duration) -> Result<Option<OwnClient>, QueryError> {
+/// A client of its own for `mode` to reach `base` (`None` for the
+/// platform roots: the caller's client for that route is used).
+pub(crate) fn client(
+    mode: &TlsMode,
+    timeout: Duration,
+    base: &Url,
+) -> Result<Option<OwnClient>, QueryError> {
+    client_with(mode, timeout, base, None)
+}
+
+/// [`client`] with a test stand-in for the environment's proxy.
+pub(crate) fn client_with(
+    mode: &TlsMode,
+    timeout: Duration,
+    base: &Url,
+    proxy: Option<reqwest::Proxy>,
+) -> Result<Option<OwnClient>, QueryError> {
     match mode {
         TlsMode::Platform => Ok(None),
         TlsMode::CaFile(path) => {
@@ -147,7 +168,7 @@ pub(crate) fn client(mode: &TlsMode, timeout: Duration) -> Result<Option<OwnClie
                     "The 9router CA file could not be read as PEM.",
                 ));
             }
-            let mut builder = builder(timeout);
+            let mut builder = builder(timeout, base, proxy);
             for certificate in certificates {
                 builder = builder.add_root_certificate(certificate);
             }
@@ -162,7 +183,7 @@ pub(crate) fn client(mode: &TlsMode, timeout: Duration) -> Result<Option<OwnClie
                 provider: provider(),
             };
             let config = tls_config(Arc::new(verifier))?;
-            let client = builder(timeout)
+            let client = builder(timeout, base, proxy)
                 .use_preconfigured_tls(config)
                 .build()
                 .map_err(|_| QueryError::transport())?;
@@ -334,6 +355,15 @@ impl ServerCertVerifier for CaptureVerifier {
 /// read with a verifier that records it. The single request carries no
 /// cookie, password or token, and its answer is discarded.
 pub(crate) async fn capture_fingerprint(health: Url, timeout: Duration) -> Option<[u8; 32]> {
+    capture_fingerprint_with(health, timeout, None).await
+}
+
+/// [`capture_fingerprint`] with a test stand-in for the environment's proxy.
+pub(crate) async fn capture_fingerprint_with(
+    health: Url,
+    timeout: Duration,
+    proxy: Option<reqwest::Proxy>,
+) -> Option<[u8; 32]> {
     if health.scheme() != "https" {
         return None;
     }
@@ -342,7 +372,7 @@ pub(crate) async fn capture_fingerprint(health: Url, timeout: Duration) -> Optio
         seen: Arc::clone(&seen),
         provider: provider(),
     };
-    let client = builder(timeout)
+    let client = builder(timeout, &health, proxy)
         .use_preconfigured_tls(tls_config(Arc::new(verifier)).ok()?)
         .build()
         .ok()?;
@@ -417,9 +447,11 @@ mod tests {
 
     #[test]
     fn a_missing_or_non_pem_ca_file_needs_configuration() {
+        let base = Url::parse("https://router.example.com/").unwrap();
         let error = client(
             &TlsMode::CaFile("/nonexistent/ca.pem".into()),
             Duration::from_secs(1),
+            &base,
         )
         .err()
         .unwrap();
@@ -430,6 +462,7 @@ mod tests {
         let error = client(
             &TlsMode::CaFile(path.to_string_lossy().into_owned()),
             Duration::from_secs(1),
+            &base,
         )
         .err()
         .unwrap();
@@ -534,6 +567,7 @@ mod tests {
             .unwrap();
         let ctx = crate::providers::Context {
             http: &http,
+            direct: &http,
             credentials: &NoSecrets,
             timeout: Duration::from_secs(5),
         };
@@ -593,6 +627,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = crate::providers::Context {
             http: &http,
+            direct: &http,
             credentials: &NoSecrets,
             timeout: Duration::from_secs(5),
         };
@@ -611,10 +646,40 @@ mod tests {
 
     #[test]
     fn a_pinned_client_builds() {
-        let (client, mismatch) = client(&TlsMode::Pin([7; 32]), Duration::from_secs(1))
+        let base = Url::parse("https://router.example.com/").unwrap();
+        let (client, mismatch) = client(&TlsMode::Pin([7; 32]), Duration::from_secs(1), &base)
             .unwrap()
             .unwrap();
         drop(client);
         assert!(!mismatch.unwrap().load(Ordering::Relaxed));
+    }
+
+    /// Re-validation S-02: the CA-file, pinned and capture clients of an
+    /// instance on a local host never go through an environment proxy (a
+    /// recording proxy stands in for one and must see nothing).
+    #[tokio::test]
+    async fn own_trust_clients_of_a_local_instance_skip_the_proxy() {
+        let proxy = crate::network::recording_proxy::RecordingProxy::start().await;
+        let base = Url::parse(&format!("{}/", https_router(LEAF, LEAF_KEY).await)).unwrap();
+        let health = base.join("api/health").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let ca_file = dir.path().join("ca.pem");
+        std::fs::write(&ca_file, pem("CERTIFICATE", CA)).unwrap();
+        let leaf = digest(&CertificateDer::from(der(LEAF)));
+        for mode in [
+            TlsMode::CaFile(ca_file.to_string_lossy().into_owned()),
+            TlsMode::Pin(leaf),
+        ] {
+            let (client, _) =
+                client_with(&mode, Duration::from_secs(5), &base, Some(proxy.proxy()))
+                    .unwrap()
+                    .unwrap();
+            let response = client.get(health.clone()).send().await.unwrap();
+            assert!(response.status().is_success(), "{mode:?}");
+        }
+        let seen =
+            capture_fingerprint_with(health, Duration::from_secs(5), Some(proxy.proxy())).await;
+        assert_eq!(seen, Some(leaf));
+        assert!(proxy.seen().is_empty(), "{:?}", proxy.seen());
     }
 }

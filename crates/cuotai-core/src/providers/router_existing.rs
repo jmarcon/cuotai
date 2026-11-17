@@ -352,6 +352,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds,
             timeout: Duration::from_secs(2),
         };
@@ -387,6 +388,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds,
             timeout: Duration::from_secs(2),
         };

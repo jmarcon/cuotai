@@ -1358,10 +1358,10 @@ pub(crate) async fn fetch_connection_at(
 ) -> Result<Option<SubReport>, QueryError> {
     let base = account_base(account).map_err(base_error)?;
     let trust = tls::mode(account, &base).map_err(tls_error)?;
-    let own = tls::client(&trust, ctx.timeout)?;
+    let own = tls::client(&trust, ctx.timeout, &base)?;
     let (http, flag) = match &own {
         Some((client, flag)) => (client, flag.clone()),
-        None => (ctx.http, None),
+        None => (ctx.client_for(&base), None),
     };
     let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
     let deadline = tokio::time::Instant::now() + limits.instance;
@@ -1409,10 +1409,10 @@ pub(crate) async fn fetch_with(
     let allow_private = allows_private_http(account);
     let base = account_base(account).map_err(base_error)?;
     let trust = tls::mode(account, &base).map_err(tls_error)?;
-    let own = tls::client(&trust, ctx.timeout)?;
+    let own = tls::client(&trust, ctx.timeout, &base)?;
     let (http, flag) = match &own {
         Some((client, flag)) => (client, flag.clone()),
-        None => (ctx.http, None),
+        None => (ctx.client_for(&base), None),
     };
     let instance = Instance::new(http, base, limits, ctx.timeout)
         .with_pin_flag(flag)
@@ -1808,13 +1808,13 @@ pub(crate) async fn test_connection_with(
     let Ok(trust) = tls::mode(account, &base) else {
         return TestOutcome::Unreachable;
     };
-    let own = match tls::client(&trust, ctx.timeout) {
+    let own = match tls::client(&trust, ctx.timeout, &base) {
         Ok(own) => own,
         Err(_) => return TestOutcome::CaFileUnreadable,
     };
     let (http, flag) = match &own {
         Some((client, flag)) => (client, flag.clone()),
-        None => (ctx.http, None),
+        None => (ctx.client_for(&base), None),
     };
     let port = base.port_or_known_default().unwrap_or(80);
     let instance = Instance::new(http, base, limits, ctx.timeout)
@@ -2017,6 +2017,7 @@ mod tests {
     fn context(http: &reqwest::Client) -> Context<'_> {
         Context {
             http,
+            direct: http,
             credentials: &Env,
             timeout: Duration::from_secs(5),
         }
@@ -3369,6 +3370,7 @@ mod tests {
                     let credentials = SsoOnly(format!("auth_token={token}"));
                     let ctx = Context {
                         http: &http,
+                        direct: &http,
                         credentials: &credentials,
                         timeout: Duration::from_secs(5),
                     };
@@ -3453,6 +3455,7 @@ mod tests {
                 let ctx = if sso {
                     Context {
                         http: &http,
+                        direct: &http,
                         credentials: &credentials,
                         timeout: Duration::from_secs(5),
                     }
@@ -3601,5 +3604,44 @@ mod tests {
             assert!(!target.contains(".."), "{target}");
         }
         assert!(seen.iter().any(|(_, target)| target == "/api/usage/dup"));
+    }
+
+    /// Re-validation S-02: on the platform roots, a loopback instance is
+    /// read through the direct client, never the shared one that carries
+    /// the environment's proxy (a recording proxy stands in for it).
+    #[tokio::test]
+    async fn a_local_instance_never_goes_through_the_environment_proxy() {
+        let proxy = crate::network::recording_proxy::RecordingProxy::start().await;
+        let proxied = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .proxy(proxy.proxy())
+            .build()
+            .unwrap();
+        let direct = client();
+        let server = MockServer::start().await;
+        let token = jwt(Utc::now().timestamp() + 86_400);
+        mount_login(
+            &server,
+            ResponseTemplate::new(200).insert_header("set-cookie", format!("auth_token={token}")),
+            1,
+        )
+        .await;
+        mount_json(&server, "/api/providers/client", page(json!([]), 1)).await;
+        let ctx = Context {
+            http: &proxied,
+            direct: &direct,
+            credentials: &Env,
+            timeout: Duration::from_secs(5),
+        };
+        let acct = account(&server, true, &[]);
+        fetch_at(&acct, &ctx, Limits::DEFAULT, Utc::now())
+            .await
+            .unwrap();
+        assert!(matches!(
+            test_connection_at(&acct, &ctx, Limits::DEFAULT, Utc::now()).await,
+            TestOutcome::Connected { .. }
+        ));
+        assert!(proxy.seen().is_empty(), "{:?}", proxy.seen());
+        assert!(!server.received_requests().await.unwrap().is_empty());
     }
 }

@@ -651,6 +651,9 @@ tokio::task_local! {
 pub struct Monitor {
     config: Config,
     http: reqwest::Client,
+    /// PRD 0036 re-validation S-02: the same contract without any proxy,
+    /// for aggregator requests to plain HTTP or local and private hosts.
+    direct: reqwest::Client,
     credentials: Arc<dyn Credentials>,
     oauth: Arc<oauth::OAuthSession>,
     query_slots: Semaphore,
@@ -712,10 +715,16 @@ impl Monitor {
             Duration::from_secs(config.timeout_seconds),
         )
         .ok_or(ConfigError::Client)?;
+        let direct = network::direct_client(
+            network::ClientPurpose::Provider,
+            Duration::from_secs(config.timeout_seconds),
+        )
+        .ok_or(ConfigError::Client)?;
         let query_slots = Semaphore::new(config.concurrency);
         Ok(Self {
             config,
             http,
+            direct,
             credentials,
             oauth,
             query_slots,
@@ -753,19 +762,22 @@ impl Monitor {
     /// [`ConfigError`] when a document or account setting is invalid.
     pub fn with_config(&self, config: Config) -> Result<Self, ConfigError> {
         config.validate()?;
-        let http = if config.timeout_seconds == self.config.timeout_seconds {
-            self.http.clone()
+        let (http, direct) = if config.timeout_seconds == self.config.timeout_seconds {
+            (self.http.clone(), self.direct.clone())
         } else {
-            network::client(
-                network::ClientPurpose::Provider,
-                Duration::from_secs(config.timeout_seconds),
+            let timeout = Duration::from_secs(config.timeout_seconds);
+            (
+                network::client(network::ClientPurpose::Provider, timeout)
+                    .ok_or(ConfigError::Client)?,
+                network::direct_client(network::ClientPurpose::Provider, timeout)
+                    .ok_or(ConfigError::Client)?,
             )
-            .ok_or(ConfigError::Client)?
         };
         let query_slots = Semaphore::new(config.concurrency);
         Ok(Self {
             config,
             http,
+            direct,
             credentials: Arc::clone(&self.credentials),
             oauth: Arc::clone(&self.oauth),
             query_slots,
@@ -1935,6 +1947,7 @@ impl Monitor {
             };
             let ctx = providers::Context {
                 http: &self.http,
+                direct: &self.direct,
                 credentials: &credentials,
                 timeout,
             };

@@ -1100,6 +1100,7 @@ mod tests {
     fn ctx<'a>(http: &'a reqwest::Client, creds: &'a Creds) -> Context<'a> {
         Context {
             http,
+            direct: http,
             credentials: creds,
             timeout: Duration::from_secs(2),
         }
@@ -1221,6 +1222,7 @@ mod tests {
         let credentials = TwoAccounts;
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &credentials,
             timeout: Duration::from_secs(2),
         };
@@ -1667,6 +1669,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds,
             timeout: Duration::from_millis(100),
         };

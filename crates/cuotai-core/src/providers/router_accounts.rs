@@ -574,6 +574,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("dummy"),
             timeout: Duration::from_secs(2),
         };
@@ -623,6 +624,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("dummy"),
             timeout: Duration::from_secs(2),
         };
@@ -683,6 +685,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("dummy"),
             timeout: Duration::from_secs(2),
         };
@@ -726,6 +729,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("dummy"),
             timeout: Duration::from_secs(2),
         };
@@ -788,6 +792,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("dummy"),
             timeout: Duration::from_secs(2),
         };
@@ -815,6 +820,7 @@ mod tests {
             let http = reqwest::Client::new();
             let ctx = Context {
                 http: &http,
+                direct: &http,
                 credentials: &Creds("dummy"),
                 timeout: Duration::from_secs(2),
             };
@@ -872,6 +878,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("pt-secret"),
             timeout: Duration::from_secs(2),
         };
@@ -915,6 +922,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("jt-direct"),
             timeout: Duration::from_secs(2),
         };
@@ -944,6 +952,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("jt-direct"),
             timeout: Duration::from_secs(2),
         };
@@ -964,6 +973,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Creds("dummy"),
             timeout: Duration::from_secs(2),
         };

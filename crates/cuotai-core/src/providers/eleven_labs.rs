@@ -477,6 +477,7 @@ mod tests {
         let http = client();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &TestCredentials,
             timeout: Duration::from_secs(5),
         };

@@ -817,6 +817,7 @@ mod tests {
     fn ctx<'a>(http: &'a Client, creds: &'a Creds) -> Context<'a> {
         Context {
             http,
+            direct: http,
             credentials: creds,
             timeout: Duration::from_secs(5),
         }
