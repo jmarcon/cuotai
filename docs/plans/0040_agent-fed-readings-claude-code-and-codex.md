@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0040 |
-| Status | Awaiting owner verification |
+| Status | Awaiting owner verification (2026-11-17 re-validation fixes in vNEXT) |
 | Owner | `cuotai-core` (feed store, feed readers, provider source mode, access descriptor, status-line composer), `cuotai-tui` (`--feed`, `--statusline-claude`), desktop (live-session chip, Settings rows) |
 | Consumers | Every front end (cards, details, tray, `--once`, `--json-v1`, `--serve`, `--watch`), status-bar recipes of PRD 0031 |
 | Depends on | PRD 0005 (access descriptor), PRD 0010 (freshness and age), PRD 0029 (stable account id, to bind a feed to an account) |
@@ -28,6 +28,44 @@
 
 **Owner verification:** the §11 smoke with a real Claude Code session (status line shows Claude's windows plus the tightest other account within one prompt, the card reads its age from the feed, closing Claude Code ages the reading) and one real Codex CLI log; listed in `0000_control.md` §2.1.
 
+### 2026-11-17 re-validation (vNEXT)
+
+The re-validation (Visual, Security, Review) found 2 high, 11 medium and 16 low findings; the fixes ship in vNEXT, one commit per group:
+
+| Group | Findings | RF | Delivery (vNEXT) |
+|---|---|---|---|
+| G1 | H-1, M-4, L-13 | RF3.2 | One core presentation, `freshness::present` (`measured_at`, age, freshness, "read"/"queried" wording); the TUI card, details and `--once` heading, the desktop age chip and tooltip, the menu-bar views, the widget and the status lines age a fed reading from when the agent wrote it; `--status-line` exits 2 on a stale selected account; the export and `/v1/limits` add `reading_age_seconds`. Cross-surface test `tests/stale_feed_surfaces.rs`, guard `freshness_guard_tests.rs`, `scripts/test-stale-feed-ui.mjs`. |
+| G2 | H-2 | RF3.4, RF4.1, RF5.1 | `feed::account_reading` merges per window (newest reading carrying each window with its reset ahead); the hybrid answers from the feed only when a reading with a limit window is younger than the interval; the status lines keep the account's windows in a new Claude Code window; Codex reads up to 16 logs of the last 24 h. Limitation: two Claude accounts in two Claude Code windows can mix (bind one). |
+| G3 | M-1, L-1, L-2, L-16 | RF1.2, RF4.3 | Turning the Codex CLI local source off erases `feed/codex_cli`; one consent check (`feed::readable`) for every reader; `--feed claude-statusline --forget` and **Forget Claude Code readings**; the newest file is kept past 24 h only while an account is bound to its source; typed Codex lines; Codex disclosure v3; `cost.disclosure.*` and `feed.forget.*` protected. |
+| G4 | M-2, M-3, M-4, L-6, L-7, L-12, M-11 (budget) | RF5.1, RF5.2, RF5.3 | `tray::stale_suffix` ("(2 h)", "(stale)") replaces the "·" mark in the menu bar, `--status-line` and `--statusline-claude`; `--statusline-claude --account` takes an id, key or unique name and reports a miss; locale money; an exhausted other account says when it returns; `SERVER_BUDGET` 100 ms from process start. |
+| G5 | M-8, L-13 | RF3.4, RF6.1 | `feed::provenance`: a fed card says "From Claude Code · 3 min ago", "From Codex CLI's logs · …" or that the query answered, on the desktop card, the TUI card, the details and `--once` (no raw `feed:` source). |
+| G6 | L-3, L-4, L-5 | RF1.3, RF2.3 | Standard input waits at most 250 ms and stops at the end of the first JSON value (exit 3, nothing on stdout); interrupted `.tmp*` writes are pruned after 60 s; `--doctor` and the details count unreadable feed files. |
+| G7 | M-10, M-6, M-7, L-10, L-11 | RF1.1, RF7.2, RF8.1 | `live_sessions = false` in the TOML (migrated once from `desktop.json`) stops computing and exporting sessions everywhere; the feed lives in `<OS local data>/cuotai/feed`, which the data-folder setting does not move (debug: `CUOTAI_FEED_DIR`); the desktop snippet says it needs the terminal version and uses its full path when found; distinct **Copy** labels; Integrations search alias. |
+| G8 | M-9, M-11 | RF2.3, RF5.4, RF7.1 | Demo flags (`?feed=`, `?live=`, `?feed-banner`) and eleven UI-check pages for fed accounts; `tests/feed_timing.rs` in the CI `release-profile` job. |
+| G10 | M-5 | RF3.5 | Adding a Claude or ChatGPT account asks for the source first, skips the credential for a feed mode, and never starts a sign-in on a bare Enter (a confirmation line first). |
+
+**Deviations, documented:** RF2.3: `--feed … --print` loads the TOML and the history through RF5 to compose the line (the plain writer still reads no configuration). RF5.3: `--max-width` drops whole parts. RF8.1: the `feed` binding gives the live block only. §3 now says the live block is on by default (RF7.2). Claude's own part on the status line is marked once its windows are older than the account's interval; the other accounts are marked when stale (three intervals), as the menu bar does.
+
+**Open items:**
+- **L-8, owner decision:** `--color` is dead under Claude Code, because Claude Code pipes stdout. Recommendation: for `--statusline-claude` only, honour `--color` without a terminal (still off with `NO_COLOR`) and colour only Claude's part. Unchanged until the owner decides.
+- **Owner decision:** let the desktop executable answer `--feed claude-statusline` itself (no window), so a desktop-only install gets a snippet; needs the per-run start cost against the 50 ms budget, Gatekeeper's first launch and the AppImage path measured.
+- **L-14 (low, deferred):** a wrong `params.feed` binding's error names neither the account nor the rule (two `edit_error.feed.*` ids in 14 languages).
+- **L-15 (low, deferred):** `--setup` points to a repository path, and paths sit inside translatable strings.
+- PRD 0025: the Meters and Icon-only menu-bar styles have no text, so a stale reading is only dimmed there (recorded as a PRD 0025 open item).
+
+**Awaiting owner verification (2026-11-17 checklist):**
+1. Live status line: `statusLine` set to the absolute path of the terminal `cuotai` with `--feed claude-statusline --print`; one prompt shows "5h N% · Wk N% ↺ …" plus the tightest other account.
+2. Ageing: close Claude Code and wait past twice the refresh interval; the desktop card, the TUI card, `--once` and the menu bar show the reading as stale with its age (never "Up to date" or "now"), and the figures stay.
+3. Second window: a second Claude Code window without a prompt keeps the Claude card's windows; the Live session shows two sessions.
+4. Codex CLI: turn the `codex_cli` local source on (the consent is asked again), send one Codex prompt (both windows and a live line), then turn it off (the readings and the live line disappear at once).
+5. Desktop-only install: the snippet row says the terminal version is needed; with Homebrew's `cuotai` installed the snippet carries its full path.
+6. Moved data folder: the fed card still updates from Claude Code.
+7. Add account with Claude Code detected (desktop and TUI): the feed mode is preselected, no credential step, no browser on Enter; in query mode the sign-in asks for confirmation.
+8. Unbound banner: a feed with no Claude account shows the banner; **Add account** opens with the Claude Code mode; dismissing hides it for 7 days.
+9. **Show live agent session** off: the block is gone, and `/v1/limits` and `/v1/snapshot` carry no `sessions`; an existing `desktop.json` with the switch off migrates once.
+10. Menu bar on macOS, Windows and Linux with a stale account: the "(2 h)" title fits.
+11. `--statusline-claude --from-server` stays within the 100 ms budget on a real machine.
+
 ## 1. Context
 
 Today the `claude` and `chat_gpt` providers read usage through **undocumented** interfaces with a subscription session (an OAuth token Cuotai obtains with the native login or that the person pastes). Two things changed in 2026:
@@ -51,7 +89,7 @@ Competitors already treat the agent itself as a data source: Claude Code Usage M
 - A **documented, network-free, token-free** reading of the Claude Code 5-hour and 7-day windows (and the gateway spend limit when present), fed by Claude Code itself through its status-line contract, usable as the account's source or beside the existing query.
 - The same for Codex CLI from local data, gated on the PRD 0028 canary (shape verified before shipping, re-verified by `verified_on`).
 - `cuotai --statusline-claude`: one line for Claude Code's status line that shows Claude's own windows **plus** the tightest other account, built by the PRD 0031 summary.
-- A **live session** block in the desktop and the TUI (context window used, estimated session cost, model) for each active agent session, opt-in and local only.
+- A **live session** block in the desktop and the TUI (context window used, estimated session cost, model) for each active agent session, on by default with a switch to turn it off (RF7.2), and local only.
 - Honest freshness: a feed that stops (the agent closed) ages like any reading (PRD 0010) and never becomes `0`.
 
 ## 4. Non-goals
@@ -102,7 +140,7 @@ Competitors already treat the agent itself as a data source: Claude Code Usage M
 
 - **RF5.1** `cuotai --statusline-claude [--style ...] [--account ID]... [--from-server [URL]] [--max-width N]` reads the status-line JSON from stdin (RF2), stores the feed, and prints **one line** composed by the PRD 0031 status-line summary: Claude's own windows first ("5h 23% · Wk 41% ↺ 19:30"), then the tightest other account ("· Codex 64% left"), then, when the fed `context_window.used_percentage` is present, "· ctx 8%". The words and chips come from the core (DS-CMP-TIME), so the terminal and the desktop say the same.
 - **RF5.2** Other accounts come from `--from-server` (a running `cuotai --serve` or the desktop server, loopback only, token from the default file) or, without it, from the last recorded history reading (PRD 0006) marked with the age; the status line **never queries a provider itself**, because Claude Code calls it often (its own cadence, at most every 300 ms per the documentation).
-- **RF5.3** Colour only with `--color` on a terminal with `NO_COLOR` unset, as in PRD 0031; `--max-width` truncates with an ellipsis, Claude's windows last to go.
+- **RF5.3** Colour only with `--color` on a terminal with `NO_COLOR` unset, as in PRD 0031; `--max-width` drops whole parts (the context share, then the other account, then Claude's reset time, then Claude's windows from the last), never a piece of one (corrected 2026-11-17: it never cut with an ellipsis).
 - **RF5.4** Performance budget: under 50 ms without `--from-server`, under 150 ms with it (loopback); a failed server read falls back to the history and never delays the agent.
 - **Acceptance criterion:** golden tests of the line for the five RF2 fixtures with and without server data, the width truncation order, the colour gate, and a timing test in CI (release profile) under the budgets.
 
@@ -122,7 +160,7 @@ Competitors already treat the agent itself as a data source: Claude Code Usage M
 
 ### RF8 — Binding a feed to an existing account (medium priority)
 
-- **RF8.1** A person who keeps `query_mode = "api"` can still get the live block and the hybrid fallback: the account field `feed = "claude_code"` binds the feed to that account (stable id of PRD 0029). Without it, a feed with no account shows one dismissible banner "Claude Code is sending readings; add a Claude account fed by Claude Code" with an **Add account** action prefilled.
+- **RF8.1** A person who keeps `query_mode = "api"` can still get the live block (corrected 2026-11-17: the binding gives the live block only; the hybrid fallback needs the `claude_code_or_api` mode): the account field `feed = "claude_code"` binds the feed to that account (stable id of PRD 0029). Without it, a feed with no account shows one dismissible banner "Claude Code is sending readings; add a Claude account fed by Claude Code" with an **Add account** action prefilled.
 - **RF8.2** Two Claude accounts (work and personal) cannot be told apart from the feed, which carries no account identity: the binding is explicit, and the docs say so. A session digest never maps to an account by itself.
 - **Acceptance criterion:** TOML round trip of `feed`, the banner state machine (no account, bound, dismissed for 7 days), and a test that two accounts with the same `feed` are a validation error.
 
