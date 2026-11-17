@@ -1267,6 +1267,9 @@ mod budget_tests;
 #[path = "text/emitted_ids_tests.rs"]
 mod emitted_ids_tests;
 #[cfg(test)]
+#[path = "text/plural_guard_tests.rs"]
+mod plural_guard_tests;
+#[cfg(test)]
 pub(crate) use budget_tests::display_width as budget_width;
 
 #[cfg(test)]

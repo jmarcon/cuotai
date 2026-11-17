@@ -1013,7 +1013,10 @@
   "note.meta.sign_in_for_usage": "Meta non documenta un'API di utilizzo, spesa o saldo; accedi a dev.meta.ai dall'account per leggere l'utilizzo della console.",
   "note.meta.console_undocumented": "Utilizzo letto dall'interfaccia interna della console dev.meta.ai; può cambiare senza preavviso.",
   "note.meta.teams_unavailable": "La console dev.meta.ai non ha elencato i team; imposta \"ID del team\" dall'indirizzo della pagina di utilizzo.",
-  "note.meta.several_teams": "La sessione appartiene a {count} team; imposta \"ID del team\" dall'indirizzo della pagina di utilizzo per sceglierne uno.",
+  "note.meta.several_teams": {
+    "one": "La sessione appartiene a {count} team; imposta \"ID del team\" dall'indirizzo della pagina di utilizzo per sceglierne uno.",
+    "other": "La sessione appartiene a {count} team; imposta \"ID del team\" dall'indirizzo della pagina di utilizzo per sceglierne uno."
+  },
   "note.meta.usage_unavailable": "La console dev.meta.ai non ha restituito l'utilizzo; la scheda mostra solo la verifica della chiave.",
   "note.meta.usage_empty": "La console di dev.meta.ai non ha restituito serie di utilizzo per questo mese; l'utilizzo è sconosciuto, non zero.",
   "note.router_keys.kimi_internal_route": "Rotta interna di Kimi osservata in 9router; soggetta a modifiche e restrizioni del provider.",

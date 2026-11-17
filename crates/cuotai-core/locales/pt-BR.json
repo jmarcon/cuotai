@@ -9,7 +9,8 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "note.meta.several_teams"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -1503,7 +1504,10 @@
   "note.meta.sign_in_for_usage": "A Meta não documenta API de uso, gasto ou saldo; entre no dev.meta.ai pela conta para ler o uso do console.",
   "note.meta.console_undocumented": "Uso lido na interface interna do console dev.meta.ai; pode mudar sem aviso.",
   "note.meta.teams_unavailable": "O console dev.meta.ai não listou as equipes; informe \"ID da equipe\" a partir do endereço da página de uso.",
-  "note.meta.several_teams": "A sessão pertence a {count} equipes; informe \"ID da equipe\" a partir do endereço da página de uso para escolher uma.",
+  "note.meta.several_teams": {
+    "one": "A sessão pertence a {count} equipe; informe \"ID da equipe\" a partir do endereço da página de uso para escolher uma.",
+    "other": "A sessão pertence a {count} equipes; informe \"ID da equipe\" a partir do endereço da página de uso para escolher uma."
+  },
   "note.meta.usage_unavailable": "O console dev.meta.ai não devolveu o uso; o cartão mostra só a verificação da chave.",
   "note.meta.usage_empty": "O console do dev.meta.ai não retornou série de uso para este mês; o uso é desconhecido, não zero.",
   "note.router_keys.kimi_internal_route": "Rota interna não documentada publicamente (referência: 9router MIT, commit f01fb909); pode mudar sem aviso.",

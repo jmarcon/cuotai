@@ -15,7 +15,8 @@
       "models.unsupported.reason.nine_router",
       "text.duration.compact.days",
       "text.duration.compact.hours",
-      "text.duration.compact.minutes"
+      "text.duration.compact.minutes",
+      "note.meta.several_teams"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -1509,7 +1510,10 @@
   "note.meta.sign_in_for_usage": "Meta dokumentiert keine Nutzungs-, Ausgaben- oder Guthaben-API; melden Sie sich im Konto bei dev.meta.ai an, um die Nutzung der Konsole zu lesen.",
   "note.meta.console_undocumented": "Nutzung aus der internen Schnittstelle der dev.meta.ai-Konsole; kann sich ohne Ankündigung ändern.",
   "note.meta.teams_unavailable": "Die dev.meta.ai-Konsole hat die Teams nicht aufgelistet; setzen Sie \"Team-ID\" aus der Adresse der Nutzungsseite.",
-  "note.meta.several_teams": "Die Sitzung gehört zu {count} Teams; setzen Sie \"Team-ID\" aus der Adresse der Nutzungsseite, um eines zu wählen.",
+  "note.meta.several_teams": {
+    "one": "Die Sitzung gehört zu {count} Team; setzen Sie \"Team-ID\" aus der Adresse der Nutzungsseite, um eines zu wählen.",
+    "other": "Die Sitzung gehört zu {count} Teams; setzen Sie \"Team-ID\" aus der Adresse der Nutzungsseite, um eines zu wählen."
+  },
   "note.meta.usage_unavailable": "Die dev.meta.ai-Konsole hat die Nutzung nicht geliefert; die Karte zeigt nur die Schlüsselprüfung.",
   "note.meta.usage_empty": "Die dev.meta.ai-Konsole lieferte für diesen Monat keine Nutzungsreihe; die Nutzung ist unbekannt, nicht null.",
   "note.router_keys.kimi_internal_route": "Interne Kimi-Route, in 9router beobachtet; Änderungen und Einschränkungen des Anbieters vorbehalten.",

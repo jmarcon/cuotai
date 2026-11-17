@@ -250,11 +250,13 @@ async fn console_usage(
                     return Ok((Vec::new(), notes));
                 }
                 many => {
-                    notes.push_params(
+                    // A plural (PRD 0035 re-validation V35-12): ru "21 команде".
+                    notes.push_note(Localized::plural(
                         "note.meta.several_teams",
                         params([("count", ParamValue::from(many.len() as u64))]),
+                        "The session belongs to {count} team; set the Team ID from the usage page address to choose one.",
                         "The session belongs to {count} teams; set the Team ID from the usage page address to choose one.",
-                    );
+                    ));
                     return Ok((Vec::new(), notes));
                 }
             }
@@ -1111,6 +1113,37 @@ mod tests {
         .expect("key still valid");
         assert!(data.metrics.is_empty());
         assert!(data.notes.iter().any(|n| n.contains("2 teams")));
+    }
+
+    /// PRD 0035 re-validation V35-12: the team count is a plural, so
+    /// Russian says "21 команде" and "22 командам".
+    #[tokio::test]
+    async fn several_teams_note_is_a_plural() {
+        for (count, english, russian) in [
+            (21, "21 teams", "21 команде"),
+            (22, "22 teams", "22 командам"),
+            (25, "25 teams", "25 командам"),
+        ] {
+            let ids: Vec<_> = (0..count)
+                .map(|i| serde_json::json!({ "team_id": format!("{}", 1001 + i) }))
+                .collect();
+            let teams =
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "teams": ids }));
+            let data = console(
+                &session_account(&[]),
+                Some(teams),
+                ResponseTemplate::new(500),
+            )
+            .await
+            .expect("key still valid");
+            let note = data
+                .notes_l10n
+                .iter()
+                .find(|note| note.id == "note.meta.several_teams")
+                .expect("team note");
+            assert!(note.resolve("en-US").contains(english), "{count}");
+            assert!(note.resolve("ru").contains(russian), "{count}");
+        }
     }
 
     #[tokio::test]
