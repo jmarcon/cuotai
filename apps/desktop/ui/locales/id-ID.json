@@ -154,6 +154,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Reset {when}",
+  "metric.resetsUtcMidnight": "Reset pada tengah malam UTC ({time})",
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Penggunaan: {amount}",
   "metric.exhausted": "Habis",

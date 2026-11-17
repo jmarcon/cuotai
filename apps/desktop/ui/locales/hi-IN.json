@@ -157,6 +157,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "{when} पर रीसेट",
+  "metric.resetsUtcMidnight": "UTC मध्यरात्रि पर रीसेट ({time})",
   "metric.balance": "बैलेंस: {amount}",
   "metric.usage": "उपयोग: {amount}",
   "metric.exhausted": "खत्म",

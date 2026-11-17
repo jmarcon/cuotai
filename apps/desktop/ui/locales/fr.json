@@ -323,7 +323,8 @@
       "coreText.passwordUnset",
       "metric.noCap",
       "metric.full",
-      "metric.exhaustedAmount"
+      "metric.exhaustedAmount",
+      "metric.resetsUtcMidnight"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -478,6 +479,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Réinitialisation {when}",
+  "metric.resetsUtcMidnight": "Réinitialisation à minuit UTC ({time})",
   "metric.balance": "Solde : {amount}",
   "metric.usage": "Utilisation : {amount}",
   "metric.exhausted": "Épuisé",

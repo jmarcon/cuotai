@@ -3,7 +3,7 @@
 import { t, te, tl } from "./i18n.js";
 import {
   STALE, paceUnit, accessHtml, ageHtml, bindingChipText, fmtShare, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isFullCounter, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isFullCounter, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric, periodText, utcMidnightResetText,
 } from "./lib.js";
 import { expectedLeft, fmtAt, meterHtml, stageChip, TONE_ROLE } from "./components.js";
 import { breakdownHtml } from "./breakdown.js";
@@ -58,12 +58,14 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   const paceRole = !pace ? "" : pace.shows_stage === false ? "warn" : TONE_ROLE[pace.tone] ?? "muted";
   const paceMarker = pace?.marker ? tl(pace.marker) : "";
   const paceTip = pace ? [pace.summary ? tl(pace.summary[unit]) : [tl(pace.label), pace.outlook ? tl(pace.outlook) : ""].filter(Boolean).join(" · "), paceMarker, t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) }), t("card.pace.estimate")].filter(Boolean).join(" · ") : "";
-  const resetText = reset && !renewed ? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: reset })) : "";
+  const resetText = reset && !renewed ? (utcMidnightResetText(m) ?? (m.resets_label ? tl(m.resets_label) : t("metric.resetsAt", { when: reset }))) : "";
+  // PRD 0038 F-09: the period after the name, in the secondary style, as the TUI shows it.
+  const period = periodText(m);
   // PRD 0041 RF2: a budget quota is the person's number, labelled as such on every surface (never a provider limit).
   const budget = m.budget_badge ? tl(m.budget_badge) : "";
   return `<div class="metric ${hid ? "muted" : ""} ${binding ? "binding" : ""} ${budget ? "budget" : ""} ${m.alert?.active ? "usage-alert" : ""}" title="${esc(fmtAmount(m))}">
     <div class="metric-top">
-      <h3>${esc(limitLabel(r, m))}${budget ? ` <span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${m.alert?.active ? ` <span class="btag warn" data-usage-alert-chip>${icon("bell")}${te("alerts.activeTitle")}</span>` : ""}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
+      <h3>${esc(limitLabel(r, m))}${period ? ` <span class="period" data-period>· ${esc(period)}</span>` : ""}${budget ? ` <span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${m.alert?.active ? ` <span class="btag warn" data-usage-alert-chip>${icon("bell")}${te("alerts.activeTitle")}</span>` : ""}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
       <div class="metric-right">
         ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${fmtShare(pct)}<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}

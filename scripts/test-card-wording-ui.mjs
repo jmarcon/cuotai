@@ -505,3 +505,47 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   await i18n.setLocale("en-US");
   console.log("PASS: a Retry-After wait is shown as the time the account is queried again");
 }
+
+// PRD 0038 F-09: the details show a metric's period after its name (secondary style) and the card only in its
+// tooltip; a daily window resetting at 00:00 UTC says "UTC midnight" when the viewer's zone is not UTC.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  const text = (id, fallback, params = {}) => ({ id, params, fallback });
+  await i18n.setLocale("en-US");
+  const tomorrow = new Date(Date.now() + 86_400_000);
+  const midnight = new Date(Date.UTC(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth(), tomorrow.getUTCDate()));
+  const m = {
+    label: "Gasto (30 dias)", label_text: text("metric.label.spend_30d", "30-day spending"), unit: "USD", used: 4.5, limit: null,
+    remaining: null, kind: "spend", window: "daily", state: "available", ratio: null, uncapped: true, no_cap: false,
+    period: "30 dias completos (UTC)", period_text: text("metric.period.completed_days_utc", "30 completed days (UTC)"),
+    resets_at: midnight.toISOString(),
+  };
+  const r = { account: "Work", provider: "open_router", status: "ready", metrics: [m], notes: [] };
+  const html = metricCardHtml(r, m);
+  assert.ok(/<h3>[^]*<span class="period" data-period>· 30 completed days \(UTC\)<\/span>/.test(html), html);
+  assert.equal(lib.periodText(m), "30 completed days (UTC)");
+  assert.equal(lib.periodText({ ...m, period_text: null }), "");
+  const plain = metricCardHtml(r, { ...m, period: null, period_text: null });
+  assert.ok(!plain.includes("data-period"), plain);
+
+  // The card: the period only in a tooltip, never in the visible text.
+  const { summaryHtml } = await import("../apps/desktop/ui/js/card-summary.js");
+  const quota = { ...m, label: "Daily", label_text: text("metric.label.daily", "Daily"), unit: "%", used: 40, limit: 100, remaining: 60, kind: "quota", uncapped: false, no_cap: false, ratio: 0.6 };
+  for (const card of [summaryHtml({ ...r, metrics: [quota] }), summaryHtml(r)]) {
+    assert.ok(/title="[^"]*30 completed days \(UTC\)/.test(card), card);
+    assert.equal(card.replace(/title="[^"]*"/g, "").includes("30 completed days"), false, card);
+  }
+  const utc = lib.utcMidnightResetText(m, new Date(), () => 180);
+  assert.ok(utc.startsWith("Resets at UTC midnight ("), utc);
+  assert.ok(utc.includes(" · in "), utc);
+  assert.equal(lib.utcMidnightResetText(m, new Date(), () => 0), null, "no word in UTC itself");
+  assert.equal(lib.utcMidnightResetText({ ...m, window: "monthly" }, new Date(), () => 180), null);
+  const later = new Date(midnight.getTime() + 3_600_000).toISOString();
+  assert.equal(lib.utcMidnightResetText({ ...m, resets_at: later }, new Date(), () => 180), null, "another hour");
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    const out = lib.utcMidnightResetText(m, new Date(), () => -540);
+    assert.ok(out.includes("UTC") && !out.includes("{time}") && !out.includes("metric.resetsUtcMidnight"), `${code}: ${out}`);
+  }
+  console.log("PASS: details show each metric's period, and a reset at UTC midnight says so outside UTC");
+}

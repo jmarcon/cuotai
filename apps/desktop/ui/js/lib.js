@@ -725,6 +725,20 @@ export function resetsText(m) {
   const left = legacyCountdown(m.resets_at);
   return left ? t("quota.resetsIn", { time: left }) : null;
 }
+/** PRD 0038 F-09: a metric's period ("30 completed days (UTC)") as the core words it (`period_text`), or "". */
+export const periodText = (m) => (m?.period_text ? tl(m.period_text) : "");
+/** PRD 0038 F-09: a daily window that resets at 00:00 UTC, seen from a zone where that is not midnight, says so in
+ *  words: "Resets at UTC midnight (21:00) · in 3h 5m", the time in the viewer's zone. Null otherwise (a zero offset,
+ *  another window, another hour), so the core's `resets_label` stays the reset line. `offset` (minutes, the viewer's
+ *  zone at the reset) is injectable for tests. */
+export function utcMidnightResetText(m, now = new Date(), offset = (d) => d.getTimezoneOffset()) {
+  if (m?.window !== "daily" || !m.resets_at) return null;
+  const d = new Date(m.resets_at);
+  if (Number.isNaN(d.getTime()) || d.getTime() <= now.getTime()) return null;
+  if (d.getUTCHours() || d.getUTCMinutes() || d.getUTCSeconds() || !offset(d)) return null;
+  const time = d.toDateString() === now.toDateString() ? fmtLocal(d, HHMM) : fmtReset(m.resets_at);
+  return `${t("metric.resetsUtcMidnight", { time })} · ${tl(countdownNote(m.resets_at))}`;
+}
 // PRD 0035 RF10.3: durations are catalog patterns (the core's `text.duration.*`, with their English fallbacks), never
 // concatenated letters, so each language words them (`{h}時間{m}分`, `{h} ч {m} мин`).
 const DURATION_EN = {

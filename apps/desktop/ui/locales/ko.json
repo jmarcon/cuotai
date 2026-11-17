@@ -55,7 +55,8 @@
       "coreText.passwordUnset",
       "metric.noCap",
       "metric.full",
-      "metric.exhaustedAmount"
+      "metric.exhaustedAmount",
+      "metric.resetsUtcMidnight"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -207,6 +208,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date} {time}",
   "metric.resetsAt": "{when}에 초기화",
+  "metric.resetsUtcMidnight": "UTC 자정에 초기화 ({time})",
   "metric.balance": "잔액: {amount}",
   "metric.usage": "사용량: {amount}",
   "metric.exhausted": "소진됨",

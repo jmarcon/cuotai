@@ -34,6 +34,12 @@
   font-size: var(--text-base);
   font-weight: 500;
 }
+/* PRD 0038 F-09: the metric's period after its name, secondary text. */
+.metric h3 .period {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--fg-muted);
+}
 .resets {
   margin-top: var(--space-2);
   text-align: right;
