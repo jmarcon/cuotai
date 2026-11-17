@@ -47,6 +47,10 @@ pub(super) struct BudgetStep {
     /// budget in another unit than its metric is refused; `None` for a new
     /// account or before any reading.
     reading: Option<Vec<cuotai_core::Metric>>,
+    /// F-10: the rows added in this session whose amount was not typed yet;
+    /// their empty-amount problem stays hidden in the list (Enter still
+    /// stops on it), budgets first, then floors.
+    fresh: Vec<bool>,
 }
 
 pub(super) struct Colors {
@@ -61,8 +65,18 @@ impl BudgetStep {
     pub(super) fn of(account: Option<&Account>) -> Self {
         let mut step = Self::default();
         if let Some(account) = account {
-            step.budgets = account.budgets.iter().map(BudgetRow::from_budget).collect();
-            step.floors = account.floors.iter().map(FloorRow::from_floor).collect();
+            let locale = crate::ui::tui_locale();
+            step.budgets = account
+                .budgets
+                .iter()
+                .map(|budget| BudgetRow::from_budget(budget, locale))
+                .collect();
+            step.floors = account
+                .floors
+                .iter()
+                .map(|floor| FloorRow::from_floor(floor, locale))
+                .collect();
+            step.fresh = vec![false; step.rows()];
         }
         step
     }
@@ -74,29 +88,67 @@ impl BudgetStep {
         self
     }
 
-    /// Every problem of the rows for `provider` (RF1.2, F-07).
-    fn problems(&self, provider: Provider) -> Vec<editor::RowProblem> {
-        editor::check(
+    /// The core's check of the rows for `provider` (RF1.2, F-05, F-07,
+    /// F-10, F-11), amounts read in the TUI's language.
+    fn check(&self, provider: Provider) -> editor::RowCheck {
+        editor::check_rows(
             provider,
-            &self.budgets(),
-            &self.floors(),
+            &self.budgets,
+            &self.floors,
+            crate::ui::tui_locale(),
             self.reading.as_deref(),
         )
     }
 
     /// The budgets the draft saves.
     pub(super) fn budgets(&self) -> Vec<Budget> {
-        self.budgets.iter().map(BudgetRow::to_budget).collect()
+        let locale = crate::ui::tui_locale();
+        self.budgets
+            .iter()
+            .map(|row| row.to_budget(locale))
+            .collect()
     }
 
     /// The floors the draft saves.
     pub(super) fn floors(&self) -> Vec<Floor> {
-        self.floors.iter().map(FloorRow::to_floor).collect()
+        let locale = crate::ui::tui_locale();
+        self.floors.iter().map(|row| row.to_floor(locale)).collect()
+    }
+
+    /// F-10: whether row `index` (budgets first) shows `problem`: an empty
+    /// amount of a row added in this session waits until it is typed.
+    fn shows(&self, index: usize, problem: &editor::RowProblem) -> bool {
+        let empty = match self.row(index) {
+            Some(Row::Budget(i)) => self.budgets[i].amount.trim().is_empty(),
+            Some(Row::Floor(i)) => self.floors[i].amount.trim().is_empty(),
+            None => false,
+        };
+        !(empty
+            && problem.rule == budget::BudgetRule::Amount
+            && problem.field.ends_with(".amount")
+            && self.fresh.get(index).copied().unwrap_or(false))
+    }
+
+    /// The first problem of row `index` of `list` the list shows.
+    fn row_note(
+        &self,
+        problems: &[editor::RowProblem],
+        list: &str,
+        index: usize,
+        row: usize,
+    ) -> Option<Localized> {
+        let shown: Vec<editor::RowProblem> = problems
+            .iter()
+            .filter(|problem| self.shows(row, problem))
+            .cloned()
+            .collect();
+        editor::row_problem(&shown, list, index)
     }
 
     /// The first problem of the rows for `provider` (RF1.2), localized.
     pub(super) fn problem(&self, provider: Provider) -> Option<Localized> {
-        self.problems(provider)
+        self.check(provider)
+            .problems
             .into_iter()
             .next()
             .map(|problem| problem.note)
@@ -154,7 +206,15 @@ impl BudgetStep {
             }
             KeyCode::Char('a') | KeyCode::Char('A') if plain => {
                 if self.budgets.len() < MAX_BUDGETS {
-                    self.budgets.push(BudgetRow::new(provider));
+                    let mut row = BudgetRow::new(provider);
+                    // F-11: the unit of the metric in the last reading.
+                    if let Some(unit) = self.reading.as_deref().and_then(|metrics| {
+                        editor::metric_unit(&row.to_budget(crate::ui::tui_locale()), metrics)
+                    }) {
+                        row.unit = unit;
+                    }
+                    self.budgets.push(row);
+                    self.fresh.insert(self.budgets.len() - 1, true);
                     self.selected = self.budgets.len() - 1;
                     self.start_edit();
                 }
@@ -166,6 +226,7 @@ impl BudgetStep {
                         row.target = *first;
                     }
                     self.floors.push(row);
+                    self.fresh.push(true);
                     self.selected = self.rows() - 1;
                     self.start_edit();
                 }
@@ -184,6 +245,9 @@ impl BudgetStep {
                         self.floors.remove(i);
                     }
                     None => {}
+                }
+                if self.selected < self.fresh.len() {
+                    self.fresh.remove(self.selected);
                 }
                 self.selected = self.selected.min(self.rows().saturating_sub(1));
             }
@@ -242,6 +306,11 @@ impl BudgetStep {
                 } else if let Some(text) = self.text_mut(field) {
                     if text.chars().count() < TEXT_MAX {
                         text.push(c);
+                    }
+                    if field == 1 {
+                        if let Some(fresh) = self.fresh.get_mut(self.selected) {
+                            *fresh = false;
+                        }
                     }
                 }
             }
@@ -342,7 +411,8 @@ impl BudgetStep {
         let accent = Style::default().fg(colors.accent);
         let dim = Style::default().fg(colors.dim);
         let bad = Style::default().fg(colors.bad);
-        let problems = self.problems(provider);
+        let check = self.check(provider);
+        let problems = check.problems;
         let mut lines = vec![
             Line::from(Span::styled(
                 tr(
@@ -365,13 +435,16 @@ impl BudgetStep {
         }
         let marker = |index: usize| if index == self.selected { "> " } else { "  " };
         for (i, row) in self.budgets.iter().enumerate() {
-            let budget = row.to_budget();
-            let unit = budget.unit.clone().unwrap_or_default();
+            let sentence = check
+                .sentences
+                .get(i)
+                .map(|sentence| sentence.resolve(locale))
+                .unwrap_or_default();
             let text = format!(
                 "{}{} · {}",
                 marker(i),
                 row.target.text().resolve(locale),
-                budget::describe(&budget, &unit).resolve(locale)
+                sentence
             );
             lines.push(Line::from(Span::styled(
                 crate::ui::safe(&text).into_owned(),
@@ -384,7 +457,7 @@ impl BudgetStep {
             if self.editing.is_some() && i == self.selected {
                 lines.extend(self.budget_fields(row, provider, accent, dim));
             }
-            if let Some(note) = editor::row_problem(&problems, "budgets", i) {
+            if let Some(note) = self.row_note(&problems, "budgets", i, i) {
                 lines.push(Line::from(Span::styled(
                     format!("    {}", note.resolve(locale)),
                     bad,
@@ -425,7 +498,7 @@ impl BudgetStep {
             if self.editing.is_some() && index == self.selected {
                 lines.extend(self.floor_fields(row, provider, accent, dim));
             }
-            if let Some(note) = editor::row_problem(&problems, "floors", j) {
+            if let Some(note) = self.row_note(&problems, "floors", j, index) {
                 lines.push(Line::from(Span::styled(
                     format!("    {}", note.resolve(locale)),
                     bad,
@@ -611,7 +684,7 @@ impl BudgetStep {
     }
 
     /// The review's lines: one per budget sentence and floor.
-    pub(super) fn summary_lines(&self, dim: Style) -> Vec<Line<'static>> {
+    pub(super) fn summary_lines(&self, provider: Provider, dim: Style) -> Vec<Line<'static>> {
         if self.is_empty() {
             return Vec::new();
         }
@@ -627,17 +700,19 @@ impl BudgetStep {
             ),
             dim,
         ))];
-        for row in &self.budgets {
-            let budget = row.to_budget();
-            let unit = budget.unit.clone().unwrap_or_default();
+        for sentence in self.check(provider).sentences {
             lines.push(Line::from(format!(
                 "  {}",
-                crate::ui::safe(&budget::describe(&budget, &unit).resolve(locale))
+                crate::ui::safe(&sentence.resolve(locale))
             )));
         }
         lines
     }
 }
+
+#[cfg(test)]
+#[path = "wizard_budgets_amount_tests.rs"]
+mod amount_tests;
 
 #[cfg(test)]
 mod tests {

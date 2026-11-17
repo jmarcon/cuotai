@@ -241,6 +241,28 @@ fn scan_code(report: &ScanReport) -> u8 {
 
 /// Run `action`; returns the exit code (0 done, 2 a scan that found a
 /// source on without logs or access, or none on). Errors are local (1).
+/// F-05: a number typed on the command line (`--cost-plan … PRICE`,
+/// `--cost-currency CODE RATE`), read like the budget editors read it in
+/// en-US: `Err(Some(text))` names an amount such as `1,000` that reads two
+/// ways, `Err(None)` is not a number.
+fn amount_arg(text: &str, field: &str, locale: &str) -> Result<f64, Option<String>> {
+    use cuotai_core::text::number::{parse_amount, AmountProblem};
+    match parse_amount(text, "en-US") {
+        Ok(value) => Ok(value),
+        Err(AmountProblem::Ambiguous { whole, decimal }) => Err(Some(
+            cuotai_core::budget::editor::amount_ambiguous_note(
+                field.into(),
+                text,
+                whole,
+                decimal,
+                "en-US",
+            )
+            .resolve(locale),
+        )),
+        Err(AmountProblem::Invalid) => Err(None),
+    }
+}
+
 pub(crate) fn run(
     action: CostAction,
     json: bool,
@@ -310,18 +332,15 @@ pub(crate) fn run(
             currency,
             cycle_day,
         } => {
-            let number = |text: &str| text.trim().replace(',', ".").parse::<f64>();
-            let plan = number(&price)
-                .map_err(|_| cost::CostError::InvalidPlan)
-                .and_then(|price| {
-                    let day = cycle_day
-                        .as_deref()
-                        .map(|day| day.trim().parse::<u8>())
-                        .transpose()
-                        .map_err(|_| cost::CostError::InvalidPlan)?;
-                    cost::PlanSetting::new(price, &currency, day)
-                })
-                .map_err(l10n)?;
+            // F-05: "1,000" is refused instead of saved as 1.
+            let price = amount_arg(&price, "PRICE", locale)
+                .map_err(|problem| problem.unwrap_or_else(|| l10n(cost::CostError::InvalidPlan)))?;
+            let day = cycle_day
+                .as_deref()
+                .map(|day| day.trim().parse::<u8>())
+                .transpose()
+                .map_err(|_| l10n(cost::CostError::InvalidPlan))?;
+            let plan = cost::PlanSetting::new(price, &currency, day).map_err(l10n)?;
             // L-06: a plan is saved only under an account that exists.
             let Some(found) = find_account(configured.as_deref(), &account) else {
                 return Err(trf(
@@ -376,16 +395,13 @@ pub(crate) fn run(
                 return Ok(0);
             }
             let today = chrono::Local::now().date_naive();
-            let rate = rate
-                .ok_or(cost::CostError::InvalidRate)
-                .and_then(|rate| {
-                    rate.trim()
-                        .replace(',', ".")
-                        .parse::<f64>()
-                        .map_err(|_| cost::CostError::InvalidRate)
-                })
-                .and_then(|rate| cost::DisplayCurrency::new(&code, rate, today))
-                .map_err(l10n)?;
+            // F-05: "5,250" is refused instead of saved as 5.25 or 5250.
+            let rate = match rate.as_deref().map(|rate| amount_arg(rate, "RATE", locale)) {
+                Some(Ok(rate)) => rate,
+                Some(Err(Some(problem))) => return Err(problem),
+                _ => return Err(l10n(cost::CostError::InvalidRate)),
+            };
+            let rate = cost::DisplayCurrency::new(&code, rate, today).map_err(l10n)?;
             let line = format!("1 USD = {} {}", rate.rate, rate.code);
             settings.set_display_currency(Some(rate)).map_err(l10n)?;
             writeln!(
