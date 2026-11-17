@@ -464,11 +464,16 @@ credential_env = "OPENROUTER_API_KEY"
 # LiteLLM proxy: the USD budget and spend per provider of your own proxy
 # (provider_budget_config), one sub-account per provider. Only the documented
 # GET /provider/budgets is read.
+# Use a virtual key limited to the read routes (/provider/budgets, plus
+# /key/list or /team/list with a breakdown), not the master key, which can
+# create keys and change the proxy. The key goes only to base_url; a
+# plain-http, local or private address is never reached through an
+# environment proxy.
 # example: litellm
 # [[accounts]]
 # name = "litellm"
 # provider = "litellm"
-# credential_env = "LITELLM_API_KEY"   # name of the variable with the master or virtual key
+# credential_env = "LITELLM_API_KEY"   # name of the variable with the key
 # params = { base_url = "http://127.0.0.1:4000" }
 # breakdown = ["keys", "teams"]  # optional: spend and budget per virtual key and team (by alias)
 # example-end

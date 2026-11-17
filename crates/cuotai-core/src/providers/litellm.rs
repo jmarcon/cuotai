@@ -203,8 +203,12 @@ async fn get_json(
     key: &str,
     allow_private: bool,
 ) -> Result<Value, QueryError> {
+    // S-02: plain HTTP and local or private hosts never use an
+    // environment proxy (the key would reach it, and the proxy would
+    // connect to its own loopback); public HTTPS keeps it.
+    let client = url::Url::parse(url).map_or(ctx.direct, |parsed| ctx.client_for(&parsed));
     json_checked(
-        ctx.http
+        client
             .get(url)
             .bearer_auth(key)
             .header("Accept", "application/json")
@@ -533,6 +537,7 @@ mod tests {
     fn context(http: &reqwest::Client) -> Context<'_> {
         Context {
             http,
+            direct: http,
             credentials: &Keys,
             timeout: Duration::from_secs(5),
         }
@@ -875,5 +880,79 @@ mod tests {
             .find(|n| n.id == "note.breakdown.unavailable")
             .unwrap();
         assert!(note.text().contains("credential"));
+    }
+
+    /// Re-validation S-02: a proxy on loopback is read through the direct
+    /// client (budgets, the key list and the team list), never the shared
+    /// one that carries the environment's proxy (a recording proxy stands
+    /// in for it), so the key never reaches a proxy in clear.
+    #[tokio::test]
+    async fn a_local_proxy_never_goes_through_the_environment_proxy() {
+        let proxy = crate::network::recording_proxy::RecordingProxy::start().await;
+        let proxied = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .proxy(proxy.proxy())
+            .build()
+            .unwrap();
+        let direct = reqwest::Client::new();
+        let server = MockServer::start().await;
+        mount_breakdown(&server).await;
+        let ctx = Context {
+            http: &proxied,
+            direct: &direct,
+            credentials: &Keys,
+            timeout: Duration::from_secs(5),
+        };
+        let mut acct = account(&server, &[]);
+        acct.breakdown = vec![crate::BreakdownKind::Keys, crate::BreakdownKind::Teams];
+        let data = fetch_at(&acct, &ctx, Utc::now()).await.unwrap();
+        assert_eq!(data.sub_reports.len(), 5);
+        assert!(!data.breakdown.is_empty());
+        let paths: Vec<String> = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .map(|request| request.url.path().to_string())
+            .collect();
+        for wanted in [BUDGETS_PATH, KEYS_PATH, TEAMS_PATH] {
+            assert!(paths.iter().any(|seen| seen == wanted), "{wanted}");
+        }
+        assert!(proxy.seen().is_empty(), "{:?}", proxy.seen());
+    }
+
+    /// Re-validation S-06: `allow_private_http` accepts "true" and "1" like
+    /// 9router, and the account's transport rule follows it.
+    #[test]
+    fn the_private_network_option_reads_true_and_one() {
+        let private = |value: Option<&str>| {
+            let mut acct = Account {
+                provider: Provider::LiteLlm,
+                ..Account::default()
+            };
+            acct.params
+                .insert("base_url".into(), "http://192.168.1.10:4000".into());
+            if let Some(value) = value {
+                acct.params
+                    .insert("allow_private_http".into(), value.into());
+            }
+            acct
+        };
+        for yes in ["true", "1", " TRUE "] {
+            assert!(account_base(&private(Some(yes))).is_ok(), "{yes}");
+            assert!(crate::providers::private_http_in_effect(&private(Some(
+                yes
+            ))));
+        }
+        for no in [None, Some("false"), Some("0"), Some("yes")] {
+            assert_eq!(
+                account_base(&private(no)),
+                Err(BaseUrlError::Insecure),
+                "{no:?}"
+            );
+        }
+        let url = url::Url::parse("http://192.168.1.10:4000/provider/budgets").unwrap();
+        assert!(crate::transport::secret_may_travel(&url, true));
+        assert!(!crate::transport::secret_may_travel(&url, false));
     }
 }

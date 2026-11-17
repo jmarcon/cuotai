@@ -883,7 +883,7 @@ pub struct Flow {
 pub fn flow(purpose: Purpose) -> Flow {
     let (host, trigger, sends, default, prd) = match purpose {
         Purpose::ProviderApi => (
-            "each configured provider's API (or the base URL you set)",
+            "each configured provider's API (or the base URL you set; a plain-HTTP, local or private-network address is reached directly, never through an environment proxy)",
             "each refresh of an account; a model list you open; `cuotai --doctor --probe` (one `HEAD` per host, without the credential)",
             "that account's credential and the parameters the provider needs",
             "on for each account you add",
@@ -953,7 +953,7 @@ pub fn flow(purpose: Purpose) -> Flow {
             "0012",
         ),
         Purpose::NotificationChannels => (
-            "only the webhook, ntfy, Slack or Discord address you add as a channel",
+            "only the webhook, ntfy, Slack or Discord address you add as a channel (a plain-HTTP, local or private-network one directly, never through an environment proxy)",
             "a notification Cuotai would show on this computer, after the same preferences and quiet hours, at most 20 per hour per channel; Send test",
             "the notification's title and text (account names only if you choose), its kind and severity; never readings in bulk or a credential",
             "off: nothing until you add a channel",

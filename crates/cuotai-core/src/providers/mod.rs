@@ -50,8 +50,23 @@ use std::time::Duration;
 
 pub(crate) struct Context<'a> {
     pub http: &'a Client,
+    /// PRD 0036 re-validation S-02: the same client contract without any
+    /// proxy, for the requests [`crate::network::Route::for_url`] sends
+    /// direct (an aggregator on plain HTTP or a local or private host).
+    pub direct: &'a Client,
     pub credentials: &'a dyn Credentials,
     pub timeout: Duration,
+}
+
+impl Context<'_> {
+    /// The client for a request to `url`: [`Self::direct`] for a direct
+    /// route, the shared client (environment proxy) otherwise.
+    pub(crate) fn client_for(&self, url: &url::Url) -> &Client {
+        match crate::network::Route::for_url(url) {
+            crate::network::Route::Direct => self.direct,
+            crate::network::Route::Environment => self.http,
+        }
+    }
 }
 
 /// Re-validation S-01/S-06: an aggregator account reached over plain HTTP
@@ -888,6 +903,7 @@ mod tests {
         let http = Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &credentials,
             timeout: Duration::from_secs(1),
         };
@@ -916,6 +932,7 @@ mod tests {
             let http = Client::new();
             let ctx = Context {
                 http: &http,
+                direct: &http,
                 credentials: &credentials,
                 timeout: Duration::from_secs(1),
             };

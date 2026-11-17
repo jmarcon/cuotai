@@ -755,6 +755,7 @@ mod tests {
     fn context<'a>(http: &'a reqwest::Client, creds: &'a MapCreds) -> Context<'a> {
         Context {
             http,
+            direct: http,
             credentials: creds,
             timeout: Duration::from_secs(5),
         }

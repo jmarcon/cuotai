@@ -137,6 +137,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &Keys,
             timeout: std::time::Duration::from_secs(5),
         };

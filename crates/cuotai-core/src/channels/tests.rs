@@ -1236,6 +1236,37 @@ async fn a_plain_http_local_server_skips_the_proxy() {
     assert_eq!(outcome, Outcome::Delivered { status: 200 });
 }
 
+/// PRD 0036 re-validation R-05: HTTPS to a local or private host also goes
+/// direct (the proxy could not reach it); the request reaches the host
+/// itself and the proxy sees nothing.
+#[tokio::test]
+async fn an_https_local_address_skips_the_proxy() {
+    let proxy = crate::network::recording_proxy::RecordingProxy::start().await;
+    let target = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = target.local_addr().unwrap().port();
+    let accepted = tokio::spawn(async move { target.accept().await.is_ok() });
+    let fx = fixture();
+    let channel = fx.channel(
+        ChannelKind::Webhook,
+        &format!("https://127.0.0.1:{port}/hook"),
+        Filters::default(),
+    );
+    let dispatcher = fx
+        .dispatcher(
+            t0(),
+            Timing {
+                startup_grace: TimeDelta::hours(1),
+                ..fast()
+            },
+        )
+        .proxied(&proxy.url);
+    // The fixture host speaks no TLS, so the delivery fails; what matters
+    // is where it went.
+    let _ = dispatcher.test(&channel.id, "en-US", t0()).await;
+    assert!(accepted.await.unwrap());
+    assert!(proxy.seen().is_empty(), "{:?}", proxy.seen());
+}
+
 #[tokio::test]
 async fn send_test_reports_the_status() {
     let server = MockServer::start().await;

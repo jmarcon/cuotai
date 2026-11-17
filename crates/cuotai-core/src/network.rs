@@ -8,6 +8,11 @@
 //!   **only the operating system's trust store**: the bundled webpki roots
 //!   are never loaded, so an administrator-installed corporate root works
 //!   and no machine silently trusts a different set.
+//! - [`Route::for_url`] (PRD 0036 re-validation S-02): a request to a
+//!   plain-HTTP address, or to HTTPS on a loopback, private-network,
+//!   `localhost`, `.local` or `.ts.net` host, never uses the environment's
+//!   proxy; [`builder_for`], [`builder_with_own_roots_for`] and
+//!   [`direct_client`] apply it. Public HTTPS keeps the proxy.
 //! - [`proxy_state`] describes the effective proxy for diagnostics without
 //!   userinfo or the raw `NO_PROXY` list.
 //! - [`ClockSkew`] compares a response's `Date` with the local clock and
@@ -166,6 +171,97 @@ pub fn builder_with_own_roots(purpose: ClientPurpose, timeout: Duration) -> reqw
         builder = builder.no_proxy();
     }
     builder
+}
+
+/// PRD 0036 re-validation S-02: how a request to a user-set address may
+/// leave this computer.
+///
+/// - [`Route::Direct`]: never through an environment proxy. Any plain-HTTP
+///   address (the secret would reach the proxy unencrypted, and the proxy
+///   would connect to *its own* loopback or private network), and HTTPS to
+///   a loopback or private host (RFC 1918, link-local, `100.64.0.0/10`,
+///   ULA) or a `localhost`, `.local` or `.ts.net` name, which a corporate
+///   proxy cannot reach anyway.
+/// - [`Route::Environment`]: public HTTPS keeps the environment's proxy
+///   (`HTTPS_PROXY`/`ALL_PROXY`, `NO_PROXY`): reqwest tunnels it with
+///   `CONNECT`, so TLS stays end to end.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Route {
+    Direct,
+    Environment,
+}
+
+impl Route {
+    /// The route of `url` (see the type).
+    pub fn for_url(url: &url::Url) -> Self {
+        if url.scheme() != "https" {
+            return Self::Direct;
+        }
+        match url.host() {
+            Some(host)
+                if crate::transport::is_loopback_host(&host)
+                    || crate::transport::is_private_network(&host) =>
+            {
+                Self::Direct
+            }
+            Some(_) => Self::Environment,
+            None => Self::Direct,
+        }
+    }
+}
+
+/// Apply [`Route::for_url`] to a builder: `proxy` (tests: a stand-in for
+/// the environment's proxy) is added first, then a direct route clears
+/// every proxy, the environment's included.
+fn routed(
+    mut builder: reqwest::ClientBuilder,
+    url: &url::Url,
+    proxy: Option<reqwest::Proxy>,
+) -> reqwest::ClientBuilder {
+    if let Some(proxy) = proxy {
+        builder = builder.proxy(proxy);
+    }
+    if Route::for_url(url) == Route::Direct {
+        builder = builder.no_proxy();
+    }
+    builder
+}
+
+/// [`builder`] for a client that reaches `url` (S-02 proxy rule).
+pub fn builder_for(
+    purpose: ClientPurpose,
+    timeout: Duration,
+    url: &url::Url,
+) -> reqwest::ClientBuilder {
+    builder_for_with(purpose, timeout, url, None)
+}
+
+/// [`builder_for`] with an injected proxy (tests), applied before the rule.
+pub fn builder_for_with(
+    purpose: ClientPurpose,
+    timeout: Duration,
+    url: &url::Url,
+    proxy: Option<reqwest::Proxy>,
+) -> reqwest::ClientBuilder {
+    routed(builder(purpose, timeout), url, proxy)
+}
+
+/// [`builder_with_own_roots`] for a client that reaches `url` (the 9router
+/// CA-file, pinned and capture clients), with an optional injected proxy
+/// (tests) applied before the rule.
+pub fn builder_with_own_roots_for(
+    purpose: ClientPurpose,
+    timeout: Duration,
+    url: &url::Url,
+    proxy: Option<reqwest::Proxy>,
+) -> reqwest::ClientBuilder {
+    routed(builder_with_own_roots(purpose, timeout), url, proxy)
+}
+
+/// A client for `purpose` that never uses a proxy: what a [`Route::Direct`]
+/// request goes through when the caller keeps one shared client per route.
+pub fn direct_client(purpose: ClientPurpose, timeout: Duration) -> Option<reqwest::Client> {
+    builder(purpose, timeout).no_proxy().build().ok()
 }
 
 /// A built client for `purpose`; `None` when the TLS backend cannot start.
@@ -408,6 +504,55 @@ fn parse_http_date(text: &str) -> Option<DateTime<Utc>> {
         .map(|date| date.with_timezone(&Utc))
 }
 
+/// Tests: a stand-in for an environment proxy that records the first line
+/// of every request it receives (`CONNECT host:443 …` or `GET http://…`)
+/// and answers 502, so a test can prove which requests went through it.
+#[cfg(test)]
+pub(crate) mod recording_proxy {
+    use std::sync::{Arc, Mutex};
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    pub(crate) struct RecordingProxy {
+        pub url: String,
+        seen: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl RecordingProxy {
+        pub(crate) async fn start() -> Self {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let log = Arc::clone(&seen);
+            tokio::spawn(async move {
+                while let Ok((mut socket, _)) = listener.accept().await {
+                    let log = Arc::clone(&log);
+                    tokio::spawn(async move {
+                        let mut buffer = vec![0u8; 4096];
+                        let read = socket.read(&mut buffer).await.unwrap_or(0);
+                        let text = String::from_utf8_lossy(&buffer[..read]);
+                        let line = text.lines().next().unwrap_or_default().to_string();
+                        log.lock().unwrap().push(line);
+                        let _ = socket
+                            .write_all(b"HTTP/1.1 502 Bad Gateway\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+                            .await;
+                    });
+                }
+            });
+            Self { url, seen }
+        }
+
+        /// The proxy as reqwest takes it (for every scheme).
+        pub(crate) fn proxy(&self) -> reqwest::Proxy {
+            reqwest::Proxy::all(&self.url).unwrap()
+        }
+
+        /// The first line of each request received so far.
+        pub(crate) fn seen(&self) -> Vec<String> {
+            self.seen.lock().unwrap().clone()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -418,6 +563,79 @@ mod tests {
     }
 
     const SERVER: &str = "Wed, 04 Nov 2026 12:00:00 GMT";
+
+    /// PRD 0036 re-validation S-02: plain HTTP and local or private hosts go
+    /// direct; public HTTPS keeps the environment's proxy.
+    #[test]
+    fn local_and_private_addresses_never_take_the_environment_proxy() {
+        let route = |raw: &str| Route::for_url(&url::Url::parse(raw).unwrap());
+        for direct in [
+            "http://127.0.0.1:20128/",
+            "http://localhost:4000/",
+            "http://192.168.1.10:20128/",
+            "http://api.example.com/",
+            "https://127.0.0.1:20128/",
+            "https://[::1]:8443/",
+            "https://LOCALHOST/",
+            "https://10.1.2.3/",
+            "https://172.16.0.9/",
+            "https://169.254.1.1/",
+            "https://100.101.102.103/",
+            "https://[fd12::1]/",
+            "https://router.local/",
+            "https://box.tail1234.ts.net/",
+        ] {
+            assert_eq!(route(direct), Route::Direct, "{direct}");
+        }
+        for proxied in [
+            "https://api.example.com/v1",
+            "https://8.8.8.8/",
+            "https://example.localhost.example.com/",
+            "https://ts.net.example.com/",
+        ] {
+            assert_eq!(route(proxied), Route::Environment, "{proxied}");
+        }
+    }
+
+    /// The builder applies the rule after an injected proxy: a public HTTPS
+    /// URL is tunnelled through it (`CONNECT`), a private HTTPS one is not.
+    #[tokio::test]
+    async fn the_routed_builder_keeps_the_proxy_only_for_public_https() {
+        let proxy = recording_proxy::RecordingProxy::start().await;
+        let public = url::Url::parse("https://api.example.com/v1/models").unwrap();
+        let client = builder_for_with(
+            ClientPurpose::Provider,
+            Duration::from_secs(5),
+            &public,
+            Some(proxy.proxy()),
+        )
+        .build()
+        .unwrap();
+        assert!(client.get(public.clone()).send().await.is_err());
+        assert_eq!(
+            proxy.seen(),
+            ["CONNECT api.example.com:443 HTTP/1.1".to_string()]
+        );
+
+        let target = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = target.local_addr().unwrap().port();
+        let accepted = tokio::spawn(async move { target.accept().await.is_ok() });
+        let private = url::Url::parse(&format!("https://127.0.0.1:{port}/x")).unwrap();
+        let client = builder_for_with(
+            ClientPurpose::Provider,
+            Duration::from_secs(2),
+            &private,
+            Some(proxy.proxy()),
+        )
+        .build()
+        .unwrap();
+        let _ = client.get(private).send().await;
+        assert!(
+            accepted.await.unwrap(),
+            "the request went to the host itself"
+        );
+        assert_eq!(proxy.seen().len(), 1, "{:?}", proxy.seen());
+    }
 
     #[test]
     fn exactly_five_minutes_is_not_a_warning_and_one_second_more_is() {

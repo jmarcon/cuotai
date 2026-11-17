@@ -491,10 +491,11 @@ impl Dispatcher {
             }
         };
         let request = payload::render(channel.kind, out, secret.as_deref());
-        let http = if url.expose().scheme() == "http" {
-            &self.0.direct
-        } else {
-            &self.0.http
+        // PRD 0036 re-validation R-05: plain HTTP and HTTPS to a local or
+        // private host go direct; only public HTTPS takes the proxy.
+        let http = match crate::network::Route::for_url(url.expose()) {
+            crate::network::Route::Direct => &self.0.direct,
+            crate::network::Route::Environment => &self.0.http,
         };
         let mut attempt = 0;
         loop {

@@ -673,6 +673,7 @@ mod tests {
         let creds = Key("test-key");
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &creds,
             timeout: Duration::from_secs(5),
         };
@@ -762,6 +763,7 @@ mod tests {
         }
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &None_,
             timeout: Duration::from_secs(1),
         };
@@ -828,6 +830,7 @@ mod tests {
             .unwrap();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &KeyAndSession,
             timeout: Duration::from_secs(5),
         };
@@ -866,6 +869,7 @@ mod tests {
         let http = reqwest::Client::new();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &SessionOnly,
             timeout: Duration::from_secs(5),
         };
@@ -990,6 +994,7 @@ mod tests {
             .unwrap();
         let ctx = Context {
             http: &http,
+            direct: &http,
             credentials: &KeyAndSession,
             timeout: Duration::from_secs(5),
         };

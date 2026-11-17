@@ -916,6 +916,7 @@ mod tests {
     fn ctx<'a>(http: &'a reqwest::Client, creds: &'a EnvCreds) -> Context<'a> {
         Context {
             http,
+            direct: http,
             credentials: creds,
             timeout: Duration::from_secs(5),
         }
