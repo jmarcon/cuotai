@@ -61,14 +61,15 @@ impl LiveSession {
         self.context_used_pct.map(context_chip)
     }
 
-    /// "≈ $0.42 this session" (`feed.live.cost`), when the agent stated it.
+    /// "≈ $0.42 this session" (`feed.live.cost`), when the agent stated it,
+    /// the amount in the reader's money format (re-validation V-12).
     pub fn cost_text(&self) -> Option<Localized> {
         self.cost_usd.map(|usd| {
             Localized::with_param(
                 "feed.live.cost",
                 "usd",
-                format!("{usd:.2}").as_str(),
-                "≈ ${usd} this session",
+                ParamValue::l10n(crate::text::number::money(usd, "USD")),
+                "≈ {usd} this session",
             )
         })
     }
@@ -79,8 +80,8 @@ impl LiveSession {
             Localized::with_param(
                 "feed.live.cost_short",
                 "usd",
-                format!("{usd:.2}").as_str(),
-                "≈${usd}",
+                ParamValue::l10n(crate::text::number::money(usd, "USD")),
+                "≈{usd}",
             )
         });
         let parts: Vec<Localized> = self.context_chip().into_iter().chain(cost).collect();

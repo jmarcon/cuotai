@@ -167,7 +167,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -960,13 +967,14 @@
   },
   "feed.line.five_hour": "5時間 {pct}",
   "feed.line.left": "{name} 残り {pct}",
+  "feed.line.left_exhausted": "{name} {pct}、{time} に回復",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "支出 {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "週 {pct}",
   "feed.live.caveat": "定価でのエージェントの見積もりで、請求額ではありません。",
-  "feed.live.cost": "このセッションで ≈ ${usd}",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "このセッションで ≈ {usd}",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "コンテキスト {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "ライブセッション：{parts}",
@@ -2262,6 +2270,8 @@
   "tray.join": "{first}、{rest}",
   "tray.more": "{item}; 他 {count} 件",
   "tray.outage": "{item}、プロバイダーの障害",
+  "tray.stale": "古い",
+  "tray.stale_suffix": "（{age}）",
   "tray.strip": "{item}、直近 24 時間の時間別バー",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "開く",
@@ -2330,6 +2340,18 @@
   "freshness.age.minutes": "{n} 分前",
   "freshness.age.hours": "{n} 時間前",
   "freshness.age.days": "{n} 日前",
+  "freshness.age.compact.seconds": {
+    "other": "{count} 秒"
+  },
+  "freshness.age.compact.minutes": {
+    "other": "{count} 分"
+  },
+  "freshness.age.compact.hours": {
+    "other": "{count} 時間"
+  },
+  "freshness.age.compact.days": {
+    "other": "{count} 日"
+  },
   "metric.unit.credits": {
     "other": "クレジット"
   },

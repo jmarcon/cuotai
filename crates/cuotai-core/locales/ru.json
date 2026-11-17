@@ -173,7 +173,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1020,13 +1027,14 @@
   },
   "feed.line.five_hour": "5 ч {pct}",
   "feed.line.left": "{name} осталось {pct}",
+  "feed.line.left_exhausted": "{name} {pct}, вернётся {time}",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "расход {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "Нед {pct}",
   "feed.live.caveat": "Оценка агента по прейскуранту, а не списание.",
-  "feed.live.cost": "≈ ${usd} за этот сеанс",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "≈ {usd} за этот сеанс",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "контекст {pct} %",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Текущий сеанс: {parts}",
@@ -2364,6 +2372,8 @@
   "tray.join": "{first}; {rest}",
   "tray.more": "{item}; ещё {count}",
   "tray.outage": "{item}; инцидент у провайдера",
+  "tray.stale": "устарело",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}; последние 24 часа по часам",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "Открыть",
@@ -2432,6 +2442,30 @@
   "freshness.age.minutes": "{n} мин назад",
   "freshness.age.hours": "{n} ч назад",
   "freshness.age.days": "{n} дн. назад",
+  "freshness.age.compact.seconds": {
+    "few": "{count} с",
+    "many": "{count} с",
+    "one": "{count} с",
+    "other": "{count} с"
+  },
+  "freshness.age.compact.minutes": {
+    "few": "{count} мин",
+    "many": "{count} мин",
+    "one": "{count} мин",
+    "other": "{count} мин"
+  },
+  "freshness.age.compact.hours": {
+    "few": "{count} ч",
+    "many": "{count} ч",
+    "one": "{count} ч",
+    "other": "{count} ч"
+  },
+  "freshness.age.compact.days": {
+    "few": "{count} д",
+    "many": "{count} д",
+    "one": "{count} д",
+    "other": "{count} д"
+  },
   "metric.unit.credits": {
     "one": "кредит",
     "few": "кредита",

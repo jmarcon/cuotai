@@ -21,9 +21,24 @@ use cuotai_core::tray::AccountView;
 /// The `--feed` sources this release accepts.
 pub(crate) const SOURCES: [&str; 1] = ["claude-statusline"];
 
-/// RF5.4: how long `--from-server` may take before the line falls back to
-/// the history.
-const SERVER_BUDGET: Duration = Duration::from_millis(120);
+/// RF5.4 (re-validation M-11): how long, from the process start, the line
+/// may wait for `--from-server` before it falls back to the history.
+const SERVER_BUDGET: Duration = Duration::from_millis(100);
+
+/// When this process started ([`mark_start`]), for [`SERVER_BUDGET`].
+static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Record the process start; `main` calls it first, so the server budget
+/// counts the start-up too.
+pub(crate) fn mark_start() {
+    STARTED.get_or_init(std::time::Instant::now);
+}
+
+/// What is left of [`SERVER_BUDGET`] since the process started.
+fn server_budget_left() -> Duration {
+    let started = *STARTED.get_or_init(std::time::Instant::now);
+    SERVER_BUDGET.saturating_sub(started.elapsed())
+}
 
 /// Whether this run is one of the agent-side commands, decided from the raw
 /// arguments before the app log starts (RF2.3: nothing but the data
@@ -179,15 +194,37 @@ pub(crate) async fn run_feed(
     };
     if print {
         let shown = with_account_windows(Some(reading));
-        println!("{}", compose(shown.as_ref(), line, locale).await);
+        return print_line(&shown, line, locale).await;
     }
     0
+}
+
+/// Print the composed line: `0`, or `1` with the error on stderr when a
+/// `--account` value names no single account (re-validation V-03).
+async fn print_line(shown: &Shown, line: &LineOptions, locale: &str) -> u8 {
+    match compose(shown, line, locale).await {
+        Ok(text) => {
+            println!("{text}");
+            0
+        }
+        Err(error) => {
+            eprintln!("cuotai: {error}");
+            1
+        }
+    }
+}
+
+/// The reading the line shows and when its Claude windows were written
+/// (the oldest window's time; `None` without stored windows).
+struct Shown {
+    reading: Option<feed::FeedReading>,
+    windows_at: Option<chrono::DateTime<Utc>>,
 }
 
 /// RF5.1 (V-02): the stdin reading (when there is one) with Claude's
 /// windows merged from every recent session, so a new Claude Code window
 /// that has not reported its limits yet keeps the account's windows.
-fn with_account_windows(own: Option<feed::FeedReading>) -> Option<feed::FeedReading> {
+fn with_account_windows(own: Option<feed::FeedReading>) -> Shown {
     let now = Utc::now();
     let mut readings = FeedStore::in_data_dir()
         .map(|store| store.sessions(FeedSource::ClaudeCode, now))
@@ -195,7 +232,13 @@ fn with_account_windows(own: Option<feed::FeedReading>) -> Option<feed::FeedRead
     // The stdin reading counts even when it could not be stored.
     readings.extend(own.iter().cloned());
     let account = feed::AccountReading::merge(&readings, now);
-    statusline::line_reading(own.as_ref(), account.as_ref())
+    Shown {
+        reading: statusline::line_reading(own.as_ref(), account.as_ref()),
+        windows_at: account
+            .as_ref()
+            .filter(|account| !account.window_times.is_empty())
+            .map(|account| account.reading.written_at),
+    }
 }
 
 /// RF1.2 (S-01): `--feed claude-statusline --forget`.
@@ -233,8 +276,7 @@ pub(crate) async fn run_statusline(line: &LineOptions, locale: &str) -> u8 {
             Err(code) => return code,
         }
     };
-    println!("{}", compose(reading.as_ref(), line, locale).await);
-    0
+    print_line(&reading, line, locale).await
 }
 
 /// Parse standard input and write the feed file. A write failure is
@@ -294,23 +336,27 @@ pub(crate) struct LineOptions {
     pub(crate) color: bool,
 }
 
-/// RF5.1-RF5.3: the composed line.
-async fn compose(
-    reading: Option<&feed::FeedReading>,
-    options: &LineOptions,
-    locale: &str,
-) -> String {
+/// RF5.1-RF5.3: the composed line; `Err` when a `--account` value names
+/// no single account.
+async fn compose(shown: &Shown, options: &LineOptions, locale: &str) -> Result<String, String> {
     let now = Utc::now();
-    let others = others(options).await;
+    let file = cuotai_core::config_file::ConfigFile::load(options.config.clone(), false).ok();
+    let others = others(options, file.as_ref(), now, locale).await?;
+    // Re-validation V-04/V-05: old Claude windows end with their age.
+    let interval = statusline::claude_interval(file.as_ref().map(|file| &file.config));
+    let claude_age = shown
+        .windows_at
+        .and_then(|at| statusline::claude_stale_age(at, interval, now));
     let line = statusline::compose(
-        reading,
+        shown.reading.as_ref(),
+        claude_age,
         &others,
         now,
         crate::ui::local_time,
         options.max_width,
         locale,
     );
-    match (options.color, line.level) {
+    Ok(match (options.color, line.level) {
         (true, Some(level)) if !line.text.is_empty() => {
             format!(
                 "\x1b[{}m{}\x1b[0m",
@@ -319,34 +365,87 @@ async fn compose(
             )
         }
         _ => line.text,
-    }
+    })
 }
 
 /// The other accounts: a running server's when asked and it answers
 /// within the budget, otherwise the last recorded reading of each account
 /// (RF5.2). Claude accounts are left out: their windows come from the feed.
-async fn others(options: &LineOptions) -> Vec<statusline::OtherAccount> {
-    let keep = |view: &AccountView| {
+/// `--account` takes an id, a key or a unique name, resolved as
+/// `--status-line` resolves it (re-validation V-03); `Err` names a value
+/// that matches no single account.
+async fn others(
+    options: &LineOptions,
+    file: Option<&cuotai_core::config_file::ConfigFile>,
+    now: chrono::DateTime<Utc>,
+    locale: &str,
+) -> Result<Vec<statusline::OtherAccount>, String> {
+    use crate::status_line::{resolve, Candidate};
+    let keep = |view: &AccountView, ids: &[String]| {
         view.provider != "claude"
-            && (options.accounts.is_empty() || options.accounts.contains(&view.key))
+            && (ids.is_empty()
+                || ids.contains(&view.key)
+                || view
+                    .parent
+                    .as_ref()
+                    .is_some_and(|parent| ids.contains(parent)))
     };
     if let Some(url) = &options.from_server {
-        if let Ok(Ok(views)) = tokio::time::timeout(SERVER_BUDGET, server_views(url, options)).await
-        {
-            return views
-                .into_iter()
-                .filter(|view| keep(view))
-                .map(|view| statusline::OtherAccount { view, age: None })
+        let answer =
+            tokio::time::timeout(server_budget_left(), server_accounts(url, options)).await;
+        if let Ok(Ok(accounts)) = answer {
+            let candidates: Vec<Candidate<'_>> = accounts
+                .iter()
+                .map(|account| Candidate {
+                    id: &account.view.key,
+                    key: &account.key,
+                    name: &account.view.name,
+                })
                 .collect();
+            let ids: Vec<String> = resolve(&candidates, &options.accounts, locale)?
+                .into_iter()
+                .map(|i| accounts[i].view.key.clone())
+                .collect();
+            return Ok(accounts
+                .into_iter()
+                .filter(|account| account.in_summary)
+                .map(|account| account.view)
+                .filter(|view| keep(view, &ids))
+                .map(|view| statusline::OtherAccount { view })
+                .collect());
         }
     }
-    history_views(options)
+    let Some(file) = file else {
+        // No configuration: nothing to name, nothing to show.
+        resolve(&[], &options.accounts, locale)?;
+        return Ok(Vec::new());
+    };
+    let accounts = &file.config.accounts;
+    let keys: Vec<String> = accounts.iter().map(|a| a.key()).collect();
+    let ids: Vec<String> = accounts.iter().map(|a| a.state_key()).collect();
+    let candidates: Vec<Candidate<'_>> = accounts
+        .iter()
+        .zip(keys.iter().zip(&ids))
+        .map(|(account, (key, id))| Candidate {
+            id,
+            key,
+            name: &account.name,
+        })
+        .collect();
+    let picked: Vec<String> = resolve(&candidates, &options.accounts, locale)?
         .into_iter()
-        .filter(|other| keep(&other.view))
-        .collect()
+        .map(|i| ids[i].clone())
+        .collect();
+    Ok(history_views(file, now)
+        .into_iter()
+        .filter(|other| keep(&other.view, &picked))
+        .collect())
 }
 
-async fn server_views(url: &str, options: &LineOptions) -> Result<Vec<AccountView>, ()> {
+async fn server_accounts(
+    url: &str,
+    options: &LineOptions,
+) -> Result<Vec<cuotai_core::serve::client::ServerAccount>, ()> {
     use cuotai_core::serve::{self, client};
     let token = match &options.token_file {
         Some(path) => Some(path.clone()),
@@ -360,33 +459,40 @@ async fn server_views(url: &str, options: &LineOptions) -> Result<Vec<AccountVie
     } else {
         url.to_owned()
     };
-    client::limits_views(&url, token.as_ref())
+    client::limits_accounts(&url, token.as_ref())
         .await
         .map_err(|_| ())
 }
 
-/// RF5.2: the last recorded reading of every account, with its age; empty
-/// when there is no configuration or history.
-fn history_views(options: &LineOptions) -> Vec<statusline::OtherAccount> {
-    let Ok(file) = cuotai_core::config_file::ConfigFile::load(options.config.clone(), false) else {
-        return Vec::new();
-    };
-    let Ok(history) = cuotai_core::history::HistoryStore::in_data_dir(&file) else {
+/// RF5.2: the last recorded reading of every account, aged against its
+/// interval like the menu bar's views (re-validation V-04: one stale
+/// rule); empty when there is no history.
+fn history_views(
+    file: &cuotai_core::config_file::ConfigFile,
+    now: chrono::DateTime<Utc>,
+) -> Vec<statusline::OtherAccount> {
+    let Ok(history) = cuotai_core::history::HistoryStore::in_data_dir(file) else {
         return Vec::new();
     };
     let Ok(reports) = history.latest_reports(&file.config) else {
         return Vec::new();
     };
-    let now = Utc::now();
-    file.config
+    let config = &file.config;
+    config
         .accounts
         .iter()
         .zip(reports)
         .filter_map(|(account, report)| {
             let report = report?;
+            let freshness = if report.status == cuotai_core::Status::Ready {
+                let interval =
+                    Duration::from_secs(account.effective_refresh_seconds(config.refresh_seconds));
+                cuotai_core::freshness::presented(&report, interval, now)
+            } else {
+                Freshness::Stale
+            };
             Some(statusline::OtherAccount {
-                view: AccountView::from_report(account, Some(&report), Freshness::Stale),
-                age: Some(cuotai_core::freshness::age(report.checked_at, now)),
+                view: AccountView::from_report(account, Some(&report), freshness),
             })
         })
         .collect()

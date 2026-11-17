@@ -140,7 +140,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -951,13 +958,14 @@
   },
   "feed.line.five_hour": "5 घं {pct}",
   "feed.line.left": "{name} {pct} बाकी",
+  "feed.line.left_exhausted": "{name} {pct}, {time} को वापसी",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "खर्च {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "सप्ताह {pct}",
   "feed.live.caveat": "सूची मूल्य पर एजेंट का अनुमान, कोई शुल्क नहीं।",
-  "feed.live.cost": "इस सत्र में ≈ ${usd}",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "इस सत्र में ≈ {usd}",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "संदर्भ {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "लाइव सत्र: {parts}",
@@ -2267,6 +2275,8 @@
   "tray.join": "{first}; {rest}",
   "tray.more": "{item}; +{count} और",
   "tray.outage": "{item}; प्रदाता में घटना",
+  "tray.stale": "पुराना",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}; पिछले 24 घंटे घंटेवार बार में",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "खोलें",
@@ -2335,6 +2345,22 @@
   "freshness.age.minutes": "{n} मिनट पहले",
   "freshness.age.hours": "{n} घंटे पहले",
   "freshness.age.days": "{n} दिन पहले",
+  "freshness.age.compact.seconds": {
+    "one": "{count} सेकंड",
+    "other": "{count} सेकंड"
+  },
+  "freshness.age.compact.minutes": {
+    "one": "{count} मिनट",
+    "other": "{count} मिनट"
+  },
+  "freshness.age.compact.hours": {
+    "one": "{count} घंटा",
+    "other": "{count} घंटे"
+  },
+  "freshness.age.compact.days": {
+    "one": "{count} दिन",
+    "other": "{count} दिन"
+  },
   "metric.unit.credits": {
     "one": "क्रेडिट",
     "other": "क्रेडिट"

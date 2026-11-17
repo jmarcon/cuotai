@@ -176,6 +176,49 @@ pub fn age_label(age: Duration) -> crate::text::Localized {
     Localized::with_param(id, "n", n.to_string().as_str(), fallback)
 }
 
+/// PRD 0040 re-validation V-04/V-11: a reading's age in whole units
+/// without "ago" ("42 s", "3 min", "2 h", "1 d", the number kept with
+/// its unit by a no-break space), for the stale suffix of
+/// the status lines and the menu bar ([`crate::tray::stale_suffix`]). Ids
+/// `freshness.age.compact.{seconds,minutes,hours,days}`, plurals with the
+/// `count` param.
+pub fn compact_age_label(age: Duration) -> crate::text::Localized {
+    use crate::text::Localized;
+    let secs = age.as_secs();
+    let (id, n, one, other) = match secs {
+        0..=59 => (
+            "freshness.age.compact.seconds",
+            secs,
+            "{count}\u{a0}s",
+            "{count}\u{a0}s",
+        ),
+        60..=3_599 => (
+            "freshness.age.compact.minutes",
+            secs / 60,
+            "{count}\u{a0}min",
+            "{count}\u{a0}min",
+        ),
+        3_600..=86_399 => (
+            "freshness.age.compact.hours",
+            secs / 3_600,
+            "{count}\u{a0}h",
+            "{count}\u{a0}h",
+        ),
+        _ => (
+            "freshness.age.compact.days",
+            secs / 86_400,
+            "{count}\u{a0}d",
+            "{count}\u{a0}d",
+        ),
+    };
+    Localized::plural(
+        id,
+        crate::text::params([("count", crate::text::ParamValue::from(n.to_string()))]),
+        one,
+        other,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

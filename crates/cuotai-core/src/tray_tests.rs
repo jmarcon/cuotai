@@ -72,16 +72,22 @@ fn tightest_is_the_default_and_picks_the_lowest_fresh_share() {
 fn stale_readings_are_marked_and_left_out_of_tightest() {
     let mut old = acc("a", "Claude", "Old", Some(0.05));
     old.stale = true;
+    old.measured_at = Some(now() - chrono::TimeDelta::hours(2));
     let accounts = [old.clone(), acc("b", "Gemini", "Home", Some(0.64))];
     let s = custom(&accounts, TrayStyle::TightestPercent);
     assert_eq!(s.title.as_deref(), Some("64% · Home"));
     // Every reading stale: the stale one counts, with its mark.
-    let s = custom(&[old], TrayStyle::TightestPercent);
-    assert_eq!(s.title.as_deref(), Some("5%· · Old"));
+    let s = custom(&[old.clone()], TrayStyle::TightestPercent);
+    // PRD 0040 re-validation V-04: its age in parentheses, never a dot.
+    assert_eq!(s.title.as_deref(), Some("5% (2\u{a0}h) · Old"));
     assert_eq!(
         s.accessible_label.resolve("en-US"),
         "Claude Old 5% left (old reading)"
     );
+    // No reading time known: the word, in the title's language.
+    old.measured_at = None;
+    let s = custom(&[old], TrayStyle::TightestPercent);
+    assert_eq!(s.title.as_deref(), Some("5% (desatualizado) · Old"));
 }
 
 #[test]
@@ -540,8 +546,9 @@ fn unnamed_and_same_named_accounts_are_told_apart() {
     );
     let mut stale = unnamed;
     stale.stale = true;
+    stale.measured_at = Some(now() - chrono::TimeDelta::hours(2));
     let s = custom(&[stale], TrayStyle::TightestPercent);
-    assert_eq!(s.title.as_deref(), Some("22%· · Claude"));
+    assert_eq!(s.title.as_deref(), Some("22% (2\u{a0}h) · Claude"));
     assert_eq!(
         s.accessible_label.resolve("en-US"),
         "Claude 22% left (old reading)"
@@ -854,4 +861,55 @@ mod units {
             ..flags
         }));
     }
+}
+
+/// PRD 0040 re-validation V-04/V-05/V-11: the one stale suffix, localized,
+/// on every title style; past the budget the name goes, never the suffix.
+#[test]
+fn a_stale_figure_carries_its_age_and_keeps_it_within_the_budget() {
+    let mut old = acc("a", "Claude", "A rather long account name", Some(0.42));
+    old.stale = true;
+    old.measured_at = Some(now() - chrono::TimeDelta::minutes(185));
+    let title = |locale: &str, style: TrayStyle, accounts: &[AccountView]| {
+        summary(
+            accounts,
+            style,
+            &TraySelection::Custom(accounts.iter().map(|a| a.key.clone()).collect()),
+            now(),
+            &Utc,
+            locale,
+        )
+        .title
+        .unwrap()
+    };
+    let en = title("en-US", TrayStyle::TightestPercent, &[old.clone()]);
+    assert!(en.starts_with("42% (3\u{a0}h) · "), "{en}");
+    assert!(en.chars().count() <= TITLE_BUDGET, "{en}");
+    let de = title("de", TrayStyle::TightestPercent, &[old.clone()]);
+    assert!(de.starts_with("42\u{a0}% (3\u{a0}Std.) · "), "{de}");
+    assert!(de.chars().count() <= TITLE_BUDGET, "{de}");
+    assert!(title("ja", TrayStyle::TightestPercent, &[old.clone()]).contains("（3\u{a0}時間）"));
+    assert_eq!(
+        title("en-US", TrayStyle::LogosPercent, &[old.clone()]),
+        "C 42% (3\u{a0}h)"
+    );
+    // An exhausted, stale account: its return time and its age; the name
+    // gives way.
+    let mut out = old.clone();
+    out.remaining = Some(0.0);
+    out.exhausted = true;
+    out.resets_at = Some(later(150));
+    out.measured_at = Some(now() - chrono::TimeDelta::minutes(59));
+    let text = title("pt-BR", TrayStyle::TightestPercent, &[out]);
+    assert!(
+        text.starts_with(&format!("0% → {} (59\u{a0}min)", hhmm(later(150)))),
+        "{text}"
+    );
+    assert!(text.chars().count() <= TITLE_BUDGET, "{text}");
+    // A fresh reading has no suffix.
+    let fresh = acc("b", "Gemini", "Home", Some(0.64));
+    assert_eq!(
+        title("en-US", TrayStyle::TightestPercent, &[fresh]),
+        "64% · Home"
+    );
 }

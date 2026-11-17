@@ -81,6 +81,42 @@ impl Sandbox {
     }
 }
 
+impl Sandbox {
+    /// `--statusline-claude` (or another agent-side command) with `input`
+    /// on standard input.
+    fn run_agent(&self, lang: &str, args: &[&str], input: &[u8]) -> Output {
+        use std::io::Write;
+        let home = self.dir.join("home");
+        let data = self.dir.join("data");
+        let mut child = Command::new(env!("CARGO_BIN_EXE_cuotai"))
+            .args(args)
+            .args(["--config"])
+            .arg(self.dir.join("cuotai.toml"))
+            .env("HOME", &home)
+            .env("XDG_DATA_HOME", home.join("data"))
+            .env("XDG_CONFIG_HOME", home.join("config"))
+            .env("CUOTAI_DATA_DIR", &data)
+            .env("CUOTAI_FEED_DIR", data.join("feed"))
+            .env("CUOTAI_USER_DIR", home.join("user"))
+            .env("CUOTAI_METERED_DIR", home.join("metered"))
+            .env("CUOTAI_LANG", lang)
+            .env("BROWSER", "true")
+            .env("PATH", path(&self.dir.join("bin")))
+            .env_remove("CUOTAI_CONFIG")
+            .env_remove("NO_COLOR")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("run cuotai");
+        child.stdin.take().unwrap().write_all(input).unwrap();
+        child.wait_with_output().unwrap()
+    }
+}
+
+/// A new Claude Code window that has not reported its limits yet.
+const WINDOWLESS: &[u8] = br#"{"session_id":"new-window","context_window":{"used_percentage":5}}"#;
+
 /// `PATH` with the sandbox's `bin` first (no `open`/`xdg-open` there is
 /// ever needed; nothing here opens a browser).
 fn path(bin: &Path) -> String {
@@ -128,6 +164,8 @@ fn the_status_line_marks_it_and_exits_2() {
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     let line = text(&output);
     assert!(line.contains("59%"), "{line}");
+    // Re-validation V-04: its age in parentheses, never a bare dot.
+    assert!(line.contains("59% (2\u{a0}h)"), "{line}");
     let output = sandbox.run("en-US", &["--status-line", "--account", "acc_fed"]);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
 }
@@ -144,4 +182,61 @@ fn the_export_says_stale_and_gives_the_reading_age() {
     assert!((7_190..7_400).contains(&reading), "{reading}");
     // `age_seconds` stays the age of the query (read just now).
     assert!(account["age_seconds"].as_u64().unwrap() < 120);
+}
+
+/// Re-validation V-04/V-05: the windows of the status line, written 2 h
+/// ago (longer than the account's interval), end with their age in the
+/// reader's words, never a bare dot.
+#[test]
+fn statusline_claude_ages_old_windows() {
+    let sandbox = Sandbox::new();
+    let output = sandbox.run_agent("en-US", &["--statusline-claude"], WINDOWLESS);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let line = text(&output);
+    assert!(line.contains("Wk 41%"), "{line}");
+    assert!(line.contains("(2\u{a0}h)"), "{line}");
+    let output = sandbox.run_agent("de", &["--statusline-claude"], WINDOWLESS);
+    let line = text(&output);
+    assert!(line.contains("(2\u{a0}Std.)"), "{line}");
+}
+
+/// Re-validation V-03: `--statusline-claude --account` (and `--feed
+/// --print`) take an id, a key or a unique name like `--status-line`; an
+/// unknown value is reported on stderr with exit 1.
+#[test]
+fn statusline_claude_account_resolves_like_the_status_line() {
+    let sandbox = Sandbox::new();
+    for value in ["acc_fed", "claude:Fed", "Fed"] {
+        for command in [
+            &["--statusline-claude"][..],
+            &["--feed", "claude-statusline", "--print"][..],
+        ] {
+            let args: Vec<&str> = command
+                .iter()
+                .copied()
+                .chain(["--account", value])
+                .collect();
+            let output = sandbox.run_agent("en-US", &args, WINDOWLESS);
+            assert_eq!(output.status.code(), Some(0), "{value}: {output:?}");
+            assert!(text(&output).contains("Wk 41%"), "{value}: {output:?}");
+        }
+    }
+    for command in [
+        &["--statusline-claude"][..],
+        &["--feed", "claude-statusline", "--print"][..],
+    ] {
+        let args: Vec<&str> = command
+            .iter()
+            .copied()
+            .chain(["--account", "Fde"])
+            .collect();
+        let output = sandbox.run_agent("en-US", &args, WINDOWLESS);
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert!(output.stdout.is_empty(), "{output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("--account Fde") && stderr.contains("acc_fed (Fed)"),
+            "{stderr}"
+        );
+    }
 }

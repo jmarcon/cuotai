@@ -122,7 +122,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -933,13 +940,14 @@
   },
   "feed.line.five_hour": "5 sa {pct}",
   "feed.line.left": "{name} {pct} kaldı",
+  "feed.line.left_exhausted": "{name} {pct}, {time} dönüyor",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "harcama {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "Hf {pct}",
   "feed.live.caveat": "Ajanın liste fiyatı tahmini, bir ücret değil.",
-  "feed.live.cost": "bu oturumda ≈ ${usd}",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "bu oturumda ≈ {usd}",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "bağlam %{pct}",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Canlı oturum: {parts}",
@@ -2249,6 +2257,8 @@
   "tray.join": "{first}; {rest}",
   "tray.more": "{item}; +{count} tane daha",
   "tray.outage": "{item}; sağlayıcı olayı",
+  "tray.stale": "eski",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}; son 24 saat saatlik çubuklarla",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "Aç",
@@ -2317,6 +2327,22 @@
   "freshness.age.minutes": "{n} dk önce",
   "freshness.age.hours": "{n} sa önce",
   "freshness.age.days": "{n} g önce",
+  "freshness.age.compact.seconds": {
+    "one": "{count} sn",
+    "other": "{count} sn"
+  },
+  "freshness.age.compact.minutes": {
+    "one": "{count} dk",
+    "other": "{count} dk"
+  },
+  "freshness.age.compact.hours": {
+    "one": "{count} sa",
+    "other": "{count} sa"
+  },
+  "freshness.age.compact.days": {
+    "one": "{count} g",
+    "other": "{count} g"
+  },
   "metric.unit.credits": {
     "one": "kredi",
     "other": "kredi"

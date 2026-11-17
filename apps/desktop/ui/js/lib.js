@@ -2302,7 +2302,7 @@ if (DEMO_LIVE > 0) {
   const ctx = (pct) => ({ context: coreNote("feed.live.ctx", `ctx ${pct}%`, { pct: String(pct) }), level: pct >= 90 ? "bad" : pct >= 70 ? "warn" : "good" });
   const sessions = Array.from({ length: Math.min(DEMO_LIVE, 5) }, (_, i) => ({
     model_name: ["Opus", "Sonnet", "Haiku"][i % 3], ...ctx([50, 75, 95][i % 3]),
-    cost: coreNote("feed.live.cost", `≈ $${(0.42 * (i + 1)).toFixed(2)} this session`, { usd: (0.42 * (i + 1)).toFixed(2) }),
+    cost: coreNote("feed.live.cost", `≈ $${(0.42 * (i + 1)).toFixed(2)} this session`, { usd: demoMoney(Number((0.42 * (i + 1)).toFixed(2))) }),
     written_at: ago(i * 2) }));
   const more = DEMO_LIVE - sessions.length;
   if (target) target.live = { title: coreNote("feed.live.title", "Live session"), caveat: coreNote("feed.live.caveat", "Agent estimate at list price, not a charge."),
