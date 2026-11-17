@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0041 |
-| Status | Awaiting owner verification |
+| Status | Awaiting owner verification (2026-11-17 re-validation fixes in vNEXT) |
 | Owner | `cuotai-core` (`budget` module, synthetic metrics, allowance, validation), `cuotai-tui` (wizard field, details line, `--once`), desktop (account dialog, card chip, details) |
 | Consumers | Every front end; `export::v1`, `--watch` and `/v1/*` consumers; PRD 0026 statistics |
 | Depends on | PRD 0029 (budgets keyed by the stable account id), PRD 0023 RF1 (`Metric::billing`, so a budget on overage spend is possible), PRD 0033 (`measured_at`, for the cycle boundary) |
@@ -26,7 +26,59 @@
 | RF7 | 0.83.0 | `cuotai.example.toml`, `docs/advanced.md`, `docs/gui-features.md`, `docs/tui.md`, `docs/export-v1.md` (+ schema), `docs/events.md`. |
 | Open question | 0.83.0 | `advisory = true` (keep a budget out of binding and `best`) is not implemented: every budget counts, the recommended default. Decision of 2026-11-07 (owner said not to stop and ask): kept out of this delivery, because `[[accounts.budgets]]` rejects unknown keys, so a new `advisory` key would make the TOML unreadable for 0.83.x; it needs the PRD 0029 RF0 tolerance first, as `budgets` itself had. |
 | PRD 0038 re-validation | 0.86.8 | RF2.3 on a real store: a balance budget read its baseline through the history, whose readers dropped balance readings (`used` is null), so in production every credits budget on a balance said `note.budget.no_baseline`; the unit test hid it with a fake store. The readers now return `remaining` for balance-shaped readings (PRD 0006 row), and the budget test reads a real `HistoryStore`, plus a `Monitor`-level test deriving `Drops`. |
+| 2026-11-17 re-validation | vNEXT | Fixes of RF1.2, RF2.1–RF2.5, RF3.1, RF3.2, RF4.1, RF4.2, RF5.1 and RF5.2 (1 high, 11 medium, 15 low findings); see "2026-11-17 re-validation" below. |
 | Owner verification | — | §11 smoke on a real `open_ai_api` account (a $50 monthly budget shows the budget quota on the card, the 75% alert when crossed and the allowance in the details) and one **Set a budget…** with a plan price saved, on the packaged desktop app (§2.1 of `0000_control.md`). |
+
+### 2026-11-17 re-validation (vNEXT)
+
+The re-validation (Visual, Security, Review) found 1 high, 11 medium and 15 low findings; the fixes ship in vNEXT, one commit per group:
+
+| Group | Findings | RF | Delivery (vNEXT) |
+|---|---|---|---|
+| G1 | F-01 (high), F-16 | RF2.2, RF2.3, RF4.1 | Reset-aware counting: `HistoryStore::readings` (stored `resets_at`, balances read back as `remaining`, bounded at `now`) and `budget::counted_use` add the use segment by segment, so a counter that restarts at the provider's reset inside the budget period keeps counting (`GAP` = 1 h). A stretch whose use cannot be known (the first reading more than an hour after the period start, no reading within an hour before a reset or a top-up, a counter that went down inside one provider instance) makes the result a lower bound: `derived_from.partial`, `remaining` null, `note.budget.partial`, no allowance, "≥ " before the used value on every surface; alerts still fire. A provider spend below zero is unknown (`note.budget.negative`), never clamped to 0. |
+| G2 | F-02, F-03, F-04, F-26 | RF1.2, RF2.1, RF2.4, RF3.1 | Every budget and floor has a derived identity (`budget_key`, `floor_key`; `derived_from.key` in the export) that keys its alert marks and its history series, with lazy migration of unambiguous legacy marks and series. Default labels name the period ("Monthly budget · …", "Weekly budget · …"). New rules: no two budgets on one target and period whatever their unit, no two budgets with the same label, no two equal floors. Floors are tiers (see decisions). A restored reading never shows a removed budget as a provider quota. |
+| G3 | F-06, F-09, F-20 | RF2.1, RF2.4, RF2.5 | Budget notes name the budget through its translated label; the period reads "since Tue" / "since 10/01" (`budget.period_since`, `derived_from.period_start` and `period_text`, `Metric::period_text()`) in `--once`, the TUI and the desktop; the binding line names a budget ("most restrictive: … (your budget) at 90%", "used up until …"). |
+| G4 | F-07 | RF1.2 | A budget whose unit matches no metric while one of its kind exists in another unit reads "reported in USD; this budget is in EUR" (`note.budget.unit_mismatch_named`); the editors refuse it against the account's last good reading (`BudgetRule::UnitMismatch`). |
+| G5 | F-05, F-10, F-11, F-15 (command) | RF1.2, RF5.1, RF5.2 | `text::number::parse_amount`: the editors read amounts the way the language writes them and refuse an ambiguous one such as `1,000`; `--cost-plan` and `--cost-currency` use the same parser. Problems name the field by its label and sit under it (`aria-invalid`, `aria-describedby`); a new row's empty amount stays quiet until typed or saved; new rows prefill the unit. The desktop `check_budgets` is async and takes the account index, text rows and the locale. |
+| G6 | F-08, F-12, F-21 | RF2 | The desktop details and the main card keep a budget's own label and tag ("Your budget"); a budget no longer takes a provider's 5-hour or weekly column; the TUI card line starts with "◇ "; the Win98 budget meter outline stays inside its panel. |
+| G7 | F-14, F-15, F-19 | RF1.2, RF3.2 | `Monitor::apply_budgets` ends with the report filter, and budget labels, units and filters refuse invisible direction characters (`budget.error.characters`). An invalid budget or floor is left out with `note.budget.ignored` while the account and the other entries keep working; `Config::from_toml` (strict) and `--check-config` still exit 1. A floor with no balance to watch says so (`note.budget.floor_missing`). |
+| G8 | F-13, F-17, F-18 | RF4.1, RF4.2 | The allowance says "less than 0.1%/day" or "less than $0.01/day" instead of 0, shows nothing once a budget is used up, and gives a money budget's recent pace in money (the percent `…_recent` ids are retired). |
+| G9 | F-23, F-25 | RF1.2, RF5.1 | The demo's `?budget` fixture (budgets, a partial budget, two floors on one balance, a currency-mismatch note, a "less than" allowance), faithful `check_budgets`/`budget_suggestion` stubs, the UI-check pages `details-budget`, `details-floor`, `main-budget`, `dialog-budget` and `dialog-floor`, and one desktop test per editor rule. |
+
+**Decisions (orchestrator, recorded for the owner):**
+- **Identity derived, not written:** `Budget` and `Floor` reject unknown keys, so a written `id` would make the TOML unreadable to 0.83–0.86 on a downgrade. The key is derived from what validation already makes unique (kind or scope, folded `label_contains`, period, row; floors also unit and amount), so editing a budget's amount, label, unit or start day keeps its alerts and series. A written id needs PRD 0029 RF0 tolerance inside budget tables one release earlier.
+- **Floors are tiers:** each floor has its own mark and 10% hysteresis; one reading sends at most one `BalanceBelowFloor` per balance, naming the lowest floor crossed, and marks every crossed floor; `BalanceRecovered` is sent once, when every marked floor has re-armed. An engine-only `AlertEvent::mark_key` (not serialized) carries the mark through the claim flow.
+- **V-06:** a floor with no mark and the balance already below it warns once at the next reading (also after its amount changes), then the usual hysteresis applies.
+- **Partial means a lower bound:** `used` is at least that much, `remaining` is null, there is no allowance, and thresholds still fire. A provider `resets_at` that only rolls forward with the clock is not a reset.
+- **Ambiguous amounts:** one separator followed by exactly three digits ("1,000", "1.000") is refused in every locale unless spaces already group the digits or the whole part is 0; otherwise the last separator is the decimal. The CLI parses in en-US.
+- **Entry-level tolerance (PRD 0051 principle):** an invalid budget or floor is left out with a visible note, the TOML keeps it byte for byte, and strict mode still fails; entries beyond the limits are left out one by one.
+- **Binding wording:** a used-up budget reads "used up until …", not "blocked", since going over your own budget does not block the provider.
+
+**Deviations, documented:**
+- **RF2.4:** the reset notice of a budget is the generic reset notice with the budget's label; there is no separate "Budget period starts again" text.
+- **§7:** the budget history series is keyed by the budget's identity (`digest(("budget", key))`), not `budget:<index>`; the export carries the allowance as an account `allowance[]`, not `Metric.allowance`.
+- A budget restored from the history loses `partial` (its stored `remaining` is null, so it still shows no amount left).
+- The unit is prefilled from the metric but not locked; the mismatch rule blocks the save instead.
+
+**Open items:**
+- **F-22 (low, deferred):** the floor notification body omits the amounts; it needs an `AlertEvent` field across about 25 constructors, the channel payloads and the notification-length budget. The title says "below your floor" and the details show both amounts.
+- **F-24 (low, deferred):** the wizard's Budgets step is reachable only through the Credential step; a debug-only `--wizard-step budgets` jump is suggested for PRD 0053-style tooling (the logic is covered by `wizard.rs` tests).
+- **Owner decision:** a partial budget's desktop meter and "% available" still come from `used`/`limit`; only the title and tooltip carry "≥". Should the meter look different (dimmed) when partial?
+- **Owner decision:** `--cost-currency BRL 5.437` (exactly three decimals) is now refused as ambiguous, with "type 5437 or 5.4370". Confirm this is acceptable for rates.
+- **Owner decision:** two budgets with different `label_contains` that resolve to the same target and period get the same default label; their marks stay separate, but muting by label and event grouping treat them as one.
+- A budget whose target metric is missing is named by its kind slug ("Monthly budget · usage") in every language.
+- Native review of the new catalog strings (listed in each catalog's `pending_review`).
+- The allowance sentences have no class in the text length budgets (`text/budget_tests.rs`); the new "less than" and money-pace forms are covered by goldens in en, de, ru and ja instead.
+
+**Awaiting owner verification (2026-11-17 checklist):**
+1. §11 smoke on a real `open_ai_api` account, packaged desktop app: a $50 monthly budget on the spend shows "Monthly budget · …" with "Your budget" and the outlined meter, one 75% alert when the spend crosses $37.50, and "≈ $…/day left in the budget" in the details.
+2. **Set a budget…** with a plan price saved (Settings › Advanced › Local cost): the amount and day come from the plan ("From your plan price…") with the unit filled in; after saving, the TOML has `[[accounts.budgets]]` and its comments are unchanged; a plan in another currency does not prefill.
+3. A weekly budget across the 1st on a monthly-spend account with the app running over midnight UTC keeps the week's spend (no drop to $0). With the app closed from the 31st to the 2nd it shows "≥ $…" and "part of this period's use was not recorded".
+4. A credits or balance budget on OpenRouter or Kimi counts the drops; a top-up shows the top-up note and does not reduce the use.
+5. A $10 floor set while the balance is $3.20: exactly one notification at the next refresh, none afterwards, and one "back above your floor" once the balance passes $11.
+6. Floors of $10 and $5 on a balance hovering around $10: one notification; falling below $5 later gives a second one.
+7. Desktop editor in en-US: `1,000` is refused under the Amount field naming both readings; `1000` saves `amount = 1000`. In pt-BR, `12,5` saves `amount = 12.5`.
+8. An EUR budget on a USD spend in the editor: the save is refused, naming USD and EUR.
 
 ## 1. Context
 
@@ -119,7 +171,7 @@ The second half is the **allowance**. Cuotai says "runs out at 16:40" and "8 poi
 - **TOML:** `[[accounts.budgets]]` and `[[accounts.floors]]` (additive; older versions reject unknown keys as today, which PRD 0029 RF0's tolerance policy should be extended to cover before release, §12).
 - **`Metric`:** new `derived: bool` (default `false`, skipped when false) and, inside the export, `derived_from: { kind, label }`.
 - **`export::v1` (additive):** `Metric.derived`, `Metric.allowance { amount, unit, per }`, account `floors[]`; events `balance_below_floor`, `balance_recovered`; the budget metric appears as a quota.
-- **History:** series key `budget:<budget index>` per account id; a removed budget stops recording and its series ages out with the retention.
+- **History:** series key `budget:<budget index>` per account id; a removed budget stops recording and its series ages out with the retention. *(2026-11-17 re-validation: the series is keyed by the budget's derived identity, `digest(("budget", key))`, so it survives reordering; the export carries the allowance as an account `allowance[]` rather than `Metric.allowance`.)*
 
 ## 8. Surfaces
 
