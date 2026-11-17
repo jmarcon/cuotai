@@ -474,3 +474,30 @@ fn a_reset_already_past_at_the_reading_earns_no_credit() {
     assert_eq!(result[0].best, 0);
     assert_eq!(result[0].candidate(0).unwrap().score, 1.0);
 }
+
+/// PRD 0037 RF3: an explicit zero allowance (limit 0, nothing left) is
+/// never "Best now".
+#[test]
+fn an_explicit_zero_allowance_is_never_best() {
+    let mut zero = limit("Credits", 0.0, hours(3));
+    zero.limit = Some(0.0);
+    zero.remaining = Some(0.0);
+    let rig = Rig::new(vec![
+        report("Zero", Status::Ready, vec![zero]),
+        report(
+            "Busy",
+            Status::Ready,
+            vec![limit("Session", 95.0, hours(3))],
+        ),
+        report(
+            "Busier",
+            Status::Ready,
+            vec![limit("Session", 97.0, hours(3))],
+        ),
+    ]);
+    let result = rig.best();
+    assert_eq!(result[0].best, 1);
+    assert!(result[0]
+        .candidate(0)
+        .is_none_or(|candidate| candidate.score == 0.0));
+}
