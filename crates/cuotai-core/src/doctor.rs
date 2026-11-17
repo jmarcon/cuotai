@@ -1317,6 +1317,13 @@ pub fn run(inputs: &Inputs) -> Report {
         // The doctor reports the data root it was given, not the home.
         mac_home: None,
         metered: inputs.metered_dir.clone(),
+        // The feed's fixed folder sits beside the metered one
+        // (`<OS local data>/cuotai/`), so a sandboxed doctor stays inside.
+        feed: inputs
+            .metered_dir
+            .as_deref()
+            .and_then(Path::parent)
+            .map(|dir| dir.join("feed")),
     });
     checks.push(check_artifacts(&artifacts));
     Report {

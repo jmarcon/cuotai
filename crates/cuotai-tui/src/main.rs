@@ -1859,7 +1859,11 @@ fn print_snapshot(
         "\n{}",
         summary_lines(snapshot, ui::tui_locale(), |at| ui::clock(at).into())
     );
-    let feed = cuotai_core::feed::FeedStore::in_data_dir();
+    // PRD 0040 RF7.2: `live_sessions = false` reads no live session.
+    let feed = config
+        .live_sessions
+        .then(cuotai_core::feed::FeedStore::in_data_dir)
+        .flatten();
     for (index, report) in snapshot.reports.iter().enumerate() {
         let recent = recent.get(index).map_or(&[][..], Vec::as_slice);
         let status = once_status(config, index, incidents);

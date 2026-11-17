@@ -1233,8 +1233,9 @@ fn set_hidden_accounts(app: AppHandle, keys: Vec<String>) -> Result<(), String> 
 }
 
 #[tauri::command]
-fn get_settings() -> settings::SettingsView {
-    settings::view()
+async fn get_settings(b: Shared<'_>) -> Result<settings::SettingsView, String> {
+    // PRD 0040 RF7.2: the live-session switch is the TOML's.
+    Ok(settings::view().with_live_session(b.live_sessions().await))
 }
 
 /// `path = None` goes back to the default folder. Errors are stable codes that the UI translates.
@@ -1549,10 +1550,12 @@ fn set_advice_enabled(enabled: bool) -> Result<(), String> {
     settings::save_advice_enabled(enabled).map_err(str::to_owned)
 }
 
-/// PRD 0040 RF7.2: show or hide the live agent session. Error: `unwritable`.
+/// PRD 0040 RF7.2 (re-validation S-06): show the live agent session or
+/// stop computing and sharing it, through `live_sessions` in the TOML.
+/// Errors: the core's typed edit errors.
 #[tauri::command]
-fn set_live_session(show: bool) -> Result<(), String> {
-    settings::save_live_session(show).map_err(str::to_owned)
+async fn set_live_session(app: AppHandle, b: Shared<'_>, show: bool) -> Result<(), String> {
+    b.set_live_sessions(&app, show).await
 }
 
 /// PRD 0040 RF8.1: hide an agent's "add an account" banner for 7 days.
@@ -1573,13 +1576,74 @@ fn forget_claude_code_readings() -> Result<cuotai_core::text::Localized, String>
 }
 
 /// PRD 0040 RF2.4: the `~/.claude/settings.json` snippets Settings offers
-/// with **Copy** (Cuotai never edits the agent's settings).
+/// with **Copy** (Cuotai never edits the agent's settings). Re-validation
+/// V-07: the desktop bundle ships no command-line tool, so the snippets run
+/// the terminal version: by its absolute path when one of the usual install
+/// places has it (`cli`), otherwise `cuotai` from Claude Code's `PATH`, and
+/// Settings says it was not found. `install` is this OS's install command.
 #[tauri::command]
 fn claude_code_snippets() -> serde_json::Value {
+    use cuotai_core::feed::claude;
+    let found = terminal_cli(dirs::home_dir().as_deref(), |path| path.is_file())
+        .and_then(|path| claude::snippets_for(&path).map(|snippets| (path, snippets)));
+    let (settings, chained) = found.as_ref().map_or_else(
+        || {
+            (
+                claude::SETTINGS_SNIPPET.to_owned(),
+                claude::CHAINED_SNIPPET.to_owned(),
+            )
+        },
+        |(_, snippets)| snippets.clone(),
+    );
     serde_json::json!({
-        "settings": cuotai_core::feed::claude::SETTINGS_SNIPPET,
-        "chained": cuotai_core::feed::claude::CHAINED_SNIPPET,
+        "settings": settings,
+        "chained": chained,
+        "cli": found.map(|(path, _)| path.display().to_string()),
+        "install": TERMINAL_INSTALL,
     })
+}
+
+/// V-07: the command that installs the terminal version on this OS (after
+/// the steps of docs/installing.md); `None` on Linux, which uses the
+/// release archives or packages.
+const TERMINAL_INSTALL: Option<&str> = if cfg!(target_os = "macos") {
+    Some("brew install jmarcon/cuotai/cuotai")
+} else if cfg!(target_os = "windows") {
+    Some("scoop install cuotai/cuotai")
+} else {
+    None
+};
+
+/// V-07: the terminal version in the places its install channels put it
+/// (Homebrew, the usual `bin` folders, Cargo, Scoop's shims), the first one
+/// `exists` accepts. Nothing is run.
+fn terminal_cli(
+    home: Option<&std::path::Path>,
+    exists: impl Fn(&std::path::Path) -> bool,
+) -> Option<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let name = if cfg!(windows) {
+        "cuotai.exe"
+    } else {
+        "cuotai"
+    };
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if !cfg!(windows) {
+        candidates.extend(
+            ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
+                .into_iter()
+                .map(|dir| PathBuf::from(dir).join(name)),
+        );
+    }
+    if let Some(home) = home {
+        candidates.push(home.join(".cargo").join("bin").join(name));
+        if cfg!(windows) {
+            candidates.push(home.join("scoop").join("shims").join(name));
+        } else {
+            candidates.push(home.join(".local").join("bin").join(name));
+        }
+    }
+    candidates.into_iter().find(|path| exists(path))
 }
 
 /// PRD 0006 RF4.1: days of measurement history kept on this device (7 to
@@ -3397,6 +3461,32 @@ pub fn run() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0040 re-validation V-07: the snippet runs the terminal version
+    /// found in a usual install place, Homebrew first; none found is `None`.
+    #[test]
+    fn the_terminal_version_is_found_in_its_install_places() {
+        use std::path::{Path, PathBuf};
+        let home = Path::new("/home/ana");
+        let name = if cfg!(windows) {
+            "cuotai.exe"
+        } else {
+            "cuotai"
+        };
+        assert_eq!(super::terminal_cli(Some(home), |_| false), None);
+        let cargo = home.join(".cargo").join("bin").join(name);
+        assert_eq!(
+            super::terminal_cli(Some(home), |path| path == cargo),
+            Some(cargo.clone())
+        );
+        if !cfg!(windows) {
+            let brew = PathBuf::from("/opt/homebrew/bin/cuotai");
+            assert_eq!(
+                super::terminal_cli(Some(home), |path| path == brew || path == cargo),
+                Some(brew)
+            );
+        }
+    }
+
     /// PRD 0035 re-validation V35-13: the placeholder tray menu follows the
     /// saved language, else the system's, through the registry.
     #[test]

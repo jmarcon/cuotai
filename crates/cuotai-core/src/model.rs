@@ -916,6 +916,13 @@ pub struct Config {
     /// PRD 0024 RF7.1: optional names and order of the account groups.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<GroupDef>,
+    /// PRD 0040 RF7.2 (re-validation S-06): `live_sessions = false` turns
+    /// the live agent session block off everywhere: nothing computes or
+    /// exports it (cards, details, `--once`, the tray chip, `/v1/*` of both
+    /// local servers, `--json-v1`). Absent means on. Agents still write
+    /// their readings, and the status line keeps its own context share.
+    #[serde(default = "default_live_sessions", skip_serializing_if = "is_on")]
+    pub live_sessions: bool,
 }
 
 impl Config {
@@ -971,6 +978,12 @@ pub(crate) fn default_concurrency() -> usize {
 pub(crate) fn default_timeout() -> u64 {
     30
 }
+pub(crate) fn default_live_sessions() -> bool {
+    true
+}
+fn is_on(value: &bool) -> bool {
+    *value
+}
 
 impl Default for Account {
     fn default() -> Self {
@@ -1015,6 +1028,7 @@ impl Default for Config {
                 })
                 .collect(),
             groups: Vec::new(),
+            live_sessions: default_live_sessions(),
         }
     }
 }

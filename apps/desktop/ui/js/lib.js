@@ -3593,6 +3593,7 @@ const demo = {
   set_live_session: async () => {},
   dismiss_feed_banner: async ({ source }) => { if (source !== "claude_code" && source !== "codex_cli") throw "invalid_source"; },
   claude_code_snippets: async () => ({
+    cli: null, install: null,
     settings: JSON.stringify({ statusLine: { type: "command", command: "cuotai --feed claude-statusline --print" } }, null, 2),
     chained: JSON.stringify({ statusLine: { type: "command", command: `sh -c 'input=$(cat); printf %s "$input" | cuotai --feed claude-statusline; printf %s "$input" | ~/.claude/statusline.sh'` } }, null, 2),
   }),

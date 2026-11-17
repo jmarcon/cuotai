@@ -4057,6 +4057,7 @@ mod tests {
             timeout_seconds: 30,
             accounts,
             groups: Vec::new(),
+            live_sessions: true,
         }
     }
 

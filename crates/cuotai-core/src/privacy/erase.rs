@@ -400,6 +400,8 @@ mod tests {
             // from the moved data folder, which keeps a legacy copy; an
             // erase removes both.
             metered: Some(dir.path().join("os-local").join("cuotai").join("metered")),
+            // PRD 0040 re-validation V-08: the fixed feed folder, likewise.
+            feed: Some(dir.path().join("os-local").join("cuotai").join("feed")),
         };
         for artifact in artifacts() {
             let Some(path) = roots.path_of(artifact) else {

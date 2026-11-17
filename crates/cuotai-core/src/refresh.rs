@@ -1420,6 +1420,7 @@ mod tests {
             timeout_seconds: 5,
             accounts,
             groups: Vec::new(),
+            live_sessions: true,
         }
     }
 
@@ -1612,6 +1613,7 @@ mod tests {
             timeout_seconds: 5,
             accounts: vec![account("global", None), account("override", Some(30))],
             groups: Vec::new(),
+            live_sessions: true,
         };
         let now = Instant::now();
         let cycle = RefreshCycle::new(&config, now);
@@ -1631,6 +1633,7 @@ mod tests {
                 timeout_seconds: 5,
                 accounts: vec![metered_account("bedrock", override_seconds)],
                 groups: Vec::new(),
+                live_sessions: true,
             };
             let now = Instant::now();
             let mut cycle = RefreshCycle::new(&config, now);
@@ -1676,6 +1679,7 @@ mod tests {
             timeout_seconds: 5,
             accounts: vec![account("first", None), account("second", Some(30))],
             groups: Vec::new(),
+            live_sessions: true,
         };
         let now = Instant::now();
         let mut cycle = RefreshCycle::new(&config, now);
@@ -1717,6 +1721,7 @@ mod tests {
             timeout_seconds: 5,
             accounts: vec![account("only", None)],
             groups: Vec::new(),
+            live_sessions: true,
         };
         let now = Instant::now();
         let mut cycle = RefreshCycle::new(&config, now);

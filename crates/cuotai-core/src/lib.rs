@@ -1162,6 +1162,9 @@ impl Monitor {
         if let Some(store) = self.feed_store() {
             store.prune_unbound(&self.config, now);
         }
+        // V-08: the folder older builds kept in the data folder.
+        #[cfg(not(test))]
+        feed::FeedStore::remove_legacy_dir();
     }
 
     fn now(&self) -> chrono::DateTime<Utc> {

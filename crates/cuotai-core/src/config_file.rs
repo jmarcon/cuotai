@@ -572,6 +572,12 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
                 config.timeout_seconds,
                 crate::model::default_timeout(),
             );
+            set_switch(
+                &mut doc,
+                "live_sessions",
+                config.live_sessions,
+                crate::model::default_live_sessions(),
+            );
             // `accounts = []` is what removing the last account writes: an
             // empty list is as editable as a missing one.
             let editable = doc
@@ -589,6 +595,7 @@ fn render(config: &Config, previous: Option<&[u8]>) -> Result<Vec<u8>, EditError
                         "refresh_seconds"
                             | "concurrency"
                             | "timeout_seconds"
+                            | "live_sessions"
                             | "accounts"
                             | "groups"
                     )
@@ -677,6 +684,28 @@ fn set_global(doc: &mut toml_edit::DocumentMut, key: &str, val: u64, default: u6
         return;
     }
     set_int(doc, key, val as i64);
+}
+
+/// The boolean `key` set to `val`: removed when `val` is the `default` a
+/// reader assumes for a missing key (so turning a switch back on leaves no
+/// trace), left untouched when it already holds `val`.
+fn set_switch(doc: &mut toml_edit::DocumentMut, key: &str, val: bool, default: bool) {
+    let held = doc.get(key).map(|item| item.as_bool());
+    if held == Some(Some(val)) || (held.is_none() && val == default) {
+        return;
+    }
+    if val == default {
+        doc.remove(key);
+        return;
+    }
+    if let Some(existing) = doc.get_mut(key).and_then(|i| i.as_value_mut()) {
+        let decor = existing.decor().clone();
+        let mut value = toml_edit::Value::from(val);
+        *value.decor_mut() = decor;
+        *existing = value;
+    } else {
+        doc[key] = toml_edit::value(val);
+    }
 }
 
 fn set_int(doc: &mut toml_edit::DocumentMut, key: &str, val: i64) {
@@ -1075,6 +1104,7 @@ mod tests {
             timeout_seconds: 10,
             accounts,
             groups: Vec::new(),
+            live_sessions: true,
         }
     }
 
@@ -2247,6 +2277,35 @@ params = { profile = "validation" }
     }
 
     // ----- RF4 typed errors + reload + change detector -----
+
+    /// PRD 0040 RF7.2 (S-06): `live_sessions = false` is written only while
+    /// the switch is off, keeps the file's comments, and turning it back on
+    /// removes the key (absent = on).
+    #[test]
+    fn the_live_sessions_switch_round_trips_through_the_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("live.toml");
+        fs::write(
+            &path,
+            "# mine\nrefresh_seconds = 300\n\n[[accounts]]\nprovider = \"claude\"\nparams = { query_mode = \"claude_code\" }\n",
+        )
+        .unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        assert!(file.config.live_sessions);
+        let mut off = file.config.clone();
+        off.live_sessions = false;
+        file.save(off).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with("# mine\n"), "{text}");
+        assert!(text.contains("live_sessions = false"), "{text}");
+        assert!(!load_at(&path, false).unwrap().config.live_sessions);
+        let mut on = file.config.clone();
+        on.live_sessions = true;
+        file.save(on).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("live_sessions"), "{text}");
+        assert!(load_at(&path, false).unwrap().config.live_sessions);
+    }
 
     #[test]
     fn save_rejects_out_of_bounds_refresh_with_validation() {

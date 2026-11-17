@@ -386,11 +386,21 @@ static ARTIFACTS: &[Artifact] = &[
         "emptied by the hooks themselves",
         "0013",
     ),
-    dir(
+    Artifact {
+        root: Root::OsLocalData,
+        ..dir(
         "feed.tree",
         "feed",
         "agent-fed readings: one JSON file per agent session with rate-limit percentages, reset times, the context share, the agent's cost estimate, a model name and a digest of the session id; never a path, prompt or raw id. Codex CLI's are read only with its local cost source on and erased when it is turned off; `--feed claude-statusline --forget` erases Claude Code's",
         "24 hours (the newest file of an agent an account reads is kept), 64 files per agent",
+        "0040",
+    )
+    },
+    dir(
+        "feed.tree_legacy",
+        "feed",
+        "agent-fed readings left in a moved data folder by builds before PRD 0040's re-validation; no longer read, deleted by the first refresh",
+        UNTIL_ERASED,
         "0040",
     ),
     Artifact {
@@ -534,6 +544,9 @@ pub struct Roots {
     /// The metered records' fixed folder ([`Root::OsLocalData`]):
     /// `<OS local data dir>/cuotai/metered`.
     pub metered: Option<PathBuf>,
+    /// The agent feed's fixed folder ([`Root::OsLocalData`]):
+    /// `<OS local data dir>/cuotai/feed` ([`crate::feed::FeedStore::default_dir`]).
+    pub feed: Option<PathBuf>,
 }
 
 impl Roots {
@@ -549,6 +562,7 @@ impl Roots {
                 None
             },
             metered: crate::metered_record::Store::default_dir(),
+            feed: crate::feed::FeedStore::default_dir(),
         }
     }
 
@@ -567,7 +581,13 @@ impl Roots {
                 .as_deref()
                 .map(|d| join(d, artifact.path))
                 .filter(|path| self.metered.as_deref() != Some(path.as_path())),
+            Root::LocalData if artifact.id == "feed.tree_legacy" => self
+                .local_data
+                .as_deref()
+                .map(|d| join(d, artifact.path))
+                .filter(|path| self.feed.as_deref() != Some(path.as_path())),
             Root::LocalData => self.local_data.as_deref().map(|d| join(d, artifact.path)),
+            Root::OsLocalData if artifact.id == "feed.tree" => self.feed.clone(),
             Root::OsLocalData => self.metered.clone(),
             Root::Config => self
                 .config
@@ -681,7 +701,9 @@ pub fn inspect(roots: &Roots) -> Vec<ArtifactState> {
         // macOS-only paths: absent from the report elsewhere, and while
         // they are the data root's own files.
         .filter(|a| {
-            (a.root != Root::MacHome && a.id != "metered.records_legacy")
+            (a.root != Root::MacHome
+                && a.id != "metered.records_legacy"
+                && a.id != "feed.tree_legacy")
                 || roots.path_of(a).is_some()
         })
         .map(|a| inspect_one(a, roots))
@@ -1121,6 +1143,7 @@ mod tests {
             accounts: Some(PathBuf::from("/acc/cuotai.toml")),
             mac_home: None,
             metered: None,
+            feed: None,
         };
         let path = |id: &str| roots.path_of(artifact(id).unwrap()).unwrap();
         let local = |rel: &str| Path::new("/data").join("cuotai").join(rel);
@@ -1187,6 +1210,7 @@ mod tests {
             accounts: None,
             mac_home: Some(PathBuf::from("/home/ana")),
             metered: None,
+            feed: None,
         };
         let path = |roots: &Roots, id: &str| roots.path_of(artifact(id).unwrap());
         let fixed = Path::new("/home/ana/Library/Application Support/cuotai/widget.json");
@@ -1232,6 +1256,7 @@ mod tests {
             accounts: None,
             mac_home: None,
             metered: None,
+            feed: None,
         };
         let base = dir.path().join("cuotai");
         std::fs::create_dir_all(base.join("history")).unwrap();

@@ -1333,6 +1333,7 @@ mod tests {
             concurrency: 2,
             timeout_seconds: 5,
             accounts: vec![direct, router_account()],
+            live_sessions: true,
         };
         let router = report(
             Status::Ready,
@@ -1366,6 +1367,7 @@ mod tests {
             concurrency: 2,
             timeout_seconds: 5,
             accounts: vec![direct, router],
+            live_sessions: true,
         }
     }
 

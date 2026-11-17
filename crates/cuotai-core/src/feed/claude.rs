@@ -161,6 +161,32 @@ pub const SETTINGS_SNIPPET: &str = r#"{
   }
 }"#;
 
+/// RF2.4 (PRD 0040 re-validation V-07): [`SETTINGS_SNIPPET`] and
+/// [`CHAINED_SNIPPET`] running `program` (an absolute path to the terminal
+/// version) instead of `cuotai` from Claude Code's `PATH`. A path with a
+/// quote, `$`, a backtick, `%` or a control character is not used (`None`):
+/// it could not be written safely into both the JSON and the `sh -c` text.
+/// A path with a space or a backslash is double-quoted.
+pub fn snippets_for(program: &std::path::Path) -> Option<(String, String)> {
+    let text = program.to_str()?;
+    if text.is_empty()
+        || text
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '"' | '\'' | '$' | '`' | '%'))
+    {
+        return None;
+    }
+    // JSON string escaping (a Windows path's backslashes).
+    let escaped = text.replace('\\', "\\\\");
+    let command = if text.contains(' ') || text.contains('\\') {
+        format!("\\\"{escaped}\\\"")
+    } else {
+        escaped
+    };
+    let with = |snippet: &str| snippet.replacen("cuotai --feed", &format!("{command} --feed"), 1);
+    Some((with(SETTINGS_SNIPPET), with(CHAINED_SNIPPET)))
+}
+
 /// RF2.4: the chained variant that keeps the person's own status-line
 /// script (`~/.claude/statusline.sh` stands for it).
 pub const CHAINED_SNIPPET: &str = r#"{
