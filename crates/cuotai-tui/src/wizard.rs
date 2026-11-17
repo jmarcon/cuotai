@@ -142,6 +142,10 @@ const DRACULA_COMMENT: Color = palette::MUTED;
 enum Step {
     Provider,
     Name,
+    /// PRD 0038 review F-07: the fields that decide the credential
+    /// (`FieldDescriptor::decides_credential`, OpenRouter's product), asked
+    /// before it; only for providers that declare one.
+    Product,
     Credential,
     Params,
     /// PRD 0016 RF2.1: only for providers whose core declares a session.
@@ -418,7 +422,66 @@ impl Wizard {
     /// current name: the provider default, or a distinct one when another
     /// account of `base` already uses it.
     fn suggest_env(&self, provider: Provider) -> String {
-        edit::suggest_env_for(provider, &self.base, self.name.trim(), self.editing)
+        let params = if provider == self.provider {
+            self.choice_values()
+        } else {
+            BTreeMap::new()
+        };
+        edit::suggest_env_with(
+            provider,
+            &params,
+            &self.base,
+            self.name.trim(),
+            self.editing,
+        )
+    }
+
+    /// The option value of each choice field, for the core's
+    /// `credential_for` (PRD 0038 review F-07).
+    fn choice_values(&self) -> BTreeMap<String, String> {
+        self.fields
+            .iter()
+            .filter_map(|field| match &field.kind {
+                FieldKind::Choice { options, selected } => options
+                    .get(*selected)
+                    .map(|option| (field.key.to_string(), option.value.to_string())),
+                FieldKind::Text(_) => None,
+            })
+            .collect()
+    }
+
+    /// The credential the current choices decide.
+    fn credential_for(&self) -> edit::CredentialFor {
+        edit::credential_for(self.provider, &self.choice_values())
+    }
+
+    /// Whether `key` is a field that decides the credential.
+    fn decides_credential(&self, key: &str) -> bool {
+        edit::descriptor(self.provider, key).is_some_and(|d| d.decides_credential)
+    }
+
+    /// The visible fields the current step edits: the Product step shows
+    /// those that decide the credential, the Parameters step the others.
+    fn step_fields(&self) -> Vec<usize> {
+        let visible = self.visible_fields();
+        match self.step {
+            Step::Product => visible
+                .into_iter()
+                .filter(|&i| self.decides_credential(self.fields[i].key))
+                .collect(),
+            Step::Params => visible
+                .into_iter()
+                .filter(|&i| !self.decides_credential(self.fields[i].key))
+                .collect(),
+            _ => visible,
+        }
+    }
+
+    /// Whether the provider asks for a Product step.
+    fn has_product_step(&self) -> bool {
+        self.visible_fields()
+            .iter()
+            .any(|&i| self.decides_credential(self.fields[i].key))
     }
 
     /// Re-run the suggestion after the name changed, unless the user typed
@@ -993,10 +1056,10 @@ impl Wizard {
                 .sessions
                 .get_mut(self.session_idx)
                 .map(|paste| &mut paste.text),
-            Step::Params => {
+            Step::Params | Step::Product => {
                 // L1: editing a parameter retires the substitution note.
                 self.choice_notice = None;
-                let visible = self.visible_fields();
+                let visible = self.step_fields();
                 let idx = *visible.get(self.field_idx)?;
                 match &mut self.fields[idx].kind {
                     FieldKind::Text(value) => Some(value),
@@ -1041,6 +1104,9 @@ impl Wizard {
                         .unwrap_or_else(|| initial_auth_mode(selected, &self.login, false));
                     let (fields, notices) = default_fields(selected, &self.auth_mode, None);
                     self.fields = fields;
+                    // The new provider's choices decide its credential.
+                    self.credential = self.suggest_env(selected);
+                    self.suggested_env = self.credential.clone();
                     // PRD 0040 owner decision: a new Claude account opens
                     // on the Claude Code mode when Claude Code was detected.
                     if self.editing.is_none() {
@@ -1080,16 +1146,28 @@ impl Wizard {
                 self.step = Step::Name;
                 self.peer_focus = false;
             }
+            Step::Name if self.has_product_step() => {
+                self.field_idx = 0;
+                self.step = Step::Product;
+            }
             Step::Name => {
                 self.refresh_suggested_env();
                 self.step = Step::Credential;
+            }
+            Step::Product => {
+                if self.field_idx + 1 < self.step_fields().len() {
+                    self.field_idx += 1;
+                } else {
+                    self.refresh_suggested_env();
+                    self.step = Step::Credential;
+                }
             }
             Step::Credential => {
                 self.field_idx = 0;
                 self.step = Step::Params;
             }
             Step::Params => {
-                if self.field_idx + 1 < self.visible_fields().len() {
+                if self.field_idx + 1 < self.step_fields().len() {
                     self.field_idx += 1;
                 } else {
                     // L1: leaving the Parameters step retires the note.
@@ -1113,6 +1191,17 @@ impl Wizard {
         match self.step {
             Step::Provider => {}
             Step::Name => self.step = Step::Provider,
+            Step::Product => {
+                if self.field_idx > 0 {
+                    self.field_idx -= 1;
+                } else {
+                    self.step = Step::Name;
+                }
+            }
+            Step::Credential if self.has_product_step() => {
+                self.step = Step::Product;
+                self.field_idx = self.step_fields().len().saturating_sub(1);
+            }
             Step::Credential => self.step = Step::Name,
             Step::Params => {
                 if self.field_idx > 0 {
@@ -1123,15 +1212,13 @@ impl Wizard {
                 }
             }
             Step::Session => {
-                let visible = self.visible_fields().len();
-                self.field_idx = visible.saturating_sub(1);
                 self.step = Step::Params;
+                self.field_idx = self.step_fields().len().saturating_sub(1);
             }
             Step::Interval if !self.sessions.is_empty() => self.step = Step::Session,
             Step::Interval => {
-                let visible = self.visible_fields().len();
-                self.field_idx = visible.saturating_sub(1);
                 self.step = Step::Params;
+                self.field_idx = self.step_fields().len().saturating_sub(1);
             }
             Step::Group => self.step = Step::Interval,
             Step::Budgets => self.step = Step::Group,
@@ -1140,10 +1227,10 @@ impl Wizard {
     }
 
     fn cycle_choice(&mut self, delta: isize) {
-        if self.step != Step::Params {
+        if !matches!(self.step, Step::Params | Step::Product) {
             return;
         }
-        let visible = self.visible_fields();
+        let visible = self.step_fields();
         let Some(&idx) = visible.get(self.field_idx) else {
             return;
         };
@@ -1160,7 +1247,31 @@ impl Wizard {
             // has done its job (a new substitution sets a new note).
             self.choice_notice = None;
             self.sync_field_choice_to_login(key, value);
+            if self.decides_credential(key) {
+                self.redefault_credential();
+            }
         }
+    }
+
+    /// PRD 0038 review F-07: a changed product re-defaults the variable
+    /// while it still holds the default of the other product.
+    fn redefault_credential(&mut self) {
+        let current = self.credential.trim();
+        let stale = current.is_empty()
+            || current == self.suggested_env
+            || edit::credential_variants(self.provider)
+                .iter()
+                .any(|v| v.credential.default_env == current);
+        if !stale {
+            return;
+        }
+        let next = if self.editing.is_some() {
+            self.credential_for().default_env.to_string()
+        } else {
+            self.suggest_env(self.provider)
+        };
+        self.credential = next.clone();
+        self.suggested_env = next;
     }
 
     fn selected_mode(&self) -> Option<&LoginMode> {
@@ -1205,6 +1316,12 @@ impl Wizard {
         self.reload_login_fields();
         self.invalidate_oauth();
         self.error = None;
+        // PRD 0038 review F-07: a mode whose fields decide the credential
+        // (OpenRouter's key: the product) asks for them first.
+        if self.step == Step::Credential && self.has_product_step() {
+            self.field_idx = 0;
+            self.step = Step::Product;
+        }
     }
 
     fn cycle_auth_mode(&mut self) {
@@ -1706,7 +1823,7 @@ impl Wizard {
                 Step::Provider => {
                     self.provider_sel = self.provider_sel.saturating_sub(1);
                 }
-                Step::Params => {
+                Step::Params | Step::Product => {
                     if self.current_is_choice() {
                         self.cycle_choice(-1);
                     } else {
@@ -1723,11 +1840,11 @@ impl Wizard {
                     self.provider_sel =
                         (self.provider_sel + 1).min(self.picker.len().saturating_sub(1));
                 }
-                Step::Params => {
+                Step::Params | Step::Product => {
                     if self.current_is_choice() {
                         self.cycle_choice(1);
                     } else {
-                        let max = self.visible_fields().len().saturating_sub(1);
+                        let max = self.step_fields().len().saturating_sub(1);
                         self.field_idx = (self.field_idx + 1).min(max);
                     }
                 }
@@ -1736,16 +1853,8 @@ impl Wizard {
                 }
                 _ => {}
             },
-            (KeyCode::Left, _) => {
-                if self.step == Step::Params {
-                    self.cycle_choice(-1);
-                }
-            }
-            (KeyCode::Right, _) => {
-                if self.step == Step::Params {
-                    self.cycle_choice(1);
-                }
-            }
+            (KeyCode::Left, _) => self.cycle_choice(-1),
+            (KeyCode::Right, _) => self.cycle_choice(1),
             (KeyCode::Char(c), m) if m.is_empty() || m == KeyModifiers::SHIFT => {
                 if self.step == Step::Interval {
                     if c.is_ascii_digit() && self.interval.len() < 5 {
@@ -1770,7 +1879,7 @@ impl Wizard {
                     }
                 } else if matches!(
                     self.step,
-                    Step::Name | Step::Credential | Step::Params | Step::Session
+                    Step::Name | Step::Product | Step::Credential | Step::Params | Step::Session
                 ) && !c.is_control()
                 {
                     // Accepts pasted/typed text, including long paths (Azure).
@@ -1906,8 +2015,8 @@ impl Wizard {
                 }
             }
             // draw_params: each field takes 1 line + 1 help line when focused.
-            Step::Params => {
-                let visible = self.visible_fields();
+            Step::Params | Step::Product => {
+                let visible = self.step_fields();
                 let mut line = 0u16;
                 for (pos, &i) in visible.iter().enumerate() {
                     let block = 1 + u16::from(pos == self.field_idx);
@@ -1980,7 +2089,7 @@ impl Wizard {
     }
 
     fn current_is_choice(&self) -> bool {
-        let visible = self.visible_fields();
+        let visible = self.step_fields();
         visible
             .get(self.field_idx)
             .map(|&i| matches!(self.fields[i].kind, FieldKind::Choice { .. }))
@@ -2033,13 +2142,23 @@ impl Wizard {
                             .oauth_authorized
                             .as_ref()
                             .or(self.oauth_existing.as_ref());
-                        edit::resolve_credential_env(self.provider, &credential, oauth).map(|_| ())
+                        edit::resolve_credential_env(self.provider, &credential, oauth).and_then(
+                            |env| {
+                                // PRD 0038 review F-07: refused here, where
+                                // the variable is fixed.
+                                edit::check_credential_class(
+                                    self.provider,
+                                    env.as_deref(),
+                                    &self.choice_values(),
+                                )
+                            },
+                        )
                     }
                 }
             }
-            Step::Params => {
+            Step::Params | Step::Product => {
                 let visible = self.visible_fields();
-                let Some(&i) = visible.get(self.field_idx) else {
+                let Some(&i) = self.step_fields().get(self.field_idx) else {
                     return Ok(());
                 };
                 let field = &self.fields[i];
@@ -2258,7 +2377,7 @@ impl Wizard {
                         .iter()
                         .any(|&i| self.fields[i].key == *key)
                 }) {
-                    Some(key) if self.step == Step::Params => {
+                    Some(key) if matches!(self.step, Step::Params | Step::Product) => {
                         self.error = None;
                         self.field_error = Some((key.to_owned(), message));
                     }
@@ -2935,23 +3054,33 @@ impl Wizard {
         let chunks = wizard_chunks(area);
 
         let has_session = !self.sessions.is_empty();
-        let total = if has_session { 9 } else { 8 };
+        // PRD 0038 review F-07: the Product step comes before Credential.
+        let product = usize::from(self.has_product_step());
+        let total = if has_session { 9 } else { 8 } + product;
+        // The Product step is titled by the field it asks for.
+        let product_label = self
+            .step_fields()
+            .first()
+            .filter(|_| self.step == Step::Product)
+            .map(|&i| self.fields[i].label.clone())
+            .unwrap_or_default();
         let (position, label) = match self.step {
             Step::Provider => (1, tr("wizard.step.provider", "Provider")),
             Step::Name => (2, tr("wizard.step.name", "Account name")),
-            Step::Credential => (3, tr("wizard.step.credential", "Credential")),
-            Step::Params => (4, tr("wizard.step.params", "Parameters")),
-            Step::Session => (5, tr("wizard.step.session", "Paste session")),
+            Step::Product => (3, product_label.as_str()),
+            Step::Credential => (3 + product, tr("wizard.step.credential", "Credential")),
+            Step::Params => (4 + product, tr("wizard.step.params", "Parameters")),
+            Step::Session => (5 + product, tr("wizard.step.session", "Paste session")),
             Step::Interval => (
-                5 + usize::from(has_session),
+                5 + product + usize::from(has_session),
                 tr("wizard.step.interval", "Interval"),
             ),
             Step::Group => (
-                6 + usize::from(has_session),
+                6 + product + usize::from(has_session),
                 tr("wizard.step.group", "Group"),
             ),
             Step::Budgets => (
-                7 + usize::from(has_session),
+                7 + product + usize::from(has_session),
                 tr("wizard.step.budgets", "Budgets"),
             ),
             Step::Summary => (total, tr("wizard.step.summary", "Review")),
@@ -3045,7 +3174,7 @@ impl Wizard {
                 frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
             }
             Step::Credential => self.draw_credential(frame, inner),
-            Step::Params => self.draw_params(frame, inner),
+            Step::Params | Step::Product => self.draw_params(frame, inner),
             Step::Session => self.draw_session(frame, inner),
             Step::Interval => self.draw_interval(frame, inner),
             Step::Group => self.draw_group(frame, inner),
@@ -3141,7 +3270,7 @@ impl Wizard {
                 "wizard.hint.params_aggregator",
                 " F4 test connection  Enter next  Shift+Tab back  ↑↓/←→ options  Ctrl+U clear  Esc cancel",
             ),
-            Step::Params => tr(
+            Step::Params | Step::Product => tr(
                 "wizard.hint.params",
                 " Enter next  Shift+Tab back  ↑↓/←→ options  Ctrl+U clear  Esc cancel",
             ),
@@ -3620,11 +3749,28 @@ impl Wizard {
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
-            // Where the provider creates the key, as text the user can copy.
-            if let Some(url) = cuotai_core::secret_input::key_page(
+            // PRD 0038 review F-08: the key the chosen product needs, its
+            // warning and where it is created, as text the user can copy.
+            let credential = self.credential_for();
+            if self.has_product_step() {
+                // The help of the GUI's typed key speaks of the vault; the
+                // terminal names a variable, so only the label is shown.
+                lines.push(Line::from(Span::styled(
+                    crate::ui::resolve_l10n(&credential.label),
+                    Style::default().fg(DRACULA_CYAN),
+                )));
+            }
+            if let Some(warning) = edit::credential_class_warning(
                 self.provider,
-                cuotai_core::user_session::CREDENTIAL_SLOT,
+                &self.credential,
+                &self.choice_values(),
             ) {
+                lines.push(Line::from(Span::styled(
+                    crate::ui::resolve_l10n(&warning),
+                    Style::default().fg(DRACULA_YELLOW),
+                )));
+            }
+            if let Some(url) = credential.key_page {
                 lines.push(Line::from(Span::styled(
                     trf(
                         "wizard.credential.key_page",
@@ -3663,7 +3809,7 @@ impl Wizard {
     }
 
     fn draw_params(&self, frame: &mut Frame, area: ratatui::layout::Rect) {
-        let visible = self.visible_fields();
+        let visible = self.step_fields();
         if visible.is_empty() {
             frame.render_widget(
                 Paragraph::new(vec![
@@ -5574,6 +5720,108 @@ mod tests {
         wiz.name = "Other".into();
         wiz.advance();
         assert_eq!(wiz.credential, "MY_KEY");
+    }
+
+    /// PRD 0038 review F-07/F-08: OpenRouter asks for the product before
+    /// the credential, pre-fills the variable and the key page of that
+    /// product, re-defaults them when the product changes, and refuses the
+    /// inference key's variable for the account balance at the credential.
+    #[test]
+    fn open_router_asks_for_the_product_before_the_key_it_needs() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut wiz = Wizard::new(&Config::default(), None);
+        for c in "openrouter".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        assert_eq!(wiz.provider_at_sel(), Provider::OpenRouter);
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Name);
+        wiz.name = "Router".into();
+        press(&mut wiz, KeyCode::Enter);
+        // The browser sign-in opens first and returns an inference key;
+        // choosing the typed key asks for the product before it.
+        if wiz.step == Step::Credential {
+            while wiz.auth_mode != "credential" {
+                press(&mut wiz, KeyCode::Tab);
+            }
+        }
+        assert_eq!(wiz.step, Step::Product);
+        let screen = screen_of(&mut wiz, 160, 50);
+        assert!(screen.contains("3/9"), "{screen}");
+        // Account balance: the management key's variable and page.
+        press(&mut wiz, KeyCode::Right);
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Credential);
+        assert_eq!(wiz.credential, "OPENROUTER_MANAGEMENT_KEY");
+        let screen = screen_of(&mut wiz, 160, 50);
+        assert!(
+            screen.contains("https://openrouter.ai/settings/management-keys"),
+            "{screen}"
+        );
+        assert!(
+            screen.contains(&crate::ui::resolve_l10n(
+                &edit::credential_for(
+                    Provider::OpenRouter,
+                    &BTreeMap::from([("product".to_string(), "account".to_string())])
+                )
+                .label
+            )),
+            "{screen}"
+        );
+        // The inference key's variable cannot read the balance.
+        wiz.credential = "OPENROUTER_API_KEY".into();
+        let refused = wiz.validate_step().unwrap_err();
+        assert_eq!(
+            refused,
+            crate::ui::resolve_l10n(&cuotai_core::text::Localized::fixed(
+                "edit_error.open_router.key_class",
+                ""
+            ))
+        );
+        // Back to the key view: the stale default follows the product.
+        press(&mut wiz, KeyCode::BackTab);
+        assert_eq!(wiz.step, Step::Product);
+        press(&mut wiz, KeyCode::Left);
+        assert_eq!(wiz.credential, "OPENROUTER_API_KEY");
+        press(&mut wiz, KeyCode::Right);
+        assert_eq!(wiz.credential, "OPENROUTER_MANAGEMENT_KEY");
+        press(&mut wiz, KeyCode::Left);
+        press(&mut wiz, KeyCode::Enter);
+        let screen = screen_of(&mut wiz, 160, 50);
+        assert!(
+            screen.contains("https://openrouter.ai/settings/keys"),
+            "{screen}"
+        );
+        // A variable the user typed is kept when the product changes, and
+        // the management key's variable with the key view only warns.
+        wiz.credential = "OPENROUTER_MANAGEMENT_KEY".into();
+        assert_eq!(wiz.validate_step(), Ok(()));
+        let screen = screen_of(&mut wiz, 200, 50);
+        assert!(screen.contains("OPENROUTER_MANAGEMENT_KEY"), "{screen}");
+        assert!(edit::credential_class_warning(
+            Provider::OpenRouter,
+            &wiz.credential,
+            &wiz.choice_values()
+        )
+        .is_some());
+        wiz.credential = "MY_ROUTER_KEY".into();
+        press(&mut wiz, KeyCode::BackTab);
+        press(&mut wiz, KeyCode::Right);
+        assert_eq!(wiz.credential, "MY_ROUTER_KEY");
+        // The Parameters step no longer repeats the product.
+        press(&mut wiz, KeyCode::Enter);
+        wiz.credential = "OPENROUTER_MANAGEMENT_KEY".into();
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Params);
+        assert!(wiz
+            .step_fields()
+            .iter()
+            .all(|&i| wiz.fields[i].key != "product"));
+        // A provider without such a field has no Product step.
+        let mut other = Wizard::new(&Config::default(), None);
+        other.step = Step::Name;
+        other.advance();
+        assert_eq!(other.step, Step::Credential);
     }
 
     /// Owner request: without the `bl` CLI the credential step prints its

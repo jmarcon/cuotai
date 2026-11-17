@@ -459,14 +459,64 @@ fn every_typed_key_has_a_page_or_an_exemption() {
         }
     }
     assert!(missing.is_empty(), "no key page nor exemption: {missing:?}");
-    for (provider, slot, _) in KEY_PAGES {
+    for (provider, slot, url) in KEY_PAGES {
+        // PRD 0038 review F-08: a page may belong to the credential a field
+        // decides (OpenRouter's management key), shown through
+        // `credential_variants` in place of the main input's page.
+        let variant = crate::account_edit::credential_variants(*provider)
+            .iter()
+            .any(|v| v.credential.key_page_slot == *slot && v.credential.key_page == Some(*url));
         assert!(
-            secret_inputs(*provider)
-                .iter()
-                .any(|i| i.slot == *slot && i.key_page.is_some()),
+            variant
+                || secret_inputs(*provider)
+                    .iter()
+                    .any(|i| i.slot == *slot && i.key_page.is_some()),
             "{provider:?}/{slot} links a page no input shows"
         );
     }
+}
+
+/// PRD 0038 review F-07/F-08: OpenRouter's product decides the key: its
+/// variable, label, help and the exact page where it is created.
+#[test]
+fn open_router_product_decides_the_key_and_its_page() {
+    use crate::account_edit::{credential_for, credential_variants, descriptor};
+    use std::collections::BTreeMap;
+    assert!(descriptor(Provider::OpenRouter, "product").is_some_and(|d| d.decides_credential));
+    let key = credential_for(Provider::OpenRouter, &BTreeMap::new());
+    assert_eq!(key.default_env, "OPENROUTER_API_KEY");
+    assert_eq!(key.key_page, Some("https://openrouter.ai/settings/keys"));
+    assert_eq!(
+        &*key.label.id,
+        "secret_input.credential.open_router.inference.label"
+    );
+    let account = credential_for(
+        Provider::OpenRouter,
+        &BTreeMap::from([("product".to_string(), "account".to_string())]),
+    );
+    assert_eq!(account.default_env, "OPENROUTER_MANAGEMENT_KEY");
+    assert_eq!(
+        account.key_page,
+        Some("https://openrouter.ai/settings/management-keys")
+    );
+    assert_eq!(
+        &*account.label.id,
+        "secret_input.credential.open_router.management.label"
+    );
+    let variants = credential_variants(Provider::OpenRouter);
+    assert_eq!(
+        variants.iter().map(|v| v.value).collect::<Vec<_>>(),
+        ["key", "account"]
+    );
+    assert_eq!(variants[1].credential, account);
+    // The main input shows the default product's key.
+    let main = &secret_inputs(Provider::OpenRouter)[0];
+    assert_eq!(
+        (main.label.clone(), main.key_page),
+        (key.label, key.key_page)
+    );
+    // A provider without such a field keeps its generic credential.
+    assert!(credential_variants(Provider::Groq).is_empty());
 }
 
 /// PRD 0016 (2026-11 review): an account that reads its usage through a web

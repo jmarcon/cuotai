@@ -7332,6 +7332,9 @@ pub struct FieldSchema {
     help: cuotai_core::text::Localized,
     required: bool,
     options: Option<Vec<ChoiceSchema>>,
+    /// PRD 0038 review F-07: the field decides the credential, so the
+    /// dialog places it above the key field.
+    decides_credential: bool,
 }
 
 #[derive(Serialize)]
@@ -7392,6 +7395,9 @@ pub struct FormSchema {
     /// PRD 0047 G1/G2: the secrets the dialog asks for (typed into
     /// `AccountInput::secrets`); replaces the variable-name credential row.
     secret_inputs: Vec<cuotai_core::secret_input::SecretInput>,
+    /// PRD 0038 review F-08: the main key's label, help and page for each
+    /// option of a field that decides it (`account_edit::credential_for`).
+    credential_variants: Vec<account_edit::CredentialVariant>,
     /// PRD 0047 G1: keys of `fields` that name a variable; the desktop
     /// never renders them (the TUI does).
     terminal_only_fields: Vec<&'static str>,
@@ -7501,6 +7507,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
         interval: account_edit::interval_bounds(provider),
         interval_hint: account_edit::interval_hint(provider),
         secret_inputs: cuotai_core::secret_input::secret_inputs(provider),
+        credential_variants: account_edit::credential_variants(provider),
         terminal_only_fields: field_descriptors(provider)
             .iter()
             .map(|d| d.key)
@@ -7567,6 +7574,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
                     d.help,
                 ),
                 required: d.required,
+                decides_credential: d.decides_credential,
                 options: match d.kind {
                     FieldDescriptorKind::Text => None,
                     FieldDescriptorKind::Choice(c) => Some(

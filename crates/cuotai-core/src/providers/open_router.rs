@@ -391,6 +391,13 @@ async fn says_expired(mut response: reqwest::Response) -> bool {
 
 fn classify_http(code: u16, product: Product, expired: bool) -> QueryError {
     match code {
+        // PRD 0038 review F-06: the account product reads with a management
+        // key, which is created on another page.
+        401 if expired && product == Product::Account => failure(
+            Status::AuthenticationError,
+            "query.open_router.management_key_expired",
+            "The OpenRouter management key expired; create a new one at openrouter.ai/settings/management-keys.",
+        ),
         401 if expired => failure(
             Status::AuthenticationError,
             "query.open_router.key_expired",
@@ -1979,8 +1986,18 @@ mod tests {
                 .set_body_json(json!({"error": {"message": "API key expired"}})),
         )
         .await;
-        assert_eq!(&*error.note.id, "query.open_router.key_expired");
+        // PRD 0038 review F-06: the account product's key is a management
+        // key, created on the management-keys page.
+        assert_eq!(&*error.note.id, "query.open_router.management_key_expired");
+        assert!(error.note.fallback.contains("/settings/management-keys"));
         assert!(!error.note.fallback.contains("API key expired"));
+        let error = key_err(
+            ResponseTemplate::new(401)
+                .set_body_json(json!({"error": {"message": "API key expired"}})),
+        )
+        .await;
+        assert_eq!(&*error.note.id, "query.open_router.key_expired");
+        assert!(error.note.fallback.contains("/settings/keys"));
     }
 
     // F18

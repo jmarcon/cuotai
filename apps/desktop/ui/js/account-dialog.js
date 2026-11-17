@@ -488,7 +488,21 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const formSecrets = () => (schema.secret_inputs ?? []).filter((s) => !sessionSlotSet().has(s.slot));
   // PRD 0040: the feed-only mode (Fed by Claude Code / Codex CLI) needs no credential: the key row goes away.
   const feedOnly = () => schema.feed_only != null && values.get(schema.feed_only.key)?.choice === schema.feed_only.choice;
-  const mainSecret = () => (feedOnly() ? null : formSecrets().find((s) => s.slot === "credential_env") ?? null);
+  // PRD 0038 review F-07/F-08: a field that decides the credential (OpenRouter's product) names the key, its help and
+  // the page where it is created, from the core's `credential_variants`.
+  const credentialVariant = () => {
+    for (const v of schema.credential_variants ?? []) {
+      const field = schema.fields.find((f) => f.key === v.key);
+      const choice = values.get(v.key)?.choice ?? field?.options?.[0]?.index;
+      if (field?.options?.find((o) => o.index === choice)?.value === v.value) return v.credential;
+    }
+    return null;
+  };
+  const mainSecret = () => {
+    const secret = feedOnly() ? null : formSecrets().find((s) => s.slot === "credential_env") ?? null;
+    const variant = secret && credentialVariant();
+    return variant ? { ...secret, label: variant.label, help: variant.help, key_page: variant.key_page } : secret;
+  };
   // G4/G5: where a saved secret comes from (`vault`, `environment` set up in the terminal, `unset`); never a value or name.
   const secretSource = (slot) => (existing && existing.provider === provider
     ? existing.secret_states?.find((s) => s.slot === slot)?.source : null) ?? "unset";
@@ -1174,26 +1188,30 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       bodyHtml = optInputs.join("") + button + loginHint + `<p class="hint">${notesSlot}</p>`;
     }
 
-    dynAuth.innerHTML = authHtml + bodyHtml;
     // PRD 0047 G1: a field that names a variable is terminal-only; its secret input (if any) takes its place.
     const terminalOnly = new Set(schema.terminal_only_fields ?? []);
-    dynFields.innerHTML =
-      schema.fields.filter((f) => visible.has(f.key)).map((f) => {
-        if (terminalOnly.has(f.key)) {
-          const secret = formSecrets().find((x) => x.field === f.key);
-          return secret ? secretRowHtml(secret) : "";
-        }
-        const v = values.get(f.key);
-        const input = f.options
-          ? `<select name="f:${esc(f.key)}">${f.options.map((option) => `<option value="${option.index}" ${(v?.choice ?? f.options[0]?.index ?? 0) === option.index ? "selected" : ""}>${esc(tl(option.label))}</option>`).join("")}</select>`
-          : `<input name="f:${esc(f.key)}" value="${esc(v?.text ?? "")}" ${f.required ? "required" : ""} />`;
-        return `<label class="f" data-field="f:${esc(f.key)}"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}<small class="field-err" hidden></small>${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
-      }).join("");
+    const fieldHtml = (f) => {
+      if (terminalOnly.has(f.key)) {
+        const secret = formSecrets().find((x) => x.field === f.key);
+        return secret ? secretRowHtml(secret) : "";
+      }
+      const v = values.get(f.key);
+      const input = f.options
+        ? `<select name="f:${esc(f.key)}">${f.options.map((option) => `<option value="${option.index}" ${(v?.choice ?? f.options[0]?.index ?? 0) === option.index ? "selected" : ""}>${esc(tl(option.label))}</option>`).join("")}</select>`
+        : `<input name="f:${esc(f.key)}" value="${esc(v?.text ?? "")}" ${f.required ? "required" : ""} />`;
+      return `<label class="f" data-field="f:${esc(f.key)}"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}<small class="field-err" hidden></small>${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
+    };
+    // PRD 0038 review F-07: the fields that decide the key (OpenRouter's product) come right above the key field.
+    const leading = !mode && mainSecret()
+      ? schema.fields.filter((f) => f.decides_credential && visible.has(f.key) && !terminalOnly.has(f.key))
+      : [];
+    dynAuth.innerHTML = authHtml + leading.map(fieldHtml).join("") + bodyHtml;
+    dynFields.innerHTML = schema.fields.filter((f) => visible.has(f.key) && !leading.includes(f)).map(fieldHtml).join("");
     // PRD 0001 re-validation (M3): an RF11.3 substitution is explained next to what changed: under the row of the
     // field the core replaced (a form field, or the same choice shown as a sign-in option of the mode), else under the
     // Authentication choice that caused it.
     for (const { key, text } of notices) {
-      const host = dynFields.querySelector(`[data-field="f:${CSS.escape(key)}"]`)
+      const host = dyn.querySelector(`[data-field="f:${CSS.escape(key)}"]`)
         ?? dynAuth.querySelector(`[name="o:${CSS.escape(key)}"]`)?.closest(".f")
         ?? dynAuth.querySelector("fieldset.auth") ?? dynFields;
       const note = document.createElement("small");
