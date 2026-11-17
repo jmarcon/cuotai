@@ -117,6 +117,12 @@ fn symbol(code: &str, currency: &str, usd: &'static str) -> Option<&'static str>
 }
 
 /// ISO 4217 minor units of the currencies that have none.
+/// The smallest amount `currency` shows (`0.01` USD, `1` JPY): a positive
+/// amount below half of it reads as zero.
+pub fn smallest_money(currency: &str) -> f64 {
+    10f64.powi(-(fraction_digits(&currency.to_ascii_uppercase()) as i32))
+}
+
 fn fraction_digits(currency: &str) -> usize {
     match currency {
         "JPY" | "KRW" | "VND" | "CLP" | "ISK" | "HUF" | "TWD" | "UGX" => 0,

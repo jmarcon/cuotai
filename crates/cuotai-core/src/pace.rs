@@ -676,6 +676,10 @@ pub struct Allowance {
     /// The recent use per [`Self::per`], in percent of the limit.
     #[serde(skip)]
     pub recent_percent: Option<f64>,
+    /// The same recent use in the metric's unit (PRD 0041 re-validation
+    /// F-17: a money budget compares money with money).
+    #[serde(skip)]
+    pub recent_amount: Option<f64>,
     /// Whether the metric is a person's budget (PRD 0041 RF2).
     #[serde(skip)]
     pub budget: bool,
@@ -688,9 +692,10 @@ const ALLOWANCE_HOURLY_BELOW: TimeDelta = TimeDelta::days(2);
 /// PRD 0041 RF4.1: the allowance of `metric` at `now`: `remaining` divided
 /// by the days (or hours, under 2 days) until `resets_at`. `None` for a
 /// metric that is not a plan quota, a 5-hour window, a rate limit, or one
-/// whose limit, use or reset is unknown or past, or a budget whose use is
-/// only a lower bound (`derived_from.partial`). `recent` (the PRD 0024
-/// recent samples) gives [`Allowance::vs_recent`].
+/// whose limit, use or reset is unknown or past, for one already used up
+/// (F-18: the exhausted state says it, never "≈ $0.00/day left"), or for a
+/// budget whose use is only a lower bound (`derived_from.partial`).
+/// `recent` (the PRD 0024 recent samples) gives [`Allowance::vs_recent`].
 pub fn allowance(
     metric: &Metric,
     now: DateTime<Utc>,
@@ -729,7 +734,10 @@ pub fn allowance(
         AllowancePer::Hour => 3_600.0,
     };
     let units = (secs(left) / unit_secs).max(1.0 / 60.0);
-    let remaining = (limit - used).max(0.0);
+    let remaining = limit - used;
+    if remaining <= 0.0 {
+        return None;
+    }
     let amount = remaining / units;
     let percent = amount * 100.0 / limit;
     if !amount.is_finite() || !percent.is_finite() {
@@ -752,13 +760,14 @@ pub fn allowance(
         per,
         vs_recent,
         recent_percent,
+        recent_amount: recent_percent.map(|recent| recent * limit / 100.0),
         budget: metric.derived_from.is_some(),
     })
 }
 
-/// A percent for the allowance sentence: whole above 10, one decimal
-/// below (`12`, `0.4`, `1`), so a small allowance never reads `0`.
-/// A percent as the allowance shows it: whole from 10, one decimal below.
+/// A percent as the allowance shows it: whole from 10, one decimal below
+/// (`12`, `0.4`, `1`). A positive one that rounds to `0` takes the "less
+/// than 0.1%" form of [`Allowance::sentence`] instead.
 fn short_percent(value: f64) -> f64 {
     if value >= 9.95 {
         value.round()
@@ -770,17 +779,59 @@ fn short_percent(value: f64) -> f64 {
 impl Allowance {
     /// PRD 0041 RF4.2: "≈ 12%/day to the reset", "≈ $3.40/day left in the
     /// budget" (a budget in a currency), "≈ 4%/h to the reset" under 2
-    /// days, with " · recently 18%/day" when the recent use is known.
+    /// days, with " · recently 18%/day" when the recent use is known (in
+    /// money for a money budget, F-17). A positive allowance that would
+    /// read 0 says "less than 0.1%/day" or "less than $0.01/day left in the
+    /// budget" (F-13).
     pub fn sentence(&self) -> Localized {
+        use crate::text::ParamValue;
         let per_hour = self.per == AllowancePer::Hour;
         let money = self.budget && crate::budget::is_currency(&self.unit);
-        let value = if money {
-            crate::overage::format_amount(self.amount, &self.unit, Some(&self.unit))
+        let money_text =
+            |amount: f64| crate::overage::format_amount(amount, &self.unit, Some(&self.unit));
+        // F-13: what the sentence would show, and whether it reads 0.
+        let (value, less) = if money {
+            let smallest = crate::text::number::smallest_money(&self.unit);
+            if (self.amount / smallest).round() == 0.0 {
+                (money_text(smallest), true)
+            } else {
+                (money_text(self.amount), false)
+            }
         } else {
             // V-17: the sign and the decimal separator follow the language.
-            crate::text::ParamValue::l10n(crate::text::number::percent(short_percent(self.percent)))
+            let shown = short_percent(self.percent);
+            let less = shown == 0.0 && self.percent > 0.0;
+            let shown = if less { 0.1 } else { shown };
+            (ParamValue::l10n(crate::text::number::percent(shown)), less)
         };
-        let (id, fallback) = match (money, per_hour, self.recent_percent.is_some()) {
+        if less {
+            let (id, fallback) = match (money, per_hour) {
+                (true, false) => (
+                    "pace.allowance.budget_day_less",
+                    "less than {value}/day left in the budget",
+                ),
+                (true, true) => (
+                    "pace.allowance.budget_hour_less",
+                    "less than {value}/h left in the budget",
+                ),
+                (false, false) => (
+                    "pace.allowance.day_less",
+                    "less than {value}/day to the reset",
+                ),
+                (false, true) => (
+                    "pace.allowance.hour_less",
+                    "less than {value}/h to the reset",
+                ),
+            };
+            return Localized::with_param(id, "value", value, fallback);
+        }
+        let recent = if money {
+            self.recent_amount.map(money_text)
+        } else {
+            self.recent_percent
+                .map(|recent| ParamValue::l10n(crate::text::number::number(short_percent(recent))))
+        };
+        let (id, fallback) = match (money, per_hour, recent.is_some()) {
             (true, false, false) => (
                 "pace.allowance.budget_day",
                 "≈ {value}/day left in the budget",
@@ -792,12 +843,12 @@ impl Allowance {
             (false, false, false) => ("pace.allowance.day", "≈ {value}/day to the reset"),
             (false, true, false) => ("pace.allowance.hour", "≈ {value}/h to the reset"),
             (true, false, true) => (
-                "pace.allowance.budget_day_recent",
-                "≈ {value}/day left in the budget · recently {recent}%/day",
+                "pace.allowance.budget_day_recent_amount",
+                "≈ {value}/day left in the budget · recently {recent}/day",
             ),
             (true, true, true) => (
-                "pace.allowance.budget_hour_recent",
-                "≈ {value}/h left in the budget · recently {recent}%/h",
+                "pace.allowance.budget_hour_recent_amount",
+                "≈ {value}/h left in the budget · recently {recent}/h",
             ),
             (false, false, true) => (
                 "pace.allowance.day_recent",
@@ -809,11 +860,8 @@ impl Allowance {
             ),
         };
         let mut values = params([("value", value)]);
-        if let Some(recent) = self.recent_percent {
-            values.insert(
-                "recent".into(),
-                crate::text::ParamValue::l10n(crate::text::number::number(short_percent(recent))),
-            );
+        if let Some(recent) = recent {
+            values.insert("recent".into(), recent);
         }
         Localized::with_params(id, values, fallback)
     }
@@ -1417,3 +1465,7 @@ mod tests {
 #[cfg(test)]
 #[path = "pace_chip_tests.rs"]
 mod chip_tests;
+
+#[cfg(test)]
+#[path = "pace_allowance_tests.rs"]
+mod allowance_tests;
