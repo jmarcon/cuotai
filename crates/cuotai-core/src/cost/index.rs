@@ -9,6 +9,8 @@
 //! examined, the position read and the parser's carried numbers. Nothing
 //! else enters the file: no path, no file name, no content. Deleted rows
 //! are overwritten (`secure_delete`) and erasure truncates the WAL.
+//! Every digest (sessions, requests, files, projects) is keyed to this
+//! installation (`fingerprint.key`, S-03 and PRD 0042 S-06).
 //!
 //! PRD 0042 RF1 (schema 2): `requests` keeps one row per request (time,
 //! model, session digest, project fingerprint, token counts) for the
@@ -39,7 +41,7 @@ pub const BACKUP_KEEP: chrono::TimeDelta = chrono::TimeDelta::days(7);
 
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
-pub(crate) const MIGRATIONS: [&str; 6] = [
+pub(crate) const MIGRATIONS: [&str; 7] = [
     "CREATE TABLE usage (
     source TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -161,6 +163,7 @@ UPDATE projects SET project = cuotai_fingerprint(project);
 UPDATE files SET state = json_set(state, '$.project', cuotai_fingerprint(json_extract(state, '$.project')))
     WHERE json_extract(state, '$.project') IS NOT NULL;",
     PROJECT_HINTS_MIGRATION,
+    KEYED_DIGESTS,
 ];
 
 /// PRD 0042 S-01/S-02/S-03 (schema 6): folder names per `(project,
@@ -185,6 +188,27 @@ INSERT INTO projects_new (project, label, hidden) SELECT project, label, hidden 
 DROP TABLE projects;
 ALTER TABLE projects_new RENAME TO projects;
 CREATE INDEX requests_by_project ON requests (project, at);";
+/// PRD 0042 S-06: session, request and log-file digests keyed to this
+/// installation, as S-03 keyed the project fingerprints. Each stored
+/// digest becomes HMAC(key, it) (`cuotai_keyed`, registered by
+/// `CostIndex::open`); a file's parser state keeps its session keyed plus
+/// the sealed original (`cuotai_seal`), so request keys read later still
+/// meet the stored ones. No log is replayed, so session labels keep their
+/// sessions and nothing is counted twice.
+const KEYED_DIGESTS: &str = "UPDATE usage SET file = cuotai_keyed(file);
+UPDATE sessions SET session = cuotai_keyed(session), file = cuotai_keyed(file);
+UPDATE seen SET key = cuotai_keyed(key), file = cuotai_keyed(file);
+UPDATE requests SET session = cuotai_keyed(session), key = cuotai_keyed(key), file = cuotai_keyed(file);
+UPDATE files SET file = cuotai_keyed(file);
+UPDATE files SET state = json_set(state,
+        '$.seal', cuotai_seal(json_extract(state, '$.session')),
+        '$.session', cuotai_keyed(json_extract(state, '$.session')))
+    WHERE json_extract(state, '$.session') IS NOT NULL
+        AND json_extract(state, '$.session') != '';
+UPDATE session_labels SET session = cuotai_keyed(session);";
+
+/// The schema of [`Labels`]: 2 since the session digests are keyed.
+const LABELS_SCHEMA: u32 = 2;
 
 /// Tables whose rows all derive from the logs, per source and file.
 const TABLES: [&str; 5] = ["usage", "sessions", "seen", "files", "requests"];
@@ -305,6 +329,8 @@ pub struct ProjectRow {
 }
 
 /// PRD 0046 RF1.1: the labels a backup carries (`prefs/cost-labels.json`).
+/// Schema 2 (PRD 0042 S-06): the session digests are keyed with `key`;
+/// schema 1 held them unkeyed, and an import keys them with this index's.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct Labels {
     pub schema: u32,
@@ -585,12 +611,19 @@ impl CostIndex {
         }
     }
 
-    /// Whether the index holds any project fingerprint.
+    /// Whether the index holds any digest keyed with its key: a project
+    /// fingerprint, or (PRD 0042 S-06) any session, request or log-file
+    /// digest, which a new key would no longer match (files read again,
+    /// requests counted twice).
     fn has_fingerprints(db: &Connection) -> Result<bool, CostError> {
         Ok(db.query_row(
             "SELECT EXISTS (SELECT 1 FROM projects)
-                 OR EXISTS (SELECT 1 FROM requests WHERE project IS NOT NULL)
-                 OR EXISTS (SELECT 1 FROM files WHERE json_extract(state, '$.project') IS NOT NULL)",
+                 OR EXISTS (SELECT 1 FROM session_labels)
+                 OR EXISTS (SELECT 1 FROM requests)
+                 OR EXISTS (SELECT 1 FROM files)
+                 OR EXISTS (SELECT 1 FROM usage)
+                 OR EXISTS (SELECT 1 FROM sessions)
+                 OR EXISTS (SELECT 1 FROM seen)",
             [],
             |row| row.get(0),
         )?)
@@ -609,17 +642,22 @@ impl CostIndex {
         wal(&db)?;
         db.pragma_update(None, "secure_delete", true)?;
         let key = self.fingerprint_key()?;
-        db.create_scalar_function(
-            "cuotai_fingerprint",
-            1,
-            rusqlite::functions::FunctionFlags::SQLITE_UTF8
-                | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-            move |ctx| {
+        let flags = rusqlite::functions::FunctionFlags::SQLITE_UTF8
+            | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC;
+        let mapped = |name: &str, map: fn(&ProjectKey, &str) -> String| {
+            let key = key.clone();
+            db.create_scalar_function(name, 1, flags, move |ctx| {
                 Ok(ctx
                     .get::<Option<String>>(0)?
-                    .map(|legacy| key.fingerprint(&legacy)))
-            },
-        )?;
+                    .map(|unkeyed| map(&key, &unkeyed)))
+            })
+        };
+        mapped("cuotai_fingerprint", ProjectKey::fingerprint)?;
+        // PRD 0042 S-06.
+        mapped("cuotai_keyed", ProjectKey::keyed)?;
+        mapped("cuotai_seal", |key, plain| {
+            key.seal(plain, &key.keyed(plain))
+        })?;
         migrate(&mut db, &MIGRATIONS).map_err(|error| match error {
             crate::history::HistoryError::NewerMajor => CostError::NewerMajor,
             _ => CostError::Storage,
@@ -1486,7 +1524,7 @@ impl CostIndex {
             .map(|(session, label)| SessionLabel { session, label })
             .collect();
         Ok(Labels {
-            schema: 1,
+            schema: LABELS_SCHEMA,
             key: Some(self.key_hex()?),
             projects,
             sessions,
@@ -1528,6 +1566,11 @@ impl CostIndex {
                 && digest.len() <= 64
                 && digest.bytes().all(|b| b.is_ascii_hexdigit())
         };
+        // S-06: a schema 1 backup holds unkeyed session digests, the same on
+        // every computer: keyed here with this index's key.
+        let key = (labels.schema < LABELS_SCHEMA)
+            .then(|| self.fingerprint_key())
+            .transpose()?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let adopt = foreign.is_some() && !Self::has_fingerprints(&tx)?;
         if let (true, true, Some(key)) = (adopt, apply, &foreign) {
@@ -1561,11 +1604,15 @@ impl CostIndex {
             else {
                 continue;
             };
+            let digest = key.as_ref().map_or_else(
+                || session.session.clone(),
+                |key| key.keyed(&session.session),
+            );
             taken += tx.execute(
                 "INSERT INTO session_labels (session, label)
                  SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM requests WHERE session = ?1)
                  ON CONFLICT (session) DO NOTHING",
-                params![session.session, label],
+                params![digest, label],
             )?;
         }
         if apply {

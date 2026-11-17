@@ -14,6 +14,8 @@ mod future;
 mod hidden;
 #[path = "hidden_chars_tests.rs"]
 mod hidden_chars;
+#[path = "keyed_tests.rs"]
+mod keyed_tests;
 
 /// Marks every content field of the synthetic logs; it must never reach
 /// the index, a report, a debug rendering or a text.
@@ -1573,7 +1575,9 @@ fn a_count_that_overflowed_into_real_is_clamped_on_upgrade() {
     let kind: String = rusqlite::Connection::open(&path)
         .unwrap()
         .query_row(
-            "SELECT typeof(input) FROM usage WHERE file = 'f'",
+            // The file digests are keyed since S-06: the clamped row is
+            // the largest.
+            "SELECT typeof(input) FROM usage ORDER BY input DESC LIMIT 1",
             [],
             |r| r.get(0),
         )

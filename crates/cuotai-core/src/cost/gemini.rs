@@ -109,7 +109,7 @@ impl Source for GeminiCli {
             return Line::Invalid;
         };
         if let Some(id) = record.session_id.filter(|_| record.kind.is_none()) {
-            state.session = Some(anonymous(self.id(), &id));
+            state.set_session(anonymous(self.id(), &id));
             if let Some(project) = record
                 .project_hash
                 .as_deref()
@@ -143,10 +143,12 @@ impl Source for GeminiCli {
         }
         let session = state.session.clone().unwrap_or_default();
         // The recorder rewrites a file in place (rewinds, patches): a
-        // message already counted by its id is not counted again.
+        // message already counted by its id is not counted again (over the
+        // unkeyed session digest, S-06).
+        let plain = state.plain_session();
         let dedup = record
             .id
-            .map(|id| anonymous(self.id(), &format!("{session}\0{id}")));
+            .map(|id| state.request_key(self.id(), &format!("{plain}\0{id}")));
         Line::usage(Entry {
             at,
             model,
