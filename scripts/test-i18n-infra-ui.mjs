@@ -10,27 +10,36 @@ const { fold } = await import("../apps/desktop/ui/js/util.js");
 const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const { durationText, fmtNext } = await import("../apps/desktop/ui/js/lib.js");
 
-// RF1.3/RF1.4: the same table as `text::registry::tests::normalize_follows_the_alias_table`.
-const cases = [
-  ["zh", "zh-CN"], ["zh_CN.UTF-8", "zh-CN"], ["zh-Hans-TW", "zh-CN"], ["cmn-Hans-CN", "zh-CN"], ["zh-SG", "zh-CN"],
-  ["zh-TW", null], ["zh-HK", null], ["zh-Hant", null], ["zh-Hant-TW", null], ["zh_TW.UTF-8", null],
-  ["hi", "hi-IN"], ["hi_IN.UTF-8", "hi-IN"], ["in", "id-ID"], ["in-ID", "id-ID"], ["ms-MY", null],
-  ["fr-CA", "fr"], ["de_DE@euro", "de"], ["ja-JP", "ja"], ["ko", "ko"], ["ru-UA", "ru"], ["tr-TR", "tr"], ["vi-VN", "vi"],
-  ["pt-PT", "pt-BR"], ["es-419", "es"], ["it-CH", "it"], ["en-GB", "en-US"], ["EN", "en-US"],
-  ["est", null], ["ita", null], ["deu", null], ["kor", null], ["", null], ["C", null], ["pt BR; rm", null], ["x-klingon", null],
-];
-for (const [raw, code] of cases) assert.equal(normalizeLocale(raw)?.code ?? null, code, `normalizeLocale(${JSON.stringify(raw)})`);
+// RF1.3/RF1.4 (L-04): the vectors of `text::registry::tests::normalize_follows_the_alias_table`, against the module and
+// the first-paint copy (`js/first-paint.js`, a classic script: its normalizer is lifted out and run on its own rows).
+const { readFileSync: readVectors } = await import("node:fs");
+const vectors = (name) =>
+  JSON.parse(readVectors(new URL(`../crates/cuotai-core/src/text/vectors/${name}`, import.meta.url), "utf8"));
+const firstPaintSource = readVectors(new URL("../apps/desktop/ui/js/first-paint.js", import.meta.url), "utf8");
+const firstPaintRows = JSON.parse(firstPaintSource.match(/var localeRows = (\[.*?\]);/)[1]);
+const firstPaintBody = firstPaintSource.match(/\n( {2}var localeSpace = [\s\S]*?\n {2}var normalizeLocale = function \(raw\) \{[\s\S]*?\n {2}\};)/);
+assert.ok(firstPaintBody, "first-paint.js: the normalizer was not found");
+const firstPaintNormalize = new Function("localeRows", `${firstPaintBody[1]}\nreturn normalizeLocale;`)(firstPaintRows);
+const normalizeCases = Object.entries(vectors("normalize.json"));
+assert.ok(normalizeCases.length > 100, "normalize.json lost its rows");
+const firstPaintCodes = new Set(firstPaintRows.map((row) => row.code));
+for (const [raw, code] of normalizeCases) {
+  assert.equal(normalizeLocale(raw)?.code ?? null, code, `normalizeLocale(${JSON.stringify(raw)})`);
+  // The first-paint copy holds only the translated languages.
+  assert.equal(firstPaintNormalize(raw), firstPaintCodes.has(code) ? code : null, `first-paint normalizeLocale(${JSON.stringify(raw)})`);
+}
 assert.equal(REGISTRY.length, 14);
 for (const row of REGISTRY) assert.equal(normalizeLocale(row.code)?.code, row.code);
 
-// RF10.5: the twin of `cuotai_core::text::fold`.
+// RF10.5 (V35-14): the vectors of `text::fold::tests::fold_agrees_with_the_shared_vectors` (every letter of
+// U+00C0..U+024F and U+1E00..U+1EFF, words in the other scripts).
+const foldCases = Object.entries(vectors("fold.json"));
+assert.ok(foldCases.length > 600, "fold.json lost its rows");
+for (const [input, folded] of foldCases) assert.equal(fold(input), folded, `fold(${JSON.stringify(input)})`);
+assert.equal(fold("Søren"), "soren");
 assert.equal(fold("Đồng"), "dong");
 assert.equal(fold("İstanbul"), "istanbul");
-assert.equal(fold("Straße"), "strasse");
-assert.equal(fold("Łódź"), "lodz");
-assert.equal(fold("Tiếng Việt"), "tieng viet");
 assert.equal(fold("한국어"), "한국어", "Hangul stays as typed");
-assert.equal(fold("日本語のアカウント"), "日本語のアカウント");
 
 await i18n.initI18n();
 assert.equal(i18n.currentLocale(), "pt-BR");

@@ -24,10 +24,13 @@
       }
     }
   } catch (e) {}
+  // The whitespace of Rust's `str::trim` (Unicode White_Space): unlike JS `trim()`, it keeps U+FEFF.
+  var localeSpace = /^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g;
   var normalizeLocale = function (raw) {
-    var tags = String(raw).trim().split(/[.@]/)[0].split(/[-_]/);
-    var lang = (tags.shift() || "").toLowerCase();
-    if (!/^[a-z]{2,3}$/.test(lang)) return null;
+    var tags = String(raw).replace(localeSpace, "").split(/[.@]/)[0].split(/[-_]/);
+    var first = tags.shift() || "";
+    if (!/^[A-Za-z]{2,3}$/.test(first)) return null; // ASCII before lower-casing (KELVIN SIGN)
+    var lang = first.toLowerCase();
     var script = null, region = null;
     for (var k = 0; k < tags.length; k++) {
       var tag = tags[k];

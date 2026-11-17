@@ -1,9 +1,15 @@
-// PRD 0035 RF10.5: letters that do not decompose under NFD.
-const FOLD_EXTRA = { "đ": "d", "Đ": "d", "ı": "i", "ß": "ss", "ẞ": "ss", "ł": "l", "Ł": "l" };
-/** Search folding (the twin of `cuotai_core::text::fold`): NFD, strip combining marks, map đ ı ß ł, lower-case. CJK,
- *  Hangul and Devanagari stay as typed (recomposed to NFC). `dong` finds `Đồng`, `istanbul` finds `İstanbul`. */
-export const fold = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-  .replace(/[đĐıßẞłŁ]/g, (c) => FOLD_EXTRA[c]).toLowerCase().normalize("NFC");
+// PRD 0035 RF10.5: letters that do not decompose under NFD, folded like `cuotai_core::text::fold` (lower-case keys).
+const FOLD_EXTRA = { "đ": "d", "ð": "d", "ħ": "h", "ı": "i", "ŀ": "l", "ł": "l", "ŉ": "n", "ø": "o", "ß": "ss", "ſ": "s", "ŧ": "t" };
+const FOLD_MARKS = /[\u0300-\u036f]/g;
+// Latin-1 Supplement letters, Latin Extended-A/B and Latin Extended Additional: the blocks folded by decomposition.
+const FOLD_LATIN = /[\u00c0-\u024f\u1e00-\u1eff]/;
+const foldChar = (c) => Array.from((FOLD_LATIN.test(c) ? c.normalize("NFD") : c).toLowerCase(), (x) => FOLD_EXTRA[x] ?? x)
+  .join("").replace(FOLD_MARKS, "");
+/** Search folding (the twin of `cuotai_core::text::fold`; both pass `crates/cuotai-core/src/text/vectors/fold.json`):
+ *  per character, decompose the Latin letters (NFD), lower-case, map đ ð ħ ı ŀ ł ø ß ſ ŧ, strip combining marks. Other
+ *  scripts (Cyrillic, Greek, CJK, Hangul, Devanagari) are only lower-cased, so `й` stays `й`. `dong` finds `Đồng`,
+ *  `istanbul` finds `İstanbul`, `soren` finds `Søren`. */
+export const fold = (s) => Array.from(String(s ?? ""), foldChar).join("");
 
 export const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
