@@ -1963,7 +1963,7 @@ fn report_text(
     for (index, metric) in report.metrics.iter().enumerate() {
         out += &format!(
             "  {}: {}\n",
-            ui::safe(&ui::metric_label_text(&metric.label)),
+            ui::safe(&ui::metric_label_text_in(&metric.label, locale)),
             ui::metric_text_in(metric, locale)
         );
         if let Some(period) = &metric.period {
@@ -2200,7 +2200,7 @@ fn connection_text(
     for metric in &sub.metrics {
         out += &format!(
             "      {}: {}\n",
-            ui::safe(&ui::metric_label_text(&metric.label)),
+            ui::safe(&ui::metric_label_text_in(&metric.label, locale)),
             ui::metric_text_in(metric, locale)
         );
         if let Some(reset) = metric.resets_at {

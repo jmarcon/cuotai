@@ -1890,6 +1890,55 @@ async fn token_plan_via_cli_with_path(
 
 // --------------------------------------------------------------- testes
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records: the Coding Plan's three windows and the Token Plan's, with and
+/// without the plan's token totals.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    use chrono::TimeZone;
+    let now = Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap();
+    let coding = serde_json::json!({
+        "status_code": 0,
+        "data": {
+            "codingPlanInstanceInfos": [{"planName": "Pro", "status": "VALID"}],
+            "codingPlanQuotaInfo": {
+                "per5HourUsedQuota": 1, "per5HourTotalQuota": 10,
+                "perWeekUsedQuota": 2, "perWeekTotalQuota": 20,
+                "perBillMonthUsedQuota": 3, "perBillMonthTotalQuota": 30
+            }
+        }
+    });
+    let coding = parse_coding_plan_payload(coding, Region::Intl, QueriedWith::ApiKey, now)
+        .expect("fixture decodes");
+    let token = || {
+        serde_json::json!({
+            "per5HourPercentage": 0.1, "per1WeekPercentage": 0.2, "per1MonthPercentage": 0.3
+        })
+    };
+    let totals = TokenPlanQuotaTotals {
+        five_hour: Some(100.0),
+        weekly: Some(1000.0),
+        monthly: Some(10000.0),
+    };
+    let percent = TokenPlanQuotaTotals {
+        five_hour: None,
+        weekly: None,
+        monthly: None,
+    };
+    let mut token_plan = token_plan_metrics(token(), totals).expect("fixture decodes");
+    token_plan.extend(token_plan_metrics(token(), percent).expect("fixture decodes"));
+    // The `bl` CLI path: its daily window and a span it has no name for.
+    let cli = serde_json::json!({
+        "per5HourPercentage": 0.1, "per1DayPercentage": 0.15, "per3DayPercentage": 0.2,
+        "per1WeekPercentage": 0.2, "per1MonthPercentage": 0.3
+    });
+    token_plan.extend(token_plan_cli_metrics(cli).expect("fixture decodes"));
+    vec![
+        ("alibaba_plans.coding", coding.metrics),
+        ("alibaba_plans.token", token_plan),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

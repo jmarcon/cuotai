@@ -18,7 +18,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 /// `(adapter text, id, English)`. `{name}` slots match any non-empty text
-/// and become params; a slot named `label` is itself rendered through
+/// and become params; every slot but `count` is itself rendered through
 /// [`metric_text`], and a slot named `count` selects the plural form.
 pub(crate) const TABLE: &[(&str, &str, &str)] = &[
     ("créditos", "metric.unit.credits", "credits"),
@@ -540,6 +540,196 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.window_seconds",
         "{prefix} — {n}s window (%)",
     ),
+    // PRD 0037 re-validation (V-02): the labels, units, periods and slot
+    // values the source scan of `label_snapshot` found verbatim.
+    (
+        "Vozes personalizadas",
+        "metric.label.voices_custom",
+        "Custom voices",
+    ),
+    (
+        "Vozes profissionais",
+        "metric.label.voices_professional",
+        "Professional voices",
+    ),
+    (
+        "Token Plan: semanal",
+        "metric.label.token_plan_weekly",
+        "Token Plan: weekly",
+    ),
+    (
+        "Token Plan: mensal",
+        "metric.label.token_plan_monthly",
+        "Token Plan: monthly",
+    ),
+    (
+        "Coding Plan: semanal",
+        "metric.label.coding_plan_weekly",
+        "Coding Plan: weekly",
+    ),
+    (
+        "Coding Plan: mensal",
+        "metric.label.coding_plan_monthly",
+        "Coding Plan: monthly",
+    ),
+    (
+        "Custo Alibaba Cloud (BSS, PreTaxAmount)",
+        "metric.label.alibaba_cost_bss",
+        "Alibaba Cloud cost (BSS, PreTaxAmount)",
+    ),
+    ("desconhecida", "metric.word.unknown", "unknown"),
+    (
+        "Saldo — conta pessoal",
+        "metric.label.balance_personal",
+        "Balance — personal account",
+    ),
+    (
+        "Ollama Cloud: semanal",
+        "metric.label.ollama_weekly",
+        "Ollama Cloud: weekly",
+    ),
+    (
+        "Ollama Cloud: mensal",
+        "metric.label.ollama_monthly",
+        "Ollama Cloud: monthly",
+    ),
+    (
+        "Ollama: requisições",
+        "metric.label.ollama_requests",
+        "Ollama: requests",
+    ),
+    (
+        "Ollama: requisições ({period})",
+        "metric.label.ollama_requests_range",
+        "Ollama: requests ({period})",
+    ),
+    (
+        "Ollama: tokens de entrada",
+        "metric.label.ollama_input_tokens",
+        "Ollama: input tokens",
+    ),
+    (
+        "Ollama: tokens de entrada ({period})",
+        "metric.label.ollama_input_tokens_range",
+        "Ollama: input tokens ({period})",
+    ),
+    (
+        "Ollama: tokens de saída",
+        "metric.label.ollama_output_tokens",
+        "Ollama: output tokens",
+    ),
+    (
+        "Ollama: tokens de saída ({period})",
+        "metric.label.ollama_output_tokens_range",
+        "Ollama: output tokens ({period})",
+    ),
+    (
+        "Ollama: gasto",
+        "metric.label.ollama_spend",
+        "Ollama: spend",
+    ),
+    (
+        "Ollama: gasto ({period})",
+        "metric.label.ollama_spend_range",
+        "Ollama: spend ({period})",
+    ),
+    ("Mensal", "metric.label.monthly", "Monthly"),
+    ("Gasto", "metric.label.spend", "Spend"),
+    (
+        "Tokens de entrada em cache",
+        "metric.label.input_tokens_cached",
+        "Cached input tokens",
+    ),
+    (
+        "Tokens de entrada sem cache",
+        "metric.label.input_tokens_uncached",
+        "Uncached input tokens",
+    ),
+    (
+        "Tokens de entrada (lote)",
+        "metric.label.input_tokens_batch",
+        "Input tokens (batch)",
+    ),
+    (
+        "Tokens de entrada em cache (lote)",
+        "metric.label.input_tokens_cached_batch",
+        "Cached input tokens (batch)",
+    ),
+    (
+        "Tokens de entrada sem cache (lote)",
+        "metric.label.input_tokens_uncached_batch",
+        "Uncached input tokens (batch)",
+    ),
+    (
+        "Tokens de saída (lote)",
+        "metric.label.output_tokens_batch",
+        "Output tokens (batch)",
+    ),
+    (
+        "Imagens geradas",
+        "metric.label.images_generated",
+        "Images generated",
+    ),
+    (
+        "Imagens processadas",
+        "metric.label.images_processed",
+        "Images processed",
+    ),
+    (
+        "Buscas de grounding",
+        "metric.label.grounding_searches",
+        "Grounding searches",
+    ),
+    (
+        "Transcrição de áudio",
+        "metric.label.audio_transcription",
+        "Audio transcription",
+    ),
+    (
+        "Quadros de vídeo processados",
+        "metric.label.video_frames",
+        "Video frames processed",
+    ),
+    ("tokens", "metric.unit.tokens", "tokens"),
+    ("imagens", "metric.unit.images", "images"),
+    ("quadros", "metric.unit.frames", "frames"),
+    (
+        "mês corrente ({start} a {end}, {tz})",
+        "metric.period.current_month_range",
+        "current month ({start} to {end}, {tz})",
+    ),
+    ("chave de API", "metric.scope.api_key", "API key"),
+    ("usuário", "metric.scope.user", "user"),
+    ("usuário da equipe", "metric.scope.team_user", "team user"),
+    (
+        "equipe compartilhada",
+        "metric.scope.team_pooled",
+        "shared team",
+    ),
+    (
+        "organização (aviso)",
+        "metric.scope.org_soft",
+        "organization (warning)",
+    ),
+    (
+        "organização (limite rígido)",
+        "metric.scope.org_hard",
+        "organization (hard limit)",
+    ),
+    ("cota", "metric.word.quota", "quota"),
+    ("limite", "metric.word.limit", "limit"),
+    ("Assentos", "metric.label.seats", "Seats"),
+    ("Tokens", "metric.label.tokens", "Tokens"),
+    (
+        "{label}: uso recente {quota} ({location})",
+        "metric.label.recent_usage_of",
+        "{label}: recent usage {quota} ({location})",
+    ),
+    (
+        "{label}: {quota} / {limit_name} ({location})",
+        "metric.label.quota_limit_of",
+        "{label}: {quota} / {limit_name} ({location})",
+    ),
     (
         "{label} (rate limit)",
         "metric.label.rate_limit_of",
@@ -581,6 +771,9 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
     // A percent window of a named limit ("Sessão (5 horas) (%)"). Last:
     // the first match wins, so every specific "… (%)" template above it
     // keeps its own text.
+    // A day count (Ollama's usage `range`); its English singular is in
+    // [`ENGLISH_ONE`]. After "últimos {days} dias", which matches first.
+    ("{count} dias", "metric.period.days", "{count} days"),
     ("{label} (%)", "metric.label.percent_of", "{label} (%)"),
 ];
 
@@ -618,6 +811,59 @@ pub(crate) const AGGREGATOR_LABELS: &[(&str, &str, &str)] = &[
     ("monthly", "metric.label.monthly", "Monthly"),
 ];
 
+/// PRD 0037 re-validation (PRD 0038 review F-01): the labels other adapters
+/// write as English text, mapped to localized ids, `(label, id, English)`,
+/// matched exactly after [`AGGREGATOR_LABELS`]. Every label a person reads
+/// is localized; only brand names, model ids, symbols and codes stay
+/// verbatim. Like [`AGGREGATOR_LABELS`], pt-BR gets its own wording. A slot
+/// is rendered through [`metric_text`], so a quota key no entry names stays
+/// as the provider sent it.
+pub(crate) const ENGLISH_LABELS: &[(&str, &str, &str)] = &[
+    // MiniMax's voucher balance.
+    ("Voucher", "metric.label.voucher", "Voucher"),
+    // Kimi's coding rate limit.
+    ("Rate limit", "metric.label.rate_limit", "Rate limit"),
+    // Cursor's spend limit read from the agent feed.
+    ("Spend limit", "metric.label.spend_limit", "Spend limit"),
+    // GitHub Copilot's quotas (9router's contract) and their known names.
+    (
+        "Copilot: {quota}",
+        "metric.label.copilot_quota",
+        "Copilot: {quota}",
+    ),
+    (
+        "Premium requests",
+        "metric.label.copilot_premium_requests",
+        "Premium requests",
+    ),
+    ("Chat", "metric.label.copilot_chat", "Chat"),
+    (
+        "Completions",
+        "metric.label.copilot_completions",
+        "Completions",
+    ),
+    // CodeBuddy's bonus packs and refill cadences ("Daily 2" is the second
+    // daily refill).
+    (
+        "CodeBuddy: Bonus Pack {index}",
+        "metric.label.codebuddy_bonus_pack",
+        "CodeBuddy: Bonus Pack {index}",
+    ),
+    (
+        "CodeBuddy: {cadence} {index}",
+        "metric.label.codebuddy_cadence_n",
+        "CodeBuddy: {cadence} {index}",
+    ),
+    (
+        "CodeBuddy: {cadence}",
+        "metric.label.codebuddy_cadence",
+        "CodeBuddy: {cadence}",
+    ),
+    ("Daily", "metric.label.daily", "Daily"),
+    ("Weekly", "metric.label.weekly", "Weekly"),
+    ("Monthly", "metric.label.monthly", "Monthly"),
+];
+
 /// The display text of a metric label, unit or period.
 pub fn metric_text(raw: &str) -> Localized {
     for (template, id, english) in TABLE {
@@ -625,7 +871,7 @@ pub fn metric_text(raw: &str) -> Localized {
             return localized(id, english, captures);
         }
     }
-    for (template, id, english) in AGGREGATOR_LABELS {
+    for (template, id, english) in AGGREGATOR_LABELS.iter().chain(ENGLISH_LABELS) {
         if let Some(captures) = capture(template, raw) {
             return localized(id, english, captures);
         }
@@ -637,17 +883,35 @@ pub fn metric_text(raw: &str) -> Localized {
     }
 }
 
+/// `(id, English singular)` of the [`TABLE`] entries whose `{count}` slot
+/// changes the English wording (the entry's English is the plural).
+const ENGLISH_ONE: &[(&str, &str)] = &[("metric.period.days", "{count} day")];
+
 fn localized(id: &'static str, english: &'static str, captures: Vec<(&str, &str)>) -> Localized {
     let mut params = BTreeMap::new();
     for (name, value) in captures {
-        let value = if name == "label" {
-            ParamValue::l10n(metric_text(value))
-        } else {
-            ParamValue::Text(value.to_string())
+        // PRD 0037 re-validation (R-03): every slot but `count` is itself
+        // rendered through [`metric_text`] (Kimchi's scope, Vertex's quota
+        // fallbacks, Ollama's range); a verbatim slot stays plain text,
+        // except `label`, which has always been a nested text.
+        let value = match name {
+            "count" => ParamValue::Text(value.to_string()),
+            "label" => ParamValue::l10n(metric_text(value)),
+            _ => {
+                let text = metric_text(value);
+                if text.id == "metric.verbatim" {
+                    ParamValue::Text(value.to_string())
+                } else {
+                    ParamValue::l10n(text)
+                }
+            }
         };
         params.insert(name.to_string(), value);
     }
-    Localized::with_params(id, params, english)
+    match ENGLISH_ONE.iter().find(|(one_id, _)| *one_id == id) {
+        Some((_, one)) => Localized::plural(id, params, one, english),
+        None => Localized::with_params(id, params, english),
+    }
 }
 
 /// Match `raw` against `template`, whose `{name}` slots take any
@@ -896,6 +1160,62 @@ mod tests {
         }
     }
 
+    /// PRD 0037 re-validation (V-02, R-03): the texts the source scan found
+    /// verbatim are translated, and every slot but `count` is rendered too
+    /// (Kimchi's scope, Vertex's quota fallbacks, Ollama's day range); a
+    /// slot `metric_text` does not know stays plain text.
+    #[test]
+    fn slot_values_and_scanned_labels_are_translated() {
+        let cases = [
+            ("Vozes personalizadas", "de", "Eigene Stimmen"),
+            ("Vozes profissionais", "en", "Professional voices"),
+            ("Orçamento — usuário", "de", "Budget — Benutzer"),
+            ("Orçamento — chave de API", "en", "Budget — API key"),
+            (
+                "Vertex AI: cota / limite (global)",
+                "en",
+                "Vertex AI: quota / limit (global)",
+            ),
+            (
+                "Vertex AI: uso recente cota (global)",
+                "de",
+                "Vertex AI: letzte Nutzung Kontingent (global)",
+            ),
+            ("Ollama: gasto (7 dias)", "en", "Ollama: spend (7 days)"),
+            ("Ollama: gasto (1 dias)", "en", "Ollama: spend (1 day)"),
+            ("Ollama: gasto (1 dias)", "pt-BR", "Ollama: gasto (1 dia)"),
+            (
+                "Ollama: requisições (5 dias)",
+                "ru",
+                "Ollama: запросы (5 дней)",
+            ),
+            (
+                "Ollama: requisições (2 dias)",
+                "ru",
+                "Ollama: запросы (2 дня)",
+            ),
+            ("Mensal", "de", "Monatlich"),
+            (
+                "Tokens de entrada em cache (lote)",
+                "en",
+                "Cached input tokens (batch)",
+            ),
+            ("Assentos", "en", "Seats"),
+            ("desconhecida", "en", "unknown"),
+        ];
+        for (raw, locale, expected) in cases {
+            assert_eq!(
+                metric_text(raw).resolve(locale),
+                expected,
+                "{raw} in {locale}"
+            );
+        }
+        let named = metric_text("Orçamento do provedor — anthropic");
+        assert!(matches!(named.params["name"], ParamValue::Text(_)));
+        let scoped = metric_text("Orçamento — usuário");
+        assert!(matches!(scoped.params["scope"], ParamValue::L10n(_)));
+    }
+
     #[test]
     fn every_entry_is_translated_and_pt_br_is_the_adapter_text() {
         let mut ids = std::collections::BTreeSet::new();
@@ -926,6 +1246,55 @@ mod tests {
                 }
             }
             assert_eq!(slots(english), slots(template), "English slots of {id}");
+        }
+    }
+
+    /// PRD 0038 review F-01: the English labels adapters write are
+    /// localized in every catalog, their slots too, and an id shared with
+    /// another table keeps its English text.
+    #[test]
+    fn english_adapter_labels_are_translated() {
+        for (raw, id, english) in ENGLISH_LABELS {
+            assert!(id.starts_with("metric.label."), "{id}");
+            for (_, other_id, other) in TABLE.iter().chain(AGGREGATOR_LABELS) {
+                if other_id == id {
+                    assert_eq!(english, other, "{id}");
+                }
+            }
+            for locale in crate::text::catalog_locales() {
+                let catalog = crate::text::core_catalog(locale).unwrap();
+                let Some(message) = catalog.get(*id) else {
+                    panic!("{locale}: {id} missing");
+                };
+                for text in message.templates() {
+                    assert_eq!(slots(text), slots(raw), "{locale}: slots of {id}");
+                }
+            }
+            assert_eq!(slots(english), slots(raw), "English slots of {id}");
+            if slots(raw).is_empty() {
+                assert_eq!(metric_text(raw).id, *id, "{raw}");
+                assert_eq!(metric_text(raw).resolve("en-US"), *english, "{raw}");
+            }
+        }
+        let cases = [
+            ("Voucher", "de", "Gutschein"),
+            (
+                "Copilot: Premium requests",
+                "de",
+                "Copilot: Premium-Anfragen",
+            ),
+            ("Copilot: Code review", "de", "Copilot: Code review"),
+            ("CodeBuddy: Daily", "pt-BR", "CodeBuddy: Diário"),
+            ("CodeBuddy: Weekly 2", "de", "CodeBuddy: Wöchentlich 2"),
+            ("CodeBuddy: Bonus Pack 1", "ja", "CodeBuddy: Bonus Pack 1"),
+            ("Spend limit (%)", "de", "Ausgabenlimit (%)"),
+        ];
+        for (raw, locale, expected) in cases {
+            assert_eq!(
+                metric_text(raw).resolve(locale),
+                expected,
+                "{raw} in {locale}"
+            );
         }
     }
 

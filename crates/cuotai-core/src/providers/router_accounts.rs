@@ -384,7 +384,51 @@ async fn ollama(
     } else {
         None
     };
-    let limits = usage.limits.unwrap_or(OllamaLimits {
+    let metrics = ollama_window_metrics(usage.limits, monthly_reset);
+    if metrics.is_empty() {
+        // The endpoint no longer reports session/weekly/monthly limit ratios: it returns a usage
+        // report (requests, tokens, spend over `range`). Show that as plain usage and say that
+        // the plan limits are not available, instead of failing or estimating a percentage.
+        let usage_metrics = ollama_report_metrics(usage.totals.as_ref(), usage.range.as_deref());
+        if !usage_metrics.is_empty() {
+            notes.push(
+                "note.router_accounts.ollama_usage_report",
+                "Ollama no longer exposes the plan's session, weekly and monthly percentages through the API; this shows usage for the period. The limits are at ollama.com/settings/usage.",
+            );
+            return Ok(Data::new(
+                usage_metrics,
+                notes,
+                concat!(super::router_ref!("usage/misc.js"), " (getOllamaUsage)"),
+            ));
+        }
+        // Connected, but the account reported no known limit window or usage. Avoid
+        // a fake-Ready empty success; surface the schema gap instead.
+        return Err(QueryError::schema());
+    }
+    notes.push(
+        "note.router_accounts.ollama_usage_ratio",
+        "`usage` is a 0..1 ratio of the limit (1.0 = exhausted), shown as a percentage; there is no absolute request count.",
+    );
+    if monthly_reset.is_some() {
+        notes.push(
+            "note.router_accounts.ollama_monthly_reset_estimated",
+            "Monthly renewal estimated by account anniversary, as in 9router; /api/usage does not return a renewal timestamp.",
+        );
+    }
+    Ok(Data::new(
+        metrics,
+        notes,
+        concat!(super::router_ref!("usage/misc.js"), " (getOllamaUsage)"),
+    ))
+}
+
+/// The percent windows of Ollama's `limits` (a missing or non-finite ratio
+/// drops its window); the monthly one resets at `monthly_reset`.
+fn ollama_window_metrics(
+    limits: Option<OllamaLimits>,
+    monthly_reset: Option<DateTime<Utc>>,
+) -> Vec<Metric> {
+    let limits = limits.unwrap_or(OllamaLimits {
         session: None,
         weekly: None,
         monthly: None,
@@ -424,74 +468,67 @@ async fn ollama(
             unlimited: false,
         });
     }
-    if metrics.is_empty() {
-        // The endpoint no longer reports session/weekly/monthly limit ratios: it returns a usage
-        // report (requests, tokens, spend over `range`). Show that as plain usage and say that
-        // the plan limits are not available, instead of failing or estimating a percentage.
-        if let Some(totals) = &usage.totals {
-            let range = usage.range.as_deref().map(ollama_range_label);
-            let at = |what: &str| match &range {
-                Some(range) => format!("Ollama: {what} ({range})"),
-                None => format!("Ollama: {what}"),
-            };
-            let finite = |value: Option<f64>| value.filter(|v| v.is_finite() && *v >= 0.0);
-            let mut usage_metrics = Vec::new();
-            for (what, value, unit, kind) in [
-                (
-                    "requisições",
-                    totals.request_count,
-                    "requisições",
-                    MetricKind::Usage,
-                ),
-                (
-                    "tokens de entrada",
-                    totals.input_tokens,
-                    "tokens",
-                    MetricKind::Usage,
-                ),
-                (
-                    "tokens de saída",
-                    totals.output_tokens,
-                    "tokens",
-                    MetricKind::Usage,
-                ),
-                ("gasto", totals.usage_usd, "USD", MetricKind::Spend),
-            ] {
-                if let Some(value) = finite(value) {
-                    usage_metrics.push(Metric::usage(at(what), value, unit, kind, None));
-                }
-            }
-            if !usage_metrics.is_empty() {
-                notes.push(
-                    "note.router_accounts.ollama_usage_report",
-                    "Ollama no longer exposes the plan's session, weekly and monthly percentages through the API; this shows usage for the period. The limits are at ollama.com/settings/usage.",
-                );
-                return Ok(Data::new(
-                    usage_metrics,
-                    notes,
-                    concat!(super::router_ref!("usage/misc.js"), " (getOllamaUsage)"),
-                ));
-            }
+    metrics
+}
+
+/// The usage report Ollama returns today: requests, tokens and spend over
+/// `range`, as plain usage (no plan limit).
+fn ollama_report_metrics(totals: Option<&OllamaTotals>, range: Option<&str>) -> Vec<Metric> {
+    let Some(totals) = totals else {
+        return Vec::new();
+    };
+    let range = range.map(ollama_range_label);
+    let at = |what: &str| match &range {
+        Some(range) => format!("Ollama: {what} ({range})"),
+        None => format!("Ollama: {what}"),
+    };
+    let finite = |value: Option<f64>| value.filter(|v| v.is_finite() && *v >= 0.0);
+    let mut usage_metrics = Vec::new();
+    for (what, value, unit, kind) in [
+        (
+            "requisições",
+            totals.request_count,
+            "requisições",
+            MetricKind::Usage,
+        ),
+        (
+            "tokens de entrada",
+            totals.input_tokens,
+            "tokens",
+            MetricKind::Usage,
+        ),
+        (
+            "tokens de saída",
+            totals.output_tokens,
+            "tokens",
+            MetricKind::Usage,
+        ),
+        ("gasto", totals.usage_usd, "USD", MetricKind::Spend),
+    ] {
+        if let Some(value) = finite(value) {
+            usage_metrics.push(Metric::usage(at(what), value, unit, kind, None));
         }
-        // Connected, but the account reported no known limit window or usage. Avoid
-        // a fake-Ready empty success; surface the schema gap instead.
-        return Err(QueryError::schema());
     }
-    notes.push(
-        "note.router_accounts.ollama_usage_ratio",
-        "`usage` is a 0..1 ratio of the limit (1.0 = exhausted), shown as a percentage; there is no absolute request count.",
-    );
-    if monthly_reset.is_some() {
-        notes.push(
-            "note.router_accounts.ollama_monthly_reset_estimated",
-            "Monthly renewal estimated by account anniversary, as in 9router; /api/usage does not return a renewal timestamp.",
-        );
-    }
-    Ok(Data::new(
-        metrics,
-        notes,
-        concat!(super::router_ref!("usage/misc.js"), " (getOllamaUsage)"),
-    ))
+    usage_metrics
+}
+
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records: Ollama's percent windows, its usage report with and without a
+/// range.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let usage: OllamaUsage = serde_json::from_value(serde_json::json!({
+        "limits": {"session": {"usage": 0.1}, "weekly": {"usage": 0.2}, "monthly": {"usage": 0.3}},
+        "totals": {"request_count": 3, "usage_usd": 0.5, "input_tokens": 10, "output_tokens": 20},
+        "range": "7d",
+    }))
+    .expect("fixture decodes");
+    let mut ollama = ollama_window_metrics(usage.limits, None);
+    ollama.extend(ollama_report_metrics(usage.totals.as_ref(), Some("7d")));
+    ollama.extend(ollama_report_metrics(usage.totals.as_ref(), Some("1d")));
+    ollama.extend(ollama_report_metrics(usage.totals.as_ref(), Some("24h")));
+    ollama.extend(ollama_report_metrics(usage.totals.as_ref(), None));
+    vec![("router_accounts.ollama", ollama)]
 }
 
 /// Human label of a usage `range` ("7d" → "7 dias"); unknown shapes are shown as sent.

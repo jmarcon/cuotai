@@ -578,6 +578,39 @@ struct ModelUsage {
     max_request_usage: Option<i64>,
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records: the plan by percent and by cents, Auto and named models
+/// together and alone, on-demand spend and the legacy request plan.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let summary = |plan: serde_json::Value| -> UsageSummary {
+        serde_json::from_value(serde_json::json!({
+            "individualUsage": {"plan": plan, "onDemand": {"used": 100, "limit": 1000}}
+        }))
+        .expect("fixture decodes")
+    };
+    let mut metrics = Vec::new();
+    for plan in [
+        serde_json::json!({"totalPercentUsed": 10.0, "autoPercentUsed": 5.0, "apiPercentUsed": 5.0}),
+        serde_json::json!({"used": 100, "limit": 2000, "autoPercentUsed": 5.0}),
+        serde_json::json!({"apiPercentUsed": 5.0}),
+    ] {
+        metrics.extend(plan_metrics(&summary(plan)).expect("fixture decodes"));
+    }
+    metrics.extend(on_demand_metrics(&summary(serde_json::json!({}))).expect("fixture decodes"));
+    let legacy: UsageResponse = serde_json::from_value(serde_json::json!({
+        "gpt-4": {"numRequests": 10, "maxRequestUsage": 500}
+    }))
+    .expect("fixture decodes");
+    metrics.extend(legacy_request_metric(&legacy, None).expect("fixture decodes"));
+    // A request count without a cap: the unit is the requests themselves.
+    let uncapped: UsageResponse =
+        serde_json::from_value(serde_json::json!({"gpt-4": {"numRequests": 10}}))
+            .expect("fixture decodes");
+    metrics.extend(legacy_request_metric(&uncapped, None).expect("fixture decodes"));
+    vec![("cursor_personal", metrics)]
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

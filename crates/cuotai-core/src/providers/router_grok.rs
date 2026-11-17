@@ -668,6 +668,7 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
         "monthlyLimit": {"val": 100}, "includedUsed": {"val": 10},
         "onDemandCap": {"val": 20}, "onDemandUsed": {"val": 1},
         "prepaidBalance": {"val": 5},
+        "creditUsagePercent": 25,
         "billingPeriodEnd": "2026-10-01T00:00:00+00:00"
     }});
     vec![("router_grok", parse_billing(&billing, None).metrics)]

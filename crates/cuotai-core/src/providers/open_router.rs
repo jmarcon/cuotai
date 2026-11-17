@@ -1031,30 +1031,68 @@ pub(crate) async fn models(
 }
 
 /// PRD 0028 RF11: the fixtures whose metric identities `label_snapshot`
-/// records (the key view and the account credits view).
+/// records, one per metric branch (PRD 0038 review F-01): the key view with
+/// its budget layers (a known scope, an unsafe one and one without a
+/// scope), BYOK and the free-model counter on a free-tier and a paid key,
+/// the account credits view, `/activity` by provider and by model (with
+/// "Others" and the BYOK total), and one `/keys` row.
 #[cfg(test)]
 pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
     let now = Utc.with_ymd_and_hms(2026, 9, 15, 12, 0, 0).unwrap();
-    let key = serde_json::json!({"data": {
-        "label": "sk-or-v1-abc...xyz", "limit": 100, "limit_remaining": 74.5,
-        "limit_reset": "monthly", "usage": 30.5, "usage_daily": 1.25,
-        "usage_weekly": 4.5, "usage_monthly": 25.5,
-        "is_free_tier": false, "is_management_key": false,
-    }});
+    let key = |free_tier: bool| {
+        serde_json::json!({"data": {
+            "label": "sk-or-v1-abc...xyz", "limit": 100, "limit_remaining": 74.5,
+            "limit_reset": "monthly", "usage": 30.5, "usage_daily": 1.25,
+            "usage_weekly": 4.5, "usage_monthly": 25.5,
+            "byok_usage": 3.0, "byok_usage_monthly": 1.5,
+            "is_free_tier": free_tier, "is_management_key": false,
+            "free_model_daily_requests": {"used": 4, "limit": 50, "remaining": 46},
+            "budgets": [
+                {"scope": "key_limit", "limit_usd": 100, "remaining_usd": 74.5},
+                {"scope": "team", "limit_usd": 50, "remaining_usd": 40, "spend_usd": 10,
+                 "reset_interval": "weekly"},
+                {"scope": "not a safe scope!", "limit_usd": 20, "remaining_usd": 15},
+                {"limit_usd": 10, "remaining_usd": 9}
+            ]
+        }})
+    };
+    let mut key_view = parse_key(&key(false), now, KEY_SOURCE)
+        .expect("fixture decodes")
+        .metrics;
+    key_view.extend(
+        parse_key(&key(true), now, KEY_SOURCE)
+            .expect("fixture decodes")
+            .metrics,
+    );
     let credits = serde_json::json!({"data": {"total_credits": 100.5, "total_usage": 25.75}});
+    let activity = serde_json::json!({"data": [
+        {"provider_name": "OpenAI", "model": "openai/gpt-4o", "usage": 3.0,
+         "byok_usage_inference": 1.0},
+        {"provider_name": "Anthropic", "model": "anthropic/claude-sonnet-4", "usage": 2.0,
+         "byok_usage_inference": 0.0},
+        {"provider_name": "", "model": "", "usage": 0.5, "byok_usage_inference": 0.0}
+    ]});
+    let mut activity_view =
+        parse_activity(&activity, Breakdown::Provider).expect("fixture decodes");
+    activity_view.extend(parse_activity(&activity, Breakdown::Model).expect("fixture decodes"));
+    let row = serde_json::json!({
+        "hash": "f01d0001c0ffee", "name": "CI", "label": "sk-or-v1-0a1...001",
+        "limit": 10, "limit_remaining": 4, "limit_reset": "daily",
+        "usage": 6, "usage_daily": 1, "usage_weekly": 2, "usage_monthly": 3
+    });
+    let row = parse_key_row(row.as_object().expect("an object"), now)
+        .expect("fixture decodes")
+        .expect("a row with figures");
     vec![
-        (
-            "open_router.key",
-            parse_key(&key, now, KEY_SOURCE)
-                .expect("fixture decodes")
-                .metrics,
-        ),
+        ("open_router.key", key_view),
         (
             "open_router.credits",
             parse_credits(&credits, CREDITS_SOURCE)
                 .expect("fixture decodes")
                 .metrics,
         ),
+        ("open_router.activity", activity_view),
+        ("open_router.keys", row.metrics),
     ]
 }
 

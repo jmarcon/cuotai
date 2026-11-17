@@ -3993,6 +3993,12 @@ pub(crate) fn metric_label_text(raw: &str) -> String {
     resolve_l10n(&cuotai_core::metric_text::metric_text(raw))
 }
 
+/// A metric label in `locale` (the `--once` text takes its locale as an
+/// argument, so its labels follow it rather than the process locale).
+pub(crate) fn metric_label_text_in(raw: &str, locale: &str) -> String {
+    cuotai_core::metric_text::metric_text(raw).resolve(locale)
+}
+
 /// A metric unit or period in the TUI locale (same table as labels).
 pub(crate) fn unit_text(raw: &str) -> String {
     metric_label_text(raw)

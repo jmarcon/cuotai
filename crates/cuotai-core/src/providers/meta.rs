@@ -629,6 +629,40 @@ fn retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
         .ok()
 }
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records: every month-to-date series the console reports.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    use chrono::TimeZone;
+    let total = |value: f64| serde_json::json!({"series": [{"type": "TOTAL", "data_points": [{"value": value}]}]});
+    let mut series = serde_json::Map::new();
+    series.insert(
+        "USAGE_BILLABLE_COST".into(),
+        serde_json::json!({"currency": {"code": "usd", "offset": 100},
+            "series": [{"type": "TOTAL", "data_points": [{"amount": 250}]}]}),
+    );
+    for key in [
+        "REQUESTS",
+        "INPUT_TOKENS",
+        "CACHED_PROMPT_TOKENS",
+        "UNCACHED_PROMPT_TOKENS",
+        "OUTPUT_TOKENS",
+        "BATCH_INPUT_TOKENS",
+        "BATCH_CACHED_PROMPT_TOKENS",
+        "BATCH_UNCACHED_PROMPT_TOKENS",
+        "BATCH_OUTPUT_TOKENS",
+        "IMAGES_GENERATED_STANDARD",
+        "SEARCH_GROUNDING_REQUESTS",
+        "AUDIO_TRANSCRIPTION_SECONDS",
+        "VIDEO_FRAMES_PROCESSED",
+        "IMAGES_PROCESSED",
+    ] {
+        series.insert(key.into(), total(3.0));
+    }
+    let now = Utc.with_ymd_and_hms(2026, 10, 20, 12, 0, 0).unwrap();
+    vec![("meta", usage_metrics(&series, &MonthToDate::at(now)))]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
