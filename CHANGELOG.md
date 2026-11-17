@@ -13,6 +13,36 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.7] - 2026-11-17
+
+### Fixed
+
+- Search and filters treat letters such as ø, ð and ħ the same way in the desktop and the terminal (PRD 0035 RF1.3, RF10.5; f70c4d1).
+- In the terminal details view, a long account name is shortened with an ellipsis so the provider always stays visible (PRD 0035 RF6; afe9b88).
+- The note about a session that belongs to several Meta teams uses the correct plural in every language (PRD 0035 RF4; aea4b92).
+- Before the window loads, the tray menu already uses your chosen language (PRD 0035 RF1; ed2889a).
+- The language, sort and theme menus work with the keyboard and open inside the window (PRD 0035 RF3.3, RF7; 44a2eeb).
+- Every flag with a light band keeps its outline on light themes (PRD 0035 RF7; a96388f).
+- German, Chinese, Japanese and Korean texts use one consistent form of address (PRD 0035 RF11; 4249949).
+- Russian, Korean, Chinese, German, Vietnamese and Hindi texts use the same word for the same concept everywhere (PRD 0035 RF11; 0def01d).
+- French punctuation no longer breaks across lines, and Japanese texts use full-width colons (PRD 0035 RF11; 328534d).
+- Readings from 9router and LiteLLM are now bounded and checked: oversized answers are cut with a note, repeated connections are listed once, impossible values are hidden instead of shown, and long labels end with an ellipsis (PRD 0036 RF3.2, RF3.3, RF4.4; e388758).
+- Quota labels from 9router are shown in your language, counts of connections and providers use the right singular or plural form, a reached limit without details no longer shows "0 left", and LiteLLM configuration errors name LiteLLM (PRD 0036 RF3.3, RF3.5, RF10.1; 4094d17).
+- An exhausted pool's return time now reads in your local time and clock format instead of an ISO UTC timestamp (PRD 0036 RF6.3; 0196882).
+- The terminal dashboard lists an aggregator's pools one per line on its card and in its details, and the one-shot output groups connections by upstream under their pool (PRD 0036 RF9.1; ef09e1c).
+- Aggregator views name their own aggregator (a LiteLLM proxy no longer reads as 9router), show percentages in your language's format, link a duplicate connection to its direct account and list each instance's sign-in, encryption and last connection read (PRD 0036 RF5.3, RF8.3, RF8.5; 1b206c1).
+- The menu bar, the tray summary, the status line and the local server's limits summary now count each active 9router or LiteLLM connection, so a setup with only aggregators no longer shows a dash (PRD 0036 RF5.3, RF7.2; 1af3474).
+- When a pinned 9router certificate changes, Test connection shows the old and new fingerprints in a dialog of its own, and replacing the pin takes a deliberate second step on the desktop and in the terminal wizard (PRD 0036 RF2.3, RF8.7; 2ddef6b).
+- Adding a 9router or LiteLLM account works with the defaults: a 9router password is no longer prefilled, the 120 s refresh floor is shown and checked where the interval is edited, and each Test connection result is shown at the field it is about (PRD 0036 RF2.1, RF2.2, RF4.1, RF8.7; 9de2175).
+
+### Security
+
+- A language pack the app cannot read safely is refused and named, instead of reaching the interface unfiltered (PRD 0035 RF12.3; PRD 0050 RF3.3; 6d3f61f).
+- A language pack can no longer change the words of confirmations, consent, billed-query warnings, sign-in or security dialogs; those keep the shipped translation or English (PRD 0035 RF12.3; PRD 0050 RF3.3; 8500540).
+- A user language pack is marked as such in the language selector and can no longer take the name of a built-in language or replace the English fallback (PRD 0035 RF12.3; PRD 0050 RF3.3; bc8a23f).
+- Before it sends the 9router dashboard password or session, Cuotai now checks that the address answers like 9router and, on this computer, that the program listening on its port is yours, and the private-network HTTP option says the password or key travels unencrypted (LiteLLM now honours that option) (PRD 0036 RF3.1, RF2.3, RF3.8, RF10.1; 26079ab).
+- A 9router or LiteLLM instance or a notification channel on a local or private address is now reached directly and never through a proxy set in the environment, so a password or key can no longer reach that proxy unencrypted (PRD 0036 RF2.3, RF10.1; 3f7b476).
+
 ## [0.86.6] - 2026-11-17
 
 ### Fixed
@@ -1007,7 +1037,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.6...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.7...HEAD
+[0.86.7]: https://github.com/jmarcon/cuotai/compare/v0.86.6...v0.86.7
 [0.86.6]: https://github.com/jmarcon/cuotai/compare/v0.86.5...v0.86.6
 [0.86.5]: https://github.com/jmarcon/cuotai/compare/v0.86.4...v0.86.5
 [0.86.4]: https://github.com/jmarcon/cuotai/compare/v0.86.3...v0.86.4
