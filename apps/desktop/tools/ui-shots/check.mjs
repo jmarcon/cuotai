@@ -43,6 +43,8 @@ const ZOOM_PAGES = [
   ["zoom200-main-overage", "index.html?overage", 640, 410, {}],
   // PRD 0033 re-validation (V-15): the renewed slot and the labelled pace line at 200 %.
   ["zoom200-main-renewed", "index.html?renewed", 640, 410, {}],
+  // PRD 0040 re-validation (V-10): a fed Claude account whose reading is two hours old.
+  ["zoom200-main-feed-stale", "index.html?feed=stale", 640, 410, {}],
   ["zoom200-settings-general", "settings.html?page=general", 640, 360, {}],
   ["zoom200-settings-dashboard", "settings.html?page=dashboard", 640, 360, {}],
   ["zoom200-settings-alerts", "settings.html?page=alerts", 640, 360, {}],
@@ -212,6 +214,21 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["details-openrouter-negative", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::negative@example.com"] [data-details]'],
   ["details-openrouter-limited", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::limited@example.com"] [data-details]'],
   ["dialog-add-openrouter", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="open_router"]']],
+  // PRD 0040 re-validation (V-10): agent-fed accounts. A Claude account fed by Claude Code beside a hybrid one that fell
+  // back to the query, a reading two hours old, no reading yet beside a Codex CLI log in an unknown shape, and a single
+  // window (the week unknown, not zero); the live session block with 1, 5 and 7 sessions ("and 2 more"); the unbound
+  // Claude Code banner and its prefilled Add account (Source on the feed mode, no credential); the Claude Code snippet
+  // under Settings › Dashboard › More display options.
+  ["main-feed-fresh", "index.html?feed=fresh", 1200, 820, {}],
+  ["main-feed-stale", "index.html?feed=stale", 1200, 820, {}],
+  ["main-feed-absent", "index.html?feed=absent,invalid", 1200, 820, {}],
+  ["main-feed-one-window", "index.html?feed=one-window", 1200, 820, {}],
+  ["main-live-1", "index.html?feed=fresh&live=1", 1200, 820, {}],
+  ["main-live-5", "index.html?feed=fresh&live=5", 1200, 820, {}],
+  ["main-live-7", "index.html?feed=fresh&live=7", 520, 820, {}],
+  ["main-feed-banner", "index.html?feed-banner", 1200, 820, {}],
+  ["dialog-add-claude-feed", "index.html?feed-banner", 1200, 820, {}, "[data-feed-add]"],
+  ["settings-dashboard-snippet", "settings.html?page=dashboard", 640, 460, { "cuotai.settings.disc.display-more": "open" }],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [
