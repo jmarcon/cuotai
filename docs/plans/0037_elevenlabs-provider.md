@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0037 |
-| Status | Awaiting owner verification (RF1–RF10 delivered in 0.81.0; RF11, the real-account check, is the owner's) |
+| Status | Awaiting owner verification (RF1–RF10 delivered in 0.81.0; re-validation fixes of 2026-11-17 in vNEXT; RF11, the real-account check, is the owner's: checklist in §12) |
 | Owner | `cuotai-core` (model, adapter, access descriptor, account fields, incident registry), desktop and TUI (generic rendering only) |
 | Consumers | `apps/desktop` (cards, details, tray, account dialog), `crates/cuotai-tui` (cards, details, `--once`, wizard), `export::v1` and `--watch` consumers |
 | Depends on | PRD 0005 RF1 (`access::describe`, the exhaustive classification) |
@@ -13,7 +13,7 @@
 
 > **Note on terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. **Credits** is ElevenLabs' current name for what its API fields still call *characters* (`character_count`, `character_limit`); see §1. "Extra usage" means consumption billed on top of the plan's included credits, as defined in PRD 0023.
 
-## Implementation status (2026-10-23)
+## Implementation status (2026-10-23; re-validation 2026-11-17)
 
 | RF | Version | Delivery |
 |---|---|---|
@@ -21,13 +21,14 @@
 | RF2 | 0.81.0 | Access descriptor (`Official`, `verified_on` 2026-10-23), catalogs and regenerated matrix. The PRD 0027 catalog entry is delivered, with the aliases `eleven labs`, `11labs`, `tts`, `text to speech`, `voice` and `voice agents`. |
 | RF3 | 0.81.0 | Delivered. |
 | RF4 | 0.81.0 | Delivered. |
-| RF5 | 0.81.0 | Extra-credits and cost metrics ship as `Usage`/`Spend`; The extra-credits and cost metrics carry `Billing::Overage` (PRD 0023), and `overage::assess` reads every ElevenLabs extra-usage state (disabled, armed, active, cap reached, unknown) from fixtures. The metric labels and units are identifiers (Portuguese, as the adapter emits them); display text goes through `metric_text` in the viewer's language (PRD 0034). |
+| RF5 | 0.81.0 | The extra-credits and cost metrics ship as `Usage`/`Spend` with `Billing::Overage` (PRD 0023), and `overage::assess` reads every ElevenLabs extra-usage state (disabled, armed, active, cap reached, unknown) from fixtures. The raw labels and units stay Portuguese identifiers (they key the history); every one of them, the voice-slot labels included since the re-validation, has a `metric_text` entry, so it is shown in the viewer's language (PRD 0034). |
 | RF6 | 0.81.0 | Delivered. |
 | RF7 | 0.81.0 | Delivered. |
 | RF8 | 0.81.0 | Delivered: the registry arm `eleven_labs` (`IncidentIoWidget`, multi-page) selects the sub-page by `region` through `incidents::source_for`; the *Other APIs* id `01M52E4R81RBEYD94QJACM67BQ` was verified identical on all four sub-pages on 2026-10-25. Fixtures: the captured quiet summary and component catalog, plus synthetic incident, unrelated-component and maintenance responses in the widget shape (no sub-page had a live incident). |
 | RF9 | 0.81.0 | Adapter contract tests; the multi-sub-page incident tests are delivered with RF8. |
 | RF10 | 0.81.0 | Delivered. |
 | RF11 | — | Owner check: the owner runs the real-account procedure. |
+| Re-validation | vNEXT | 2026-11-17 re-validation (Visual, Security and Review on `e55c854e`; Delivery on the pair branch of PRDs 0037+0038): 1 high, 11 medium and 11 low findings, all fixed except the routed and open ones in §12. **High V-01** (RF8): a provider status belongs to its status source (`ProviderStatus.source`; the merge is gone): `incidents::status_for(statuses, account)` serves every surface (TUI `--once`, card and details; desktop cards, details, tray rows and connections; canary drafts), `page_url` is built per sub-page from the registry (`https://status.elevenlabs.io/<sub-page>`), `export::v1` adds `incident.source`, and `provider_incident` is tracked per provider and sub-page, so an incident on one region's page shows only on that region's accounts. Medium, all generic: every label, unit, period and slot value an adapter writes is localized, and the guard is complete by construction (an exhaustive fixture match over every provider, a scan of the adapter sources including helper arguments and returned scope values, unaccented Portuguese, every slot through `metric_text`) (V-02, R-02, R-03); counted units are plural objects in every language, checked by the plural guard (V-03); a reset already past when the provider answered reads "renewal due", with no "blocked until", no countdown and no "Best now" (V-04); an explicit zero limit is exhausted, never "Available" (V-05); `Metric::unlimited` and the TUI wording for uncapped metrics, "Cycle ends" under money, a full `Usage` counter as "all in use", option labels in the wizard Review (V-07, V-16, V-13); own texts for 3xx, 5xx and 503 in the shared error mapping and a redirect test on the production client (V-08, S-05); minus zero normalized where readings enter the core, breakdown rows included (S-03); the ElevenLabs access descriptor reports overage in money and its summary names everything the adapter reads (V-06, S-04); a `null` nested currency falls back to the top-level one and an unknown currency has its own note (S-02); the region help wording (V-13); the demo and `check.mjs` cover ElevenLabs (V-09); the stale incident-registry row and this table's RF5 row (V-11, S-01, V-14). RF7.2 now maps 3xx, 503 and other 5xx to their own notes (R-04). `verified_on` is unchanged. |
 
 ## 1. Context
 
@@ -159,11 +160,12 @@ ElevenLabs sells text-to-speech, speech-to-text and voice-agent APIs against a m
   | `403` `workspace_access_denied` | `AuthenticationError` | `note.eleven_labs.workspace_denied` |
   | `402` | `Error` | the generic `query.http` note (not expected on this endpoint) |
   | `429` (`rate_limit_exceeded`, `concurrent_limit_exceeded`, `system_busy`, anything else) | `RateLimited` | `note.eleven_labs.rate_limited` — the core's existing backoff doubles the interval up to 1 h |
-  | `5xx`, including `503` `maintenance` | `Error` | `query.http` (the incident source of RF8 adds context) |
+  | `503` (including `maintenance`) | `Error` | `query.http_unavailable` (re-validation V-08; the incident source of RF8 adds context) |
+  | other `5xx` | `Error` | `query.http_server` (re-validation V-08) |
   | `422`, malformed or non-object JSON, missing `character_count` | `Error` | `query.schema` |
   | Transport, timeout, plain HTTP to a remote host | the existing `QueryError::transport`/`timeout`/`insecure` | unchanged |
 
-- **RF7.3** Redirects are not followed (the shared client policy); a `3xx` answer is an `Error` with `query.http`, so the header never reaches another host.
+- **RF7.3** Redirects are not followed (the shared client policy); a `3xx` answer is an `Error` with `query.http_redirect` (re-validation V-08; `query.http` before), so the header never reaches another host. A test on the production client proves no request reaches the `location` target.
 - **Acceptance criterion:** fixtures `unauthorized_401`, `forbidden_403`, `rate_limited_429` (both codes), `server_error_500`, `maintenance_503`, `malformed_json`, `redirect_302` and a body that echoes the configured key in `detail.message`: each maps to the table, and the test proves neither the key, nor the URL, nor the provider message appears in any note, `Debug` output or serialized `Report`.
 
 ### RF8 — Public incident status source (medium priority; PRD 0011)
@@ -303,6 +305,32 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, `C
 |---|---|
 | Should the usage-analytics endpoint (per-model or per-voice credit use) be added later? | Yes, as a separate PRD once permissions are published; it would feed PRD 0026's statistics, never the quota meter. |
 | Does the owner's plan have legacy usage-based billing active? | If not, the extra-usage fixtures follow the documented schema and the caveat stays in the docs (RF11.1(g)). |
+
+### Open items of the 2026-11-17 re-validation
+
+| Item | Status and reason |
+|---|---|
+| V-12: the 401/403 notes do not mention the region | Open until the owner's wrong-region check (checklist item 5) shows which status and body a key sent to the wrong region gets. |
+| V-10: a bad `params.region` fails the whole configuration, with no account, line or key, and a misspelled `params` key passes | Routed to PRD 0051 (per-provider known `params` keys, per-account semantic errors); it is the same pattern as the `base_url` error routed by the PRD 0036 re-validation. |
+| V-15: the drift block prints the sentence and then the same path again for a single drift | Routed to PRD 0028: the block follows a design-system rule (DS-CMP-DIAG-1), which changes there. |
+| Demo coverage | 18 of 42 providers still have no demo card, and most get the generic form. Recorded in PRD 0028: generate the demo form descriptors from the core and fail a check when a provider has neither a card nor a stated reason. |
+| AWS per-region status | AWS Bedrock reads one feed whose scope is "all regions in the feed"; a per-region scope like ElevenLabs' sub-pages is a possible PRD 0011 follow-up, not a defect. |
+| OpenRouter labels | "BYOK (externo)", "BYOK total" and the budget scope "outro" sit on the guard's explicit `PENDING_PRD_0038_O1` list; the PRD 0038 re-validation localizes them and empties it. |
+
+### Owner verification checklist (RF11)
+
+`verified_on` is not changed by the re-validation. Each item has its expected result.
+
+1. **Minimal key permission (RF11.1(a)).** Create a key restricted to the narrowest permission, then run `cuotai --config <test.toml> --once` and `--json`. Expected: credits, limit and next reset match the ElevenLabs dashboard; a missing permission gives "The key is valid but may not read the subscription…". Record the permission name for the credential help.
+2. **No credit consumed (b).** Note the dashboard credits, run ten refreshes, compare. Expected: unchanged, apart from your own generation.
+3. **Rolled-over credits (c) and a per-key credit quota (d).** Expected: record whether `character_limit` includes rollover; a quota-limited key shows the same account numbers, or record what changes.
+4. **Period fields (e).** Record which of `character_refresh_period`, `billing_period` and `next_character_count_reset_unix` are present (shape only). Expected: a monthly plan gives a monthly window, so the pace line shows.
+5. **Wrong region (f).** Set `params.region = "eu"` on a default-region key, and the reverse. Expected: record the HTTP status and the note shown; this decides V-12.
+6. **Overage amount units (g).** On an account with usage-based billing, compare `current_overage.amount` with the invoice view. Expected: "0.18" means 0.18 in the stated currency, not 18 cents; if it is in cents, open a fix.
+7. **A past reset (V-04).** Right after the monthly reset time, refresh once. Expected: if ElevenLabs still reports the old reset time, Cuotai shows "Renewal due", not "blocked until" a past time, and does not mark the account "Best now".
+8. **Per-region status (V-01).** With `--status` and accounts in two regions, open each account's "Open status page". Expected: each link opens its own region's sub-page (`/united-states`, `/eu` …), and a published incident shows only on the accounts of its region.
+9. **Desktop smoke (V-09).** One ElevenLabs account in light and dark at 200 % zoom: card, details, tray row, and the account dialog's region select used with the keyboard only. Expected: localized region labels, no clipped note in German, and "No cap" for an unlimited extra-usage cap.
+10. **Then** set the descriptor's `verified_on` to that day, only if the response shape matched the fixtures.
 
 ## 13. References
 
