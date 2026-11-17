@@ -447,3 +447,74 @@ fn problems_carry_one_label_each_and_the_footer_fits() {
     assert!(error.contains("Rules 1-3 and 6-8: amend"), "{error}");
     assert!(!error.contains("Rule 4"), "{error}");
 }
+
+#[test]
+fn the_skip_marker_anywhere_in_the_message_fails() {
+    let marker = format!("[{} {}]", "skip", "ci");
+    for message in [
+        format!("docs: a {marker}"),
+        format!("docs: a\n\nBody with {marker} inside."),
+        format!("docs: a\n\nBody.\n\nRefs: #1 {marker}"),
+    ] {
+        let (_d, repo) = support::repo();
+        commit(&repo, &message, "docs/x.md", "x\n");
+        let error = gate(&repo, "HEAD~1").unwrap_err();
+        assert!(
+            error.contains("rule 6: the message carries GitHub's skip marker"),
+            "{error}"
+        );
+        assert_eq!(error.matches("rule 6").count(), 1, "{error}");
+    }
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "docs: a\n\nWrite the skip marker.",
+        "docs/x.md",
+        "x\n",
+    );
+    gate(&repo, "HEAD~1").unwrap();
+}
+
+#[test]
+fn identities_must_be_noreply_and_are_masked() {
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "docs: a\n\nBody.\n\nCo-Authored-By: Alex <alex@example.com>",
+        "docs/x.md",
+        "x\n",
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("rule 9: 'Co-Authored-By' uses a***@example.com"),
+        "{error}"
+    );
+    assert!(!error.contains("alex@"), "{error}");
+    assert!(
+        error.contains("Rule 9: set the repository's user.email"),
+        "{error}"
+    );
+
+    let (_d, repo) = support::repo();
+    git(&repo, &["config", "user.email", "alex@example.com"]);
+    commit(&repo, "docs: b", "docs/x.md", "x\n");
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("rule 9: the author address a***@example.com"),
+        "{error}"
+    );
+    assert!(
+        error.contains("rule 9: the committer address a***@example.com"),
+        "{error}"
+    );
+    assert!(!error.contains("alex@"), "{error}");
+
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "docs: c\n\nBody.\n\nCo-Authored-By: Bot <noreply@anthropic.com>",
+        "docs/x.md",
+        "x\n",
+    );
+    gate(&repo, "HEAD~1").unwrap();
+}

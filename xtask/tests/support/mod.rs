@@ -168,7 +168,7 @@ pub fn repo() -> (tempfile::TempDir, PathBuf) {
     let repo = dir.path().to_path_buf();
     write_tree(&repo, VERSION);
     git(&repo, &["init", "-b", "main", "-q"]);
-    git(&repo, &["config", "user.email", "test@example.com"]);
+    git(&repo, &["config", "user.email", "noreply@example.com"]);
     git(&repo, &["config", "user.name", "Test"]);
     git(&repo, &["config", "commit.gpgsign", "false"]);
     git(&repo, &["config", "tag.gpgsign", "false"]);
