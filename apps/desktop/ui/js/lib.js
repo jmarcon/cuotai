@@ -693,11 +693,14 @@ export const isBalanceShaped = (m) =>
 const isCurrencyUnit = (m) => /^[A-Z]{3}$/.test(m?.unit ?? "");
 /** `n` in the unit of metric `m`: money for a currency, else the number and its unit in the figure's plural form. */
 const fmtFigure = (m, n) => (isCurrencyUnit(m) ? fmtMoney(n, m.unit) : `${fmtNumber(n)}${unitSuffix(m, n)}`);
+/** PRD 0041 D1: a budget whose period was not fully recorded (the backend's `partial`) shows its use as a lower bound,
+ *  "≥ $45.00 / $50.00", as the TUI and `--once` print it. */
+const atLeast = (m, text) => (m?.partial && m.used != null ? `≥ ${text}` : text);
 export function fmtAmount(m) {
   if (isBalanceShaped(m)) return fmtFigure(m, m.remaining);
-  if (m.limit == null) return m.used == null ? "—" : fmtFigure(m, m.used);
-  if (isCurrencyUnit(m)) return `${fmtMoney(m.used, m.unit)} / ${fmtMoney(m.limit, m.unit)}`;
-  return `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m, m.limit)}`;
+  if (m.limit == null) return m.used == null ? "—" : atLeast(m, fmtFigure(m, m.used));
+  if (isCurrencyUnit(m)) return atLeast(m, `${fmtMoney(m.used, m.unit)} / ${fmtMoney(m.limit, m.unit)}`);
+  return atLeast(m, `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m, m.limit)}`);
 }
 /** One recorded value of metric `m` (history; its `unit` and `unit_text`): "60%", "$12.50", or a bare count. */
 export const fmtValue = (v, m) => (m.unit === "%" ? fmtPercent(v, 2) : fmtFigure(m, v));
@@ -710,7 +713,8 @@ export function textualMetric(m) {
   if (m.state === "available" && m.uncapped) {
     const amount = m.remaining ?? m.used;
     if (amount == null) return m.unlimited ? t("metric.noCap") : null;
-    const text = t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: fmtFigure(m, amount) });
+    const figure = m.remaining != null ? fmtFigure(m, amount) : atLeast(m, fmtFigure(m, amount));
+    const text = t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: figure });
     return m.unlimited ? `${text} · ${t("metric.noCap")}` : text;
   }
   return null;

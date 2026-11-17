@@ -401,6 +401,10 @@ pub struct MetricView {
     /// PRD 0041 RF5.3: the details offer **Set a floor…**.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     offers_floor: bool,
+    /// PRD 0041 D1: a budget whose period was not fully recorded: `used` is
+    /// a lower bound (the UI prints "≥ ") and `remaining` is unknown.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    partial: bool,
 }
 
 /// PRD 0024 RF4.3: the in-app forecast, from the core's texts.
@@ -1443,6 +1447,10 @@ fn metric_view(metric: &Metric) -> MetricView {
         budget_badge: metric.is_derived().then(cuotai_core::budget::budget_badge),
         budget_draft: None,
         offers_floor: false,
+        partial: metric
+            .derived_from
+            .as_ref()
+            .is_some_and(|from| from.partial),
     }
 }
 

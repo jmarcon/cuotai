@@ -299,6 +299,8 @@ fn a_balance_counts_its_drops_and_a_top_up_is_not_use() {
     assert!(note_ids(&reading).is_empty());
 
     // A top-up to 50 after 22: the 8 before it still count, the rise not.
+    // It came five days after the last reading, so use in between may be
+    // hidden by it: the 11 are a lower bound (PRD 0041 D1).
     let topped = tempfile::tempdir().unwrap();
     let store = recorded_balance(
         topped.path(),
@@ -312,7 +314,11 @@ fn a_balance_counts_its_drops_and_a_top_up_is_not_use() {
     let mut reading = report(vec![balance(47.0)], now);
     apply(&account, &mut reading, &read_back(&store), now, &Utc);
     assert_eq!(derived(&reading).used, Some(11.0));
-    assert_eq!(note_ids(&reading), ["note.budget.topup_detected"]);
+    assert_eq!(derived(&reading).remaining, None);
+    assert_eq!(
+        note_ids(&reading),
+        ["note.budget.partial", "note.budget.topup_detected"]
+    );
 }
 
 #[test]

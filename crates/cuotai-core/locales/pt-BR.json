@@ -10,7 +10,9 @@
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
       "models.unsupported.reason.nine_router",
-      "note.meta.several_teams"
+      "note.meta.several_teams",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -1379,6 +1381,8 @@
   "note.budget.target_missing": "{budget}: a métrica que este orçamento acompanha não está nesta leitura.",
   "note.budget.topup_detected": "{budget}: foi detectada uma recarga; ela não conta como uso.",
   "note.budget.unit_mismatch": "{budget}: a métrica é informada em outra unidade, então este orçamento não pode contar.",
+  "note.budget.partial": "{budget}: parte do uso deste período não foi registrada, então foi usado pelo menos isto.",
+  "note.budget.negative": "{budget}: a métrica mostra um crédito líquido neste período, então este orçamento não pode contá-la.",
   "note.claude_code.answered_by_api": "Respondido pela consulta do Claude: sem leitura recente do Claude Code.",
   "note.claude_code.answered_by_feed": "Respondido pela própria linha de status do Claude Code (sem requisição de rede).",
   "note.claude_code.fed": "Alimentado pela linha de status documentada do Claude Code: sem requisição de rede, sem reutilizar tokens.",

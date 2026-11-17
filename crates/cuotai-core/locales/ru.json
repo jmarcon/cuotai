@@ -183,7 +183,9 @@
       "feed.line.left_exhausted",
       "feed.provenance.api",
       "feed.provenance.claude_code",
-      "feed.provenance.codex_cli"
+      "feed.provenance.codex_cli",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1594,6 +1596,8 @@
   "note.budget.target_missing": "{budget}: метрики, за которой следит этот бюджет, нет в этом показании.",
   "note.budget.topup_detected": "{budget}: обнаружено пополнение; оно не считается расходом.",
   "note.budget.unit_mismatch": "{budget}: метрика сообщается в другой единице, поэтому этот бюджет не может считать.",
+  "note.budget.partial": "{budget}: часть расхода за этот период не записана, поэтому израсходовано не меньше этого.",
+  "note.budget.negative": "{budget}: метрика показывает чистый кредит за этот период, поэтому бюджет не может её учесть.",
   "note.claude_code.answered_by_api": "Ответ получен запросом Claude: свежих показаний от Claude Code нет.",
   "note.claude_code.answered_by_feed": "Ответ получен из строки состояния Claude Code (без сетевых запросов).",
   "note.claude_code.fed": "Данные из документированной строки состояния Claude Code: без сетевых запросов и повторного использования токенов.",

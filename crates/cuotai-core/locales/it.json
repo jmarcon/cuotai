@@ -9,7 +9,9 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -926,6 +928,8 @@
   "note.budget.target_missing": "{budget}: la metrica seguita da questo budget manca in questa lettura.",
   "note.budget.topup_detected": "{budget}: è stata rilevata una ricarica; non conta come consumo.",
   "note.budget.unit_mismatch": "{budget}: la metrica è riportata in un’altra unità, quindi questo budget non può contare.",
+  "note.budget.partial": "{budget}: parte del consumo di questo periodo non è stata registrata, quindi ne è stato consumato almeno questo.",
+  "note.budget.negative": "{budget}: la metrica mostra un credito netto in questo periodo, quindi questo budget non può conteggiarla.",
   "note.claude_code.answered_by_api": "Risposta dalla query di Claude: nessuna lettura recente da Claude Code.",
   "note.claude_code.answered_by_feed": "Risposta dalla riga di stato di Claude Code (nessuna richiesta di rete).",
   "note.claude_code.fed": "Alimentato dalla riga di stato documentata di Claude Code: nessuna richiesta di rete, nessun token riutilizzato.",

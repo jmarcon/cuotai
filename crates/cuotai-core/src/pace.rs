@@ -688,7 +688,8 @@ const ALLOWANCE_HOURLY_BELOW: TimeDelta = TimeDelta::days(2);
 /// PRD 0041 RF4.1: the allowance of `metric` at `now`: `remaining` divided
 /// by the days (or hours, under 2 days) until `resets_at`. `None` for a
 /// metric that is not a plan quota, a 5-hour window, a rate limit, or one
-/// whose limit, use or reset is unknown or past. `recent` (the PRD 0024
+/// whose limit, use or reset is unknown or past, or a budget whose use is
+/// only a lower bound (`derived_from.partial`). `recent` (the PRD 0024
 /// recent samples) gives [`Allowance::vs_recent`].
 pub fn allowance(
     metric: &Metric,
@@ -696,6 +697,14 @@ pub fn allowance(
     recent: Option<&[Point]>,
 ) -> Option<Allowance> {
     if !crate::metrics::is_plan_limit(metric) || metric.window == Some(MetricWindow::Window5h) {
+        return None;
+    }
+    // A budget whose use is only a lower bound would overstate what is left.
+    if metric
+        .derived_from
+        .as_ref()
+        .is_some_and(|from| from.partial)
+    {
         return None;
     }
     let limit = metric.limit.filter(|cap| cap.is_finite() && *cap > 0.0)?;

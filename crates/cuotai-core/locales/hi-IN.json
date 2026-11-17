@@ -150,7 +150,9 @@
       "feed.line.left_exhausted",
       "feed.provenance.api",
       "feed.provenance.claude_code",
-      "feed.provenance.codex_cli"
+      "feed.provenance.codex_cli",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -1519,6 +1521,8 @@
   "note.budget.target_missing": "{budget}: यह बजट जिस मीट्रिक को ट्रैक करता है वह इस रीडिंग में नहीं है।",
   "note.budget.topup_detected": "{budget}: टॉप-अप मिला; यह उपयोग नहीं गिना जाता।",
   "note.budget.unit_mismatch": "{budget}: मीट्रिक दूसरी इकाई में बताया गया है, इसलिए यह बजट गिन नहीं सकता।",
+  "note.budget.partial": "{budget}: इस अवधि के उपयोग का कुछ हिस्सा दर्ज नहीं हुआ, इसलिए कम से कम इतना उपयोग हुआ है।",
+  "note.budget.negative": "{budget}: इस अवधि में मीट्रिक शुद्ध क्रेडिट दिखाता है, इसलिए यह बजट इसे गिन नहीं सकता।",
   "note.claude_code.answered_by_api": "Claude क्वेरी से जवाब: Claude Code से कोई ताज़ा रीडिंग नहीं।",
   "note.claude_code.answered_by_feed": "Claude Code की अपनी स्टेटस लाइन से जवाब (कोई नेटवर्क अनुरोध नहीं)।",
   "note.claude_code.fed": "Claude Code की दस्तावेज़ीकृत स्टेटस लाइन से: कोई नेटवर्क अनुरोध नहीं, कोई टोकन दोबारा इस्तेमाल नहीं।",

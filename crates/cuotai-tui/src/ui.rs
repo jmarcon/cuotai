@@ -4139,6 +4139,16 @@ pub(crate) fn metric_text_in(metric: &Metric, locale: &str) -> String {
             }
         }
     };
+    // PRD 0041 D1: a budget whose period was not fully recorded shows a
+    // lower bound ("≥ $45.00 / $50.00"); its remaining is unknown.
+    if main.is_some()
+        && metric
+            .derived_from
+            .as_ref()
+            .is_some_and(|from| from.partial)
+    {
+        text.insert_str(0, "≥ ");
+    }
     if metric.limit.is_some() {
         text.push_str(&format!(" / {}", number(metric.limit)));
     }
@@ -4570,6 +4580,42 @@ mod tests {
         ] {
             assert!(!text.contains('—') && !text.contains("left"), "{text}");
         }
+    }
+
+    /// PRD 0041 D1: a partial budget reads "at least" on the card, the
+    /// details and `--once` (they share `metric_text_in`).
+    #[test]
+    fn a_partial_budget_shows_its_use_as_a_lower_bound() {
+        let mut budget = Metric {
+            billing: Default::default(),
+            scope: None,
+            label: "Orçamento · Gasto no mês".into(),
+            used: Some(25.0),
+            limit: Some(50.0),
+            remaining: None,
+            unit: "USD".into(),
+            kind: cuotai_core::MetricKind::Quota,
+            window: None,
+            period: None,
+            resets_at: None,
+            derived_from: Some(cuotai_core::DerivedFrom {
+                kind: cuotai_core::MetricKind::Spend,
+                label: "Gasto no mês".into(),
+                budget: 0,
+                partial: true,
+            }),
+            unlimited: false,
+        };
+        let money = |n| cuotai_core::text::number::format_money(n, "USD", "en");
+        assert_eq!(
+            metric_text_in(&budget, "en"),
+            format!("≥ {} / {}", money(25.0), money(50.0))
+        );
+        if let Some(from) = &mut budget.derived_from {
+            from.partial = false;
+        }
+        budget.remaining = Some(25.0);
+        assert!(!metric_text_in(&budget, "en").starts_with('≥'));
     }
 
     #[test]
