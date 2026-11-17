@@ -1307,6 +1307,13 @@
   "network.clock_behind": "O relógio deste computador está cerca de {minutes} min atrasado em relação aos servidores dos provedores. Horários, idades e reinícios podem parecer errados: ative a data e hora automáticas e atualize.",
   "network.trust_store_empty": "Nenhum certificado raiz confiável pôde ser carregado do repositório de certificados do sistema, então nenhuma conexão segura é possível. Repare ou atualize os certificados do sistema e inicie o Cuotai de novo.",
   "note.alibaba_billing.balance_field_semantics": "AvailableAmount = saldo disponível total (cash + credit + voucher + coupons). AvailableCashAmount = apenas dinheiro vivo. CreditAmount = limite total de crédito Alibaba (inclui Mybank como subset).",
+  "note.aggregator.figure_refused": "Um valor informado pelo {aggregator} estava fora do intervalo e não é mostrado.",
+  "note.aggregator.duplicate_ids": {
+    "one": "{count} conexão repetida foi omitida.",
+    "other": "{count} conexões repetidas foram omitidas."
+  },
+  "note.aggregator.instance_truncated": "Só os primeiros 4000 limites desta instância são mostrados; os demais foram omitidos.",
+  "note.aggregator.metrics_truncated": "Só alguns dos limites desta conexão são mostrados; os demais foram omitidos.",
   "note.alibaba_billing.balance_metadata_currency": "Moeda: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Moeda: {currency}. BillingCycle corrente: {billing_cycle}.",
   "note.alibaba_billing.balance_metadata_cycle": "BillingCycle corrente: {billing_cycle}.",
@@ -1426,6 +1433,7 @@
   "note.kimi.platform_key_scope": "A chave da plataforma.kimi.ai é independente da plataforma.kimi.com (assinatura Kimi Code/Membership); usar a chave em outro endpoint retorna 401.",
   "note.litellm.no_budgets": "O LiteLLM não tem orçamentos por provedor (provider_budget_config); nada para mostrar.",
   "note.litellm.summary": "{total} provedores com orçamento no LiteLLM.",
+  "note.litellm.truncated": "O LiteLLM tem mais provedores do que o limite lido (200); os demais foram omitidos.",
   "note.metered.interval_raised": "O intervalo configurado de {configured} s foi elevado para {effective} s porque o provedor é cobrado por consulta.",
   "note.mimo_platform.cash_balance": "Saldo pago: {amount} {currency}.",
   "note.mimo_platform.console_api_reference": "Fonte: {base}. Rotas do console web não documentadas publicamente (referência: CodexBar MIT, MiMoUsageFetcher.swift); podem mudar sem aviso.",

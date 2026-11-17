@@ -42,7 +42,12 @@
       "query.nine_router.not_nine_router",
       "query.nine_router.listener_foreign",
       "test.nine_router.listener_foreign",
-      "config.warning.private_http"
+      "config.warning.private_http",
+      "note.aggregator.figure_refused",
+      "note.aggregator.metrics_truncated",
+      "note.aggregator.instance_truncated",
+      "note.aggregator.duplicate_ids",
+      "note.litellm.truncated"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -1339,6 +1344,13 @@
   "network.clock_behind": "Die Uhr dieses Computers geht etwa {minutes} Min. gegenüber den Servern der Anbieter nach. Zeiten, Alter und Zurücksetzungen können falsch aussehen: Aktivieren Sie die automatische Datums- und Uhrzeiteinstellung und aktualisieren Sie dann.",
   "network.trust_store_empty": "Aus dem Zertifikatspeicher des Systems konnte kein vertrauenswürdiges Stammzertifikat geladen werden, daher ist keine sichere Verbindung möglich. Reparieren oder aktualisieren Sie die Systemzertifikate und starten Sie Cuotai neu.",
   "note.alibaba_billing.balance_field_semantics": "AvailableAmount = gesamtes verfügbares Guthaben (Bargeld + Kredit + Gutschein + Coupons). AvailableCashAmount = nur Bargeld. CreditAmount = gesamtes Kreditlimit von Alibaba (enthält Mybank als Teilmenge).",
+  "note.aggregator.figure_refused": "Ein von {aggregator} gemeldeter Wert lag außerhalb des gültigen Bereichs und wird nicht angezeigt.",
+  "note.aggregator.duplicate_ids": {
+    "one": "{count} doppelte Verbindung wurde weggelassen.",
+    "other": "{count} doppelte Verbindungen wurden weggelassen."
+  },
+  "note.aggregator.instance_truncated": "Nur die ersten 4000 Limits dieser Instanz werden angezeigt; die übrigen wurden weggelassen.",
+  "note.aggregator.metrics_truncated": "Nur ein Teil der Limits dieser Verbindung wird angezeigt; die übrigen wurden weggelassen.",
   "note.alibaba_billing.balance_metadata_currency": "Währung: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Währung: {currency}. Laufender BillingCycle: {billing_cycle}.",
   "note.alibaba_billing.balance_metadata_cycle": "Laufender BillingCycle: {billing_cycle}.",
@@ -1458,6 +1470,7 @@
   "note.kimi.platform_key_scope": "Der Plattformschlüssel von kimi.com / kimi.ai ist unabhängig vom Mitgliedschaftskontingent von kimi.com; verwenden Sie den Schlüssel am Plattform-Endpunkt.",
   "note.litellm.no_budgets": "LiteLLM hat keine Budgets pro Anbieter (provider_budget_config); nichts anzuzeigen.",
   "note.litellm.summary": "{total} Anbieter mit Budget in LiteLLM.",
+  "note.litellm.truncated": "LiteLLM hat mehr Anbieter als das gelesene Limit (200); die übrigen wurden weggelassen.",
   "note.metered.interval_raised": "Das konfigurierte Intervall von {configured} s wurde auf {effective} s erhöht, weil der Anbieter pro Abfrage abrechnet.",
   "note.mimo_platform.cash_balance": "Bezahltes Guthaben: {amount} {currency}.",
   "note.mimo_platform.console_api_reference": "Quelle: {base}. Routen der Webkonsole sind nicht öffentlich dokumentiert (Referenz: CodexBar MIT, MiMoUsageFetcher.swift); sie können sich ohne Vorankündigung ändern.",

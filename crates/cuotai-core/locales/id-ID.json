@@ -19,7 +19,12 @@
       "query.nine_router.not_nine_router",
       "query.nine_router.listener_foreign",
       "test.nine_router.listener_foreign",
-      "config.warning.private_http"
+      "config.warning.private_http",
+      "note.aggregator.figure_refused",
+      "note.aggregator.metrics_truncated",
+      "note.aggregator.instance_truncated",
+      "note.aggregator.duplicate_ids",
+      "note.litellm.truncated"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1296,6 +1301,12 @@
   "network.clock_behind": "Jam komputer ini sekitar {minutes} menit lebih lambat dari server penyedia. Waktu, usia, dan reset mungkin tampak salah: aktifkan tanggal dan waktu otomatis, lalu segarkan.",
   "network.trust_store_empty": "Tidak ada sertifikat root tepercaya yang dapat dimuat dari penyimpanan sertifikat sistem, sehingga koneksi aman tidak dapat dibuat. Perbaiki atau perbarui sertifikat sistem, lalu mulai ulang Cuotai.",
   "note.alibaba_billing.balance_field_semantics": "AvailableAmount = total saldo tersedia (tunai + kredit + voucher + kupon). AvailableCashAmount = hanya tunai. CreditAmount = total batas kredit Alibaba (termasuk Mybank sebagai bagian).",
+  "note.aggregator.figure_refused": "Sebuah nilai yang dilaporkan {aggregator} berada di luar rentang dan tidak ditampilkan.",
+  "note.aggregator.duplicate_ids": {
+    "other": "{count} koneksi berulang dihilangkan."
+  },
+  "note.aggregator.instance_truncated": "Hanya 4000 batas pertama instans ini yang ditampilkan; sisanya dihilangkan.",
+  "note.aggregator.metrics_truncated": "Hanya sebagian batas koneksi ini yang ditampilkan; sisanya dihilangkan.",
   "note.alibaba_billing.balance_metadata_currency": "Mata uang: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Mata uang: {currency}. BillingCycle saat ini: {billing_cycle}.",
   "note.alibaba_billing.balance_metadata_cycle": "BillingCycle saat ini: {billing_cycle}.",
@@ -1415,6 +1426,7 @@
   "note.kimi.platform_key_scope": "Kunci platform kimi.com / kimi.ai tidak bergantung pada kuota keanggotaan kimi.com; gunakan kunci itu pada endpoint platform.",
   "note.litellm.no_budgets": "LiteLLM tidak memiliki anggaran per penyedia (provider_budget_config); tidak ada yang ditampilkan.",
   "note.litellm.summary": "{total} penyedia dengan anggaran di LiteLLM.",
+  "note.litellm.truncated": "LiteLLM memiliki lebih banyak penyedia daripada batas yang dibaca (200); sisanya dihilangkan.",
   "note.metered.interval_raised": "Interval {configured} dtk yang dikonfigurasi dinaikkan menjadi {effective} dtk karena penyedia ini menagih per kueri.",
   "note.mimo_platform.cash_balance": "Saldo tunai: {amount} {currency}.",
   "note.mimo_platform.console_api_reference": "Sumber: {base}. Rute konsol web tidak terdokumentasi secara publik (acuan: CodexBar MIT, MiMoUsageFetcher.swift); dapat berubah tanpa pemberitahuan.",

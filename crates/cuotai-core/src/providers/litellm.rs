@@ -102,16 +102,33 @@ fn clean(raw: &str) -> String {
         .to_string()
 }
 
+/// A `/provider/budgets` answer, checked (re-validation S-04, S-08).
+struct Budgets {
+    /// The sub-accounts, in name order.
+    subs: Vec<SubReport>,
+    /// More providers than [`MAX_PROVIDERS`] were listed.
+    truncated: bool,
+    /// Provider names left out because they repeat one already read.
+    repeated: usize,
+}
+
 /// The sub-accounts of a `/provider/budgets` answer, in name order.
-fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Vec<SubReport>, QueryError> {
+fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Budgets, QueryError> {
     let providers = value
         .get("providers")
         .and_then(Value::as_object)
         .ok_or_else(|| QueryError::schema_at(value, &["providers"], "object"))?;
-    let mut subs = Vec::new();
+    let mut subs: Vec<SubReport> = Vec::new();
+    let mut repeated = 0;
     for (name, raw) in providers.iter().take(MAX_PROVIDERS) {
         let name = clean(name);
         if name.is_empty() {
+            continue;
+        }
+        // S-08: two names that read the same once cleaned would share one
+        // id; the first is kept.
+        if subs.iter().any(|sub| sub.label == name) {
+            repeated += 1;
             continue;
         }
         let prefix = "providers.{*}";
@@ -120,8 +137,12 @@ fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Vec<SubReport>, Qu
             .ok_or_else(|| QueryError::schema_in(value, prefix, raw, &[], "object"))?;
         // The docs use 1e-12 to block a provider: a cap that small (or zero)
         // is shown as "no cap", never as a full meter.
-        let limit = number(value, prefix, raw, "budget_limit")?.filter(|limit| *limit >= 0.01);
-        let spend = number(value, prefix, raw, "spend")?;
+        // S-08: a negative or absurd figure is left absent, never 0.
+        let (limit, limit_refused) =
+            crate::aggregators::check_figure(number(value, prefix, raw, "budget_limit")?);
+        let limit = limit.filter(|limit| *limit >= 0.01);
+        let (spend, spend_refused) =
+            crate::aggregators::check_figure(number(value, prefix, raw, "spend")?);
         let period = entry
             .get("time_period")
             .and_then(Value::as_str)
@@ -163,7 +184,11 @@ fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Vec<SubReport>, Qu
             label: name,
             status: Status::Ready,
             metrics,
-            notes_l10n: Vec::new(),
+            notes_l10n: if limit_refused || spend_refused {
+                vec![crate::aggregators::figure_refused_note("LiteLLM")]
+            } else {
+                Vec::new()
+            },
             checked_at: now,
             as_of: None,
             enabled_upstream: None,
@@ -173,7 +198,11 @@ fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Vec<SubReport>, Qu
             identity: None,
         });
     }
-    Ok(subs)
+    Ok(Budgets {
+        subs,
+        truncated: providers.len() > MAX_PROVIDERS,
+        repeated,
+    })
 }
 
 fn base_error(error: BaseUrlError) -> QueryError {
@@ -241,7 +270,9 @@ pub(crate) async fn fetch_at(
                 .collect()
         })
         .unwrap_or_default();
-    let sub_reports: Vec<SubReport> = parse_budgets(&value, now)?
+    let budgets = parse_budgets(&value, now)?;
+    let sub_reports: Vec<SubReport> = budgets
+        .subs
         .into_iter()
         .filter(|sub| !hidden.contains(&sub.id))
         .collect();
@@ -251,6 +282,15 @@ pub(crate) async fn fetch_at(
         params([("total", ParamValue::from(sub_reports.len() as u64))]),
         "{total} providers with a budget in LiteLLM.",
     );
+    if budgets.truncated {
+        notes.push(
+            "note.litellm.truncated",
+            "LiteLLM has more providers than the limit read (200); the rest were left out.",
+        );
+    }
+    if budgets.repeated > 0 {
+        notes.push_note(crate::aggregators::duplicate_ids_note(budgets.repeated));
+    }
     if sub_reports.is_empty() {
         notes.push(
             "note.litellm.no_budgets",
@@ -487,10 +527,14 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
         "anthropic": {"budget_limit": 50.0, "time_period": "30d", "spend": 1.0,
                       "budget_reset_at": null}
     }});
-    let subs = parse_budgets(&body, Utc::now()).expect("fixture decodes");
+    let budgets = parse_budgets(&body, Utc::now()).expect("fixture decodes");
     vec![(
         "litellm",
-        subs.into_iter().flat_map(|sub| sub.metrics).collect(),
+        budgets
+            .subs
+            .into_iter()
+            .flat_map(|sub| sub.metrics)
+            .collect(),
     )]
 }
 
@@ -593,6 +637,83 @@ mod tests {
         // Only the budgets route was requested.
         let requests = server.received_requests().await.unwrap();
         assert!(requests.iter().all(|r| r.url.path() == BUDGETS_PATH));
+    }
+
+    /// Re-validation S-04, S-08: a checked answer. Negative figures are
+    /// absent with a note naming LiteLLM, names that clean to the same
+    /// text keep the first, and more than 200 providers say so.
+    #[test]
+    fn budgets_are_capped_and_checked() {
+        let body = json!({ "providers": {
+            "openai": { "budget_limit": 100.0, "time_period": "1d", "spend": -4.0 },
+            "openai\u{7}": { "budget_limit": 10.0, "time_period": "1d", "spend": 1.0 },
+            "azure": { "budget_limit": -100.0, "time_period": "1d", "spend": 3.0 },
+            "groq": { "budget_limit": 10.0, "time_period": "1d", "spend": 15.0 }
+        }});
+        let budgets = parse_budgets(&body, Utc::now()).unwrap();
+        assert_eq!(budgets.repeated, 1);
+        assert!(!budgets.truncated);
+        assert_eq!(budgets.subs.len(), 3);
+        let by = |name: &str| {
+            budgets
+                .subs
+                .iter()
+                .find(|sub| sub.upstream == name)
+                .unwrap()
+        };
+        let refused = |sub: &SubReport| {
+            sub.notes_l10n
+                .iter()
+                .any(|note| note.id == "note.aggregator.figure_refused")
+        };
+        let openai = by("openai");
+        assert_eq!(openai.metrics[0].used, None);
+        assert_eq!(openai.metrics[0].remaining, None);
+        assert_eq!(openai.metrics[0].limit, Some(100.0));
+        assert!(refused(openai));
+        let note = &openai.notes_l10n[0];
+        assert!(note.fallback.contains("LiteLLM") && !note.fallback.contains("9router"));
+        assert_eq!(by("azure").metrics[0].limit, None);
+        assert!(refused(by("azure")));
+        // Over budget is real: kept, and the derived remaining is 0.
+        let groq = &by("groq").metrics[0];
+        assert_eq!((groq.used, groq.remaining), (Some(15.0), Some(0.0)));
+        assert!(!refused(by("groq")));
+
+        let mut many = serde_json::Map::new();
+        for n in 0..(MAX_PROVIDERS + 5) {
+            many.insert(
+                format!("p{n:04}"),
+                json!({ "budget_limit": 1.0, "spend": 0.5 }),
+            );
+        }
+        let budgets = parse_budgets(&json!({ "providers": many }), Utc::now()).unwrap();
+        assert!(budgets.truncated);
+        assert_eq!(budgets.subs.len(), MAX_PROVIDERS);
+    }
+
+    #[tokio::test]
+    async fn a_cut_or_repeated_answer_says_so() {
+        let server = MockServer::start().await;
+        let mut many = serde_json::Map::new();
+        for n in 0..(MAX_PROVIDERS + 1) {
+            many.insert(
+                format!("p{n:04}"),
+                json!({ "budget_limit": 1.0, "spend": 0.5 }),
+            );
+        }
+        many.insert(
+            "p0000\u{1b}".into(),
+            json!({ "budget_limit": 1.0, "spend": 0.5 }),
+        );
+        mount(&server, 200, json!({ "providers": many })).await;
+        let http = reqwest::Client::new();
+        let data = fetch_at(&account(&server, &[]), &context(&http), Utc::now())
+            .await
+            .unwrap();
+        let ids: Vec<&str> = data.notes_l10n.iter().map(|n| n.id.as_ref()).collect();
+        assert!(ids.contains(&"note.litellm.truncated"), "{ids:?}");
+        assert!(ids.contains(&"note.aggregator.duplicate_ids"), "{ids:?}");
     }
 
     #[tokio::test]

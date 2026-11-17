@@ -70,7 +70,12 @@
       "query.nine_router.not_nine_router",
       "query.nine_router.listener_foreign",
       "test.nine_router.listener_foreign",
-      "config.warning.private_http"
+      "config.warning.private_http",
+      "note.aggregator.figure_refused",
+      "note.aggregator.metrics_truncated",
+      "note.aggregator.instance_truncated",
+      "note.aggregator.duplicate_ids",
+      "note.litellm.truncated"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1407,6 +1412,15 @@
   "network.clock_behind": "Часы этого компьютера отстают примерно на {minutes} мин от серверов провайдеров. Время, возраст и сбросы могут отображаться неверно: включите автоматическую установку даты и времени, затем обновите.",
   "network.trust_store_empty": "Не удалось загрузить ни одного доверенного корневого сертификата из хранилища сертификатов системы, поэтому безопасное соединение невозможно. Восстановите или обновите системные сертификаты и перезапустите Cuotai.",
   "note.alibaba_billing.balance_field_semantics": "AvailableAmount = общий доступный баланс (наличные + кредит + ваучеры + купоны). AvailableCashAmount = только наличные. CreditAmount = общий кредитный лимит Alibaba (включает Mybank как подмножество).",
+  "note.aggregator.figure_refused": "Значение, которое сообщил {aggregator}, вне допустимого диапазона и не показывается.",
+  "note.aggregator.duplicate_ids": {
+    "one": "{count} повторяющееся подключение опущено.",
+    "few": "{count} повторяющихся подключения опущены.",
+    "many": "{count} повторяющихся подключений опущены.",
+    "other": "{count} повторяющегося подключения опущены."
+  },
+  "note.aggregator.instance_truncated": "Показаны только первые 4000 лимитов этого экземпляра; остальные опущены.",
+  "note.aggregator.metrics_truncated": "Показана только часть лимитов этого подключения; остальные опущены.",
   "note.alibaba_billing.balance_metadata_currency": "Валюта: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Валюта: {currency}. Текущий BillingCycle: {billing_cycle}.",
   "note.alibaba_billing.balance_metadata_cycle": "Текущий BillingCycle: {billing_cycle}.",
@@ -1526,6 +1540,7 @@
   "note.kimi.platform_key_scope": "Ключ платформы kimi.com / kimi.ai не зависит от квоты членства kimi.com; используйте ключ на эндпоинте платформы.",
   "note.litellm.no_budgets": "В LiteLLM нет бюджетов по провайдерам (provider_budget_config); показывать нечего.",
   "note.litellm.summary": "Провайдеров с бюджетом в LiteLLM: {total}.",
+  "note.litellm.truncated": "В LiteLLM больше провайдеров, чем прочитанный лимит (200); остальные опущены.",
   "note.metered.interval_raised": "Заданный интервал {configured} с повышен до {effective} с, так как провайдер берёт плату за каждый запрос.",
   "note.mimo_platform.cash_balance": "Оплаченный баланс: {amount} {currency}.",
   "note.mimo_platform.console_api_reference": "Источник: {base}. Маршруты веб-консоли публично не документированы (ссылка: CodexBar MIT, MiMoUsageFetcher.swift); они могут измениться без предупреждения.",
