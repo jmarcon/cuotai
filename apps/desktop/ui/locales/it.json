@@ -1078,7 +1078,7 @@
   "settings.costBy.blockHours": "Durata del blocco di {source}, in ore",
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Conserva l’ultimo nome di cartella di ogni progetto",
-  "settings.costBy.hintHelp": "Disattivato per impostazione predefinita. Se attivo, l’ultimo nome di cartella di ogni progetto viene conservato su questo computer per precompilarne l’etichetta; non viene mai esportato. Disattivarlo elimina i nomi conservati.",
+  "settings.costBy.hintHelp": "Disattivato per impostazione predefinita. Se attivo, l’ultimo nome di cartella di ogni progetto viene conservato su questo computer per precompilarne l’etichetta, a partire dalle prossime righe scritte dallo strumento; i progetti già letti lo ricevono quando i loro log crescono. Non viene mai esportato. Disattivarlo, o disattivare la sorgente, elimina i nomi conservati.",
   "hooks.banner.unconfirmed": "Gli hook sono attivi, ma le loro regole sono cambiate dopo la tua conferma: non viene eseguito nulla finché non le rivedi.",
   "hooks.banner.invalid": "Gli hook sono attivi, ma hooks.toml non è utilizzabile.",
   "extensions.title": "Estensioni",

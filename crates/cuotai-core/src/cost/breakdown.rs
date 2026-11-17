@@ -607,6 +607,9 @@ pub struct ProjectSummary {
     pub short: Option<String>,
     pub label: Option<String>,
     /// RF4.3: the last folder name, only while the person keeps them.
+    /// S-01b: never serialized (`--cost --json`, the export, the server):
+    /// the desktop's Settings page receives it apart, as `hints`.
+    #[serde(skip_serializing)]
     pub folder_hint: Option<String>,
     /// The label, "Project ab12cd34" or "No project".
     pub name: Localized,
@@ -1179,7 +1182,7 @@ pub fn folder_hint_text(source: SourceId, on: bool, removed: usize) -> Localized
             "cost.folder_hint.on",
             "source",
             source.label(),
-            "{source}: the last folder name of each project is kept on this computer to prefill its label.",
+            "{source}: the last folder name of each project is kept on this computer to prefill its label, starting with the next lines the tool writes; projects already read get theirs when their logs grow.",
         )
     } else {
         Localized::plural(

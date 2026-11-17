@@ -633,7 +633,7 @@
   },
   "cost.label.saved": "Bezeichnung von {short} im lokalen Kostenindex gespeichert.",
   "cost.label.removed": "Bezeichnung von {short} entfernt.",
-  "cost.folder_hint.on": "{source}: Der letzte Ordnername jedes Projekts wird auf diesem Computer gespeichert, um seine Bezeichnung vorzuschlagen.",
+  "cost.folder_hint.on": "{source}: Der letzte Ordnername jedes Projekts wird auf diesem Computer gespeichert, um seine Bezeichnung vorzuschlagen, ab den nächsten Zeilen, die das Tool schreibt; bereits gelesene Projekte erhalten ihn, sobald ihre Logs wachsen.",
   "cost.folder_hint.off": {
     "one": "{source}: Ordnernamen werden nicht mehr gespeichert; {count} gelöscht.",
     "other": "{source}: Ordnernamen werden nicht mehr gespeichert; {count} gelöscht."

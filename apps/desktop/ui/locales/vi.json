@@ -1107,7 +1107,7 @@
   "settings.costBy.blockHours": "Độ dài khối của {source}, tính bằng giờ",
   "settings.costBy.hoursUnit": "giờ",
   "settings.costBy.hint": "Giữ tên thư mục cuối của mỗi dự án",
-  "settings.costBy.hintHelp": "Mặc định tắt. Khi bật, tên thư mục cuối của mỗi dự án được giữ trên máy này để điền sẵn nhãn; không bao giờ được xuất. Tắt đi sẽ xóa các tên đã giữ.",
+  "settings.costBy.hintHelp": "Mặc định tắt. Khi bật, tên thư mục cuối của mỗi dự án được giữ trên máy này để điền sẵn nhãn, bắt đầu từ các dòng tiếp theo mà công cụ ghi; các dự án đã đọc sẽ có tên khi nhật ký của chúng dài thêm. Không bao giờ được xuất. Tắt mục này hoặc tắt nguồn sẽ xóa các tên đã giữ.",
   "hooks.banner.unconfirmed": "Hook đang bật, nhưng các quy tắc đã thay đổi kể từ lần bạn xác nhận: không có gì chạy cho đến khi bạn xem lại.",
   "hooks.banner.invalid": "Hook đang bật, nhưng không dùng được hooks.toml.",
   "extensions.title": "Tiện ích mở rộng",

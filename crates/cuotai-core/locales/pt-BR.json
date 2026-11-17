@@ -488,7 +488,7 @@
   },
   "cost.label.saved": "Rótulo de {short} salvo no índice local de custos.",
   "cost.label.removed": "Rótulo de {short} removido.",
-  "cost.folder_hint.on": "{source}: o último nome de pasta de cada projeto fica guardado neste computador para preencher o rótulo.",
+  "cost.folder_hint.on": "{source}: o último nome de pasta de cada projeto fica guardado neste computador para preencher o rótulo, a partir das próximas linhas que a ferramenta escrever; projetos já lidos recebem o seu quando os logs crescerem.",
   "cost.folder_hint.off": {
     "one": "{source}: nomes de pasta não são mais guardados; {count} apagado.",
     "other": "{source}: nomes de pasta não são mais guardados; {count} apagados."

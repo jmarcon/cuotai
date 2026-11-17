@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Browser-free UI smoke for PRD 0042 RF6: the Days · Models · Sessions · Blocks · Projects tabs of Settings › Local
 // cost (browser demo of the core's `cost_breakdown`) render empty, partial and full, with the KPI header ("—" when
-// unknown, never 0), inline labels, the hidden project left out of the total (and the note on every tab) and the active block's live figures;
+// unknown, never 0), inline labels, folder names only in the Projects tab's `hints`, the hidden project left out of
+// the total (and the note on every tab) and the active block's live figures;
 // the card's "This block" line is present only while the active block has a burn rate. Every built-in locale renders
 // without raw catalog keys.
 import assert from "node:assert/strict";
@@ -77,6 +78,18 @@ let projects = await lib.costBreakdown("project");
 const first = projects.projects[0];
 await lib.costSetLabel("project", first.project, "Client work");
 assert.match(breakdownPanelHtml("project", await lib.costBreakdown("project")), /value="Client work"/);
+
+// S-01b: no tab's data carries a folder name field; the Projects tab gets the names apart, as `hints` by
+// fingerprint, and they prefill an unlabelled project's placeholder.
+for (const by of TABS) {
+  assert.ok(!JSON.stringify(await lib.costBreakdown(by)).includes("folder_hint"), `${by}: folder_hint in the panel data`);
+}
+assert.ok(!JSON.stringify(await lib.costUsage()).includes("folder_hint"), "folder_hint in the cards' summary");
+{
+  const second = projects.projects[1];
+  const html = breakdownPanelHtml("project", { ...projects, hints: { [second.project]: "kept-folder" } });
+  assert.match(html, /placeholder="kept-folder"/, "the hint prefills the label field");
+}
 
 // Hidden project: listed, flagged, left out of the total.
 const before = projects.total.requests;

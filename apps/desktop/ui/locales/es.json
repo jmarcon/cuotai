@@ -1078,7 +1078,7 @@
   "settings.costBy.blockHours": "Duración del bloque de {source}, en horas",
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Guardar el último nombre de carpeta de cada proyecto",
-  "settings.costBy.hintHelp": "Desactivado por defecto. Si se activa, el último nombre de carpeta de cada proyecto se guarda en este equipo para proponer su etiqueta; nunca se exporta. Desactivarlo borra los nombres guardados.",
+  "settings.costBy.hintHelp": "Desactivado por defecto. Si se activa, el último nombre de carpeta de cada proyecto se guarda en este equipo para proponer su etiqueta, a partir de las próximas líneas que escriba la herramienta; los proyectos ya leídos lo reciben cuando crecen sus registros. Nunca se exporta. Desactivarlo, o desactivar la fuente, borra los nombres guardados.",
   "hooks.banner.unconfirmed": "Los hooks están activos, pero sus reglas cambiaron desde que las confirmaste: no se ejecuta nada hasta que las revises.",
   "hooks.banner.invalid": "Los hooks están activos, pero hooks.toml no se puede usar.",
   "extensions.title": "Extensiones",

@@ -618,7 +618,7 @@
   },
   "cost.label.saved": "{short}의 레이블을 로컬 비용 인덱스에 저장했습니다.",
   "cost.label.removed": "{short}의 레이블을 제거했습니다.",
-  "cost.folder_hint.on": "{source}: 각 프로젝트의 마지막 폴더 이름을 이 컴퓨터에 보관해 레이블을 미리 채웁니다.",
+  "cost.folder_hint.on": "{source}: 각 프로젝트의 마지막 폴더 이름을 이 컴퓨터에 보관해 레이블을 미리 채웁니다. 도구가 다음에 쓰는 줄부터 적용되며, 이미 읽은 프로젝트는 로그가 늘어날 때 채워집니다.",
   "cost.folder_hint.off": {
     "other": "{source}: 폴더 이름을 더 이상 보관하지 않습니다. {count}개를 삭제했습니다."
   },

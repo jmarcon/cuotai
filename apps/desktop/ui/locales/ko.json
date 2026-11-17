@@ -1127,7 +1127,7 @@
   "settings.costBy.blockHours": "{source}의 블록 길이(시간)",
   "settings.costBy.hoursUnit": "시간",
   "settings.costBy.hint": "각 프로젝트의 마지막 폴더 이름 보관",
-  "settings.costBy.hintHelp": "기본값은 꺼짐입니다. 켜면 각 프로젝트의 마지막 폴더 이름을 이 컴퓨터에 보관해 레이블을 미리 채우며, 내보내지 않습니다. 끄면 보관한 이름을 삭제합니다.",
+  "settings.costBy.hintHelp": "기본값은 꺼짐입니다. 켜면 각 프로젝트의 마지막 폴더 이름을 이 컴퓨터에 보관해 레이블을 미리 채웁니다. 도구가 다음에 쓰는 줄부터 적용되며, 이미 읽은 프로젝트는 로그가 늘어날 때 채워집니다. 내보내지 않습니다. 이 설정이나 소스를 끄면 보관한 이름을 삭제합니다.",
   "hooks.banner.unconfirmed": "훅이 켜져 있지만 확인한 뒤 규칙이 바뀌었습니다. 검토하기 전에는 아무것도 실행되지 않습니다.",
   "hooks.banner.invalid": "훅이 켜져 있지만 hooks.toml을 사용할 수 없습니다.",
   "extensions.title": "확장 기능",

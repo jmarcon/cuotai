@@ -601,7 +601,7 @@
   },
   "cost.label.saved": "Đã lưu nhãn của {short} vào chỉ mục chi phí cục bộ.",
   "cost.label.removed": "Đã xóa nhãn của {short}.",
-  "cost.folder_hint.on": "{source}: tên thư mục cuối của mỗi dự án được giữ trên máy này để điền sẵn nhãn.",
+  "cost.folder_hint.on": "{source}: tên thư mục cuối của mỗi dự án được giữ trên máy này để điền sẵn nhãn, bắt đầu từ các dòng tiếp theo mà công cụ ghi; các dự án đã đọc sẽ có tên khi nhật ký của chúng dài thêm.",
   "cost.folder_hint.off": {
     "other": "{source}: không còn giữ tên thư mục; đã xóa {count} tên."
   },

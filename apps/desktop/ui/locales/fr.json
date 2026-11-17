@@ -1411,7 +1411,7 @@
   "settings.costBy.blockHours": "Durée du bloc de {source}, en heures",
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Conserver le dernier nom de dossier de chaque projet",
-  "settings.costBy.hintHelp": "Désactivé par défaut. Activé, le dernier nom de dossier de chaque projet est conservé sur cet ordinateur pour préremplir son libellé ; il n’est jamais exporté. Le désactiver supprime les noms conservés.",
+  "settings.costBy.hintHelp": "Désactivé par défaut. Activé, le dernier nom de dossier de chaque projet est conservé sur cet ordinateur pour préremplir son libellé, à partir des prochaines lignes que l’outil écrit ; les projets déjà lus reçoivent le leur quand leurs journaux s’allongent. Il n’est jamais exporté. Le désactiver, ou désactiver la source, supprime les noms conservés.",
   "hooks.banner.unconfirmed": "Les hooks sont activés, mais leurs règles ont changé depuis votre confirmation : rien ne s’exécute tant que vous ne les avez pas vérifiées.",
   "hooks.banner.invalid": "Les hooks sont activés, mais hooks.toml est inutilisable.",
   "extensions.title": "Extensions",

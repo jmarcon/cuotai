@@ -599,7 +599,7 @@
   },
   "cost.label.saved": "Label {short} disimpan di indeks biaya lokal.",
   "cost.label.removed": "Label {short} dihapus.",
-  "cost.folder_hint.on": "{source}: nama folder terakhir tiap proyek disimpan di komputer ini untuk mengisi labelnya lebih dulu.",
+  "cost.folder_hint.on": "{source}: nama folder terakhir tiap proyek disimpan di komputer ini untuk mengisi labelnya lebih dulu, mulai dari baris berikutnya yang ditulis alat itu; proyek yang sudah dibaca mendapatkannya saat log-nya bertambah.",
   "cost.folder_hint.off": {
     "other": "{source}: nama folder tidak lagi disimpan; {count} dihapus."
   },

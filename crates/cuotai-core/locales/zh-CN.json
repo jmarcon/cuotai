@@ -637,7 +637,7 @@
   },
   "cost.label.saved": "已将 {short} 的标签保存到本地费用索引。",
   "cost.label.removed": "已移除 {short} 的标签。",
-  "cost.folder_hint.on": "{source}：每个项目的最后一级文件夹名会保存在本机，用于预填其标签。",
+  "cost.folder_hint.on": "{source}：每个项目的最后一级文件夹名会保存在本机，用于预填其标签，从工具接下来写入的行开始生效；已读取的项目会在其日志增长时获得名称。",
   "cost.folder_hint.off": {
     "other": "{source}：不再保存文件夹名；已删除 {count} 个。"
   },

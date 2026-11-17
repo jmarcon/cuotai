@@ -1779,7 +1779,7 @@
   },
   "cost.label.saved": "Etichetta di {short} salvata nell’indice locale dei costi.",
   "cost.label.removed": "Etichetta di {short} rimossa.",
-  "cost.folder_hint.on": "{source}: l’ultimo nome di cartella di ogni progetto viene conservato su questo computer per precompilarne l’etichetta.",
+  "cost.folder_hint.on": "{source}: l’ultimo nome di cartella di ogni progetto viene conservato su questo computer per precompilarne l’etichetta, a partire dalle prossime righe scritte dallo strumento; i progetti già letti lo ricevono quando i loro log crescono.",
   "cost.folder_hint.off": {
     "one": "{source}: i nomi delle cartelle non vengono più conservati; {count} eliminato.",
     "other": "{source}: i nomi delle cartelle non vengono più conservati; {count} eliminati."

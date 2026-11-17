@@ -1780,7 +1780,7 @@
   },
   "cost.label.saved": "Etiqueta de {short} guardada en el índice local de costos.",
   "cost.label.removed": "Etiqueta de {short} eliminada.",
-  "cost.folder_hint.on": "{source}: el último nombre de carpeta de cada proyecto se guarda en este equipo para proponer su etiqueta.",
+  "cost.folder_hint.on": "{source}: el último nombre de carpeta de cada proyecto se guarda en este equipo para proponer su etiqueta, a partir de las próximas líneas que escriba la herramienta; los proyectos ya leídos lo reciben cuando crecen sus registros.",
   "cost.folder_hint.off": {
     "one": "{source}: ya no se guardan nombres de carpeta; {count} eliminado.",
     "other": "{source}: ya no se guardan nombres de carpeta; {count} eliminados."

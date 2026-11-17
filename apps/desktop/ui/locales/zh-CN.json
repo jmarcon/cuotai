@@ -1131,7 +1131,7 @@
   "settings.costBy.blockHours": "{source} 的时段块长度（小时）",
   "settings.costBy.hoursUnit": "小时",
   "settings.costBy.hint": "保留每个项目的最后一级文件夹名",
-  "settings.costBy.hintHelp": "默认关闭。开启后，每个项目的最后一级文件夹名会保存在本机，用于预填其标签；从不导出。关闭会删除已保存的名称。",
+  "settings.costBy.hintHelp": "默认关闭。开启后，每个项目的最后一级文件夹名会保存在本机，用于预填其标签，从工具接下来写入的行开始生效；已读取的项目会在其日志增长时获得名称。从不导出。关闭此项或关闭该来源会删除已保存的名称。",
   "hooks.banner.unconfirmed": "钩子已开启，但其规则在您确认后已更改：在您检查之前不会运行任何内容。",
   "hooks.banner.invalid": "钩子已开启，但无法使用 hooks.toml。",
   "extensions.title": "扩展",
