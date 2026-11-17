@@ -386,8 +386,8 @@ export const costSetOptions = (period, retentionDays) => call("cost_set_options"
 export const costPrices = () => call("cost_prices");
 export const costErase = () => call("cost_erase");
 // PRD 0042 RF6.1: one tab of the breakdown (`day`, `model`, `session`, `block`, `project`), labels, hidden projects and
-// each source's block length and folder-name hint.
-export const costBreakdown = (by) => call("cost_breakdown", { by });
+// each source's block length and folder-name hint. `offset` skips that many sessions ("Show older sessions").
+export const costBreakdown = (by, offset = 0) => call("cost_breakdown", { by, offset });
 export const costSetLabel = (target, digest, label) => call("cost_set_label", { target, digest, label });
 export const costSetHidden = (digest, hidden) => call("cost_set_hidden", { digest, hidden });
 export const costSetSourceOptions = (source, blockHours, folderHint) => call("cost_set_source_options", { source, blockHours, folderHint });
@@ -3114,7 +3114,7 @@ function demoLive() {
   });
 }
 const DEMO_PROJECTS = ["3f9a1c2e7b4d5a60", "a81d0c44e2f97b13"];
-function demoBreakdown(by) {
+function demoBreakdown(by, offset = 0) {
   const usage = demoCostUsage();
   // M-05: the core's note of the hidden projects, on every tab (the demo's figures keep them; K10 rebuilds the data).
   const count = demoCost.hidden.size;
@@ -3133,7 +3133,7 @@ function demoBreakdown(by) {
       return { source: id, session: digest, short: digest.slice(0, 8), label: label(digest), name, first: first.toISOString(),
         last: new Date(first.getTime() + minutes * 60_000).toISOString(), duration_minutes: minutes, project: DEMO_PROJECTS[back % 2], estimate: demoEstimate(demoDayRows(id, back)) };
     }));
-    return { ...base, count: sessions.length, sessions };
+    return { ...base, count: sessions.length, sessions: sessions.slice(offset, offset + 100) };
   }
   if (by === "block") {
     const blocks = demoOn().flatMap((id) => [demoBlock(id, 0, true), demoBlock(id, 1, false), demoBlock(id, 2, false)]);
@@ -3931,7 +3931,7 @@ const demo = {
   },
   cost_status: async () => demoCostView(),
   cost_usage: async () => demoCostUsage(),
-  cost_breakdown: async ({ by }) => demoBreakdown(by),
+  cost_breakdown: async ({ by, offset }) => demoBreakdown(by, offset),
   cost_set_label: async ({ digest, label }) => {
     const text = (label ?? "").trim();
     if (text.length > 48) throw JSON.stringify(demoL10n("cost.error.invalid_label", { max: "48" }, "A label has 1 to 48 characters."));

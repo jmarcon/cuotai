@@ -64,7 +64,13 @@
       "settings.claudeCode.cliFound",
       "settings.claudeCode.cliMissing",
       "settings.claudeCode.copyMain",
-      "settings.claudeCode.copyChained"
+      "settings.claudeCode.copyChained",
+      "settings.costBy.addLabel",
+      "settings.costBy.code",
+      "settings.costBy.codeHelp",
+      "settings.costBy.olderSessions",
+      "settings.costBy.blocksCaption",
+      "settings.costBy.kpi.partial"
     ]
   },
   "agg.alertEach": "接続ごとに通知",
@@ -1081,7 +1087,7 @@
   "settings.cost.disable.title": "{source} をオフにしますか？",
   "settings.cost.disable.text": "読み取りが停止し、{source} のログから得たものはすべてインデックスから消去されます。",
   "settings.cost.disable.yes": "オフにして消去",
-  "cost.live.tip": "現在の 5 時間ブロックの API 価格でのローカル推定です。請求額ではありません。",
+  "cost.live.tip": "現在の {hours} 時間ブロックの API 価格でのローカル推定です。請求額ではありません。",
   "settings.cost.reconsent": "読み取る内容が変わりました（プロジェクトのフィンガープリントを追加）。確認して読み取りを続けるには、もう一度オンにしてください。",
   "settings.costBy.title": "セッション・ブロック・プロジェクト",
   "settings.costBy.help": "オンになっているソースのローカル費用インデックスから、保存した期間について表示します。API 価格での推定で、請求額ではありません。プロジェクトはフォルダーの一方向フィンガープリントです。",
@@ -1097,6 +1103,7 @@
   "settings.costBy.kpi.requestsCaption": "期間内",
   "settings.costBy.kpi.tokens": "トークン",
   "settings.costBy.kpi.tokensCaption": "すべての種類",
+  "settings.costBy.kpi.partial": "+ {amount} トークン分の費用は不明",
   "settings.costBy.empty": "この期間に読み取ったログに使用はありません。",
   "settings.costBy.label": "{name} のラベル",
   "settings.costBy.col.source": "ソース",
@@ -1108,9 +1115,6 @@
   "settings.costBy.col.project": "プロジェクト",
   "settings.costBy.minutes": "{m}分",
   "settings.costBy.hours": "{h}時間{m}分",
-  "settings.costBy.moreSessions": {
-    "other": "古いセッション {count} 件は表示していません。"
-  },
   "settings.costBy.providerWindow": "プロバイダーの枠：{pct}% 使用、{at} にリセット",
   "settings.costBy.providerReset": "プロバイダーの枠：{at} にリセット",
   "settings.costBy.liveTitle": "進行中のブロック · {source}",
@@ -1126,6 +1130,13 @@
   "settings.costBy.hoursUnit": "時間",
   "settings.costBy.hint": "各プロジェクトの最後のフォルダー名を保存",
   "settings.costBy.hintHelp": "既定ではオフです。オンにすると、各プロジェクトの最後のフォルダー名をこのコンピューターに保存してラベルの候補にします。ツールが次に書き込む行から適用され、読み込み済みのプロジェクトはログが増えたときに取得されます。エクスポートされることはありません。これをオフにするか、ソースをオフにすると、保存した名前を削除します。",
+  "settings.costBy.addLabel": "ラベルを追加",
+  "settings.costBy.code": "コード {short}",
+  "settings.costBy.codeHelp": "このコードは Cuotai 独自のもので、セッションまたはフォルダーの一方向フィンガープリントの先頭部分です。cuotai --cost-label で指定できます。ツールのセッション ID ではありません。セッション ID は保存されません。",
+  "settings.costBy.olderSessions": {
+    "other": "古いセッションを {count} 件表示"
+  },
+  "settings.costBy.blocksCaption": "期間内に終わるブロック内",
   "hooks.banner.unconfirmed": "フックはオンですが、確認後にルールが変更されました。確認するまで何も実行されません。",
   "hooks.banner.invalid": "フックはオンですが、hooks.toml を使用できません。",
   "extensions.title": "拡張機能",

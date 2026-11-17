@@ -1033,7 +1033,7 @@
   "settings.cost.disable.title": "Turn {source} off?",
   "settings.cost.disable.text": "Reading stops and everything derived from the {source} logs is erased from the index.",
   "settings.cost.disable.yes": "Turn off and erase",
-  "cost.live.tip": "Local estimate of the current 5-hour block at API prices, not a charge.",
+  "cost.live.tip": "Local estimate of the current {hours}-hour block at API prices, not a charge.",
   "settings.cost.reconsent": "What is read changed (a project fingerprint was added): turn it on again to review and keep reading.",
   "settings.costBy.title": "Sessions, blocks and projects",
   "settings.costBy.help": "From the local cost index of the sources that are on, over the saved period. Estimates at API prices, not charges; a project is a one-way fingerprint of its folder.",
@@ -1049,6 +1049,7 @@
   "settings.costBy.kpi.requestsCaption": "in the period",
   "settings.costBy.kpi.tokens": "Tokens",
   "settings.costBy.kpi.tokensCaption": "every kind",
+  "settings.costBy.kpi.partial": "+ unknown cost of {amount} tokens",
   "settings.costBy.empty": "No usage in the logs read for this period.",
   "settings.costBy.label": "Label of {name}",
   "settings.costBy.col.source": "Source",
@@ -1060,10 +1061,6 @@
   "settings.costBy.col.project": "Project",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": {
-    "one": "{count} older session not listed.",
-    "other": "{count} older sessions not listed."
-  },
   "settings.costBy.providerWindow": "Provider window: {pct}% used, resets at {at}",
   "settings.costBy.providerReset": "Provider window: resets at {at}",
   "settings.costBy.liveTitle": "Active block · {source}",
@@ -1079,6 +1076,14 @@
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Keep the last folder name of each project",
   "settings.costBy.hintHelp": "Off by default. When on, the last folder name of each project is kept on this computer to prefill its label, starting with the next lines the tool writes; projects already read get theirs when their logs grow. It is never exported. Turning it off, or turning the source off, deletes the names kept.",
+  "settings.costBy.addLabel": "Add a label",
+  "settings.costBy.code": "code {short}",
+  "settings.costBy.codeHelp": "The code is Cuotai's own: the first characters of a one-way fingerprint of the session or folder, which cuotai --cost-label accepts. It is not the tool's session id, which is never kept.",
+  "settings.costBy.olderSessions": {
+    "one": "Show {count} older session",
+    "other": "Show {count} older sessions"
+  },
+  "settings.costBy.blocksCaption": "in blocks that end in the period",
   "hooks.banner.unconfirmed": "Hooks are on, but their rules changed since you confirmed them: nothing runs until you review them.",
   "hooks.banner.invalid": "Hooks are on, but hooks.toml cannot be used.",
   "extensions.title": "Extensions",

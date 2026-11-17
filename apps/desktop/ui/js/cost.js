@@ -103,12 +103,14 @@ export function costLineHtml(sc, summary) {
 const hiddenNoteHtml = (summary) => (summary?.hidden_note ? `<br/><span data-cost-hidden-note>${esc(tl(summary.hidden_note))}</span>` : "");
 
 /** PRD 0042 RF6.2: "This block ≈ $4.10 · 38K tok/min" (the core's text, with "+ unknown cost of N tokens" for the
- *  part without a price) under the local usage, the projection in the tooltip; nothing while the active block has no
+ *  part without a price) under the local usage, the block length and the projection in the tooltip; nothing while the active block has no
  *  burn rate. The core formats every amount: the desktop adds no money of its own. */
 export function liveLineHtml(sc, summary) {
   const live = (summary?.live ?? []).find((l) => l.block.source === sc.source);
   if (!live?.line) return "";
-  const tip = [t("cost.live.tip"), live.projection ? tl(live.projection) : ""].filter(Boolean).join(" ");
+  // PRD 0042 re-validation L-07: the tooltip names the source's own block length (1 to 24 hours), not always 5.
+  const hours = Math.round((Date.parse(live.block.end) - Date.parse(live.block.start)) / 3_600_000);
+  const tip = [t("cost.live.tip", { hours: fmtNumber(hours, 0) }), live.projection ? tl(live.projection) : ""].filter(Boolean).join(" ");
   return `<p class="lc-live-line" data-cost-live="${esc(sc.source)}" title="${esc(tip)}">${esc(tl(live.line))}</p>`;
 }
 

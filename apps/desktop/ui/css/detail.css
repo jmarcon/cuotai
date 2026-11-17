@@ -759,16 +759,18 @@
   color: var(--fg-muted);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* PRD 0042 RF6.1: Settings › Local cost › Sessions, blocks and projects. KPI cards (DS-CMP-KPI-1..3), the live block
-   as a callout surface, inline label fields and hidden projects dimmed. Theme roles only. */
+   as a callout surface, inline label fields and hidden projects dimmed. Theme roles only. Re-validation M-01..M-03:
+   the cards take at least 9rem each and every figure, caption and name wraps in its box, never clipped. */
 .lc-by {
   margin: var(--space-3) 0 0;
 }
 .lc-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: var(--space-2);
   margin: 0 0 var(--space-3);
 }
@@ -788,16 +790,14 @@
   font-size: var(--text-sm);
 }
 .lc-kpi-caption {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .lc-kpi-figure {
   font-size: var(--text-figure);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .lc-kpi-figure.long {
   font-size: var(--text-xl);
@@ -828,6 +828,10 @@
 }
 .lc-live p {
   margin: var(--space-0) 0 0;
+  overflow-wrap: anywhere;
+}
+.lc-code-help {
+  margin: var(--space-2) 0 0;
 }
 .lc-by-table tr.lc-active th,
 .lc-by-table tr.lc-active td {
@@ -836,6 +840,10 @@
 .lc-by-table tr.lc-hidden th,
 .lc-by-table tr.lc-hidden td {
   color: var(--fg-muted);
+}
+.lc-by-table .lc-name {
+  display: block;
+  overflow-wrap: anywhere;
 }
 .lc-by-table .sub {
   display: block;

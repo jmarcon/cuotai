@@ -1033,7 +1033,7 @@
   "settings.cost.disable.title": "Desligar o {source}?",
   "settings.cost.disable.text": "A leitura para e tudo o que foi derivado dos logs do {source} é apagado do índice.",
   "settings.cost.disable.yes": "Desligar e apagar",
-  "cost.live.tip": "Estimativa local do bloco de 5 horas atual a preços de API, não uma cobrança.",
+  "cost.live.tip": "Estimativa local do bloco atual de {hours} h a preços de API, não uma cobrança.",
   "settings.cost.reconsent": "O que é lido mudou (foi adicionada uma impressão digital do projeto): ative de novo para revisar e continuar lendo.",
   "settings.costBy.title": "Sessões, blocos e projetos",
   "settings.costBy.help": "Do índice local de custos das fontes ativas, no período salvo. Estimativas a preços de API, não cobranças; um projeto é uma impressão digital de mão única da sua pasta.",
@@ -1049,6 +1049,7 @@
   "settings.costBy.kpi.requestsCaption": "no período",
   "settings.costBy.kpi.tokens": "Tokens",
   "settings.costBy.kpi.tokensCaption": "de todos os tipos",
+  "settings.costBy.kpi.partial": "+ custo desconhecido de {amount} tokens",
   "settings.costBy.empty": "Nenhum uso nos logs lidos neste período.",
   "settings.costBy.label": "Rótulo de {name}",
   "settings.costBy.col.source": "Fonte",
@@ -1060,10 +1061,6 @@
   "settings.costBy.col.project": "Projeto",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": {
-    "one": "{count} sessão mais antiga não listada.",
-    "other": "{count} sessões mais antigas não listadas."
-  },
   "settings.costBy.providerWindow": "Janela do provedor: {pct}% usado, reinicia às {at}",
   "settings.costBy.providerReset": "Janela do provedor: reinicia às {at}",
   "settings.costBy.liveTitle": "Bloco ativo · {source}",
@@ -1079,6 +1076,14 @@
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Guardar o último nome de pasta de cada projeto",
   "settings.costBy.hintHelp": "Desativado por padrão. Ativado, o último nome de pasta de cada projeto fica guardado neste computador para preencher o rótulo, a partir das próximas linhas que a ferramenta escrever; projetos já lidos recebem o seu quando os logs crescerem. Nunca é exportado. Desativar esta opção, ou a fonte, apaga os nomes guardados.",
+  "settings.costBy.addLabel": "Adicionar rótulo",
+  "settings.costBy.code": "código {short}",
+  "settings.costBy.codeHelp": "O código é do próprio Cuotai: os primeiros caracteres de uma impressão digital de mão única da sessão ou da pasta, que o cuotai --cost-label aceita. Não é o id de sessão da ferramenta, que nunca é guardado.",
+  "settings.costBy.olderSessions": {
+    "one": "Mostrar {count} sessão mais antiga",
+    "other": "Mostrar {count} sessões mais antigas"
+  },
+  "settings.costBy.blocksCaption": "em blocos que terminam no período",
   "hooks.banner.unconfirmed": "Os hooks estão ativos, mas as regras mudaram desde a sua confirmação: nada roda até você revisá-las.",
   "hooks.banner.invalid": "Os hooks estão ativos, mas o hooks.toml não pode ser usado.",
   "extensions.title": "Extensões",

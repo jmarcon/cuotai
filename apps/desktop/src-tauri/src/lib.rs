@@ -2439,17 +2439,19 @@ async fn cost_erase(window: WebviewWindow, cost: Cost<'_>) -> Result<usize, Stri
 /// PRD 0042 RF6.1: one tab of the local cost breakdown (`day`, `model`,
 /// `session`, `block` or `project`) over the saved period. Reads the
 /// index, never a log. Settings only (re-validation S-08): it carries the
-/// labels and folder names.
+/// labels and folder names. `offset` skips that many sessions of the
+/// Sessions tab ("Show older sessions", re-validation L-09).
 #[tauri::command]
 async fn cost_breakdown(
     window: WebviewWindow,
     cost: Cost<'_>,
     b: Shared<'_>,
     by: cuotai_core::cost::Breakdown,
+    offset: Option<usize>,
 ) -> Result<serde_json::Value, String> {
     window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     let reports = b.reports().await;
-    cost.breakdown(by, &reports)
+    cost.breakdown(by, offset.unwrap_or(0), &reports)
 }
 
 /// PRD 0042 RF2.2/RF4.2: label (or, with `label` null, unlabel) a session or

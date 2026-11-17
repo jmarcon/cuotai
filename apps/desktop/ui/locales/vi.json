@@ -46,7 +46,13 @@
       "settings.claudeCode.cliFound",
       "settings.claudeCode.cliMissing",
       "settings.claudeCode.copyMain",
-      "settings.claudeCode.copyChained"
+      "settings.claudeCode.copyChained",
+      "settings.costBy.addLabel",
+      "settings.costBy.code",
+      "settings.costBy.codeHelp",
+      "settings.costBy.olderSessions",
+      "settings.costBy.blocksCaption",
+      "settings.costBy.kpi.partial"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -1063,7 +1069,7 @@
   "settings.cost.disable.title": "Tắt {source}?",
   "settings.cost.disable.text": "Việc đọc dừng lại và mọi thứ rút ra từ nhật ký {source} bị xóa khỏi chỉ mục.",
   "settings.cost.disable.yes": "Tắt và xóa",
-  "cost.live.tip": "Ước tính cục bộ của khối 5 giờ hiện tại theo giá API, không phải khoản phí.",
+  "cost.live.tip": "Ước tính cục bộ của khối {hours} giờ hiện tại theo giá API, không phải khoản phí.",
   "settings.cost.reconsent": "Nội dung được đọc đã thay đổi (đã thêm dấu vân tay dự án): bật lại để xem lại và tiếp tục đọc.",
   "settings.costBy.title": "Phiên, khối và dự án",
   "settings.costBy.help": "Từ chỉ mục chi phí cục bộ của các nguồn đang bật, trong khoảng thời gian đã lưu. Là ước tính theo giá API, không phải khoản phí; dự án là dấu vân tay một chiều của thư mục.",
@@ -1079,6 +1085,7 @@
   "settings.costBy.kpi.requestsCaption": "trong kỳ",
   "settings.costBy.kpi.tokens": "Token",
   "settings.costBy.kpi.tokensCaption": "mọi loại",
+  "settings.costBy.kpi.partial": "+ chi phí chưa rõ của {amount} token",
   "settings.costBy.empty": "Không có mức dùng nào trong nhật ký đã đọc cho khoảng thời gian này.",
   "settings.costBy.label": "Nhãn của {name}",
   "settings.costBy.col.source": "Nguồn",
@@ -1090,9 +1097,6 @@
   "settings.costBy.col.project": "Dự án",
   "settings.costBy.minutes": "{m} phút",
   "settings.costBy.hours": "{h} giờ {m} phút",
-  "settings.costBy.moreSessions": {
-    "other": "{count} phiên cũ hơn không được liệt kê."
-  },
   "settings.costBy.providerWindow": "Cửa sổ của nhà cung cấp: đã dùng {pct}%, đặt lại lúc {at}",
   "settings.costBy.providerReset": "Cửa sổ của nhà cung cấp: đặt lại lúc {at}",
   "settings.costBy.liveTitle": "Khối đang diễn ra · {source}",
@@ -1108,6 +1112,13 @@
   "settings.costBy.hoursUnit": "giờ",
   "settings.costBy.hint": "Giữ tên thư mục cuối của mỗi dự án",
   "settings.costBy.hintHelp": "Mặc định tắt. Khi bật, tên thư mục cuối của mỗi dự án được giữ trên máy này để điền sẵn nhãn, bắt đầu từ các dòng tiếp theo mà công cụ ghi; các dự án đã đọc sẽ có tên khi nhật ký của chúng dài thêm. Không bao giờ được xuất. Tắt mục này hoặc tắt nguồn sẽ xóa các tên đã giữ.",
+  "settings.costBy.addLabel": "Thêm nhãn",
+  "settings.costBy.code": "mã {short}",
+  "settings.costBy.codeHelp": "Mã này là của riêng Cuotai: những ký tự đầu của dấu vân tay một chiều của phiên hoặc thư mục, được cuotai --cost-label chấp nhận. Đây không phải ID phiên của công cụ, vốn không bao giờ được lưu.",
+  "settings.costBy.olderSessions": {
+    "other": "Hiện {count} phiên cũ hơn"
+  },
+  "settings.costBy.blocksCaption": "trong các khối kết thúc trong kỳ",
   "hooks.banner.unconfirmed": "Hook đang bật, nhưng các quy tắc đã thay đổi kể từ lần bạn xác nhận: không có gì chạy cho đến khi bạn xem lại.",
   "hooks.banner.invalid": "Hook đang bật, nhưng không dùng được hooks.toml.",
   "extensions.title": "Tiện ích mở rộng",

@@ -332,7 +332,13 @@
       "settings.claudeCode.cliFound",
       "settings.claudeCode.cliMissing",
       "settings.claudeCode.copyMain",
-      "settings.claudeCode.copyChained"
+      "settings.claudeCode.copyChained",
+      "settings.costBy.addLabel",
+      "settings.costBy.code",
+      "settings.costBy.codeHelp",
+      "settings.costBy.olderSessions",
+      "settings.costBy.blocksCaption",
+      "settings.costBy.kpi.partial"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -1366,7 +1372,7 @@
   "settings.cost.disable.title": "Désactiver {source} ?",
   "settings.cost.disable.text": "La lecture s’arrête et tout ce qui découle des journaux de {source} est effacé de l’index.",
   "settings.cost.disable.yes": "Désactiver et effacer",
-  "cost.live.tip": "Estimation locale du bloc de 5 heures en cours aux prix de l’API, pas une facturation.",
+  "cost.live.tip": "Estimation locale du bloc en cours de {hours} h aux prix de l’API, pas une facturation.",
   "settings.cost.reconsent": "Ce qui est lu a changé (une empreinte du projet a été ajoutée) : réactivez pour vérifier et continuer la lecture.",
   "settings.costBy.title": "Sessions, blocs et projets",
   "settings.costBy.help": "D’après l’index local des coûts des sources activées, sur la période enregistrée. Estimations aux prix de l’API, pas des facturations ; un projet est une empreinte à sens unique de son dossier.",
@@ -1382,6 +1388,7 @@
   "settings.costBy.kpi.requestsCaption": "sur la période",
   "settings.costBy.kpi.tokens": "Jetons",
   "settings.costBy.kpi.tokensCaption": "tous types",
+  "settings.costBy.kpi.partial": "+ coût inconnu de {amount} tokens",
   "settings.costBy.empty": "Aucune utilisation dans les journaux lus pour cette période.",
   "settings.costBy.label": "Libellé de {name}",
   "settings.costBy.col.source": "Source",
@@ -1393,10 +1400,6 @@
   "settings.costBy.col.project": "Projet",
   "settings.costBy.minutes": "{m} min",
   "settings.costBy.hours": "{h} h {m} min",
-  "settings.costBy.moreSessions": {
-    "one": "{count} session plus ancienne non listée.",
-    "other": "{count} sessions plus anciennes non listées."
-  },
   "settings.costBy.providerWindow": "Fenêtre du fournisseur : {pct} % utilisés, réinitialisation à {at}",
   "settings.costBy.providerReset": "Fenêtre du fournisseur : réinitialisation à {at}",
   "settings.costBy.liveTitle": "Bloc actif · {source}",
@@ -1412,6 +1415,14 @@
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Conserver le dernier nom de dossier de chaque projet",
   "settings.costBy.hintHelp": "Désactivé par défaut. Activé, le dernier nom de dossier de chaque projet est conservé sur cet ordinateur pour préremplir son libellé, à partir des prochaines lignes que l’outil écrit ; les projets déjà lus reçoivent le leur quand leurs journaux s’allongent. Il n’est jamais exporté. Le désactiver, ou désactiver la source, supprime les noms conservés.",
+  "settings.costBy.addLabel": "Ajouter un libellé",
+  "settings.costBy.code": "code {short}",
+  "settings.costBy.codeHelp": "Le code est propre à Cuotai : les premiers caractères d’une empreinte à sens unique de la session ou du dossier, qu’accepte cuotai --cost-label. Ce n’est pas l’identifiant de session de l’outil, qui n’est jamais conservé.",
+  "settings.costBy.olderSessions": {
+    "one": "Afficher {count} session plus ancienne",
+    "other": "Afficher {count} sessions plus anciennes"
+  },
+  "settings.costBy.blocksCaption": "dans les blocs qui se terminent sur la période",
   "hooks.banner.unconfirmed": "Les hooks sont activés, mais leurs règles ont changé depuis votre confirmation : rien ne s’exécute tant que vous ne les avez pas vérifiées.",
   "hooks.banner.invalid": "Les hooks sont activés, mais hooks.toml est inutilisable.",
   "extensions.title": "Extensions",

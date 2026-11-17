@@ -1019,7 +1019,7 @@
   "settings.cost.disable.title": "Nonaktifkan {source}?",
   "settings.cost.disable.text": "Pembacaan berhenti dan semua yang diturunkan dari log {source} dihapus dari indeks.",
   "settings.cost.disable.yes": "Nonaktifkan dan hapus",
-  "cost.live.tip": "Perkiraan lokal blok 5 jam saat ini dengan harga API, bukan tagihan.",
+  "cost.live.tip": "Perkiraan lokal blok {hours} jam saat ini dengan harga API, bukan tagihan.",
   "settings.cost.reconsent": "Yang dibaca berubah (sidik jari proyek ditambahkan): aktifkan lagi untuk meninjau dan terus membaca.",
   "settings.costBy.title": "Sesi, blok, dan proyek",
   "settings.costBy.help": "Dari indeks biaya lokal sumber yang aktif, selama periode yang disimpan. Perkiraan dengan harga API, bukan tagihan; proyek adalah sidik jari satu arah dari foldernya.",
@@ -1035,6 +1035,7 @@
   "settings.costBy.kpi.requestsCaption": "dalam periode",
   "settings.costBy.kpi.tokens": "Token",
   "settings.costBy.kpi.tokensCaption": "semua jenis",
+  "settings.costBy.kpi.partial": "+ biaya tidak diketahui untuk {amount} token",
   "settings.costBy.empty": "Tidak ada penggunaan di log yang dibaca untuk periode ini.",
   "settings.costBy.label": "Label {name}",
   "settings.costBy.col.source": "Sumber",
@@ -1046,9 +1047,6 @@
   "settings.costBy.col.project": "Proyek",
   "settings.costBy.minutes": "{m} mnt",
   "settings.costBy.hours": "{h} j {m} mnt",
-  "settings.costBy.moreSessions": {
-    "other": "{count} sesi lama tidak ditampilkan."
-  },
   "settings.costBy.providerWindow": "Jendela penyedia: {pct}% terpakai, direset pukul {at}",
   "settings.costBy.providerReset": "Jendela penyedia: direset pukul {at}",
   "settings.costBy.liveTitle": "Blok aktif · {source}",
@@ -1064,6 +1062,13 @@
   "settings.costBy.hoursUnit": "j",
   "settings.costBy.hint": "Simpan nama folder terakhir tiap proyek",
   "settings.costBy.hintHelp": "Mati secara bawaan. Jika aktif, nama folder terakhir tiap proyek disimpan di komputer ini untuk mengisi labelnya lebih dulu, mulai dari baris berikutnya yang ditulis alat itu; proyek yang sudah dibaca mendapatkannya saat log-nya bertambah. Tidak pernah diekspor. Mematikannya, atau mematikan sumbernya, menghapus nama yang disimpan.",
+  "settings.costBy.addLabel": "Tambahkan label",
+  "settings.costBy.code": "kode {short}",
+  "settings.costBy.codeHelp": "Kode ini milik Cuotai sendiri: karakter pertama dari sidik jari satu arah sesi atau folder, yang diterima cuotai --cost-label. Ini bukan ID sesi alat tersebut, yang tidak pernah disimpan.",
+  "settings.costBy.olderSessions": {
+    "other": "Tampilkan {count} sesi lama"
+  },
+  "settings.costBy.blocksCaption": "dalam blok yang berakhir dalam periode",
   "hooks.banner.unconfirmed": "Hook aktif, tetapi aturannya berubah sejak Anda mengonfirmasinya: tidak ada yang berjalan sampai Anda meninjaunya.",
   "hooks.banner.invalid": "Hook aktif, tetapi hooks.toml tidak dapat dipakai.",
   "extensions.title": "Ekstensi",

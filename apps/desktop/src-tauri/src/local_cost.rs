@@ -326,12 +326,14 @@ impl LocalCost {
 
     /// PRD 0042 RF6.1: one tab of Settings › Local cost › Sessions, blocks
     /// and projects over the saved period: `day` and `model` are the
-    /// cards' summary, `session` (newest 100), `block` (with the provider
+    /// cards' summary, `session` (100 at a time, newest first, from the
+    /// `offset`-th), `block` (with the provider
     /// window of `reports` beside the active one) and `project` the core's
     /// pages. Reads the index, never a log.
     pub fn breakdown(
         &self,
         by: Breakdown,
+        offset: usize,
         reports: &[cuotai_core::Report],
     ) -> Result<serde_json::Value, String> {
         let stores = self.stores()?;
@@ -345,7 +347,7 @@ impl LocalCost {
             Breakdown::Day | Breakdown::Model => json(serde_json::to_value(self.usage()?)),
             Breakdown::Session => json(serde_json::to_value(
                 scanner
-                    .sessions(&stores.pricing, span, now, Some(SESSION_ROWS), 0)
+                    .sessions(&stores.pricing, span, now, Some(SESSION_ROWS), offset)
                     .map_err(l10n)?,
             )),
             Breakdown::Block => {
@@ -732,10 +734,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let cost = local(dir.path());
         for by in Breakdown::ALL {
-            let value = cost.breakdown(by, &[]).unwrap();
+            let value = cost.breakdown(by, 0, &[]).unwrap();
             assert!(value.is_object(), "{by:?}");
         }
-        let blocks = cost.breakdown(Breakdown::Block, &[]).unwrap();
+        let blocks = cost.breakdown(Breakdown::Block, 0, &[]).unwrap();
+        let older = cost.breakdown(Breakdown::Session, 100, &[]).unwrap();
+        assert_eq!(older["sessions"], serde_json::json!([]));
         assert_eq!(blocks["blocks"], serde_json::json!([]));
         assert_eq!(blocks["live"], serde_json::json!([]));
         assert!(cost
@@ -790,7 +794,7 @@ mod tests {
         std::fs::write(logs.join("a.jsonl"), line(1, "/srv/example/a", 100, 3)).unwrap();
         std::fs::write(logs.join("b.jsonl"), line(2, "/srv/example/b", 5000, 2)).unwrap();
         LocalCost::scanner(stores, &cost.env).scan(now).unwrap();
-        let projects = cost.breakdown(Breakdown::Project, &[]).unwrap();
+        let projects = cost.breakdown(Breakdown::Project, 0, &[]).unwrap();
         let big = projects["projects"][0]["project"]
             .as_str()
             .unwrap()
@@ -798,17 +802,17 @@ mod tests {
         cost.set_hidden(&big, true).unwrap();
         let input = |value: &serde_json::Value| value["tokens"]["input"].as_u64().unwrap();
         for by in Breakdown::ALL {
-            let value = cost.breakdown(by, &[]).unwrap();
+            let value = cost.breakdown(by, 0, &[]).unwrap();
             assert_eq!(value["hidden_note"]["id"], "cost.hidden.note", "{by:?}");
             assert_eq!(input(&value["total"]), 100, "{by:?}");
         }
-        let blocks = cost.breakdown(Breakdown::Block, &[]).unwrap();
+        let blocks = cost.breakdown(Breakdown::Block, 0, &[]).unwrap();
         assert_eq!(input(&blocks["live"][0]["block"]["estimate"]), 100);
         let export = serde_json::to_value(cost.export().unwrap()).unwrap();
         assert_eq!(export["hidden_projects"], 1);
         assert_eq!(input(&export["total"]), 100);
         cost.set_hidden(&big, false).unwrap();
-        let value = cost.breakdown(Breakdown::Day, &[]).unwrap();
+        let value = cost.breakdown(Breakdown::Day, 0, &[]).unwrap();
         assert!(value.get("hidden_note").is_none());
         assert_eq!(input(&value["total"]), 5100);
     }
@@ -851,7 +855,7 @@ mod tests {
         LocalCost::scanner(stores, &cost.env)
             .scan(chrono::Utc::now())
             .unwrap();
-        let projects = cost.breakdown(Breakdown::Project, &[]).unwrap();
+        let projects = cost.breakdown(Breakdown::Project, 0, &[]).unwrap();
         let digest = projects["projects"][0]["project"].as_str().unwrap();
         assert_eq!(projects["hints"][digest], "HINTMARK-folder");
         let mut page = projects.clone();
@@ -867,7 +871,7 @@ mod tests {
             Breakdown::Session,
             Breakdown::Block,
         ] {
-            outputs.push(cost.breakdown(by, &[]).unwrap().to_string());
+            outputs.push(cost.breakdown(by, 0, &[]).unwrap().to_string());
         }
         for output in outputs {
             assert!(!output.contains("HINTMARK"), "{output}");
