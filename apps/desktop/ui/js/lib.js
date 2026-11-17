@@ -3112,6 +3112,31 @@ const demoElevenSchema = () => ({ credential_kind: "env", default_env: "ELEVENLA
     help: dl("field.eleven_labs.region.help", "default (default): api.elevenlabs.io. us, eu, in and sg: data-residency endpoints; use the one of the account's region."),
     required: false, options: DEMO_ELEVEN_REGIONS.map(([value, text], index) => ({ id: `field.eleven_labs.region.option.${value}`, index, value,
       label: dl(`field.eleven_labs.region.option.${value}`, text) })) }] });
+// PRD 0038 review F-07/F-08: the OpenRouter form as the backend's `form_schema` builds it: the product decides the key
+// (`decides_credential`), and `credential_variants` names each product's key and its page (`account_edit::credential_for`).
+const demoOpenRouterKeys = () => ({
+  key: { default_env: "OPENROUTER_API_KEY", key_page_slot: "credential_env", key_page: "https://openrouter.ai/settings/keys",
+    label: dl("secret_input.credential.open_router.inference.label", "Inference key"),
+    help: dl("secret_input.credential.open_router.inference.help", "An OpenRouter API key, the kind that makes inference calls: Cuotai reads only this key's limit, spend and free requests. It keeps the key in the system vault and sends it only to OpenRouter.") },
+  account: { default_env: "OPENROUTER_MANAGEMENT_KEY", key_page_slot: "management", key_page: "https://openrouter.ai/settings/management-keys",
+    label: dl("secret_input.credential.open_router.management.label", "Management key"),
+    help: dl("secret_input.credential.open_router.management.help", "An OpenRouter management key: it reads the account balance and cannot make inference calls. Cuotai keeps it in the system vault and sends it only to OpenRouter.") },
+});
+const demoOpenRouterChoice = (key, options) => options.map(([value, text], index) => ({ id: `field.open_router.${key}.option.${value}`, index, value,
+  label: dl(`field.open_router.${key}.option.${value}`, text) }));
+const demoOpenRouterSchema = (keys = demoOpenRouterKeys()) => ({ credential_kind: "env", default_env: "OPENROUTER_API_KEY", aggregator: false,
+  credential_help: dl("credential_help.open_router", ""), interval: { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
+  secret_inputs: [{ ...DEMO_KEY_INPUT, label: keys.key.label, help: keys.key.help, default_env: "OPENROUTER_API_KEY", key_page: keys.key.key_page }],
+  credential_variants: Object.entries(keys).map(([value, credential]) => ({ key: "product", value, credential })),
+  terminal_only_fields: [], preselect: [], login: { modes: [], unsupported_reason: null }, sessions: [], session_notice: null,
+  fields: [
+    { id: "field.open_router.product", key: "product", label: dl("field.open_router.product.label", "Product"), decides_credential: true,
+      help: dl("field.open_router.product.help", "key (default): limit, spend and free requests of the inference key. account: credit balance of the account with a management key."),
+      required: false, options: demoOpenRouterChoice("product", [["key", "Key limits (default)"], ["account", "Account balance (management key)"]]) },
+    { id: "field.open_router.breakdown", key: "breakdown", label: dl("field.open_router.breakdown.label", "Spend by origin (optional)"), decides_credential: false,
+      help: dl("field.open_router.breakdown.help", "Account balance only: sums the last 30 completed days of spend by upstream provider or by model, with one extra query per day."),
+      required: false, options: demoOpenRouterChoice("breakdown", [["off", "Off (default)"], ["provider", "By upstream provider"], ["model", "By model"]]) },
+  ] });
 // PRD 0036 re-validation (V-12): the 9router and LiteLLM forms as the backend's `form_schema` builds them (captured from
 // `form_schema(Provider::NineRouter | LiteLlm)`): `aggregator: true` (Test connection before the first save), the
 // address, filter and TLS fields with the core's ids, and the vault password / pasted session or the proxy key.
@@ -3236,7 +3261,7 @@ const demo = {
     };
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
-  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : provider === "eleven_labs" ? demoElevenSchema() : DEMO_AGG_FIELDS[provider] ? demoAggregatorSchema(provider) : ({ credential_kind: "env",
+  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : provider === "eleven_labs" ? demoElevenSchema() : provider === "open_router" ? demoOpenRouterSchema() : DEMO_AGG_FIELDS[provider] ? demoAggregatorSchema(provider) : ({ credential_kind: "env",
     interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 } : { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
     secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
       help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
@@ -3246,9 +3271,10 @@ const demo = {
     session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
     fields: [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
-  visible_fields: async ({ provider, authMode }) => provider === "kiro"
+  visible_fields: async ({ provider, choices, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
-    : provider === "aws_bedrock" ? ["cli_path"] : provider === "eleven_labs" ? ["region"] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
+    : provider === "aws_bedrock" ? ["cli_path"] : provider === "eleven_labs" ? ["region"]
+    : provider === "open_router" ? ["product", ...(choices?.product === 1 ? ["breakdown"] : [])] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
   field_choices: async ({ provider, choices, authMode }) => {
     const schema = provider === "kiro" ? demoKiroSchema() : await demo.form_schema({ provider });
     return schema.fields.filter((field) => field.options).map((field) => {

@@ -83,6 +83,8 @@ export const DESKTOP_WORDING = {
   "edit_error.config_base_url": SETTING_INVALID,
   "edit_error.env_invalid": KEY_REQUIRED,
   "edit_error.env_required": KEY_REQUIRED,
+  // PRD 0038 review F-07: a terminal variable of the other OpenRouter product; typing the key replaces it.
+  "edit_error.open_router.key_class": KEY_REQUIRED,
   "edit_error.param.env_name": KEY_REQUIRED,
   // A `params.*` value is missing.
   "query.missing_param": SETTING_MISSING,

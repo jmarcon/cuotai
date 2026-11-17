@@ -62,6 +62,11 @@ pub struct SecretInput {
     pub key_page: Option<&'static str>,
 }
 
+/// The key-page slot of OpenRouter's management key: the main credential
+/// of an account with `product = "account"`
+/// ([`account_edit::credential_for`]), not a vault slot of its own.
+pub const OPEN_ROUTER_MANAGEMENT_SLOT: &str = "management";
+
 /// Where each typed key is created, by provider and slot. Every address
 /// comes from the provider's official documentation (source in the
 /// comment, checked on 2026-10-27) and names the page of the key type the
@@ -177,6 +182,13 @@ const KEY_PAGES: &[(Provider, &str, &str)] = &[
         Provider::OpenRouter,
         CREDENTIAL_SLOT,
         "https://openrouter.ai/settings/keys",
+    ),
+    // openrouter.ai/docs/guides/overview/auth/management-api-keys: the
+    // account product's management key (PRD 0038 review F-08).
+    (
+        Provider::OpenRouter,
+        OPEN_ROUTER_MANAGEMENT_SLOT,
+        "https://openrouter.ai/settings/management-keys",
     ),
     // alibabacloud.com/help/en/model-studio/coding-plan: the plan-specific sk-sp key.
     (
@@ -355,7 +367,7 @@ pub fn is_key_page_url(url: &str) -> bool {
 }
 
 /// Generic help of a key, token or secret input.
-fn secret_help() -> Localized {
+pub(crate) fn secret_help() -> Localized {
     Localized::fixed(
         "secret_input.help",
         "Paste the value. Cuotai keeps it in the system vault and sends it only to this provider; the configuration file keeps just a reference.",
@@ -391,6 +403,13 @@ fn credential_label(provider: Provider) -> Localized {
     }
 }
 
+/// Label of the main credential: the session descriptor's, else
+/// [`credential_label`].
+pub(crate) fn main_credential_label(provider: Provider) -> Localized {
+    user_session::descriptor(provider, CREDENTIAL_SLOT)
+        .map_or_else(|| credential_label(provider), |d| d.label())
+}
+
 /// Whether `provider` asks for its main credential as a secret.
 fn has_credential(provider: Provider) -> bool {
     account_edit::credential_kind(provider) == CredentialKind::EnvVar
@@ -403,19 +422,22 @@ fn has_credential(provider: Provider) -> bool {
 pub fn secret_inputs(provider: Provider) -> Vec<SecretInput> {
     let mut inputs = Vec::new();
     if has_credential(provider) {
-        let declared = user_session::descriptor(provider, CREDENTIAL_SLOT);
+        // PRD 0038 review F-08: the default product's credential; a front
+        // end switches label, help and page with
+        // `account_edit::credential_variants` when a field decides it.
+        let credential = account_edit::credential_for(provider, &Default::default());
         inputs.push(SecretInput {
             slot: CREDENTIAL_SLOT,
-            label: declared.map_or_else(|| credential_label(provider), |d| d.label()),
-            help: secret_help(),
+            label: credential.label,
+            help: credential.help,
             // PRD 0036 RF2.1: a 9router instance may have login disabled.
             // PRD 0016: a provider that reads usage through a web session
             // takes a key or a session; the core checks one is there.
             required: provider != Provider::NineRouter && !user_session::session_or_key(provider),
             cookie: false,
             field: None,
-            default_env: account_edit::default_env(provider),
-            key_page: key_page(provider, CREDENTIAL_SLOT),
+            default_env: credential.default_env,
+            key_page: credential.key_page,
         });
     }
     for field in account_edit::field_descriptors(provider) {

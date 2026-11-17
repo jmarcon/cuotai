@@ -57,8 +57,15 @@ const dialog = await readFile(ui("js/account-dialog.js"), "utf8");
 // choice when that field is hidden), never in an advisory box at the end of the form.
 assert.doesNotMatch(dialog, /id="choice-notice"/);
 assert.match(dialog, /notices\.push\(\{ key: resolved\.key, text: tl\(resolved\.notice\) \}\)/);
-assert.match(dialog, /dynFields\.querySelector\(`\[data-field="f:\$\{CSS\.escape\(key\)\}"\]`\)\s*\?\? dynAuth\.querySelector\(`\[name="o:\$\{CSS\.escape\(key\)\}"\]`\)\?\.closest\("\.f"\)\s*\?\? dynAuth\.querySelector\("fieldset\.auth"\) \?\? dynFields;/);
+assert.match(dialog, /dyn\.querySelector\(`\[data-field="f:\$\{CSS\.escape\(key\)\}"\]`\)\s*\?\? dynAuth\.querySelector\(`\[name="o:\$\{CSS\.escape\(key\)\}"\]`\)\?\.closest\("\.f"\)\s*\?\? dynAuth\.querySelector\("fieldset\.auth"\) \?\? dynFields;/);
 assert.match(dialog, /note\.className = "hint choice-notice";\s*note\.setAttribute\("role", "status"\);/);
+// PRD 0038 review F-07/F-08: a field that decides the key (OpenRouter's product) sits right above the key field, and the
+// key's label, help and creation page come from the core's `credential_variants` for the chosen option.
+assert.match(dialog, /const leading = !mode && mainSecret\(\)\s*\? schema\.fields\.filter\(\(f\) => f\.decides_credential && visible\.has\(f\.key\)/);
+assert.match(dialog, /dynAuth\.innerHTML = authHtml \+ leading\.map\(fieldHtml\)\.join\(""\) \+ bodyHtml;/);
+assert.match(dialog, /!leading\.includes\(f\)/);
+assert.match(dialog, /for \(const v of schema\.credential_variants \?\? \[\]\)/);
+assert.match(dialog, /\{ \.\.\.secret, label: variant\.label, help: variant\.help, key_page: variant\.key_page \}/);
 // Peer: prefilled whenever the peer changes (never only on a visibility flip), with a placeholder and a hint.
 // PRD 0029 re-validation (V-01): what was typed for a peer comes back with that peer, never silently dropped.
 assert.match(dialog, /const key = peer \? `\$\{provider\}:\$\{peer\.index\}` : null;\s*if \(key !== peerKey\) \{\s*if \(peerKey\) peerValues\.set\(peerKey, peerInput\.value\);\s*peerInput\.value = key \? peerValues\.get\(key\) \?\? label : "";/);

@@ -87,6 +87,154 @@ pub fn default_env(provider: Provider) -> &'static str {
     }
 }
 
+/// PRD 0038 review F-07/F-08: the credential an account of a provider
+/// needs, given the values of its fields marked
+/// [`FieldDescriptor::decides_credential`]. Front ends ask for those fields
+/// first, then pre-fill the variable ([`Self::default_env`], terminal only),
+/// name the key ([`Self::label`], [`Self::help`]) and link the page where it
+/// is created ([`Self::key_page`]).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CredentialFor {
+    /// The conventional variable of this credential (empty when none).
+    pub default_env: &'static str,
+    /// The [`crate::secret_input`] key-page slot of this credential.
+    pub key_page_slot: &'static str,
+    /// HTTPS page where this exact key is created, when documented.
+    pub key_page: Option<&'static str>,
+    /// What the key is, in user terms (never a variable name).
+    pub label: crate::text::Localized,
+    /// Which key it is and how Cuotai keeps it (never a variable name).
+    pub help: crate::text::Localized,
+}
+
+/// OpenRouter's management key: the account product's credential.
+pub const OPEN_ROUTER_MANAGEMENT_ENV: &str = "OPENROUTER_MANAGEMENT_KEY";
+
+/// Whether an OpenRouter account with `params` reads the account balance
+/// (`product = "account"`), which needs a management key.
+fn open_router_account_product(params: &BTreeMap<String, String>) -> bool {
+    params.get("product").map(|p| p.trim()) == Some("account")
+}
+
+/// [`CredentialFor`] of `provider` with the field values `params` (option
+/// values for choices; absent keys take their defaults).
+pub fn credential_for(provider: Provider, params: &BTreeMap<String, String>) -> CredentialFor {
+    use crate::text::Localized;
+    use crate::user_session::CREDENTIAL_SLOT;
+    match provider {
+        Provider::OpenRouter if open_router_account_product(params) => CredentialFor {
+            default_env: OPEN_ROUTER_MANAGEMENT_ENV,
+            key_page_slot: crate::secret_input::OPEN_ROUTER_MANAGEMENT_SLOT,
+            key_page: crate::secret_input::key_page(
+                provider,
+                crate::secret_input::OPEN_ROUTER_MANAGEMENT_SLOT,
+            ),
+            label: Localized::fixed(
+                "secret_input.credential.open_router.management.label",
+                "Management key",
+            ),
+            help: Localized::fixed(
+                "secret_input.credential.open_router.management.help",
+                "An OpenRouter management key: it reads the account balance and cannot make inference calls. Cuotai keeps it in the system vault and sends it only to OpenRouter.",
+            ),
+        },
+        Provider::OpenRouter => CredentialFor {
+            default_env: default_env(provider),
+            key_page_slot: CREDENTIAL_SLOT,
+            key_page: crate::secret_input::key_page(provider, CREDENTIAL_SLOT),
+            label: Localized::fixed(
+                "secret_input.credential.open_router.inference.label",
+                "Inference key",
+            ),
+            help: Localized::fixed(
+                "secret_input.credential.open_router.inference.help",
+                "An OpenRouter API key, the kind that makes inference calls: Cuotai reads only this key's limit, spend and free requests. It keeps the key in the system vault and sends it only to OpenRouter.",
+            ),
+        },
+        _ => CredentialFor {
+            default_env: default_env(provider),
+            key_page_slot: CREDENTIAL_SLOT,
+            key_page: crate::secret_input::key_page(provider, CREDENTIAL_SLOT),
+            label: crate::secret_input::main_credential_label(provider),
+            help: crate::secret_input::secret_help(),
+        },
+    }
+}
+
+/// One option of a field marked [`FieldDescriptor::decides_credential`]
+/// and the credential it needs.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CredentialVariant {
+    /// The field key.
+    pub key: &'static str,
+    /// The option value.
+    pub value: &'static str,
+    pub credential: CredentialFor,
+}
+
+/// [`credential_for`] for every option of every field of `provider` that
+/// decides the credential, so a front end can switch the key's label, help
+/// and link as soon as the choice changes. Empty for most providers.
+pub fn credential_variants(provider: Provider) -> Vec<CredentialVariant> {
+    field_descriptors(provider)
+        .iter()
+        .filter(|field| field.decides_credential)
+        .filter_map(|field| match field.kind {
+            FieldDescriptorKind::Choice(choice) => Some((field.key, choice.options)),
+            FieldDescriptorKind::Text => None,
+        })
+        .flat_map(|(key, options)| {
+            options.iter().map(move |option| CredentialVariant {
+                key,
+                value: option.value,
+                credential: credential_for(
+                    provider,
+                    &BTreeMap::from([(key.to_string(), option.value.to_string())]),
+                ),
+            })
+        })
+        .collect()
+}
+
+/// PRD 0038 review F-07: a variable that names the other product's key.
+/// `Err` for a combination that cannot work (OpenRouter's inference-key
+/// variable with the account product); [`credential_class_warning`] covers
+/// the reverse, which works but shows another key's numbers.
+pub fn check_credential_class(
+    provider: Provider,
+    credential_env: Option<&str>,
+    params: &BTreeMap<String, String>,
+) -> Result<(), crate::text::Localized> {
+    if provider == Provider::OpenRouter
+        && credential_env.map(str::trim) == Some(default_env(provider))
+        && open_router_account_product(params)
+    {
+        return Err(crate::text::Localized::fixed(
+            "edit_error.open_router.key_class",
+            "The account balance needs a management key; OPENROUTER_API_KEY is the inference key's variable.",
+        ));
+    }
+    Ok(())
+}
+
+/// The warning of [`check_credential_class`]'s reverse case: the key view
+/// with OpenRouter's management-key variable.
+pub fn credential_class_warning(
+    provider: Provider,
+    credential_env: &str,
+    params: &BTreeMap<String, String>,
+) -> Option<crate::text::Localized> {
+    (provider == Provider::OpenRouter
+        && credential_env.trim() == OPEN_ROUTER_MANAGEMENT_ENV
+        && !open_router_account_product(params))
+    .then(|| {
+        crate::text::Localized::fixed(
+            "edit_error.open_router.key_class_warning",
+            "OPENROUTER_MANAGEMENT_KEY is the management key's variable: the key view then shows that management key's own numbers. Choose the account product for the balance.",
+        )
+    })
+}
+
 /// PRD 0047 T1/T2: the variable the TUI suggests for a new account of
 /// `provider` named `name` in `config` (`editing` is the account being
 /// edited, left out of the comparison). The first account of a provider
@@ -100,7 +248,20 @@ pub fn suggest_env_for(
     name: &str,
     editing: Option<usize>,
 ) -> String {
-    let default = default_env(provider);
+    suggest_env_with(provider, &BTreeMap::new(), config, name, editing)
+}
+
+/// [`suggest_env_for`] for the credential the field values `params` decide
+/// ([`credential_for`]): OpenRouter's account product suggests
+/// `OPENROUTER_MANAGEMENT_KEY` (PRD 0038 review F-07).
+pub fn suggest_env_with(
+    provider: Provider,
+    params: &BTreeMap<String, String>,
+    config: &Config,
+    name: &str,
+    editing: Option<usize>,
+) -> String {
+    let default = credential_for(provider, params).default_env;
     // Re-validation V-03: a 9router password is optional (the dashboard
     // login may be off), so a new account suggests no variable.
     if default.is_empty() || provider == Provider::NineRouter {
@@ -857,9 +1018,19 @@ pub struct FieldDescriptor {
     pub help: &'static str,
     pub required: bool,
     pub kind: FieldDescriptorKind,
+    /// PRD 0038 review F-07: the field decides which credential the account
+    /// needs ([`credential_for`]), so the editors ask for it before the
+    /// credential (OpenRouter's `product`).
+    pub decides_credential: bool,
 }
 
 impl FieldDescriptor {
+    /// Marks a field whose value decides the credential ([`credential_for`]).
+    pub const fn decides_credential(mut self) -> Self {
+        self.decides_credential = true;
+        self
+    }
+
     /// Convenience constructor for a plain text field.
     pub const fn text(
         key: &'static str,
@@ -873,6 +1044,7 @@ impl FieldDescriptor {
             help,
             required,
             kind: FieldDescriptorKind::Text,
+            decides_credential: false,
         }
     }
 
@@ -895,6 +1067,7 @@ impl FieldDescriptor {
                 options,
                 omit_default,
             }),
+            decides_credential: false,
         }
     }
 }
@@ -1727,7 +1900,8 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
                 ChoiceOptionDescriptor::new("account", "Account balance (management key)"),
             ],
             true,
-        ),
+        )
+        .decides_credential(),
         FieldDescriptor::choice(
             "breakdown",
             "Spend by origin (optional)",
@@ -2902,6 +3076,8 @@ pub fn build_account_with_secrets(
 
     validate_account_choice_params(*provider, &params, auth_mode)
         .map_err(|message| build_account_field_error("params", message))?;
+    check_credential_class(*provider, credential_env.as_deref(), &params)
+        .map_err(|message| build_account_field_error("credential_env", message))?;
     check_aggregator_base(*provider, &params)?;
 
     let refresh_seconds = parse_refresh_seconds_for(*provider, interval_text)
@@ -4453,6 +4629,77 @@ mod tests {
         let updated = config.upsert_account(account, Some(0)).unwrap();
         assert_eq!(updated.refresh_seconds, 300);
         assert_eq!(updated.accounts[0].refresh_seconds, Some(60));
+    }
+
+    /// PRD 0038 review F-07: OpenRouter's inference-key variable with the
+    /// account product is refused before saving, at the credential; the
+    /// management key's variable with the key view only warns.
+    #[test]
+    fn open_router_refuses_the_inference_key_variable_for_the_account_balance() {
+        let config = config_with(vec![]);
+        let product = |index: usize| {
+            [DraftField {
+                key: "product",
+                value: DraftValue::Choice(index),
+            }]
+        };
+        let build = |credential: &str, fields: &[DraftField]| {
+            build_account(
+                &AccountDraft {
+                    provider: Provider::OpenRouter,
+                    name: "OpenRouter",
+                    credential,
+                    auth_mode: AUTH_MODE_CREDENTIAL,
+                    oauth_mode: false,
+                    oauth_existing: None,
+                    oauth_authorized: None,
+                    oauth_login_params: BTreeMap::new(),
+                    existing_params: None,
+                    credential_params: None,
+                    fields,
+                    interval_text: "",
+                    group_text: None,
+                },
+                &config,
+                None,
+            )
+        };
+        match build("OPENROUTER_API_KEY", &product(1)).unwrap_err() {
+            crate::edit_error::EditError::Validation { field, note } => {
+                assert_eq!(field, Some("credential_env"));
+                assert_eq!(&*note.id, "edit_error.open_router.key_class");
+            }
+            other => panic!("{other:?}"),
+        }
+        let account = build("OPENROUTER_MANAGEMENT_KEY", &product(1)).unwrap();
+        assert_eq!(
+            account.params.get("product").map(String::as_str),
+            Some("account")
+        );
+        assert!(build("OPENROUTER_API_KEY", &product(0)).is_ok());
+        let account_params = BTreeMap::from([("product".to_string(), "account".to_string())]);
+        assert!(build("OPENROUTER_MANAGEMENT_KEY", &product(0)).is_ok());
+        assert_eq!(
+            credential_class_warning(
+                Provider::OpenRouter,
+                "OPENROUTER_MANAGEMENT_KEY",
+                &BTreeMap::new()
+            )
+            .map(|note| note.id.to_string()),
+            Some("edit_error.open_router.key_class_warning".to_string())
+        );
+        assert!(credential_class_warning(
+            Provider::OpenRouter,
+            "OPENROUTER_MANAGEMENT_KEY",
+            &account_params
+        )
+        .is_none());
+        assert!(check_credential_class(
+            Provider::Groq,
+            Some("OPENROUTER_API_KEY"),
+            &account_params
+        )
+        .is_ok());
     }
 
     #[test]
@@ -6352,14 +6599,30 @@ mod tests {
                             }
                         }
                         let oauth_mode = auth_mode == crate::oauth::login::MODE_OAUTH;
+                        // PRD 0038 review F-07: the drafted choices decide
+                        // the credential (OpenRouter's product).
+                        let chosen: BTreeMap<String, String> = draft_fields
+                            .iter()
+                            .filter_map(|field| {
+                                let DraftValue::Choice(index) = field.value else {
+                                    return None;
+                                };
+                                let FieldDescriptorKind::Choice(choice) =
+                                    crate::account_edit::descriptor(provider, field.key)?.kind
+                                else {
+                                    return None;
+                                };
+                                Some((
+                                    field.key.to_string(),
+                                    choice.options.get(index)?.value.to_string(),
+                                ))
+                            })
+                            .collect();
+                        let credential = credential_for(provider, &chosen).default_env;
                         let draft = AccountDraft {
                             provider,
                             name: provider.label(),
-                            credential: if oauth_mode {
-                                ""
-                            } else {
-                                suggested_credential(provider)
-                            },
+                            credential: if oauth_mode { "" } else { credential },
                             auth_mode,
                             oauth_mode,
                             oauth_existing: None,

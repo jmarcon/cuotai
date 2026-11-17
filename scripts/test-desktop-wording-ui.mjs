@@ -65,6 +65,7 @@ const NOT_RENDERED = [
   [/^detect\./, "the desktop device check uses its own consent (`dialog.detect.*`) and checks folders only (G1)"],
   [/^extensions\./, "an extension's manifest lists its own variables (PRD 0038)"],
   [/^access\.credential_hint\.extension$/, "extension access hint, same as above"],
+  [/^edit_error\.open_router\.key_class_warning$/, "only the terminal wizard shows it, beside the variable it is about (wizard.rs)"],
   [/^hooks\.confirm\.environment$/, "only in the native dialog Rust builds (PRD 0050 RF2.2), which names the hook's environment on purpose"],
 ];
 const notRendered = (id) => NOT_RENDERED.some(([re]) => re.test(id));
