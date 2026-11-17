@@ -27,6 +27,10 @@ struct WidgetAccount: Codable, Identifiable {
     /// file written by an older app.
     let accountId: String?
     let key: String
+    /// The account's place in the configuration (schema revision 2);
+    /// absent in a file written by an older app, which then keeps the
+    /// file's own order.
+    let position: Int?
     let name: String
     let provider: String
     /// The provider's display name; absent in a file written by an older
@@ -47,7 +51,7 @@ struct WidgetAccount: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case accountId = "id", key, name, provider, email, state, checkedAt = "checked_at"
         case providerName = "provider_name"
-        case freshness, binding, metrics, history
+        case freshness, binding, metrics, history, position
     }
 
     /// What a pinned widget stores: the stable id, else the legacy key.
@@ -65,6 +69,26 @@ struct WidgetAccount: Codable, Identifiable {
         let metric = metrics.indices.contains(binding.index) ? metrics[binding.index] : nil
         return WidgetText.choose([metric?.labelText, binding.labelText], raw: binding.rawLabel)
             .strippingPercentHint
+    }
+
+    /// [label] without a leading name the widget already shows beside it
+    /// ("Codex — 1-week window" under the account Codex reads "1-week
+    /// window"), so a small widget has room for what tells the quotas
+    /// apart. Any other label is unchanged.
+    func shortLabel(_ label: String) -> String {
+        let names = [providerName, Optional(provider), Optional(name)].compactMap { $0 }.filter { !$0.isEmpty }
+        for name in names {
+            for separator in [" — ", " – ", " - ", ": "] {
+                let prefix = name + separator
+                if label.count > prefix.count,
+                   label.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil {
+                    let rest = String(label.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+                    guard let first = rest.first else { return label }
+                    return first.uppercased() + rest.dropFirst()
+                }
+            }
+        }
+        return label
     }
 
     enum State {
@@ -145,6 +169,11 @@ struct WidgetAccount: Codable, Identifiable {
         }
 
         var isOverused: Bool { usedFraction > 1 }
+
+        /// What a widget's metric choice stores to find this metric again:
+        /// the adapter's label, an identifier that does not change with the
+        /// language. Never drawn.
+        var choiceKey: String { label }
 
         /// The name to draw, without the trailing unit hint `(%)` (the
         /// widgets print the percentage next to it): the text in the app's

@@ -30,6 +30,13 @@ name in that language) instead of the raw label. `render.sh` compiles the
 widget's `Localizable.xcstrings` next to its executable, so a fixture with a
 `locale` renders in that language; `--locale=<code>` overrides the fixture's
 (`render.sh fixtures/widget-edge.json out --states --locale=vi`).
+[`fixtures/widget-many.json`](fixtures/widget-many.json) has eight accounts
+(one exhausted, one stale, one with nothing used, one with a long name, one
+with a long window label, one without a plan limit, one unavailable), for the
+list layouts. `--states` also draws each of the widgets' choices once away
+from its default (`option-*` shots: what was used, compact, the
+configuration order with empty accounts hidden, a chosen quota, a shorter
+History period), and `--check` lays those out too.
 [`fixtures/widget-localized.json`](fixtures/widget-localized.json) is a German
 file with Portuguese raw labels. `--check` also lays every widget out in de,
 ru, hi-IN and vi (the longest translations), fails when a file in a language

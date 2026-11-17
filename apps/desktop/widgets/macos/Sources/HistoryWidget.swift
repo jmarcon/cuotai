@@ -16,19 +16,27 @@ struct HistoryEntry: TimelineEntry {
     /// The widget's size, from the timeline context (`.zero`: the family's
     /// own size, see `WidgetMetrics`).
     var displaySize: CGSize = .zero
+    /// How far back the chart reaches (the widget's choice).
+    var period: HistoryPeriod = .all
+    /// How it is drawn (the widget's choices).
+    var display = WidgetDisplay()
 
     init(date: Date, snapshot: WidgetSnapshot?, pinnedKey: String?, unreadable: Bool = false,
-         displaySize: CGSize = .zero) {
+         displaySize: CGSize = .zero, period: HistoryPeriod = .all, display: WidgetDisplay = WidgetDisplay()) {
         self.date = date
         self.snapshot = snapshot
         self.pinnedKey = pinnedKey
         self.unreadable = unreadable
         self.displaySize = displaySize
+        self.period = period
+        self.display = display
+        self.display.now = date
     }
 
-    init(date: Date, read: SnapshotRead, pinnedKey: String?, displaySize: CGSize = .zero) {
+    init(date: Date, read: SnapshotRead, pinnedKey: String?, displaySize: CGSize = .zero,
+         period: HistoryPeriod = .all, display: WidgetDisplay = WidgetDisplay()) {
         self.init(date: date, snapshot: read.snapshot, pinnedKey: pinnedKey, unreadable: read.isUnreadable,
-                  displaySize: displaySize)
+                  displaySize: displaySize, period: period, display: display)
     }
 
     /// The account to chart: the pinned one, else the first published
@@ -39,8 +47,12 @@ struct HistoryEntry: TimelineEntry {
         return accounts.first { $0.isPinned(pinnedKey) }
     }
 
+    /// The published series, within the chosen period.
     var points: [WidgetAccount.HistoryPoint] {
-        account?.history ?? []
+        let all = account?.history ?? []
+        guard let span = period.span else { return all }
+        let start = date.addingTimeInterval(-span)
+        return all.filter { $0.takenAt >= start }
     }
 }
 
@@ -49,20 +61,26 @@ struct HistoryProvider: AppIntentTimelineProvider {
         HistoryEntry(date: Date(), snapshot: nil, pinnedKey: nil, displaySize: context.displaySize)
     }
 
-    func snapshot(for configuration: AccountIntent, in context: Context) async -> HistoryEntry {
-        entry(for: configuration, in: context)
+    func snapshot(for configuration: HistoryIntent, in context: Context) async -> HistoryEntry {
+        entry(for: configuration, in: context, read: WidgetSnapshot.read(), date: Date())
     }
 
-    func timeline(for configuration: AccountIntent, in context: Context) async -> Timeline<HistoryEntry> {
-        let next = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date()
-        return Timeline(entries: [entry(for: configuration, in: context)], policy: .after(next))
+    func timeline(for configuration: HistoryIntent, in context: Context) async -> Timeline<HistoryEntry> {
+        let read = WidgetSnapshot.read()
+        WidgetTimeline.announce(read)
+        let now = Date()
+        let entries = WidgetTimeline.dates(from: now).map { entry(for: configuration, in: context, read: read, date: $0) }
+        return Timeline(entries: entries, policy: WidgetTimeline.policy(from: now))
     }
 
-    private func entry(for configuration: AccountIntent, in context: Context) -> HistoryEntry {
-        HistoryEntry(date: Date(),
-                     read: WidgetSnapshot.read(),
+    private func entry(for configuration: HistoryIntent, in context: Context, read: SnapshotRead,
+                       date: Date) -> HistoryEntry {
+        HistoryEntry(date: date,
+                     read: read,
                      pinnedKey: configuration.account?.id,
-                     displaySize: context.displaySize)
+                     displaySize: context.displaySize,
+                     period: configuration.period,
+                     display: configuration.display)
     }
 }
 
@@ -71,57 +89,36 @@ struct HistoryWidgetEntryView: View {
     let entry: HistoryEntry
 
     /// The language the widget lays out in (`WidgetCanvas` sets it for the
-    /// views inside; the span below is formatted here, outside them).
+    /// views inside; the texts below are formatted here, outside them).
     private var locale: Locale { entry.snapshot?.language ?? systemLocale }
+
+    private var display: WidgetDisplay { entry.display }
 
     var body: some View {
         WidgetCanvas(displaySize: entry.displaySize, language: entry.snapshot?.language) { size in
             content(size)
         }
+        .environment(\.widgetDisplay, entry.display)
     }
 
+    @ViewBuilder
     private func content(_ size: CGSize) -> some View {
-        // A state or the chart takes what the header leaves (`box`).
-        VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(title: entry.account.map { Text(verbatim: $0.name) } ?? Text("History"),
-                         width: size.width)
-            if entry.unreadable {
-                SnapshotUnreadableView(size: size)
-            } else if entry.snapshot == nil {
-                // No file: widgets are off or the app never published one.
-                EmptyStateView(size: size)
-            } else if entry.pinnedKey != nil && entry.account == nil {
-                // The pinned account went away: say it, never chart another
-                // account and never blame the history setting (RF3.2).
-                AccountUnavailableView(size: size)
-            } else if let account = entry.account, !entry.points.isEmpty {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(Int(((account.binding?.usedRatio ?? entry.points.last?.usedFraction ?? 0).safeFraction * 100).rounded()))%")
-                        .font(.system(.title2, design: .rounded).weight(.semibold))
-                        .monospacedDigit()
-                        .fixedSize()
-                    Text("\(account.bindingLabel ?? account.name) · last \(spanLabel)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .layoutPriority(-1)
-                    Gap.horizontal(size.width, min: 4)
-                    MeasurementAge(checkedAt: account.checkedAt,
-                                   freshness: account.freshness,
-                                   stale: account.isStale)
-                }
-                .frame(width: size.width, alignment: .leading)
-                chart(points: entry.points)
-                    // The 0% label is centred on the bottom line: room for
-                    // its lower half inside the margin.
-                    .padding(.bottom, 4)
-                    // As wide as the widget; as tall as the lines above
-                    // leave, never taller than the widget.
-                    .box(size)
-                    .opacity(account.isStale ? 0.6 : 1)
-            } else {
-                // No series: the app has no history for this account. Say it
-                // instead of drawing nothing.
+        if entry.unreadable {
+            SnapshotUnreadableView(size: size)
+        } else if entry.snapshot == nil {
+            // No file: widgets are off or the app never published one.
+            EmptyStateView(size: size)
+        } else if entry.pinnedKey != nil && entry.account == nil {
+            // The pinned account went away: say it, never chart another
+            // account and never blame the history setting (RF3.2).
+            AccountUnavailableView(size: size)
+        } else if let account = entry.account, !entry.points.isEmpty {
+            chartView(account, size)
+        } else {
+            // No series: the app has no history for this account. Say it
+            // instead of drawing nothing.
+            VStack(alignment: .leading, spacing: 6) {
+                title(entry.account, width: size.width)
                 VStack(spacing: 4) {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.title3)
@@ -134,16 +131,85 @@ struct HistoryWidgetEntryView: View {
                 }
                 .box(size)
             }
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+        }
+    }
+
+    /// The first line: whose quota this is (the information, not the app).
+    private func title(_ account: WidgetAccount?, width: CGFloat) -> some View {
+        let name = account.map { Text(verbatim: $0.name).bold() } ?? Text("History")
+        let label = account?.headline().map(\.label).flatMap { $0.isEmpty ? nil : $0 }
+        return (label.map { name + Text(verbatim: " · ") + Text(verbatim: $0).foregroundColor(.secondary) } ?? name)
+            .font(.caption)
+            .lineLimit(1)
+            .frame(width: WidgetMetrics.finite(width), alignment: .leading)
+    }
+
+    private func chartView(_ account: WidgetAccount, _ size: CGSize) -> some View {
+        let points = entry.points
+        let headline = account.headline()
+        let share = headline?.share
+            ?? QuotaShare(used: points.last?.usedFraction ?? 0, exhausted: false)
+        let reset = display.showReset ? ResetText.text(headline?.resetsAt, now: entry.date, locale: locale) : nil
+        let detailed = display.detail == .detailed
+        return VStack(alignment: .leading, spacing: 4) {
+            title(account, width: size.width)
+            // The value, its unit word and the reset: plain texts on their
+            // own line, inside the margins.
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(verbatim: share.text(locale, display.share))
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                    .foregroundStyle(share.level.color)
+                    .monospacedDigit()
+                    .fixedSize()
+                (display.share == .remaining ? Text("left") : Text("used"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                if let reset {
+                    (Text(verbatim: "· ") + reset)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
+                Gap.horizontal(size.width)
+            }
+            .frame(width: size.width, alignment: .leading)
+            chart(points: points, current: share, compactAxis: !detailed)
+                // Without the axis labels the plot reaches both edges: room
+                // for the end point's mark inside the margins.
+                .padding(.horizontal, detailed ? 0 : 4)
+                .box(size)
+                .opacity(account.isStale ? 0.5 : 1)
+            // The span on the left, the age on the right: two frames of
+            // fixed widths, so the live age is never sized by its content.
+            if detailed || display.showAge || account.isStale {
+                ZStack(alignment: .topLeading) {
+                    if detailed {
+                        Text("Last \(spanLabel(points))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .frame(width: size.width * 0.4, alignment: .leading)
+                    }
+                    if display.showAge || account.isStale {
+                        AgeLine(checkedAt: account.checkedAt, freshness: account.freshness, stale: account.isStale,
+                                width: size.width, alignment: .trailing)
+                    }
+                }
+                .frame(width: size.width, height: 13, alignment: .topLeading)
+                .frame(width: size.width, alignment: .leading)
+            }
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
-    /// The span the series covers, as the file published it.
-    /// In the system's own abbreviated units ("23 h", "2 d", or the
-    /// language's own), whole hours below a day and whole days above.
-    private var spanLabel: String {
-        let hours = entry.points.first
-            .map { Int(entry.date.timeIntervalSince($0.takenAt) / 3600) } ?? 24
+    /// The span the series covers, in the system's own abbreviated units
+    /// ("23 h", "2 d", or the language's own), whole hours below a day and
+    /// whole days above.
+    private func spanLabel(_ points: [WidgetAccount.HistoryPoint]) -> String {
+        let hours = points.first.map { Int(entry.date.timeIntervalSince($0.takenAt) / 3600) } ?? 24
         let formatter = DateComponentsFormatter()
         var calendar = Calendar.current
         calendar.locale = locale
@@ -161,43 +227,54 @@ struct HistoryWidgetEntryView: View {
         return formatter.string(from: span) ?? ""
     }
 
-    /// The labelled marks: quarters of the limit, or the limit and the top
-    /// when a sample went over it (the bottom label would crowd the limit's
-    /// once the top is several times the limit).
-    private func axisValues(top: Double) -> [Double] {
-        if top <= 1 { return [0, 0.5, 1] }
-        return top < 4 ? [0, 1, top] : [1, top]
+    /// The share the chart plots for one sample, in the widget's choice.
+    private func value(_ used: Double) -> Double {
+        display.share == .remaining ? max(0, 1 - min(used.safeFraction, 1)) : used.safeFraction
     }
 
-    private func chart(points: [WidgetAccount.HistoryPoint]) -> some View {
-        // Overuse stays visible: the scale grows past 100% when a sample
-        // does, up to the file's own ceiling.
-        let top = max(1, points.map(\.usedFraction.safeFraction).max() ?? 1)
-        return Chart(points, id: \.takenAt) { point in
-            AreaMark(x: .value("When", point.takenAt),
-                     y: .value("Used", point.usedFraction.safeFraction))
-                .foregroundStyle(.linearGradient(colors: [Color.accentColor.opacity(0.35), Color.accentColor.opacity(0.05)],
-                                                 startPoint: .top, endPoint: .bottom))
-                .interpolationMethod(.monotone)
-            LineMark(x: .value("When", point.takenAt),
-                    y: .value("Used", point.usedFraction.safeFraction))
-                .foregroundStyle(.tint)
-                .interpolationMethod(.monotone)
+    private func chart(points: [WidgetAccount.HistoryPoint], current: QuotaShare, compactAxis: Bool) -> some View {
+        // Overuse stays visible when the chart shows what was used: the
+        // scale grows past 100% when a sample does, up to the file's own
+        // ceiling. What is left never goes below 0 or above 100%.
+        let top = max(1, points.map { value($0.usedFraction) }.max() ?? 1)
+        let marks: [Double] = top <= 1 ? [0, 1] : [0, 1, top]
+        let last = points.last
+        return Chart {
+            ForEach(points, id: \.takenAt) { point in
+                AreaMark(x: .value("When", point.takenAt),
+                         y: .value("Share", value(point.usedFraction)))
+                    .foregroundStyle(.linearGradient(colors: [Color.accentColor.opacity(0.35), Color.accentColor.opacity(0.05)],
+                                                     startPoint: .top, endPoint: .bottom))
+                    .interpolationMethod(.monotone)
+                LineMark(x: .value("When", point.takenAt),
+                         y: .value("Share", value(point.usedFraction)))
+                    .foregroundStyle(.tint)
+                    .interpolationMethod(.monotone)
+            }
+            if let last {
+                // Where the series ends: the latest reading, in its level.
+                PointMark(x: .value("When", last.takenAt), y: .value("Share", value(last.usedFraction)))
+                    .foregroundStyle(current.level.color)
+                    .symbolSize(28)
+            }
         }
         .chartYScale(domain: 0...top)
         .chartYAxis {
-            AxisMarks(position: .trailing, values: axisValues(top: top)) { value in
+            AxisMarks(position: .trailing, values: marks) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
-                AxisValueLabel {
-                    if let ratio = value.as(Double.self) {
-                        Text(ratio, format: .percent.precision(.fractionLength(0)))
+                if !compactAxis {
+                    AxisValueLabel {
+                        if let ratio = value.as(Double.self) {
+                            Text(ratio, format: .percent.precision(.fractionLength(0)))
+                                .font(.system(size: 8))
+                        }
                     }
                 }
             }
         }
         .chartXAxis(.hidden)
         .accessibilityLabel(Text("Consumption history"))
-        .accessibilityValue(Text("\(points.count) samples, now \(Int((points.last?.usedFraction ?? 0).safeFraction * 100)) percent"))
+        .accessibilityValue(Text("\(points.count) samples, now \(current.text(locale, display.share))"))
     }
 }
 
@@ -205,7 +282,7 @@ struct HistoryWidget: Widget {
     static let kind = "dev.cuotai.desktop.history"
 
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: Self.kind, intent: AccountIntent.self, provider: HistoryProvider()) { entry in
+        AppIntentConfiguration(kind: Self.kind, intent: HistoryIntent.self, provider: HistoryProvider()) { entry in
             HistoryWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
