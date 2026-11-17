@@ -79,7 +79,30 @@ export async function loadUserContent() {
   }
   try { localStorage.setItem("cuotai.userLocales", JSON.stringify(userLocales)); } catch {}
   userContent.errors = errors.map((e) => (typeof e === "string" ? { kind: "theme", name: e, reason: "unreadable" } : e));
+  // A "protected" notice belongs to one content of one file: the core's digest of it (S-01 migration).
+  for (const e of userContent.errors) {
+    if (e.reason !== "protected") continue;
+    const digest = raw.locales.find((l) => l?.name === e.name)?.digest;
+    if (typeof digest === "string") e.key = `${digest}:${e.name}`;
+  }
   return userContent;
+}
+
+// PRD 0035 re-validation S-01: a pack whose protected texts the core dropped is reported in the main window once per
+// content of the file (`name` plus the core's `digest`); after Dismiss it returns only when the file changes.
+// Settings › Files keeps every notice. Stored as lines, never parsed as JSON.
+const SEEN = "cuotai.packNotices";
+const seenKeys = () => { try { return (localStorage.getItem(SEEN) ?? "").split("\n").filter(Boolean); } catch { return []; } };
+/** The notices the main window shows: every refusal, and each "protected" notice not yet dismissed for this content. */
+export const bannerNotices = () => {
+  const seen = new Set(seenKeys());
+  return userContent.errors.filter((e) => !(e.reason === "protected" && e.key && seen.has(e.key)));
+};
+/** Dismisses the "protected" notice of one pack content (`key` from `bannerNotices`). */
+export function dismissNotice(key) {
+  if (typeof key !== "string" || !key) return;
+  const keys = [...new Set([...seenKeys(), key])].slice(-64);
+  try { localStorage.setItem(SEEN, keys.join("\n")); } catch {}
 }
 
 // PRD 0050 RF3.3: a pack that tried to replace protected security texts still loads; the shell removed those texts.

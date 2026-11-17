@@ -12,7 +12,7 @@ export function eraseHtml() {
   return row({ key: "erase-all", label: te("settings.erase.label"), desc: te("settings.erase.desc"), info: te("settings.erase.help"),
     danger: true, msg: "erase-all-msg",
     control: () => buttons(`<button class="btn sm danger-btn" data-erase-all>${icon("trash")} ${te("settings.erase.open")}</button>`),
-    body: `<div class="confirm" id="erase-all-confirm" role="alertdialog" aria-labelledby="erase-all-title" aria-describedby="erase-all-text" hidden></div>` });
+    body: `<div class="confirm" id="erase-all-confirm" data-protected-texts="erase-all" role="alertdialog" aria-labelledby="erase-all-title" aria-describedby="erase-all-text" hidden></div>` });
 }
 
 /** One inventory line: where it is (a home-abbreviated path) and its stable id. A vault service leads with the core's
@@ -36,7 +36,7 @@ export function erasePanelHtml(plan, includeConfig = false) {
     <label class="f"><span>${te("settings.erase.word", { word: plan?.word ?? "" })}</span>
       <input type="text" id="erase-all-word" data-erase-word autocomplete="off" spellcheck="false" autocapitalize="off" /></label>
     <div class="dlg-actions left"><button class="btn danger-btn" data-erase-all-confirm disabled>${te("settings.erase.confirm")}</button>
-      <button class="btn" data-erase-all-cancel>${te("common.cancel")}</button></div>`;
+      <button class="btn" data-erase-all-cancel>${te("confirm.cancel")}</button></div>`;
 }
 
 /** The confirm button stays off until the typed text is exactly the word (spaces around it ignored, as in Rust). */

@@ -18,7 +18,7 @@ export const channelsRowHtml = () => subRow({ key: "channels", label: te("settin
 
 /** The sub-page; the list is drawn once the page loads (`bindChannels`). */
 export const channelsHtml = () => subpage("channels", te("settings.channels.title"),
-  `<section class="set-sec" data-channels><div data-channels-body><p class="hint">${te("settings.channels.loading")}</p></div></section>`);
+  `<section class="set-sec" data-channels data-protected-texts="channels"><div data-channels-body><p class="hint">${te("settings.channels.loading")}</p></div></section>`);
 
 /** "Thresholds, Exhaustion · of every account · names hidden": the core's words, the kinds listed the language's way. */
 export const filterWords = (w) => [esc(listText(w.kinds.map((k) => tl(k)))), tle(w.accounts), w.severity ? tle(w.severity) : "", tle(w.names)].filter(Boolean).join(" · ");
@@ -86,7 +86,7 @@ export function formHtml(view, channel) {
     <label class="check" data-channel-sign-row ${kind === "webhook" ? "" : "hidden"}><input type="checkbox" class="chk" data-channel-sign ${channel?.signed ? "checked" : ""} />
       <span>${te("settings.channels.sign")} <small>${te("settings.channels.signHelp")}</small></span></label>
     <p class="err" data-channel-err role="alert"></p>
-    <div class="dlg-actions"><button class="btn" type="button" data-channel-cancel>${te("common.cancel")}</button>
+    <div class="dlg-actions"><button class="btn" type="button" data-channel-cancel>${te("confirm.cancel")}</button>
       <button class="btn primary" type="button" data-channel-next>${te("settings.channels.continue")}</button></div>`;
 }
 
@@ -100,7 +100,7 @@ export function consentHtml(consent) {
     <div class="f"><span>${te("settings.channels.example")}</span><pre class="channel-example" tabindex="0">${esc(consent.example)}</pre></div>
     <p><strong>${tle(consent.sentence)}</strong></p>
     <p class="err" data-channel-err role="alert"></p>
-    <div class="dlg-actions"><button class="btn" type="button" data-channel-back>${te("common.back")}</button>
+    <div class="dlg-actions"><button class="btn" type="button" data-channel-back>${te("confirm.back")}</button>
       <button class="btn primary" type="button" data-channel-save>${te("settings.channels.save")}</button></div>`;
 }
 
@@ -116,6 +116,7 @@ function openEditor(view, channel) {
   return new Promise((resolve) => {
     const d = document.createElement("dialog");
     d.className = "dlg channel-dlg";
+    d.setAttribute("data-protected-texts", "channel-editor");
     d.setAttribute("aria-labelledby", "channel-dlg-title");
     const body = document.createElement("div");
     body.className = "dlg-body";

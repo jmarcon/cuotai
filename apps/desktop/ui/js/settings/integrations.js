@@ -7,8 +7,8 @@ import { bindHooks, hooksHtml } from "./hooks.js";
 import { buttons, commitField, disc, num, pathHtml, row, seg, sw, toast } from "./rows.js";
 
 export function html() {
-  return group("serve", te("settings.serve.title"), `<div data-serve><p class="hint">${te("common.loading")}</p></div>`, "data-integration")
-    + group("hooks", te("settings.hooks.title"), `<div data-hooks><p class="hint">${te("common.loading")}</p></div>`)
+  return group("serve", te("settings.serve.title"), `<div data-serve><p class="hint">${te("common.loading")}</p></div>`, 'data-integration data-protected-texts="serve"')
+    + group("hooks", te("settings.hooks.title"), `<div data-hooks><p class="hint">${te("common.loading")}</p></div>`, 'data-protected-texts="hooks"')
     + group("widgets", te("settings.widgets.title"), `<div data-widgets><p class="hint">${te("common.loading")}</p></div>`)
     // RF3.4 (PRD 0020 re-validation R-10): the actions that break other programs, in one group at the end of the page.
     + group("integrations-danger", te("settings.integrations.danger"), `<div data-integrations-danger><p class="hint">${te("common.loading")}</p></div>`);
@@ -85,10 +85,10 @@ export function integrationHtml(sv, message = []) {
           <div class="dlg-actions left"><button class="btn" data-serve-origins-save>${te("settings.serve.origins.save")}</button></div>
           <p class="err" id="serve-origins-msg" role="alert"></p>
         </div>
-        <div class="confirm" id="serve-browsers-confirm" role="alertdialog" aria-labelledby="serve-browsers-text" hidden>
+        <div class="confirm" id="serve-browsers-confirm" data-protected-texts="serve-browsers" role="alertdialog" aria-labelledby="serve-browsers-text" hidden>
           <p id="serve-browsers-text">${tle(sv.browsers_warning)}</p>
           <div class="dlg-actions left"><button class="btn danger-btn" data-serve-browsers-confirm>${te("settings.serve.browsersConfirm")}</button>
-            <button class="btn" data-serve-browsers-cancel>${te("common.cancel")}</button></div>
+            <button class="btn" data-serve-browsers-cancel>${te("confirm.cancel")}</button></div>
         </div>` })), message);
 }
 

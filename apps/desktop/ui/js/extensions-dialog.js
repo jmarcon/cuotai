@@ -18,13 +18,14 @@ const el = (tag, cls, text) => {
 
 export async function openExtensionsDialog({ onChanged = () => {}, onRemove = () => {}, consentFor = null } = {}) {
   const dlg = el("dialog", "dlg extensions-dlg");
+  dlg.setAttribute("data-protected-texts", "extensions");
   const header = el("header", "dlg-head");
   header.append(el("h2", "", t("extensions.title")));
   const close = el("button", "icon");
   close.innerHTML = icon("x");
   close.type = "button";
-  close.title = t("common.close");
-  close.setAttribute("aria-label", t("common.close"));
+  close.title = t("confirm.close");
+  close.setAttribute("aria-label", t("confirm.close"));
   close.addEventListener("click", () => dlg.close());
   header.append(close);
   dlg.append(header);
@@ -61,7 +62,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
   });
   foot.append(folder);
   if (closeHost) {
-    const done = el("button", "btn", t("common.close"));
+    const done = el("button", "btn", t("confirm.close"));
     done.type = "button";
     done.addEventListener("click", closeHost);
     foot.append(done);
@@ -192,6 +193,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
       const { lines } = await extensionDisclosure(id);
       const box = el("section", "extension-consent");
       box.setAttribute("role", "alertdialog");
+      box.setAttribute("data-protected-texts", "extension-consent");
       box.setAttribute("aria-label", t("extensions.consentTitle"));
       box.append(el("h3", "", t("extensions.consentTitle")));
       // PRD 0050 RF8.3: a requested name that is another account's credential variable stands apart, with an icon
@@ -207,7 +209,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
       check.type = "checkbox";
       label.append(check, document.createTextNode(t("extensions.confirm")));
       const buttons = el("div", "extension-actions");
-      const cancel = actionButton(t("common.cancel"), async () => box.remove());
+      const cancel = actionButton(t("confirm.cancel"), async () => box.remove());
       const approve = actionButton(t("extensions.approve"), async () => {
         if (!check.checked) return;
         try {
@@ -244,6 +246,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
         return;
       }
       const box = el("section", "extension-consent extension-secrets");
+      box.setAttribute("data-protected-texts", "extension-secrets");
       box.setAttribute("aria-label", t("extensions.secretsTitle"));
       box.append(el("h3", "", t("extensions.secretsTitle")));
       box.append(el("p", "help", t("extensions.secretsHelp")));
@@ -267,7 +270,7 @@ export async function mountExtensions(host, { onChanged = () => {}, onRemove = (
         box.append(label, save);
       }
       const buttons = el("div", "extension-actions");
-      buttons.append(actionButton(t("common.close"), async () => box.remove()));
+      buttons.append(actionButton(t("confirm.close"), async () => box.remove()));
       box.append(buttons);
       list.prepend(box);
       box.querySelector("input")?.focus();

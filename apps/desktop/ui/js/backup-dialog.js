@@ -15,17 +15,18 @@ const open = (cls, titleId, title, from) => {
   if (dlg?.open) return null;
   dlg = document.createElement("dialog");
   dlg.className = `dlg dlg-shell ${cls}`;
+  dlg.setAttribute("data-protected-texts", "backup");
   dlg.setAttribute("aria-labelledby", titleId);
   document.body.append(dlg);
   dlg.addEventListener("close", () => { dlg?.remove(); dlg = null; });
-  dlg.innerHTML = shellHtml({ id: titleId, title, body: `<p class="hint">${te("common.loading")}</p>` });
+  dlg.innerHTML = shellHtml({ id: titleId, title, body: `<p class="hint">${te("common.loading")}</p>`, protectedTexts: "backup" });
   bindShell(dlg);
   showDialog(dlg, from);
   return dlg;
 };
 
 const fill = (box, { id, title, body, foot }) => {
-  box.innerHTML = shellHtml({ id, title, body, foot });
+  box.innerHTML = shellHtml({ id, title, body, foot, protectedTexts: "backup" });
   bindShell(box);
   focusFirst(box);
 };
@@ -51,7 +52,7 @@ export async function openBackupDialog(from = null, { onDone = null } = {}) {
     catch (e) {
       if (!dlg) return;
       fill(box, { id: "backup-title", title: t("backup.title"), body: `<p class="err" role="alert">${esc(errText(e))}</p>`,
-        foot: `<button class="btn" data-shell-close>${te("common.close")}</button>` });
+        foot: `<button class="btn" data-shell-close>${te("confirm.close")}</button>` });
       return;
     }
     if (!dlg) return;
@@ -59,7 +60,7 @@ export async function openBackupDialog(from = null, { onDone = null } = {}) {
       id: "backup-title",
       title: t("backup.title"),
       body: backupBodyHtml(view, withHistory),
-      foot: `<button class="btn" data-shell-close>${te("common.cancel")}</button>
+      foot: `<button class="btn" data-shell-close>${te("confirm.cancel")}</button>
         <button class="btn primary" data-backup-save>${icon("download")} ${te("backup.save")}</button>`,
     });
     box.querySelector("[data-backup-history]").onchange = (e) => { withHistory = e.target.checked; paint(); };
@@ -73,7 +74,7 @@ export async function openBackupDialog(from = null, { onDone = null } = {}) {
           id: "backup-title",
           title: t("backup.title"),
           body: `<p role="status">${te("backup.done", { path: written.path, count: written.files.length })}</p><p class="hint">${te("backup.noSecret")}</p>`,
-          foot: `<button class="btn primary" data-shell-close>${te("common.close")}</button>`,
+          foot: `<button class="btn primary" data-shell-close>${te("confirm.close")}</button>`,
         });
         onDone?.(written);
       } catch (e) { error.textContent = errText(e); }
@@ -123,7 +124,7 @@ export async function openRestoreDialog(from = null, { onOpenAccount = null } = 
   if (!box) return;
   if (failure) {
     fill(box, { id: "restore-title", title: t("restore.title"), body: `<p class="err" role="alert">${esc(errText(failure))}</p>`,
-      foot: `<button class="btn" data-shell-close>${te("common.close")}</button>` });
+      foot: `<button class="btn" data-shell-close>${te("confirm.close")}</button>` });
     return;
   }
   const { token, plan } = picked;
@@ -131,7 +132,7 @@ export async function openRestoreDialog(from = null, { onOpenAccount = null } = 
     id: "restore-title",
     title: t("restore.title"),
     body: planBodyHtml(plan),
-    foot: `<button class="btn" data-shell-close>${te("common.cancel")}</button>
+    foot: `<button class="btn" data-shell-close>${te("confirm.cancel")}</button>
       <button class="btn primary" data-restore-go>${te("restore.go")}</button>`,
   });
   box.querySelector("[data-restore-go]").onclick = async () => {
@@ -147,7 +148,7 @@ export async function openRestoreDialog(from = null, { onOpenAccount = null } = 
       title: t("restore.title"),
       body: nextStepsHtml(plan, done, accountsRestored),
       foot: `${done.restart ? `<button class="btn" data-restore-restart>${te("restore.restart")}</button>` : ""}
-        <button class="btn primary" data-shell-close>${te("common.close")}</button>`,
+        <button class="btn primary" data-shell-close>${te("confirm.close")}</button>`,
     });
     for (const b of box.querySelectorAll("[data-restore-step]")) {
       b.onclick = () => (onOpenAccount ?? ((index) => requestAccountAction("edit", index)))(Number(b.dataset.restoreStep));

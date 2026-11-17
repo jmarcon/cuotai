@@ -324,7 +324,7 @@ mod tests {
         let files = vec![
             UserFile {
                 name: "fr.json".into(),
-                text: r#"{"_meta":{"name":"Français"},"tray.ok":"OK","serve.allow_browsers.warning":"Sans risque","dialog.delete":"Supprimer"}"#.into(),
+                text: r#"{"_meta":{"name":"Français"},"tray.ok":"OK","common.cancel":"Annuler","serve.allow_browsers.warning":"Sans risque","dialog.deleteTitle":"Supprimer","confirm.cancel":"Supprimer"}"#.into(),
             },
             UserFile {
                 name: "de.json".into(),
@@ -334,10 +334,17 @@ mod tests {
         let mut errors = Vec::new();
         let locales = parse_locales(files, &mut errors);
         assert_eq!(locales.len(), 2);
-        assert_eq!(locales[0].messages.keys().collect::<Vec<_>>(), ["tray.ok"]);
+        assert_eq!(
+            locales[0].messages.keys().collect::<Vec<_>>(),
+            ["common.cancel", "tray.ok"]
+        );
         assert_eq!(
             locales[0].ignored,
-            ["dialog.delete", "serve.allow_browsers.warning"]
+            [
+                "confirm.cancel",
+                "dialog.deleteTitle",
+                "serve.allow_browsers.warning"
+            ]
         );
         assert_eq!(
             (locales[1].code.as_str(), locales[1].label.as_str()),
@@ -347,7 +354,7 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].name, "fr.json");
         assert_eq!(errors[0].reason, "protected");
-        assert_eq!(errors[0].count, Some(2));
+        assert_eq!(errors[0].count, Some(3));
     }
 
     /// PRD 0035 re-validation S-02: a pack the core cannot read safely is
@@ -413,6 +420,59 @@ mod tests {
         assert_eq!(locale["digest"].as_str().map(str::len), Some(64));
         for locale in sent["locales"].as_array().unwrap() {
             assert!(locale.get("text").is_none());
+        }
+    }
+
+    /// PRD 0035 re-validation S-01: every id of the 14 UI catalogs matches a
+    /// rule of the `ui` section of `cuotai-core`'s `user_pack/policy.json`
+    /// explicitly; no shipped UI text relies on the protected default.
+    #[test]
+    fn every_ui_id_is_classified() {
+        let policy = cuotai_core::user_pack::policy();
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui/locales");
+        let mut checked = 0;
+        for entry in fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let catalog: serde_json::Map<String, serde_json::Value> =
+                serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+            let unclassified: Vec<&String> = catalog
+                .keys()
+                .filter(|id| *id != "_meta")
+                .filter(|id| policy.rule(cuotai_core::user_pack::Layer::Ui, id).is_none())
+                .collect();
+            assert!(
+                unclassified.is_empty(),
+                "{}: add a rule to user_pack/policy.json for {unclassified:?}",
+                path.display()
+            );
+            checked += 1;
+        }
+        assert_eq!(checked, 14);
+    }
+
+    /// The ids these tests name are shipped UI or core ids (a renamed id
+    /// fails here instead of testing nothing; S-01 found the old test naming
+    /// `dialog.delete.title`, which never existed).
+    #[test]
+    fn every_id_these_tests_name_is_shipped() {
+        let ui: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(include_str!("../../ui/locales/en-US.json")).unwrap();
+        for id in [
+            "tray.ok",
+            "common.cancel",
+            "confirm.cancel",
+            "dialog.deleteTitle",
+            "serve.allow_browsers.warning",
+            "serve.banner",
+        ] {
+            let core = cuotai_core::text::catalog_locales()
+                .iter()
+                .filter_map(|code| cuotai_core::text::core_catalog(code))
+                .any(|catalog| catalog.contains_key(id));
+            assert!(ui.contains_key(id) || core, "{id}");
         }
     }
 }

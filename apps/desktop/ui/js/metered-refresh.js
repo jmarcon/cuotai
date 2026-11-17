@@ -13,10 +13,10 @@ export const needsBilledConfirm = (report) => !!report?.access?.metered && !repo
 /** The confirmation's content: the title names the action and the account, the body says it is billed. Cancel is
  *  first so it has the initial focus; "Query now" is the primary, last (DS-CMP-BTN-4). */
 export function billedConfirmHtml(report) {
-  return `<form method="dialog" class="dlg-body" data-billed-confirm>
+  return `<form method="dialog" class="dlg-body" data-billed-confirm data-protected-texts="billed-refresh">
     <h2 id="billed-title">${te("refresh.billed.title", { account: accountFullLabel(report) })}</h2>
     <p id="billed-body">${te("refresh.billed.body")}</p>
-    <div class="dlg-actions"><button type="button" class="btn" data-billed="cancel">${te("common.cancel")}</button><button type="button" class="btn primary" data-billed="query">${te("refresh.billed.query")}</button></div>
+    <div class="dlg-actions"><button type="button" class="btn" data-billed="cancel">${te("confirm.cancel")}</button><button type="button" class="btn primary" data-billed="query">${te("refresh.billed.query")}</button></div>
   </form>`;
 }
 
@@ -25,6 +25,7 @@ export function askBilledRefresh(report) {
   return new Promise((resolve) => {
     const dlg = document.createElement("dialog");
     dlg.className = "dlg dlg-sm";
+    dlg.setAttribute("data-protected-texts", "billed-refresh");
     dlg.setAttribute("aria-labelledby", "billed-title");
     dlg.setAttribute("aria-describedby", "billed-body");
     dlg.innerHTML = billedConfirmHtml(report);

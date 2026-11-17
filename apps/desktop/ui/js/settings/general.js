@@ -1,6 +1,7 @@
 // Settings › General (PRD 0020 RF2.5): appearance (theme, light/dark mode, animations) and language, as rows (RF3).
-import { machineTranslated, t, te } from "../i18n.js";
-import { autostartRepair, autostartSet, autostartStale, autostartStatus, langMenuHtml, MOTIONS, openExternal, setMotion, setPreference, themeSwitchHtml, TRANSLATION_GUIDE_URL } from "../lib.js";
+import { currentLocale, machineTranslated, t, te } from "../i18n.js";
+import { userContent } from "../usercontent.js";
+import { autostartRepair, autostartSet, autostartStale, autostartStatus, esc, langMenuHtml, MOTIONS, openExternal, setMotion, setPreference, themeSwitchHtml, TRANSLATION_GUIDE_URL } from "../lib.js";
 import { errorText, group } from "./common.js";
 import { row, rowError, seg, sw, toast } from "./rows.js";
 
@@ -19,13 +20,26 @@ export function html({ settings: s }) {
       control: (a) => seg("motion", motions.map((m) => [m, te(`settings.motion.${m}`)]), s.motion, a) }))
     + group("language", te("lang.label"), row({ key: "lang", label: te("lang.label"), desc: te("settings.lang.desc"), control: () => langMenuHtml({ field: true }) })
       // PRD 0035 RF11.5: a machine-translated language says so and asks for review (not a row: no search keywords).
-      + (machineTranslated() ? `<p class="hint lang-mt" data-lang-mt>${te("settings.lang.machine")} <a href="${TRANSLATION_GUIDE_URL}" data-lang-guide>${te("settings.lang.machine.link")}</a></p>` : ""))
+      + (machineTranslated() ? `<p class="hint lang-mt" data-lang-mt>${te("settings.lang.machine")} <a href="${TRANSLATION_GUIDE_URL}" data-lang-guide>${te("settings.lang.machine.link")}</a></p>` : "")
+      + packActiveHtml())
     // Audit #37: the system owns this state; the switch is drawn off and disabled until the system has answered.
     + group("startup", te("settings.startup"), row({ key: "autostart", label: te("settings.autostart.label"), desc: te("settings.autostart.desc"),
       control: (a) => sw("autostart", false, a, "disabled") })
       // Mockup 50-settings-general: macOS only (other systems have no Dock); saved in desktop.json, applied by the shell.
       + (isMac() ? row({ key: "dock", label: te("settings.dock.label"), desc: te("settings.dock.desc"),
         control: (a) => sw("dock", s.show_in_dock !== false, a) }) : ""));
+}
+
+/** PRD 0035 re-validation S-01: with a user language pack active, the file it comes from and what it cannot change
+ *  (a protected text, so a pack cannot hide or reword it). */
+function packActiveHtml() {
+  // Only a pack the shell loaded from the user folder (never the development pseudo-locale).
+  const file = userContent.locales.find((l) => l.code === currentLocale())?.name;
+  if (!file) return "";
+  // The file name goes in as a placeholder mark and comes back escaped inside <bdi>, so a right-to-left name cannot
+  // reorder the sentence.
+  const text = te("userContent.packActive", { file: "\u0000" }).replace("\u0000", `<bdi>${esc(file)}</bdi>`);
+  return `<p class="hint lang-mt" data-protected-texts="pack-active" data-pack-active>${text}</p>`;
 }
 
 /** Theme, mode and language go through the shell's shared switch (`bindThemeSwitch`, with cross-fade); they are

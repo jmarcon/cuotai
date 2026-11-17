@@ -45,9 +45,30 @@ const store = {
 };
 
 export const currentLocale = () => current;
-/** PRD 0035 RF11.5: the active language's UI catalog says it was machine-translated and not yet reviewed by a
- *  native speaker (`_meta.reviewed: false`). */
-export const machineTranslated = () => uiCatalogs.get(current)?._meta?.reviewed === false;
+/** PRD 0035 re-validation R-01: the shipped language a code reads under: the code's own registry row, else the row it
+ *  normalizes to (`fr-CA` → fr, `pt-PT` → pt-BR, never `zh-TW` → zh-CN), when that row has catalogs; else null. A
+ *  user pack overrides that shipped catalog key by key and never replaces it. */
+function shippedBase(code) {
+  if (code === FALLBACK) return FALLBACK;
+  const row = registry.find((r) => r.code === code) ?? normalizeLocale(code, registry);
+  return row && row.status !== "in_progress" ? row.code : null;
+}
+/** PRD 0035 RF11.5: the active language's shipped UI catalog says it was machine-translated and not yet reviewed by a
+ *  native speaker (`_meta.reviewed: false`); a user pack never carries `_meta`, so the shipped one is read. */
+export const machineTranslated = () => uiCatalogs.get(shippedBase(current))?._meta?.reviewed === false;
+
+// PRD 0035 re-validation S-01: test hook. While a trace runs, every id `t`/`te`/`tl` resolve is recorded, after
+// `desktopWording`, so the id recorded is the one rendered. `scripts/test-pack-protection-ui.mjs` walks the protected
+// dialogs with it.
+let traced = null;
+/** Runs `fn` (sync or async) and resolves to the ids it rendered. */
+export async function traceTexts(fn) {
+  const previous = traced;
+  const ids = new Set();
+  traced = ids;
+  try { await fn(); } finally { traced = previous; }
+  return ids;
+}
 // One Intl.PluralRules per locale: building one on every plural lookup showed in the render profile.
 let plural = null;
 function pluralRules() {
@@ -72,10 +93,10 @@ export const hasLocale = (code) => LOCALES.some((l) => l.code === code);
 /** The registry row of the current language (script, plural rule), null for a user pack's own code. */
 export const currentRow = () => registry.find((r) => r.code === current) ?? null;
 
-/** Registers a user language (already validated). */
+/** Registers a user language (already parsed and filtered by the core). It overlays the shipped catalog of its
+ *  language (R-01): the UI catalogs stay the shipped ones. */
 export function registerLocale(code, name, messages, flag) {
   userCatalogs.set(code, messages);
-  uiCatalogs.set(code, messages);
   merged.clear();
   const i = LOCALES.findIndex((l) => l.code === code);
   const row = registry.find((r) => r.code === code);
@@ -84,7 +105,10 @@ export function registerLocale(code, name, messages, flag) {
   else LOCALES.push(entry);
 }
 
-async function loadUi(code) {
+/** Loads (and caches) the shipped UI catalog `code` reads under ({} for a language Cuotai does not ship). */
+async function loadUi(language) {
+  const code = shippedBase(language);
+  if (!code) return {};
   if (uiCatalogs.has(code)) return uiCatalogs.get(code);
   try {
     const res = await fetch(uiPath(`locales/${code}.json`));
@@ -99,8 +123,9 @@ async function loadUi(code) {
   }
 }
 
-/** Loads (and caches) the core catalog for `code` via Tauri. */
-async function loadCore(code) {
+/** Loads (and caches) the core catalog of the shipped language `code` reads under, via Tauri. */
+async function loadCore(language) {
+  const code = shippedBase(language) ?? FALLBACK;
   if (coreCatalogs.has(code)) return coreCatalogs.get(code);
   const T = window.__TAURI__;
   if (!T || !T.core?.invoke) {
@@ -126,17 +151,21 @@ async function loadCore(code) {
   }
 }
 
-/** Merged catalog: the user's (if any) cover the UI's, and the core's are merged underneath for the core ids. */
+/** Merged catalog: the user's (if any) cover the shipped UI's of its language, and the core's are merged underneath
+ *  for the core ids. */
 function mergedCatalog(code) {
   const hit = merged.get(code);
   if (hit) return hit;
-  const ui = uiCatalogs.get(code) ?? {};
+  const base = shippedBase(code);
+  const ui = (base && uiCatalogs.get(base)) ?? {};
   const fallback = uiCatalogs.get(FALLBACK) ?? {};
   const user = userCatalogs.get(code); // if absent, no user pack
-  const core = coreCatalogs.get(code) ?? {};
+  const core = (base && coreCatalogs.get(base)) ?? {};
   const out = {};
-  // Merge order (overlay wins): en-US UI < language core < language UI < user. English comes first:
-  // a core id that only the UI en-US knows (the core has no en-US catalog) must not cover the core translation.
+  // Merge order (overlay wins): shipped en-US UI < core(base) < shipped UI(base) < user pack. English comes first:
+  // a core id that only the UI en-US knows (the core has no en-US catalog) must not cover the core translation. The
+  // pack has no protected id left (the core filtered it), so a protected text reads the shipped translation of the
+  // pack's language, else English (PRD 0035 re-validation S-01, R-01).
   Object.assign(out, fallback);
   Object.assign(out, core);
   Object.assign(out, ui);
@@ -250,6 +279,7 @@ function pluralForm(v, count) {
 }
 
 function resolve(key, vars) {
+  traced?.add(key);
   const v = pluralForm(lookup(key), vars.count);
   return typeof v === "string" ? v : null;
 }
@@ -309,6 +339,7 @@ export function tl(value, vars = {}, escape = false) {
   if (amount != null) return escape ? esc(amount) : amount;
   // PRD 0047 G1: a core text naming a terminal variable or `params.*` reads in the desktop's own words.
   value = desktopWording(value);
+  traced?.add(value.id);
   const allVars = { ...(value.params ?? {}), ...vars };
   const currentCatalog = mergedCatalog(current);
   const fallbackCatalog = mergedCatalog(FALLBACK);

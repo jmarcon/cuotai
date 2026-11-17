@@ -130,12 +130,18 @@ Structured texts emitted by the core carry `Localized { id, params, fallback }`:
   are text only; actionable links come from descriptors) and no direction
   or zero-width characters; the parity tests above enforce the first and
   the last. A desktop language pack's code must be a tag `Intl` reads
-  (`usercontent.js`, mirrored by `notify.rs` `set_locale`), and every
+  (`user_pack::is_language_tag` in the core, repeated by `usercontent.js` and used by `notify.rs` `set_locale`), and every
   `Intl` constructor falls back to en-US on a tag it cannot read.
 - The desktop app receives the core catalog through the Tauri command
   `core_catalog(locale)`, and `js/i18n.js` merges it under the UI catalog
   (`apps/desktop/ui/locales/*.json`); user packs (in
-  `<user dir>/locales/<code>.json`) override both. Front ends **never match
+  `<user dir>/locales/<code>.json`) override both, key by key, over the
+  shipped catalogs of the language the pack's code normalizes to (shipped
+  en-US UI < core < shipped UI < pack; PRD 0035 re-validation R-01). A pack
+  reaches the webview only through `cuotai_core::user_pack::load`, which
+  parses it fail-closed and drops the keys `user_pack/policy.json` protects
+  (an unclassified key is protected); those keep the shipped translation, or
+  English for a language Cuotai does not ship (S-01, S-02). Front ends **never match
   on text**: `t()` and `tl()` look the id up in the catalog.
 - The TUI resolves the core's `Localized` values through `Localized::resolve` in the
   active locale (`CUOTAI_LANG`, else the system locale, normalized through

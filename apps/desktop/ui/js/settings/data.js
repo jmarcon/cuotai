@@ -41,7 +41,7 @@ function privacyHtml(s, view) {
       : te("settings.status.none")}</p>`)
     // PRD 0027 RF6.5: the Add-account question, changeable here; off (or unanswered) checks nothing.
     + row({ key: "detect", label: te("settings.detect.on"), info: te("settings.detect.help"), msg: "detect-msg",
-      control: (a) => sw("detect-enabled", s.detect?.enabled === true, a) }), "data-privacy");
+      control: (a) => sw("detect-enabled", s.detect?.enabled === true, a) }), 'data-privacy data-protected-texts="privacy"');
 }
 
 /** RF3.4/RF5.2: export and erasure, collapsed in their own group at the end of the page; erasing keeps its question.
@@ -55,10 +55,10 @@ function historyDataHtml(view) {
       control: () => buttons(`<button class="btn sm" data-export="csv">${icon("copy")} CSV</button>`, `<button class="btn sm" data-export="json">${icon("copy")} JSON</button>`) })
     + row({ key: "erase", label: te("settings.history.eraseLabel"), danger: true, msg: "history-erase-msg",
       control: () => buttons(`<button class="btn sm danger-btn" data-erase>${icon("trash")} ${te("settings.history.erase")}</button>`),
-      body: `<div class="confirm" id="history-confirm" role="alertdialog" aria-labelledby="history-confirm-text" hidden>
+      body: `<div class="confirm" id="history-confirm" data-protected-texts="history-erase" role="alertdialog" aria-labelledby="history-confirm-text" hidden>
         <p id="history-confirm-text"></p>
         <div class="dlg-actions left"><button class="btn danger-btn" data-erase-confirm>${te("settings.history.eraseConfirm")}</button>
-          <button class="btn" data-erase-cancel>${te("common.cancel")}</button></div>
+          <button class="btn" data-erase-cancel>${te("confirm.cancel")}</button></div>
       </div>` })
     // PRD 0052 RF5.3: everything Cuotai keeps, after the history alone.
     + eraseHtml()));

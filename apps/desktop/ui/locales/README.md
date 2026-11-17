@@ -239,18 +239,45 @@ the value of `CUOTAI_USER_DIR`. The folder button in the top bar copies its
 path. Invalid files are ignored and a warning explains why. A partial example
 is available at `apps/desktop/examples/user/locales/nl.json` (Dutch, a language
 that is not built in, so it registers as a new one). The RF12.3 override is
-per key: a built-in-code pack such as `fr.json` changes only the keys it
-carries, and every other text keeps the built-in French catalog.
+per key (PRD 0035 re-validation R-01): a pack whose code is or normalizes to a
+built-in language (`fr.json`, `fr-CA.json`, `pt-PT.json`) is layered over that
+language's shipped catalogs, which the app always loads, so every text the pack
+does not carry keeps the built-in translation, and the shipped catalog's
+`_meta` still says whether it was machine-translated. The pack never replaces
+the catalog. Settings › General names the active pack's file.
 
-**Protected texts (PRD 0050 RF3.3).** A pack cannot change the words of
-credential warnings, consent, confirmations or the local server. The app
-removes these keys from every pack before it is used, keeps the built-in or
-core text for them, and shows a notice with how many were removed: keys
-starting with `credential_help.`, `oauth_error.`, `edit_error.`,
-`remove_error.`, `user_session.`, `access.risk.`, `access.credential_hint.`,
-`hooks.`, `extensions.consent.`, `serve.`, `update.` or `execution.`, the
-key `dialog.delete` and its `dialog.delete.*` keys, and any key containing
-`.confirm.` or `.consent.`. The list lives in `cuotai_core::user_pack`.
+**Protected texts (PRD 0050 RF3.3, PRD 0035 re-validation S-01).** A pack
+cannot change the words of a confirmation, a consent or disclosure, a billed-query
+or cost warning, a security or privacy warning, the sign-in, session, secret and
+credential dialogs, the update, first-run, backup and restore dialogs, the
+local-server, hooks, extensions, channels, vault, erase and privacy settings, or
+the notices about user content. The core parses each pack once and drops those
+keys before the app sees it (a file it cannot read safely is refused whole); the
+app shows the shipped translation of the pack's language for them, else English,
+and a notice with how many keys it dropped, once per content of the file (Settings ›
+Files keeps it).
+
+Which keys are protected is decided by one file,
+`crates/cuotai-core/src/user_pack/policy.json`, with a `core` and a `ui` section.
+A rule is an exact key or a prefix ending in `*`; the longest match wins and an
+exact key beats a prefix. **A key that matches no rule is protected**, and so is
+any key with a `confirm` or `consent` dot-segment. When you add a text, classify
+it there: it is protected when it appears in, or describes, one of the surfaces
+above, including every title, button, checkbox and error inside them (those
+dialogs use the protected `confirm.cancel`, `confirm.remove`, `confirm.close`,
+`confirm.back` and `confirm.dismiss`, not `common.*`). A UI key that
+`js/desktop-wording.js` maps a protected core text onto is protected too and is
+listed by name. Tests fail on a shipped key no rule covers, on a rule in both
+lists, on a desktop wording that weakens a core text, and on any changeable key
+rendered on a protected surface (`scripts/test-pack-protection-ui.mjs`, which
+also needs a new dialog to carry a `data-protected-texts` mark).
+
+**The trade-off.** About a third of the texts (about 1 400 of 4 100) are
+protected. A pack for a language Cuotai ships loses nothing visible: those
+texts keep the shipped translation. A pack for a language Cuotai does not ship
+(the Dutch example) shows them in English, so about a third of the interface
+stays English with such a pack, on purpose: a pack can never make a
+destructive or billed action read as something else.
 
 **Folder limits (PRD 0050 RF3.4).** Each of `themes/` and `locales/` reads at
 most 64 files with its extension, in name order; the rest are reported by name.
