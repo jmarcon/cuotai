@@ -74,6 +74,7 @@ export const DESKTOP_WORDING = {
   "query.subscriptions.copilot_mode": SETTING_INVALID,
   "query.eleven_labs.region": SETTING_INVALID,
   "query.open_router.params": SETTING_INVALID,
+  "query.open_router.low_balance": SETTING_INVALID,
   "edit_error.param.resource_id_chars": SETTING_INVALID,
   "edit_error.config_region": SETTING_INVALID,
   "edit_error.config_open_router": SETTING_INVALID,

@@ -126,7 +126,10 @@
       "query.retry_after_until",
       "metric.label.byok_external",
       "metric.label.byok_total",
-      "metric.label.budget_other_scope"
+      "metric.label.budget_other_scope",
+      "query.open_router.low_balance",
+      "query.open_router.forbidden",
+      "query.open_router.out_of_credits"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2039,8 +2042,11 @@
   "query.oauth.invalid_response": "Ungültige OAuth-Antwort; es wurden keine Zugangsdaten akzeptiert.",
   "query.oauth.network": "Netzwerkfehler bei der OAuth-Authentifizierung.",
   "query.open_router.auth": "OpenRouter hat den Schlüssel abgelehnt: fehlend, ungültig oder abgelaufen.",
+  "query.open_router.forbidden": "OpenRouter hat diesen Schlüssel abgewiesen; er ist möglicherweise deaktiviert oder durch eine Schutzregel gesperrt.",
   "query.open_router.key_expired": "Der OpenRouter-Schlüssel ist abgelaufen; erstellen Sie unter openrouter.ai/settings/keys einen neuen.",
+  "query.open_router.low_balance": "Ungültige Parameter: params.low_balance muss eine Zahl ab 0 sein und ist nur mit dem Produkt account erlaubt.",
   "query.open_router.management_key_required": "Dieser Vorgang erfordert einen Verwaltungsschlüssel; erstellen Sie einen unter openrouter.ai/settings/management-keys oder nutzen Sie die Standardansicht des Schlüssels.",
+  "query.open_router.out_of_credits": "OpenRouter meldet unzureichendes Guthaben für diesen Schlüssel oder dieses Konto (HTTP 402).",
   "query.open_router.params": "Ungültige Parameter: params.product muss key oder account sein und params.breakdown (nur mit account) off, provider oder model.",
   "query.open_router.rate_limited": "OpenRouter hat die Abfragen begrenzt.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) gewährt keinen Zugriff auf das Abrechnungsguthaben des Kontos. Der Schlüssel autorisiert nur Inferenz über /api/v1/services/aigc/...; das Alibaba-Cloud-Guthaben erfordert QueryAccountBalance (Financial Management API), authentifiziert mit AccessKey ID/Secret des Hauptkontos. Primärquellen: {dashscope_docs} und {billing_docs}",

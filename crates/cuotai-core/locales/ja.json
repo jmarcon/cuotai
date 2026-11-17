@@ -148,7 +148,10 @@
       "query.retry_after_until",
       "metric.label.byok_external",
       "metric.label.byok_total",
-      "metric.label.budget_other_scope"
+      "metric.label.budget_other_scope",
+      "query.open_router.low_balance",
+      "query.open_router.forbidden",
+      "query.open_router.out_of_credits"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2036,8 +2039,11 @@
   "query.oauth.invalid_response": "OAuth の応答が無効です。認証情報は受け付けていません。",
   "query.oauth.network": "OAuth 認証中にネットワークエラーが発生しました。",
   "query.open_router.auth": "OpenRouter がキーを拒否しました。キーがないか、無効か、期限切れです。",
+  "query.open_router.forbidden": "OpenRouter がこのキーを拒否しました。キーが無効化されているか、ガードレールでブロックされている可能性があります。",
   "query.open_router.key_expired": "OpenRouter のキーの期限が切れました。openrouter.ai/settings/keys で新しいキーを作成してください。",
+  "query.open_router.low_balance": "パラメーターが無効です。params.low_balance は 0 以上の数値にし、account 製品でのみ指定してください。",
   "query.open_router.management_key_required": "この操作には管理キーが必要です。openrouter.ai/settings/management-keys で作成するか、キーの既定の表示を使用してください。",
+  "query.open_router.out_of_credits": "OpenRouter によると、このキーまたはアカウントのクレジットが不足しています（HTTP 402）。",
   "query.open_router.params": "パラメーターが無効です。params.product は key または account、params.breakdown（account の場合のみ）は off、provider、model のいずれかにしてください。",
   "query.open_router.rate_limited": "OpenRouter が照会を制限しました。",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio（QWEN_API_KEY）では、アカウントの請求残高にアクセスできません。このキーが許可するのは /api/v1/services/aigc/... による推論のみです。Alibaba Cloud の残高には、マスターアカウントの AccessKey ID/Secret で認証する QueryAccountBalance（Financial Management API）が必要です。一次情報：{dashscope_docs} と {billing_docs}",

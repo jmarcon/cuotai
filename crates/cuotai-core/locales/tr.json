@@ -103,7 +103,10 @@
       "query.retry_after_until",
       "metric.label.byok_external",
       "metric.label.byok_total",
-      "metric.label.budget_other_scope"
+      "metric.label.budget_other_scope",
+      "query.open_router.low_balance",
+      "query.open_router.forbidden",
+      "query.open_router.out_of_credits"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2016,8 +2019,11 @@
   "query.oauth.invalid_response": "Geçersiz OAuth yanıtı; hiçbir kimlik bilgisi kabul edilmedi.",
   "query.oauth.network": "OAuth kimlik doğrulaması sırasında ağ hatası.",
   "query.open_router.auth": "OpenRouter anahtarı reddetti: eksik, geçersiz veya süresi dolmuş.",
+  "query.open_router.forbidden": "OpenRouter bu anahtarı reddetti; anahtar devre dışı bırakılmış ya da bir koruma kuralıyla engellenmiş olabilir.",
   "query.open_router.key_expired": "OpenRouter anahtarının süresi doldu; openrouter.ai/settings/keys adresinde yenisini oluşturun.",
+  "query.open_router.low_balance": "Geçersiz parametreler: params.low_balance 0 veya daha büyük bir sayı olmalı ve yalnızca account ürünüyle kullanılmalıdır.",
   "query.open_router.management_key_required": "Bu işlem bir yönetim anahtarı gerektirir; openrouter.ai/settings/management-keys adresinde oluşturun veya varsayılan anahtar görünümünü kullanın.",
+  "query.open_router.out_of_credits": "OpenRouter bu anahtar veya hesap için kredinin yetersiz olduğunu bildiriyor (HTTP 402).",
   "query.open_router.params": "Geçersiz parametreler: params.product key veya account, params.breakdown (yalnızca account ile) off, provider veya model olmalıdır.",
   "query.open_router.rate_limited": "OpenRouter sorguları hız sınırına aldı.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) hesabın faturalama bakiyesine erişim vermez. Anahtar yalnızca /api/v1/services/aigc/... üzerinden çıkarımı yetkilendirir; Alibaba Cloud bakiyesi, ana hesabın AccessKey ID/Secret değerleriyle doğrulanan QueryAccountBalance'ı (Financial Management API) gerektirir. Birincil kaynaklar: {dashscope_docs} ve {billing_docs}",

@@ -105,7 +105,10 @@
       "query.retry_after_until",
       "metric.label.byok_external",
       "metric.label.byok_total",
-      "metric.label.budget_other_scope"
+      "metric.label.budget_other_scope",
+      "query.open_router.low_balance",
+      "query.open_router.forbidden",
+      "query.open_router.out_of_credits"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1993,8 +1996,11 @@
   "query.oauth.invalid_response": "Phản hồi OAuth không hợp lệ; không chấp nhận thông tin xác thực nào.",
   "query.oauth.network": "Lỗi mạng trong lúc xác thực OAuth.",
   "query.open_router.auth": "OpenRouter từ chối khóa: thiếu, không hợp lệ hoặc đã hết hạn.",
+  "query.open_router.forbidden": "OpenRouter đã từ chối khóa này; khóa có thể đã bị tắt hoặc bị chặn bởi một quy tắc bảo vệ.",
   "query.open_router.key_expired": "Khóa OpenRouter đã hết hạn; hãy tạo khóa mới tại openrouter.ai/settings/keys.",
+  "query.open_router.low_balance": "Tham số không hợp lệ: params.low_balance phải là số từ 0 trở lên và chỉ dùng với sản phẩm account.",
   "query.open_router.management_key_required": "Thao tác này cần khóa quản lý; hãy tạo tại openrouter.ai/settings/management-keys hoặc dùng chế độ xem khóa mặc định.",
+  "query.open_router.out_of_credits": "OpenRouter báo không đủ tín dụng cho khóa hoặc tài khoản này (HTTP 402).",
   "query.open_router.params": "Tham số không hợp lệ: params.product phải là key hoặc account và params.breakdown (chỉ với account) là off, provider hoặc model.",
   "query.open_router.rate_limited": "OpenRouter đã giới hạn tốc độ truy vấn.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) không cấp quyền truy cập số dư thanh toán của tài khoản. Khóa chỉ cho phép suy luận qua /api/v1/services/aigc/...; số dư Alibaba Cloud cần QueryAccountBalance (Financial Management API), xác thực bằng AccessKey ID/Secret của tài khoản chính. Nguồn chính: {dashscope_docs} và {billing_docs}",

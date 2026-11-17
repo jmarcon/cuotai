@@ -122,7 +122,10 @@
       "query.retry_after_until",
       "metric.label.byok_external",
       "metric.label.byok_total",
-      "metric.label.budget_other_scope"
+      "metric.label.budget_other_scope",
+      "query.open_router.low_balance",
+      "query.open_router.forbidden",
+      "query.open_router.out_of_credits"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2010,8 +2013,11 @@
   "query.oauth.invalid_response": "OAuth 응답이 올바르지 않아 어떤 자격 증명도 받아들이지 않았습니다.",
   "query.oauth.network": "OAuth 인증 중 네트워크 오류가 발생했습니다.",
   "query.open_router.auth": "OpenRouter가 키를 거부했습니다. 없거나 올바르지 않거나 만료되었습니다.",
+  "query.open_router.forbidden": "OpenRouter가 이 키를 거부했습니다. 키가 비활성화되었거나 보호 규칙으로 차단되었을 수 있습니다.",
   "query.open_router.key_expired": "OpenRouter 키가 만료되었습니다. openrouter.ai/settings/keys에서 새 키를 만드세요.",
+  "query.open_router.low_balance": "매개변수가 올바르지 않습니다. params.low_balance는 0 이상의 숫자여야 하며 account 제품에서만 사용할 수 있습니다.",
   "query.open_router.management_key_required": "이 작업에는 관리 키가 필요합니다. openrouter.ai/settings/management-keys에서 만들거나 기본 키 보기를 사용하세요.",
+  "query.open_router.out_of_credits": "OpenRouter에 따르면 이 키 또는 계정의 크레딧이 부족합니다(HTTP 402).",
   "query.open_router.params": "매개변수가 올바르지 않습니다. params.product는 key 또는 account여야 하고 params.breakdown(account에서만)은 off, provider 또는 model이어야 합니다.",
   "query.open_router.rate_limited": "OpenRouter가 조회를 제한했습니다.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio(QWEN_API_KEY)는 계정의 청구 잔액에 접근할 수 없습니다. 이 키는 /api/v1/services/aigc/...를 통한 추론만 허용합니다. Alibaba Cloud 잔액은 마스터 계정의 AccessKey ID/Secret으로 인증하는 QueryAccountBalance(Financial Management API)가 필요합니다. 1차 출처: {dashscope_docs} 및 {billing_docs}",

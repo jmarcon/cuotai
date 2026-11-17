@@ -103,7 +103,10 @@
       "query.retry_after_until",
       "metric.label.byok_external",
       "metric.label.byok_total",
-      "metric.label.budget_other_scope"
+      "metric.label.budget_other_scope",
+      "query.open_router.low_balance",
+      "query.open_router.forbidden",
+      "query.open_router.out_of_credits"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1991,8 +1994,11 @@
   "query.oauth.invalid_response": "Respons OAuth tidak valid; tidak ada kredensial yang diterima.",
   "query.oauth.network": "Kegagalan jaringan saat autentikasi OAuth.",
   "query.open_router.auth": "OpenRouter menolak kunci: tidak ada, tidak valid, atau kedaluwarsa.",
+  "query.open_router.forbidden": "OpenRouter menolak kunci ini; kunci mungkin dinonaktifkan atau diblokir oleh aturan pengaman.",
   "query.open_router.key_expired": "Kunci OpenRouter kedaluwarsa; buat yang baru di openrouter.ai/settings/keys.",
+  "query.open_router.low_balance": "Parameter tidak valid: params.low_balance harus berupa angka 0 atau lebih, dan hanya dengan produk account.",
   "query.open_router.management_key_required": "Operasi ini memerlukan kunci manajemen; buat di openrouter.ai/settings/management-keys atau gunakan tampilan kunci bawaan.",
+  "query.open_router.out_of_credits": "OpenRouter melaporkan kredit tidak cukup untuk kunci atau akun ini (HTTP 402).",
   "query.open_router.params": "Parameter tidak valid: params.product harus key atau account dan params.breakdown (hanya dengan account) off, provider, atau model.",
   "query.open_router.rate_limited": "OpenRouter membatasi laju kueri.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) tidak memberi akses ke saldo penagihan akun. Kunci hanya mengotorisasi inferensi lewat /api/v1/services/aigc/...; saldo Alibaba Cloud memerlukan QueryAccountBalance (Financial Management API), diautentikasi dengan AccessKey ID/Secret akun utama. Sumber utama: {dashscope_docs} dan {billing_docs}",
