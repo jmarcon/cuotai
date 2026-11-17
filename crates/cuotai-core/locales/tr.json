@@ -141,7 +141,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -342,6 +346,9 @@
   "binding.renewal_due": "{window} pencere sınırında; yenileme bekleniyor, sağlayıcı bekleniyor",
   "binding.renewal_due_metric": "{metric} sınırında; yenileme bekleniyor, sağlayıcı bekleniyor",
   "binding.blocked_metric": "{metric} nedeniyle engellendi; dönüş zamanı bilinmiyor",
+  "binding.tightest_budget": "en kısıtlayıcı: {metric} (bütçen), %{used}",
+  "binding.blocked_until_budget": "{metric} (bütçen) tükendi, yenilenme: {at}",
+  "binding.blocked_budget": "{metric} (bütçen) tükendi; sonraki dönem bilinmiyor",
   "budget.badge": "Bütçen",
   "budget.describe.daily": "Cuotai gece yarısından itibaren günde {amount} tutarında bir bütçe kotası gösterecek.",
   "budget.describe.monthly": "Cuotai ayın {start}. gününden itibaren ayda {amount} tutarında bir bütçe kotası gösterecek.",
@@ -2762,6 +2769,7 @@
   "budget.error.row": "{field}: döküm satırındaki bir bütçe için kind, satırın kapsamı (key, virtual_key, project, workspace veya team) ve kimliği gerekir; sağlayıcı döküm sunmalıdır.",
   "budget.error.duplicate_floor": "{field}: aynı bakiyeyi aynı tutarda izleyen başka bir alt sınır zaten var.",
   "budget.error.duplicate_label": "{field}: bu hesabın başka bir bütçesi zaten bu adı taşıyor.",
+  "budget.period_since": "başlangıç: {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}.{month} {time}",
   "alerts.at.day": "{day}.{month}",

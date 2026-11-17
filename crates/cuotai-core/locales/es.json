@@ -19,7 +19,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -202,6 +206,9 @@
   "binding.renewal_due": "ventana {window} en su límite; renovación pendiente, esperando al proveedor",
   "binding.renewal_due_metric": "{metric} en su límite; renovación pendiente, esperando al proveedor",
   "binding.blocked_metric": "bloqueada por {metric}; hora de retorno desconocida",
+  "binding.tightest_budget": "más restrictiva: {metric} (tu presupuesto) al {used} %",
+  "binding.blocked_until_budget": "{metric} (tu presupuesto) agotado hasta {at}",
+  "binding.blocked_budget": "{metric} (tu presupuesto) agotado; próximo período desconocido",
   "budget.badge": "Tu presupuesto",
   "budget.describe.daily": "Cuotai mostrará una cuota de presupuesto de {amount} al día, desde medianoche.",
   "budget.describe.monthly": "Cuotai mostrará una cuota de presupuesto de {amount} al mes, a partir del día {start}.",
@@ -2640,6 +2647,7 @@
   "budget.error.row": "{field}: un presupuesto en una fila del desglose necesita un kind, el ámbito de la fila (key, virtual_key, project, workspace o team) y su id, en un proveedor que ofrezca desgloses.",
   "budget.error.duplicate_floor": "{field}: otro mínimo ya vigila el mismo saldo con el mismo importe.",
   "budget.error.duplicate_label": "{field}: otro presupuesto de esta cuenta ya tiene esta etiqueta.",
+  "budget.period_since": "desde {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",
   "alerts.at.day": "{day}/{month}",

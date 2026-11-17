@@ -26,6 +26,8 @@ mod l10n;
 mod models_view;
 mod motion;
 mod notify;
+#[cfg(test)]
+mod once_budget_tests;
 mod palette;
 mod report_problem;
 mod report_view;
@@ -1987,12 +1989,13 @@ fn report_text(
             ui::safe(&ui::metric_label_text_in(&metric.label, locale)),
             ui::metric_text_in(metric, locale)
         );
-        if let Some(period) = &metric.period {
+        // PRD 0041 re-validation (F-06): a budget's period reads "since …".
+        if let Some(period) = metric.period_text() {
             out += &l10n::trf_in(
                 locale,
                 "once.period",
                 "    Period: {period}",
-                &[("period", &ui::safe(&ui::unit_text(period)))],
+                &[("period", &ui::safe(&period.resolve(locale)))],
             );
             out += "\n";
         }

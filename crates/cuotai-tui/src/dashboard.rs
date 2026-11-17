@@ -304,7 +304,9 @@ fn metric_row(
         label: crate::ui::metric_label_text(&metric.label),
         text: metric_text(metric),
         state: classify_metric(metric),
-        period: metric.period.as_deref().map(crate::ui::unit_text),
+        period: metric
+            .period_text()
+            .map(|period| crate::ui::resolve_l10n(&period)),
         resets_at: metric.resets_at,
         kind: metric.kind,
         unlimited: metric.unlimited,

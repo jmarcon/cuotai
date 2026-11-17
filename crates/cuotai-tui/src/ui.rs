@@ -4009,11 +4009,6 @@ pub(crate) fn metric_label_text_in(raw: &str, locale: &str) -> String {
     cuotai_core::metric_text::metric_text(raw).resolve(locale)
 }
 
-/// A metric unit or period in the TUI locale (same table as labels).
-pub(crate) fn unit_text(raw: &str) -> String {
-    metric_label_text(raw)
-}
-
 /// PRD 0037 re-validation (V-03): a unit printed right after `figure`, in
 /// `locale` and in the plural form of that figure ("1 credit", "5 кредитов").
 pub(crate) fn unit_text_for(raw: &str, figure: Option<f64>, locale: &str) -> String {
@@ -4603,6 +4598,9 @@ mod tests {
                 label: "Gasto no mês".into(),
                 budget: 0,
                 partial: true,
+                key: String::new(),
+                period_start: None,
+                period_text: None,
             }),
             unlimited: false,
         };

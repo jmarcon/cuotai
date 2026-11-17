@@ -402,6 +402,11 @@ pub struct Binding {
     /// the binding shows a renewal due, never a block or a countdown.
     /// Additive.
     pub renewal_due: bool,
+    /// PRD 0041 re-validation (F-20): the metric is a person's budget, so
+    /// the summary names it instead of calling it a provider window. Not
+    /// serialized: the metric itself carries `derived`.
+    #[serde(skip)]
+    pub budget: bool,
 }
 
 /// PRD 0037 RF4: whether `metric`'s reset time was already past when the
@@ -456,6 +461,7 @@ pub fn binding_where(report: &Report, keep: impl Fn(usize) -> bool) -> Option<Bi
             .resets_at
             .filter(|_| candidate.exhausted && !renewal_due),
         renewal_due,
+        budget: metric.derived_from.is_some(),
     })
 }
 
@@ -739,15 +745,17 @@ impl Binding {
     /// `blocked_until` in the caller's clock and locale (for example
     /// [`crate::alerts::local_time`]).
     pub fn summary(&self, at: impl FnOnce(DateTime<Utc>) -> ParamValue) -> Localized {
-        let known = matches!(
-            self.window,
-            Some(
-                MetricWindow::Window5h
-                    | MetricWindow::Daily
-                    | MetricWindow::Weekly
-                    | MetricWindow::Monthly
-            )
-        );
+        // F-20: a budget is never "the monthly window"; it is named.
+        let known = !self.budget
+            && matches!(
+                self.window,
+                Some(
+                    MetricWindow::Window5h
+                        | MetricWindow::Daily
+                        | MetricWindow::Weekly
+                        | MetricWindow::Monthly
+                )
+            );
         // PRD 0034 RF2: a metric outside the known windows is named by its
         // translated label, never the raw adapter text.
         let (slot, value) = if known {
@@ -774,7 +782,22 @@ impl Binding {
             };
             return Localized::with_params(id, params([(slot, value)]), english);
         }
-        let (id, english) = match (self.reason, self.blocked_until, known) {
+        let budget = match (self.reason, self.blocked_until) {
+            _ if !self.budget => None,
+            (BindingReason::Exhausted, Some(_)) => Some((
+                "binding.blocked_until_budget",
+                "{metric} (your budget) used up until {at}",
+            )),
+            (BindingReason::Exhausted, None) => Some((
+                "binding.blocked_budget",
+                "{metric} (your budget) used up; next period unknown",
+            )),
+            (BindingReason::Tightest, _) => Some((
+                "binding.tightest_budget",
+                "most restrictive: {metric} (your budget) at {used}%",
+            )),
+        };
+        let (id, english) = budget.unwrap_or(match (self.reason, self.blocked_until, known) {
             (BindingReason::Exhausted, Some(_), true) => (
                 "binding.blocked_until",
                 "blocked until {at} by the {window} window",
@@ -799,7 +822,7 @@ impl Binding {
                 "binding.tightest_metric",
                 "most restrictive: {metric} at {used}%",
             ),
-        };
+        });
         let mut values = vec![(slot, value)];
         match (self.reason, self.blocked_until) {
             (BindingReason::Exhausted, Some(until)) => values.push(("at", at(until))),
@@ -1324,6 +1347,7 @@ mod tests {
             reason: BindingReason::Exhausted,
             blocked_until: resets,
             renewal_due: false,
+            budget: false,
         };
         let mut summaries = vec![blocked(Some(at(14))), blocked(None)];
         for window in [H5, Some(MetricWindow::Daily), WEEK, MONTH, None] {
@@ -1502,6 +1526,7 @@ mod tests {
             reason: BindingReason::Tightest,
             blocked_until: None,
             renewal_due: false,
+            budget: false,
             index: 0,
             label_text: crate::metric_text::metric_text("x"),
         };

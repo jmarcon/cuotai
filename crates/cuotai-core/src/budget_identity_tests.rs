@@ -350,12 +350,12 @@ fn a_restored_reading_marks_current_and_legacy_labels_and_drops_removed_budgets(
         vec![spend(40.0), quota("Orçamento mensal · Gasto no mês")],
         now,
     );
-    mark_restored(&monthly, &mut restored);
+    mark_restored(&monthly, &mut restored, now, &Utc);
     let from = restored.metrics[1].derived_from.as_ref().expect("marked");
     assert_eq!(from.key, budget_key(&monthly.budgets[0]));
     // A reading recorded before the re-validation.
     let mut legacy = report(vec![spend(40.0), quota("Orçamento · Gasto no mês")], now);
-    mark_restored(&monthly, &mut legacy);
+    mark_restored(&monthly, &mut legacy, now, &Utc);
     assert!(legacy.metrics[1].derived_from.is_some());
     // F-26: every budget removed, the quota never reads as a provider limit.
     for label in [
@@ -363,13 +363,13 @@ fn a_restored_reading_marks_current_and_legacy_labels_and_drops_removed_budgets(
         "Orçamento · Gasto no mês",
     ] {
         let mut orphan = report(vec![spend(40.0), quota(label)], now);
-        mark_restored(&account(Vec::new()), &mut orphan);
+        mark_restored(&account(Vec::new()), &mut orphan, now, &Utc);
         assert_eq!(orphan.metrics.len(), 1, "{label}");
         assert_eq!(orphan.metrics[0].kind, MetricKind::Spend);
     }
     // A provider quota is never touched.
     let mut provider = report(vec![spend(40.0), quota("Orçamento (outro)")], now);
-    mark_restored(&account(Vec::new()), &mut provider);
+    mark_restored(&account(Vec::new()), &mut provider, now, &Utc);
     assert_eq!(provider.metrics.len(), 2);
     assert!(provider.metrics[1].derived_from.is_none());
 }

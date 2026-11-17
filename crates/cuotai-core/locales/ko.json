@@ -160,7 +160,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -359,6 +363,9 @@
   "binding.renewal_due": "{window} 구간 한도 도달, 초기화 예정, 제공업체를 기다리는 중",
   "binding.renewal_due_metric": "{metric} 한도 도달, 초기화 예정, 제공업체를 기다리는 중",
   "binding.blocked_metric": "{metric}에 의해 차단됨, 복귀 시각을 알 수 없음",
+  "binding.tightest_budget": "가장 제한적: {metric}(내 예산) {used}% 사용",
+  "binding.blocked_until_budget": "{metric}(내 예산) {at}까지 소진됨",
+  "binding.blocked_budget": "{metric}(내 예산) 소진됨, 다음 기간을 알 수 없음",
   "budget.badge": "내 예산",
   "budget.describe.daily": "Cuotai가 자정부터 하루 {amount}의 예산 할당량을 표시합니다.",
   "budget.describe.monthly": "Cuotai가 매월 {start}일부터 월 {amount}의 예산 할당량을 표시합니다.",
@@ -2727,6 +2734,7 @@
   "budget.error.row": "{field}: 세부 내역 행의 예산에는 kind, 행의 범위(key, virtual_key, project, workspace 또는 team)와 그 id가 필요하며, 세부 내역을 제공하는 제공업체여야 합니다.",
   "budget.error.duplicate_floor": "{field}: 같은 잔액을 같은 금액으로 지켜보는 다른 하한선이 이미 있습니다.",
   "budget.error.duplicate_label": "{field}: 이 계정에 같은 이름의 예산이 이미 있습니다.",
+  "budget.period_since": "{day}부터",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{month}/{day} {time}",
   "alerts.at.day": "{month}/{day}",

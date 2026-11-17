@@ -1138,6 +1138,14 @@ pub struct DerivedFrom {
     /// history series; empty only on a value read from an older export.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub key: String,
+    /// PRD 0041 re-validation (F-06): the start of the budget period as an
+    /// instant; `Metric::period` keeps it as the RFC 3339 data field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period_start: Option<DateTime<Utc>>,
+    /// The period as a person reads it ("since Tue", "since 11/01"), in
+    /// the reader's language; [`Metric::period_text`] returns it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period_text: Option<crate::text::Localized>,
 }
 
 /// PRD 0034 RF2: `label`, `unit` and `period` stay the adapters' raw
@@ -1159,8 +1167,7 @@ impl Serialize for Metric {
         out.serialize_field("kind", &self.kind)?;
         out.serialize_field("window", &self.window)?;
         out.serialize_field("period", &self.period)?;
-        let period_text = self.period.as_deref().map(metric_text);
-        out.serialize_field("period_text", &period_text)?;
+        out.serialize_field("period_text", &self.period_text())?;
         out.serialize_field("resets_at", &self.resets_at)?;
         if self.billing.is_included() {
             out.skip_field("billing")?;
@@ -1238,6 +1245,21 @@ pub enum ScopeKind {
 }
 
 impl Metric {
+    /// The period as a person reads it: a budget's "since {day}" (PRD 0041
+    /// re-validation F-06, never the raw RFC 3339 start), otherwise the
+    /// display text of the adapter's `period`; `None` without a period.
+    pub fn period_text(&self) -> Option<crate::text::Localized> {
+        let period = self.period.as_deref()?;
+        match self
+            .derived_from
+            .as_ref()
+            .and_then(|from| from.period_text.clone())
+        {
+            Some(text) => Some(text),
+            None => Some(crate::metric_text::metric_text(period)),
+        }
+    }
+
     /// Forget a reset outside 1970-9999 UTC (it reads as unknown).
     pub fn drop_implausible_instants(&mut self) {
         self.resets_at = crate::instant::plausible(self.resets_at);
@@ -1869,6 +1891,8 @@ mod tests {
                 budget: 0,
                 partial: false,
                 key: String::new(),
+                period_start: None,
+                period_text: None,
             });
             metric
         };
@@ -1959,14 +1983,7 @@ mod tests {
                 panic!("scope kept");
             };
             assert_eq!((id.as_str(), label.as_str()), (CLEAN, CLEAN));
-            let Some(DerivedFrom {
-                kind: _,
-                label,
-                budget: _,
-                partial: _,
-                key: _,
-            }) = derived_from
-            else {
+            let Some(DerivedFrom { kind: _, label, .. }) = derived_from else {
                 panic!("derived_from kept");
             };
             assert_eq!(label, CLEAN);

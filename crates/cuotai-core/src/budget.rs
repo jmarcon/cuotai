@@ -1016,8 +1016,31 @@ fn counted_use(
     })
 }
 
+/// A budget note naming the budget by its display text (`metric_text` of
+/// its label), so the name reads in the reader's language too (PRD 0041
+/// re-validation F-09).
 fn note(id: &'static str, label: &str, fallback: &'static str) -> Localized {
-    Localized::with_param(id, "budget", label, fallback)
+    Localized::with_param(
+        id,
+        "budget",
+        ParamValue::l10n(crate::metric_text::metric_text(label)),
+        fallback,
+    )
+}
+
+/// PRD 0041 re-validation (F-06): the start of a budget period as a person
+/// reads it, "since Tue" or "since 11/01", in `tz` at `now`.
+pub fn period_since<Tz: TimeZone>(start: DateTime<Utc>, now: DateTime<Utc>, tz: &Tz) -> Localized {
+    let day = crate::text::clock::day(
+        start.with_timezone(tz).date_naive(),
+        now.with_timezone(tz).date_naive(),
+    );
+    Localized::with_param(
+        "budget.period_since",
+        "day",
+        ParamValue::l10n(day),
+        "since {day}",
+    )
 }
 
 fn push_note(report: &mut Report, note: Localized) {
@@ -1096,12 +1119,9 @@ pub fn apply_rows<Tz: TimeZone>(
         };
         let Some(row) = report.breakdown.iter_mut().find(|row| wanted.matches(row)) else {
             let label = metric_label(budget, budget.label_contains.as_deref().unwrap_or("spend"));
-            let display = crate::metric_text::metric_text(&label)
-                .fallback
-                .into_owned();
             missing.push(note(
                 "note.budget.target_missing",
-                &display,
+                &label,
                 "{budget}: the metric this budget follows is missing from this reading.",
             ));
             continue;
@@ -1153,9 +1173,7 @@ fn derive<Tz: TimeZone>(
         |metric| metric.label.clone(),
     );
     let label = metric_label(budget, &target_label);
-    let display = crate::metric_text::metric_text(&label)
-        .fallback
-        .into_owned();
+    let display = label.clone();
     let unit = budget
         .unit
         .clone()
@@ -1198,6 +1216,8 @@ fn derive<Tz: TimeZone>(
             budget: index,
             partial: false,
             key: budget_key(budget),
+            period_start: bounds.map(|(start, _)| start),
+            period_text: bounds.map(|(start, _)| period_since(start, now, tz)),
         }),
         unlimited: false,
     };
@@ -1305,8 +1325,14 @@ fn derive<Tz: TimeZone>(
 /// gave before the PRD 0041 re-validation), so every surface still labels
 /// them as the person's budget. A quota with a default budget label that
 /// no budget claims (the budget was removed) is dropped: a removed budget
-/// never reads as a provider limit (F-26).
-pub fn mark_restored(account: &Account, report: &mut Report) {
+/// never reads as a provider limit (F-26). `now` and `tz` word the period
+/// again ("since Tue").
+pub fn mark_restored<Tz: TimeZone>(
+    account: &Account,
+    report: &mut Report,
+    now: DateTime<Utc>,
+    tz: &Tz,
+) {
     let originals: Vec<Metric> = report
         .metrics
         .iter()
@@ -1346,7 +1372,14 @@ pub fn mark_restored(account: &Account, report: &mut Report) {
             return !is_default_label(&metric.label);
         };
         claimed[*index] = true;
+        let period_start = metric
+            .period
+            .as_deref()
+            .and_then(|period| DateTime::parse_from_rfc3339(period).ok())
+            .map(|start| start.with_timezone(&Utc));
         metric.derived_from = Some(DerivedFrom {
+            period_start,
+            period_text: period_start.map(|start| period_since(start, now, tz)),
             kind: target
                 .map(|t| t.kind)
                 .or_else(|| budget.kind.map(BudgetKind::metric_kind))
@@ -1640,3 +1673,7 @@ mod reset_tests;
 #[cfg(test)]
 #[path = "budget_identity_tests.rs"]
 mod identity_tests;
+
+#[cfg(test)]
+#[path = "budget_l10n_tests.rs"]
+mod l10n_tests;

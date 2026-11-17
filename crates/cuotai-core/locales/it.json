@@ -18,7 +18,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -201,6 +205,9 @@
   "binding.renewal_due": "finestra {window} al limite; rinnovo atteso, in attesa del provider",
   "binding.renewal_due_metric": "{metric} al limite; rinnovo atteso, in attesa del provider",
   "binding.blocked_metric": "bloccato da {metric}; orario di ripristino sconosciuto",
+  "binding.tightest_budget": "più restrittivo: {metric} (il tuo budget) al {used}%",
+  "binding.blocked_until_budget": "{metric} (il tuo budget) esaurito fino a {at}",
+  "binding.blocked_budget": "{metric} (il tuo budget) esaurito; periodo successivo sconosciuto",
   "budget.badge": "Il tuo budget",
   "budget.describe.daily": "Cuotai mostrerà una quota di budget di {amount} al giorno, dalla mezzanotte.",
   "budget.describe.monthly": "Cuotai mostrerà una quota di budget di {amount} al mese, a partire dal giorno {start}.",
@@ -2639,6 +2646,7 @@
   "budget.error.row": "{field}: un budget su una riga del dettaglio richiede un kind, l'ambito della riga (key, virtual_key, project, workspace o team) e il suo id, su un provider che offre dettagli.",
   "budget.error.duplicate_floor": "{field}: un’altra soglia controlla già lo stesso saldo con lo stesso importo.",
   "budget.error.duplicate_label": "{field}: un altro budget di questo account ha già questa etichetta.",
+  "budget.period_since": "da {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",
   "alerts.at.day": "{day}/{month}",

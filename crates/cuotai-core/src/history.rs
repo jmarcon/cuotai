@@ -1073,7 +1073,7 @@ impl HistoryStore {
                 }
                 let mut report = stored.into_report(account);
                 // PRD 0041: budget metrics come back marked as such.
-                crate::budget::mark_restored(account, &mut report);
+                crate::budget::mark_restored(account, &mut report, now, &chrono::Local);
                 Ok(Some(report))
             })
             .collect()

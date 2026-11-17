@@ -164,7 +164,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -365,6 +369,9 @@
   "binding.renewal_due": "Kontingent ({window}) am Limit; Erneuerung fällig, wartet auf den Anbieter",
   "binding.renewal_due_metric": "{metric} am Limit; Erneuerung fällig, wartet auf den Anbieter",
   "binding.blocked_metric": "gesperrt durch {metric}; Rückkehrzeit unbekannt",
+  "binding.tightest_budget": "am restriktivsten: {metric} (Ihr Budget) bei {used} %",
+  "binding.blocked_until_budget": "{metric} (Ihr Budget) bis {at} aufgebraucht",
+  "binding.blocked_budget": "{metric} (Ihr Budget) aufgebraucht; nächster Zeitraum unbekannt",
   "budget.badge": "Ihr Budget",
   "budget.describe.daily": "Cuotai zeigt ein Budgetkontingent von {amount} pro Tag, ab Mitternacht.",
   "budget.describe.monthly": "Cuotai zeigt ein Budgetkontingent von {amount} pro Monat, beginnend am Tag {start}.",
@@ -2785,6 +2792,7 @@
   "budget.error.row": "{field}: Ein Budget auf einer Zeile der Aufschlüsselung braucht ein kind, den Bereich der Zeile (key, virtual_key, project, workspace oder team) und ihre ID, bei einem Anbieter mit Aufschlüsselungen.",
   "budget.error.duplicate_floor": "{field}: Eine andere Untergrenze überwacht bereits dasselbe Guthaben mit demselben Betrag.",
   "budget.error.duplicate_label": "{field}: Ein anderes Budget dieses Kontos trägt bereits diese Bezeichnung.",
+  "budget.period_since": "seit {day}",
   "alerts.at.weekday": "{weekday}, {time}",
   "alerts.at.date": "{day}.{month}., {time}",
   "alerts.at.day": "{day}.{month}.",

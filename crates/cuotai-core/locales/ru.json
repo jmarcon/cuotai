@@ -192,7 +192,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -397,6 +401,9 @@
   "binding.renewal_due": "{window} квота на пределе; обновление ожидается, ждём провайдера",
   "binding.renewal_due_metric": "{metric}: лимит достигнут; обновление ожидается, ждём провайдера",
   "binding.blocked_metric": "заблокировано: {metric}; время возврата неизвестно",
+  "binding.tightest_budget": "самый жёсткий лимит: {metric} (ваш бюджет), использовано {used} %",
+  "binding.blocked_until_budget": "{metric} (ваш бюджет) исчерпан до {at}",
+  "binding.blocked_budget": "{metric} (ваш бюджет) исчерпан; следующий период неизвестен",
   "budget.badge": "Ваш бюджет",
   "budget.describe.daily": "Cuotai покажет бюджетную квоту {amount} в день, с полуночи.",
   "budget.describe.monthly": "Cuotai покажет бюджетную квоту {amount} в месяц, начиная с {start}-го числа.",
@@ -2921,6 +2928,7 @@
   "budget.error.row": "{field}: бюджету на строке детализации нужны kind, область строки (key, virtual_key, project, workspace или team) и её id у провайдера, который поддерживает детализацию.",
   "budget.error.duplicate_floor": "{field}: другой порог уже следит за тем же балансом на той же сумме.",
   "budget.error.duplicate_label": "{field}: у другого бюджета этой учётной записи уже есть такое название.",
+  "budget.period_since": "с {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}.{month} {time}",
   "alerts.at.day": "{day}.{month}",
