@@ -129,6 +129,13 @@ SUBCOMMANDS:
     --rc                    tag vX.Y.Z-rc.N instead of vX.Y.Z
     --main REF              branch the commit must be on (default: origin/main)
 
+  release ci-proof    Prove CI result, identities and the tag of a release (PRD 0039 RF5.4)
+    --repo PATH             repository root (default: .)
+    --commit SHA            full hash of the tagged commit
+    --evidence DIR          GitHub API responses fetched by release.yml (offline)
+    --tag TAG               also check the tag: noreply tagger, message, version order
+    --report-only           print every finding and exit 0 (workflow_dispatch)
+
   package-manifests  Render and validate every package-manager channel (RF5.6)
     --release-manifest PATH  manifest.json, or a directory containing it
     --repo SLUG              owner/name used for the release download URLs
@@ -557,10 +564,13 @@ fn anonymize_fixture(args: &[String]) -> Res<()> {
 fn release(args: &[String]) -> Res<()> {
     const FLAGS: [&str; 5] = ["--dry-run", "--branch", "--refresh", "--check", "--rc"];
     let Some(action) = args.first() else {
-        return err("usage: cargo xtask release prepare|tag|edit [OPTIONS]");
+        return err("usage: cargo xtask release prepare|tag|edit|ci-proof [OPTIONS]");
     };
     if action == "edit" {
         return release_edit(&args[1..]);
+    }
+    if action == "ci-proof" {
+        return release_ci_proof(&args[1..]);
     }
     let flags: Vec<&str> = args[1..]
         .iter()
@@ -702,6 +712,62 @@ fn release_edit(args: &[String]) -> Res<()> {
         outcome.section
     );
     Ok(())
+}
+
+/// `release ci-proof` (PRD 0039 RF5.4): the `check` job of `release.yml`
+/// proves `CI result` on the tagged commit from the API responses it fetched.
+fn release_ci_proof(args: &[String]) -> Res<()> {
+    let report_only = args.iter().any(|a| a == "--report-only");
+    let rest: Vec<String> = args
+        .iter()
+        .filter(|a| *a != "--report-only")
+        .cloned()
+        .collect();
+    let opts = Opts::parse(&rest)?;
+    if let Some(bad) = opts
+        .0
+        .keys()
+        .find(|k| !["repo", "commit", "evidence", "tag"].contains(&k.as_str()))
+    {
+        return err(format!("release ci-proof does not accept --{bad}"));
+    }
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let commit = opts
+        .get("commit")
+        .ok_or_else(|| Error::Msg("release ci-proof needs --commit SHA".into()))?;
+    let evidence = opts
+        .path("evidence")
+        .ok_or_else(|| Error::Msg("release ci-proof needs --evidence DIR".into()))?;
+    let tag = opts.get("tag");
+    let report = xtask::release::ci_proof::run(
+        &repo,
+        &commit,
+        &evidence,
+        tag.as_deref(),
+        xtask::release::ci_proof::ACCEPT_IDENTICAL_PR_HEAD,
+    );
+    for line in &report.passed {
+        println!("ok: {line}");
+    }
+    if report.problems.is_empty() {
+        println!("release ci-proof passed");
+        return Ok(());
+    }
+    if report_only {
+        for problem in &report.problems {
+            println!("report only, would fail: {problem}");
+        }
+        println!(
+            "release ci-proof: {} problem(s), reported only (a tag push fails on them)",
+            report.problems.len()
+        );
+        return Ok(());
+    }
+    err(format!(
+        "release ci-proof failed ({} problem(s)):\n - {}",
+        report.problems.len(),
+        report.problems.join("\n - ")
+    ))
 }
 
 fn release_prepare(repo: &Path, opts: &Opts, flag: &dyn Fn(&str) -> bool) -> Res<()> {

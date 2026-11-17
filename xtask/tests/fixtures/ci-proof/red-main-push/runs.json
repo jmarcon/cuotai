@@ -1,0 +1,33 @@
+{
+  "total_count": 2,
+  "workflow_runs": [
+    {
+      "id": 43866033873,
+      "name": "CI",
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_sha": "5bf840d6bf486b29146ab4d87461b4a5eed4a59d",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "failure",
+      "check_suite_id": 118750099799,
+      "run_number": 794,
+      "run_attempt": 1,
+      "created_at": "2026-11-16T12:22:48Z"
+    },
+    {
+      "id": 43866033834,
+      "name": "CodeQL",
+      "path": ".github/workflows/codeql.yml",
+      "event": "push",
+      "head_sha": "5bf840d6bf486b29146ab4d87461b4a5eed4a59d",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "success",
+      "check_suite_id": 118750099720,
+      "run_number": 598,
+      "run_attempt": 1,
+      "created_at": "2026-11-16T12:22:48Z"
+    }
+  ]
+}

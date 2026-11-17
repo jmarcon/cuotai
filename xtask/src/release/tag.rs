@@ -94,8 +94,7 @@ pub fn run(repo: &Path, rc: bool, main_ref: &str) -> Res<Tagged> {
             "warning: the CHANGELOG section of {version} is dated {date}, but today (UTC) is {today}; the release page will show {date}"
         );
     }
-    let message = format!("{tag}\n\n## [{version}] - {date}\n\n{body}\n");
-    let message = crate::commits::neutralize_skip_markers(&message) + "\n";
+    let message = message(&tag, &version, &date, &body);
     super::git_with_message(
         repo,
         "CUOTAI_TAG_MSG",
@@ -105,4 +104,12 @@ pub fn run(repo: &Path, rc: bool, main_ref: &str) -> Res<Tagged> {
     )?;
     git::check_tag_on_main(repo, &tag, main_ref)?;
     Ok(Tagged { tag, sha })
+}
+
+/// The annotated tag message `release tag` writes (the tag name, then the
+/// release's changelog section). `release ci-proof` compares a pushed tag
+/// against it, which catches a tag made by hand with `git tag -a`.
+pub fn message(tag: &str, version: &crate::Version, date: &str, body: &str) -> String {
+    let message = format!("{tag}\n\n## [{version}] - {date}\n\n{body}\n");
+    crate::commits::neutralize_skip_markers(&message) + "\n"
 }

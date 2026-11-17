@@ -1,0 +1,20 @@
+{
+  "sha": "295234b87b16b5abcaa7b7ac0cda6d52e2003a64",
+  "tree": {
+    "sha": "b36761c284a25b55951df26d04a30c430ee66d37"
+  },
+  "parents": [
+    {
+      "sha": "e534fa2e42596f9aa7d1cc5ab0811a84781bac75"
+    }
+  ],
+  "author": {
+    "name": "Juliano Marcon",
+    "email": "1767705+jmarcon@users.noreply.github.com"
+  },
+  "committer": {
+    "name": "Juliano Marcon",
+    "email": "1767705+jmarcon@users.noreply.github.com"
+  },
+  "message": "test(identity): restore the invalid-draft proof\n\nProve that session testing rejects a genuinely invalid draft before provider network I/O, and mark the RF0 precursor node as delivered.\n\nRefs: PRD 0029 RF0\n\n"
+}

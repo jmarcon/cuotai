@@ -1,0 +1,20 @@
+{
+  "sha": "4f4b21e8b022c90735fcbc93a2eabacdc87d0c9e",
+  "tree": {
+    "sha": "c395c2e50908a3718c10af084c3bcd6e819adc8b"
+  },
+  "parents": [
+    {
+      "sha": "ad50d69a26a82ec9202b8a8f2ef393e0e0dbe96a"
+    }
+  ],
+  "author": {
+    "name": "Juliano Marcon",
+    "email": "1767705+jmarcon@users.noreply.github.com"
+  },
+  "committer": {
+    "name": "Juliano Marcon",
+    "email": "1767705+jmarcon@users.noreply.github.com"
+  },
+  "message": "docs(cost): plan value rule, export fields and PRD 0030 status\n\ndocs/advanced.md describes the plan-value rule for accounts that share a\nsource, ACCOUNT as the id or provider:name, the rate line per period and\nthe ignored-values note; docs/tui.md names the English section heading,\nGemini accounts and the plan and rate lines; docs/export-v1.md lists the\nprice-age, unpriced and settings-notes fields. PRD 0030 gets a\nre-validation row (vNEXT), the RF3.1 decision and its open items, and\nthe control rows of 0030, 0015, 0014, 0018, 0027 and 0046 are updated,\nthe restore consents routed as open items.\n\nChangelog: skip documentation only\nRefs: PRD 0030 RF8\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+}

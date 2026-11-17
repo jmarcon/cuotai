@@ -6,6 +6,7 @@
 //! commits since the last release; feature and fix commits never touch them
 //! (RF1.3, enforced by [`crate::changelog_gate`]).
 
+pub mod ci_proof;
 pub mod edit;
 pub mod prepare;
 pub mod render;
