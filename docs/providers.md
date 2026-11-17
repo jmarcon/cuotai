@@ -574,7 +574,6 @@ The following endpoints and public-use documentation were fetched on **2026-10-2
 | `alibaba_cloud` | None | — | Not verified (see exclusions below) | — |
 | `antigravity` | None | — | Not verified (see exclusions below) | — |
 | `kimchi` | None | — | Not verified (see exclusions below) | — |
-| `eleven_labs` | None | — | Not verified (see exclusions below) | — |
 
 ### Verification, stability and use policy
 

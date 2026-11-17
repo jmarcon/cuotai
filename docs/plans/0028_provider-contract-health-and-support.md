@@ -241,3 +241,5 @@ At each step: `cargo fmt`, `clippy -D warnings`, workspace and desktop tests, `c
 | TUI details render test of the drift block | The block's texts are covered by the `--once` test and the shared helper; no terminal render snapshot was added. |
 | Canary records after the upgrade | The connection mode (C-11) and the id-like key rule (C-06) change some record keys and fingerprint digests, so the owner's next canary run may report those providers once as new. |
 | Discussions (RF9.3) | Optional owner action: enable them and point the question links back at them. |
+| Drift block repeats the path (PRD 0037 re-validation V-15) | With a single drift, the DS-CMP-DIAG-1 block prints the sentence and then the same path again. The block follows the design-system rule, so the change starts there. |
+| Demo coverage (PRD 0037 re-validation V-09) | 18 of 42 providers have no demo card and most get the generic "Project ID / Mode" form. Proposed (about one day): a test writes the core form descriptors to a generated demo file (`CUOTAI_REGENERATE_DOCS=1`), and a check fails when a provider has neither a demo card nor a stated reason. |
