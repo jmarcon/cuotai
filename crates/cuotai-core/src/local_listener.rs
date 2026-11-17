@@ -769,7 +769,25 @@ mod tests {
         eprintln!("local_listener: own listener check took {elapsed:?}");
         assert_eq!(verdict, Verdict::Trusted);
         drop(socket);
-        assert_eq!(System.verdict(&[V4], port), Verdict::Unconfirmed);
+        // Closed, the port must stop reading as ours. Poll for it instead of
+        // asserting the very next read: on a loaded macOS runner the table
+        // was seen to still report the port for a moment after the close
+        // (another listener of this test process, or a child forked by a
+        // parallel test that has not reached `exec` yet, can briefly hold
+        // the same port or a copy of the socket). A port that stays ours
+        // past the bound still fails.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let after = System.verdict(&[V4], port);
+            if after == Verdict::Unconfirmed {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "a closed listener still reads {after:?} after 10 s"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
     }
 
     /// A listener of a child process this test starts (another process of
