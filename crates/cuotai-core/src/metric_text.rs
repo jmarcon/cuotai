@@ -491,6 +491,12 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.byok_month",
         "BYOK in the month (billed by the provider)",
     ),
+    ("BYOK total", "metric.label.byok_total", "BYOK total"),
+    (
+        "BYOK (externo)",
+        "metric.label.byok_external",
+        "BYOK (external)",
+    ),
     (
         "Orçamento do provedor — {name}",
         "metric.label.provider_budget_named",
@@ -510,6 +516,13 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "Orçamento — {scope}",
         "metric.label.budget_scope",
         "Budget — {scope}",
+    ),
+    // OpenRouter's budget without a safe scope: an exact entry before the
+    // template below (the first match wins), so "outro" is never a slot.
+    (
+        "Orçamento (outro)",
+        "metric.label.budget_other_scope",
+        "Budget (other scope)",
     ),
     (
         "Orçamento ({scope})",

@@ -102,7 +102,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2430,6 +2433,7 @@
   "metric.label.azure_resource_cost": "Chi phí tài nguyên Azure (tháng này)",
   "metric.label.bedrock_cost": "Chi phí AWS Bedrock (tháng này)",
   "metric.label.budget_of": "Ngân sách · {label}",
+  "metric.label.budget_other_scope": "Ngân sách (phạm vi khác)",
   "metric.label.month_cost_usd": "Chi phí trong tháng này (USD)",
   "metric.label.month_cost": "Chi phí trong tháng này ({currency})",
   "metric.label.completion_month": "Mức sử dụng completion trong tháng này ({currency})",
@@ -2439,6 +2443,8 @@
   "metric.label.copilot_quota": "Copilot: {quota}",
   "metric.label.postpaid_forecast": "Dự báo mức dùng trả sau cho chu kỳ hiện tại",
   "metric.label.byok_month": "BYOK trong tháng (do nhà cung cấp tính phí)",
+  "metric.label.byok_total": "Tổng BYOK",
+  "metric.label.byok_external": "BYOK (bên ngoài)",
   "metric.label.provider_budget_named": "Ngân sách nhà cung cấp — {name}",
   "metric.label.provider_budget_period": "Ngân sách nhà cung cấp ({period})",
   "metric.label.provider_budget": "Ngân sách nhà cung cấp",

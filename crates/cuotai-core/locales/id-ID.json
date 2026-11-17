@@ -100,7 +100,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2428,6 +2431,7 @@
   "metric.label.azure_resource_cost": "Biaya sumber daya Azure (bulan ini)",
   "metric.label.bedrock_cost": "Biaya AWS Bedrock (bulan ini)",
   "metric.label.budget_of": "Anggaran · {label}",
+  "metric.label.budget_other_scope": "Anggaran (lingkup lain)",
   "metric.label.month_cost_usd": "Biaya bulan ini (USD)",
   "metric.label.month_cost": "Biaya bulan ini ({currency})",
   "metric.label.completion_month": "Penggunaan completion bulan ini ({currency})",
@@ -2437,6 +2441,8 @@
   "metric.label.copilot_quota": "Copilot: {quota}",
   "metric.label.postpaid_forecast": "Prakiraan penggunaan pascabayar untuk siklus berjalan",
   "metric.label.byok_month": "BYOK bulan ini (ditagih oleh penyedia)",
+  "metric.label.byok_total": "Total BYOK",
+  "metric.label.byok_external": "BYOK (eksternal)",
   "metric.label.provider_budget_named": "Anggaran penyedia — {name}",
   "metric.label.provider_budget_period": "Anggaran penyedia ({period})",
   "metric.label.provider_budget": "Anggaran penyedia",

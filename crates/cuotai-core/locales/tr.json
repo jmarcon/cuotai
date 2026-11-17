@@ -100,7 +100,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2473,6 +2476,7 @@
   "metric.label.azure_resource_cost": "Azure kaynak maliyeti (bu ay)",
   "metric.label.bedrock_cost": "AWS Bedrock maliyeti (bu ay)",
   "metric.label.budget_of": "Bütçe · {label}",
+  "metric.label.budget_other_scope": "Bütçe (diğer kapsam)",
   "metric.label.month_cost_usd": "Bu ayki maliyet (USD)",
   "metric.label.month_cost": "Bu ayki maliyet ({currency})",
   "metric.label.completion_month": "Bu ayki completion kullanımı ({currency})",
@@ -2482,6 +2486,8 @@
   "metric.label.copilot_quota": "Copilot: {quota}",
   "metric.label.postpaid_forecast": "Geçerli döngü için tahmini ödeme sonrası kullanım",
   "metric.label.byok_month": "Ay içinde BYOK (sağlayıcı tarafından ücretlendirilir)",
+  "metric.label.byok_total": "Toplam BYOK",
+  "metric.label.byok_external": "BYOK (harici)",
   "metric.label.provider_budget_named": "Sağlayıcı bütçesi — {name}",
   "metric.label.provider_budget_period": "Sağlayıcı bütçesi ({period})",
   "metric.label.provider_budget": "Sağlayıcı bütçesi",

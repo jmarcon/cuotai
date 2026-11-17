@@ -151,7 +151,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -2614,6 +2617,7 @@
   "metric.label.azure_resource_cost": "Расходы ресурса Azure (текущий месяц)",
   "metric.label.bedrock_cost": "Расходы AWS Bedrock (текущий месяц)",
   "metric.label.budget_of": "Бюджет · {label}",
+  "metric.label.budget_other_scope": "Бюджет (другая область)",
   "metric.label.month_cost_usd": "Расходы за текущий месяц (USD)",
   "metric.label.month_cost": "Расходы за текущий месяц ({currency})",
   "metric.label.completion_month": "Использование completion за текущий месяц ({currency})",
@@ -2623,6 +2627,8 @@
   "metric.label.copilot_quota": "Copilot: {quota}",
   "metric.label.postpaid_forecast": "Прогнозируемое использование постоплаты в текущем цикле",
   "metric.label.byok_month": "BYOK за месяц (тарифицирует провайдер)",
+  "metric.label.byok_total": "BYOK всего",
+  "metric.label.byok_external": "BYOK (внешний)",
   "metric.label.provider_budget_named": "Бюджет провайдера — {name}",
   "metric.label.provider_budget_period": "Бюджет провайдера ({period})",
   "metric.label.provider_budget": "Бюджет провайдера",

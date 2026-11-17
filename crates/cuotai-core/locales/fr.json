@@ -1018,7 +1018,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -3391,6 +3394,7 @@
   "metric.label.azure_resource_cost": "Coût de la ressource Azure (mois en cours)",
   "metric.label.bedrock_cost": "Coût d’AWS Bedrock (mois en cours)",
   "metric.label.budget_of": "Budget · {label}",
+  "metric.label.budget_other_scope": "Budget (autre portée)",
   "metric.label.month_cost_usd": "Coût du mois en cours (USD)",
   "metric.label.month_cost": "Coût du mois en cours ({currency})",
   "metric.label.completion_month": "Utilisation de completion du mois en cours ({currency})",
@@ -3400,6 +3404,8 @@
   "metric.label.copilot_quota": "Copilot : {quota}",
   "metric.label.postpaid_forecast": "Utilisation postpayée prévue sur le cycle actuel",
   "metric.label.byok_month": "BYOK du mois (facturé par le fournisseur)",
+  "metric.label.byok_total": "BYOK total",
+  "metric.label.byok_external": "BYOK (externe)",
   "metric.label.provider_budget_named": "Budget du fournisseur — {name}",
   "metric.label.provider_budget_period": "Budget du fournisseur ({period})",
   "metric.label.provider_budget": "Budget du fournisseur",
