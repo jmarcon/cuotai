@@ -53,7 +53,8 @@
       "coreText.passwordUnset",
       "metric.noCap",
       "metric.full",
-      "metric.exhaustedAmount"
+      "metric.exhaustedAmount",
+      "metric.resetsUtcMidnight"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -214,6 +215,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Сброс {when}",
+  "metric.resetsUtcMidnight": "Сброс в полночь UTC ({time})",
   "metric.balance": "Баланс: {amount}",
   "metric.usage": "Использование: {amount}",
   "metric.exhausted": "Исчерпано",

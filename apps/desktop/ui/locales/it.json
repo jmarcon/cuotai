@@ -154,6 +154,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Si azzera {when}",
+  "metric.resetsUtcMidnight": "Si azzera a mezzanotte UTC ({time})",
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Utilizzo: {amount}",
   "metric.exhausted": "Esaurita",

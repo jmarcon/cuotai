@@ -3,7 +3,7 @@
 // main.js so the card's summary renders (and is tested) without the window.
 import { t, te } from "./i18n.js";
 import {
-  billingOverage, cardPace, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, isFullCounter, metricName, paceHtml, paceLineLabel, paceOf, renewedText, renewedWindowsOf,
+  billingOverage, cardPace, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, isFullCounter, metricName, paceHtml, paceLineLabel, paceOf, periodText, renewedText, renewedWindowsOf,
   resetsText, summaryOf, windowsOf,
 } from "./lib.js";
 import { expectedLeft, extraColumnHtml, figureHtml, meterHtml } from "./components.js";
@@ -17,7 +17,9 @@ function limitColumn(r, label, m, pct, stale) {
   const binding = isBindingMetric(r, m);
   const exhausted = m.state === "exhausted";
   const reset = resetsText(m);
-  return `<div class="win${binding ? " binding" : ""}" title="${esc(`${metricName(m)} · ${fmtAmount(m)}`)}">
+  // PRD 0038 F-09: the period only in the tooltip (DS card density).
+  const tip = [metricName(m), periodText(m), fmtAmount(m)].filter(Boolean).join(" · ");
+  return `<div class="win${binding ? " binding" : ""}" title="${esc(tip)}">
     <div class="win-top"><span class="win-name">${esc(label)}</span>${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
     ${isFullCounter(m) ? figureHtml(t("metric.full"), "", { role: "warn", cls: "left wordfig", dim: stale })
       : exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale })}
@@ -54,8 +56,9 @@ export function summaryHtml(r, stale = false) {
   const s = summaryOf(r);
   if (s.kind === "bar") return `<div class="wins">${limitColumn(r, metricName(s.m), s.m, s.pct, stale)}${extra}</div>`;
   if (s.kind === "text") {
+    const period = periodText(s.m);
     return `<div class="sum-text">
-      <div class="win-top"><span class="win-name">${esc(metricName(s.m))}</span></div>
+      <div class="win-top"><span class="win-name"${period ? ` title="${esc(`${metricName(s.m)} · ${period}`)}"` : ""}>${esc(metricName(s.m))}</span></div>
       <div class="balance ${s.m.state === "exhausted" ? "bad" : ""}">${esc(s.text)}</div>${resetsText(s.m) ? `<div class="win-reset">${esc(resetsText(s.m))}</div>` : ""}</div>`;
   }
   if (s.kind === "hidden") return `<p class="sum-note dim">${te("card.allHidden")}</p>`;

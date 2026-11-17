@@ -59,7 +59,8 @@
       "coreText.passwordUnset",
       "metric.noCap",
       "metric.full",
-      "metric.exhaustedAmount"
+      "metric.exhaustedAmount",
+      "metric.resetsUtcMidnight"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -211,6 +212,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date} {time}",
   "metric.resetsAt": "{when}重置",
+  "metric.resetsUtcMidnight": "UTC 午夜重置（{time}）",
   "metric.balance": "余额：{amount}",
   "metric.usage": "用量：{amount}",
   "metric.exhausted": "已用尽",

@@ -55,7 +55,8 @@
       "coreText.passwordUnset",
       "metric.noCap",
       "metric.full",
-      "metric.exhaustedAmount"
+      "metric.exhaustedAmount",
+      "metric.resetsUtcMidnight"
     ]
   },
   "agg.alertEach": "接続ごとに通知",
@@ -207,6 +208,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date} {time}",
   "metric.resetsAt": "{when}にリセット",
+  "metric.resetsUtcMidnight": "UTC午前0時にリセット（{time}）",
   "metric.balance": "残高：{amount}",
   "metric.usage": "使用量：{amount}",
   "metric.exhausted": "上限到達",

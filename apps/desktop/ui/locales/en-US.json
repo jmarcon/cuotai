@@ -154,6 +154,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date}, {time}",
   "metric.resetsAt": "Resets {when}",
+  "metric.resetsUtcMidnight": "Resets at UTC midnight ({time})",
   "metric.balance": "Balance: {amount}",
   "metric.usage": "Usage: {amount}",
   "metric.exhausted": "Exhausted",

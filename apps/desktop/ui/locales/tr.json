@@ -157,6 +157,7 @@
   "time.weekdayTime": "{day} {time}",
   "time.dateTime": "{date} {time}",
   "metric.resetsAt": "Sıfırlanma: {when}",
+  "metric.resetsUtcMidnight": "Sıfırlanma: UTC gece yarısı ({time})",
   "metric.balance": "Bakiye: {amount}",
   "metric.usage": "Kullanım: {amount}",
   "metric.exhausted": "Tükendi",
