@@ -906,9 +906,17 @@ export const metricName = (m) => (m?.label_text ? tl(m.label_text) : m?.label ??
 /** DS-CMP-MTR-4: a share in % rounded honestly: above 0 and below 1 reads "< 1%", below 100 never reads "100%". */
 export const fmtShare = (p) => (p > 0 && p < 1 ? `< ${fmtPercent(1)}` : fmtPercent(p < 100 ? Math.min(99, Math.round(p)) : Math.round(p)));
 export const isBlocked = (r) => r.status === "ready" && r.binding?.reason === "exhausted";
+/** PRD 0037 RF4: the reset was already past when the provider answered (the core's `renewal_due`): the core's
+ *  "Renewal due since 22:00; waiting for …" (the binding metric's `resets_label`), never a past "blocked until". */
+export const renewalDueText = (r) => {
+  const m = r.binding?.renewal_due ? r.metrics?.[r.binding.index] : null;
+  return m?.resets_label ? tl(m.resets_label) : null;
+};
 /** "Blocked until Today 14:30" (unknown return stays unknown, never "now"); null when not blocked. */
 export const blockedText = (r) => {
   if (!isBlocked(r)) return null;
+  const due = renewalDueText(r);
+  if (due) return due;
   const at = fmtReset(r.binding.blocked_until);
   return at ? t("card.blockedUntil", { time: at }) : t("card.blocked");
 };
@@ -922,6 +930,8 @@ export const isRecharging = (r) =>
   r.status === "ready" && (r.class === "exhausted" || isBlocked(r)) && !["armed", "active"].includes(overageOf(r)?.state);
 /** "Returns Today 14:30", or "Return unknown" when the core knows no `blocked_until`. */
 export const returnText = (r) => {
+  const due = isBlocked(r) ? renewalDueText(r) : null;
+  if (due) return due;
   const at = isBlocked(r) ? fmtReset(r.binding.blocked_until) : null;
   return at ? t("group.returnsAt", { time: at }) : t("group.returnUnknown");
 };
@@ -1787,11 +1797,19 @@ const demoBinding = (r) => {
   const m = r.metrics[metricIndex];
   const exhausted = m.state === "exhausted";
   const usedRatio = exhausted ? 1 : 1 - m.ratio;
+  const renewalDue = demoRenewalDue(r, m);
   return { index: metricIndex, label: m.label, label_text: m.label_text, window: m.window, used_ratio: usedRatio, remaining: m.limit * (1 - usedRatio),
-    resets_at: m.resets_at, reason: exhausted ? "exhausted" : "tightest", blocked_until: exhausted ? m.resets_at : null };
+    resets_at: m.resets_at, reason: exhausted ? "exhausted" : "tightest", blocked_until: exhausted && !renewalDue ? m.resets_at : null, renewal_due: renewalDue };
 };
 // ponytail: fixed core pace output per demo metric (one per stage), same shape as `MetricView.pace`; the browser
 // demo never estimates pace itself. Add a mocked backend when the demo needs paces that follow the clock.
+/** The core's `metrics::renewal_due`: the reset was at or before the reading (demo values). */
+const demoRenewalDue = (r, m) => !!m.resets_at && new Date(m.resets_at) <= new Date(r.checked_at);
+/** The core's `metric.renewal_due` text (`metrics::renewal_due_text`), as the shell sends it (demo values). */
+const demoRenewalDueLabel = (r, iso) => {
+  const at = demoAt(iso), provider = providerName(r.provider);
+  return { id: "metric.renewal_due", params: { at, provider }, fallback: `Renewal due since ${at.fallback}; waiting for ${provider} to renew the window.` };
+};
 /** The core's "Resets {at} · {in}" pair (`resets::pair_label`), as the shell sends it (demo values). */
 const demoResetsLabel = (iso) => {
   const at = demoAt(iso), left = countdownNote(iso);
@@ -2023,6 +2041,15 @@ if (DEMO_QUERY.has("lagging")) {
     { ...dr("aging@example.com", "open_ai_api", [demoSpend("Costs (month)", 3.1)]), checked_at: ago(25), freshness: "aging", data_as_of: ago(9 * 60) });
 }
 if (DEMO_QUERY.has("metered")) demoFirst.push(demoBedrock());
+// PRD 0037 RF4: `?renewal-due`: a fresh reading whose exhausted week reset two hours before the provider answered (it had
+// not renewed): the card, the tray and the details say "Renewal due since …", never a past "blocked until".
+if (DEMO_QUERY.has("renewal-due")) {
+  const due = { ...dr("renewal@example.com", "claude", [dm("weekly (7d)", 100, 100, -2, "quota", "weekly", "%"), dm("session (5h)", 20, 100, 3, "quota", "window_5h", "%")]),
+    class: "exhausted", plan: "Pro" };
+  demoFirst.push(due);
+  DEMO_BINDINGS.set(due, [0, 0]);
+  DEMO_WINDOWS.set(due, [1, 0]);
+}
 demoReports.unshift(...demoFirst);
 // The core's binding of a demo connection: its most consumed quota (demo only; the app gets it from the core).
 const demoConnectionBinding = (c) => {
@@ -2046,7 +2073,7 @@ const demoView = () => {
   const reports = demoReports.map((r, index) => {
     const [paceIndex = null, paces = {}] = r.status === "ready" ? DEMO_PACES.get(r) ?? [] : [];
     const notify = !demoSettings.notify.off_accounts.includes(demoKey(r));
-    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, forecast: demoForecast(m, paces[i]), resets_label: m.resets_at && new Date(m.resets_at) > Date.now() ? demoResetsLabel(m.resets_at) : null, alert: demoMetricAlert(r, m, notify) }));
+    const metrics = r.metrics.map((m, i) => ({ ...m, pace: paces[i] ?? null, forecast: demoForecast(m, paces[i]), resets_label: demoRenewalDue(r, m) ? demoRenewalDueLabel(r, m.resets_at) : m.resets_at && new Date(m.resets_at) > Date.now() ? demoResetsLabel(m.resets_at) : null, alert: demoMetricAlert(r, m, notify) }));
     const incident = demoIncident(r);
     // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
     const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;

@@ -12,7 +12,9 @@
       "dashboard.hint.more_pools",
       "dashboard.metric.no_cap",
       "dashboard.metric.full",
-      "once.cycle_ends"
+      "once.cycle_ends",
+      "dashboard.reset.renewal_due",
+      "once.renewal_due"
     ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
@@ -230,6 +232,7 @@
   "dashboard.models.one": "1 Modell",
   "dashboard.reset.now": "jetzt",
   "dashboard.reset.renews": "erneuert ",
+  "dashboard.reset.renewal_due": "Erneuerung fällig",
   "dashboard.reset.soon": "bald",
   "dashboard.sub.also_direct": " · auch direkt",
   "dashboard.too_small": "Cuotai: Vergrößern Sie das Terminal auf mindestens 45 × 18. q beendet.",
@@ -350,6 +353,7 @@
   "once.pool": "  Pool: {summary}",
   "once.provider_status": "  Anbieterstatus: {parts}",
   "once.renews": "Erneuert: {at}",
+  "once.renewal_due": "Erneuerung fällig seit {at}",
   "once.source": "  Quelle: {source}",
   "once.sub.disabled": "in 9router deaktiviert",
   "once.sub.duplicate": "auch direkt überwacht",

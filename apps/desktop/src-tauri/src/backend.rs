@@ -1457,10 +1457,21 @@ fn report_view(
                     now,
                     points.unwrap_or_default(),
                 ),
-                resets_label: metric
-                    .resets_at
-                    .filter(|at| *at > now)
-                    .map(|at| cuotai_core::resets::pair_label(local_at(at), at - now)),
+                // PRD 0037 RF4: a reset already past at the reading is a
+                // renewal due (the provider had not renewed), never a countdown.
+                resets_label: if cuotai_core::metrics::renewal_due(metric, report.checked_at) {
+                    metric.resets_at.map(|at| {
+                        cuotai_core::metrics::renewal_due_text(
+                            cuotai_core::text::ParamValue::l10n(local_at(at)),
+                            report.provider,
+                        )
+                    })
+                } else {
+                    metric
+                        .resets_at
+                        .filter(|at| *at > now)
+                        .map(|at| cuotai_core::resets::pair_label(local_at(at), at - now))
+                },
                 // PRD 0041 RF4.3: like the pace, only while the reading is fresh.
                 allowance: (assess(reading_at, interval, now) == Freshness::Fresh)
                     .then(|| pace::allowance(metric, reading_at, points))
@@ -8976,6 +8987,18 @@ mod tests {
         };
         let view =
             serde_json::to_value(report_view(0, &past, &config, None, None, 0, &[])).unwrap();
+        // PRD 0037 RF4: the reset was past when the provider answered: a
+        // renewal due in the core's words, never a countdown.
+        let due = &view["metrics"][0]["resets_label"];
+        assert_eq!(due["id"], "metric.renewal_due");
+        assert_eq!(due["params"]["provider"], Provider::AlibabaCloud.label());
+        // A reset that passed after the reading (PRD 0033) has neither.
+        let renewed = Report {
+            checked_at: chrono::Utc::now() - chrono::Duration::hours(2),
+            ..past
+        };
+        let view =
+            serde_json::to_value(report_view(0, &renewed, &config, None, None, 0, &[])).unwrap();
         assert!(view["metrics"][0]["resets_label"].is_null());
     }
 

@@ -6,7 +6,7 @@
 import { t, te, tl } from "./i18n.js";
 import { accountFullLabel,
   ALERTS, billingOverage, bindingLabel, causeText, bindingPct, brand, extraFigure, fmtShare, fmtExtra, fmtPercent, fmtLocal, fmtReset, paceUnit, esc, fmtAge, icon, incidentBadge, isBlocked, isMetricHidden, isStaleReading, level, logo,
-  coreClock, paceLabelOf, paceOf, remainingPct, renewedText, renewedWindowsOf, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
+  coreClock, paceLabelOf, paceOf, remainingPct, renewalDueText, renewedText, renewedWindowsOf, reportKey, shownAt, staleView, statusLabel, summaryOf, windowsOf,
   planBadgeHtml,
 } from "./lib.js";
 import { currentLocale } from "./i18n.js";
@@ -245,6 +245,8 @@ export function statusParts(r, st = accountState(r)) {
     label = t("stage.exhausted"); // the figure already reads "Exhausted"; the reset carries the return time
     role = "bad";
     reset = isBlocked(r) ? r.binding.blocked_until : binding?.resets_at ?? null;
+    // PRD 0037 RF4: a reset already past at the reading is a renewal due, never a past return time.
+    if (r.binding?.renewal_due) detail = renewalDueText(r) ?? "";
     // Fa gap 4: on paid extra usage the one line says so ("Limit hit · on extra balance"); the money is the figure.
     // PRD 0023 re-validation (V-03): a used-up extra budget is not "on extra": the line says "Extra budget used up".
     const extra = billingOverage(r);
@@ -274,6 +276,7 @@ export function statusParts(r, st = accountState(r)) {
   // PRD 0033 RF3.2 (re-validation V-03): the provider's data is older than the query ("data as of 6:00 AM"), on a fresh
   // reading too; the backend sends `data_as_of` only when it lags the query by more than 15 minutes.
   const asOf = st.kind !== "stale" && r.status === "ready" && r.data_as_of ? t("freshness.data_as_of", { time: coreClock(r.data_as_of) ?? "—" }) : "";
+  if (r.binding?.renewal_due) reset = null;
   const at = fmtAt(reset);
   if (at) resetFull = t("stl.resets", { time: at });
   const full = [label, detail, renewed, asOf, resetFull, cause].filter(Boolean).join(" · ");

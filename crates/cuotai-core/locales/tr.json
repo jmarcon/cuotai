@@ -36,7 +36,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -233,6 +236,8 @@
   "binding.tightest": "en kısıtlayıcı: {window} pencere, %{used}",
   "binding.tightest_metric": "en kısıtlayıcı: {metric}, %{used}",
   "binding.blocked_until_metric": "{metric} nedeniyle engellendi, dönüş: {at}",
+  "binding.renewal_due": "{window} pencere sınırında; yenileme bekleniyor, sağlayıcı bekleniyor",
+  "binding.renewal_due_metric": "{metric} sınırında; yenileme bekleniyor, sağlayıcı bekleniyor",
   "binding.blocked_metric": "{metric} nedeniyle engellendi; dönüş zamanı bilinmiyor",
   "budget.badge": "Bütçen",
   "budget.describe.daily": "Cuotai gece yarısından itibaren günde {amount} tutarında bir bütçe kotası gösterecek.",
@@ -1276,6 +1281,7 @@
   "login.zed.oauth.help": "DENEYSEL akış, sağlayıcının yerel istemcisine dayanır (dahili arayüz, resmî destek yok; her an başarısız olabilir veya kısıtlanabilir). İzin tarayıcıda/cihaz kodunda verilir; Cuotai'ye hiçbir parola veya jeton yazılmaz.",
   "login.zed.oauth.label": "Tarayıcıda yerel oturum açma",
   "metric.renewed_waiting": "{time} saatinde yenilendi; sonraki okuma bekleniyor.",
+  "metric.renewal_due": "{at} saatinden beri yenileme bekleniyor; {provider} pencereyi yenilemedi.",
   "metric_window.daily": "günlük",
   "metric_window.monthly": "aylık",
   "metric_window.weekly": "haftalık",

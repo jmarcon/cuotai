@@ -25,7 +25,8 @@
         "remaining": 0.0,
         "resets_at": "2026-11-02T00:00:00Z",
         "reason": "exhausted",
-        "blocked_until": "2026-11-02T00:00:00Z"
+        "blocked_until": "2026-11-02T00:00:00Z",
+        "renewal_due": false
       },
       "metrics": [
         {
@@ -78,7 +79,8 @@
         "remaining": 61.0,
         "resets_at": "2026-10-23T20:00:00Z",
         "reason": "tightest",
-        "blocked_until": null
+        "blocked_until": null,
+        "renewal_due": false
       },
       "metrics": [
         {

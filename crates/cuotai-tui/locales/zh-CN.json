@@ -13,7 +13,9 @@
       "dashboard.hint.more_pools",
       "dashboard.metric.no_cap",
       "dashboard.metric.full",
-      "once.cycle_ends"
+      "once.cycle_ends",
+      "dashboard.reset.renewal_due",
+      "once.renewal_due"
     ]
   },
   "about.brazil": "特别感谢：由巴西人创建的项目",
@@ -225,6 +227,7 @@
   "dashboard.models.one": "1 个模型",
   "dashboard.reset.now": "现在",
   "dashboard.reset.renews": "重置于 ",
+  "dashboard.reset.renewal_due": "等待重置",
   "dashboard.reset.soon": "即将",
   "dashboard.sub.also_direct": " · 也直接监控",
   "dashboard.too_small": "Cuotai：请将终端加宽到至少 45 × 18。q 退出。",
@@ -344,6 +347,7 @@
   "once.pool": "  池：{summary}",
   "once.provider_status": "  提供商状态：{parts}",
   "once.renews": "重置：{at}",
+  "once.renewal_due": "自 {at} 起应重置",
   "once.source": "  来源：{source}",
   "once.sub.disabled": "在 9router 中已关闭",
   "once.sub.duplicate": "也直接监控",

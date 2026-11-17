@@ -242,6 +242,9 @@ struct MetricRow {
     state: MetricState,
     period: Option<String>,
     resets_at: Option<DateTime<Utc>>,
+    /// PRD 0037 RF4: the reset was already past when the provider answered
+    /// (`metrics::renewal_due`): "renewal due", never a countdown.
+    renewal_due: bool,
     /// PRD 0007 RF4: the core's pace; `None` for ineligible metrics, freshly
     /// opened windows and the preserved (stale) reading.
     pace: Option<Pace>,
@@ -291,7 +294,12 @@ fn pace_clock(
 /// reading is fresh. `recent` are the recorded points of the metric (PRD
 /// 0006), which project the pace from the recent slope when there are
 /// enough of them (PRD 0007 RF1.5).
-fn metric_row(metric: &Metric, clock: Option<PaceClock>, recent: &[Point]) -> MetricRow {
+fn metric_row(
+    metric: &Metric,
+    checked_at: DateTime<Utc>,
+    clock: Option<PaceClock>,
+    recent: &[Point],
+) -> MetricRow {
     MetricRow {
         label: crate::ui::metric_label_text(&metric.label),
         text: metric_text(metric),
@@ -300,6 +308,7 @@ fn metric_row(metric: &Metric, clock: Option<PaceClock>, recent: &[Point]) -> Me
         resets_at: metric.resets_at,
         kind: metric.kind,
         unlimited: metric.unlimited,
+        renewal_due: cuotai_core::metrics::renewal_due(metric, checked_at),
         pace: clock.and_then(|clock| {
             pace::assess_reading(
                 metric,
@@ -507,6 +516,12 @@ fn padded_percent(value: f64) -> String {
 /// "renews " before a reset countdown.
 fn renews() -> &'static str {
     tr("dashboard.reset.renews", "renews ")
+}
+
+/// PRD 0037 RF4: in place of a countdown when the reset was already past
+/// at the reading (the provider had not renewed the window).
+fn renewal_due() -> &'static str {
+    tr("dashboard.reset.renewal_due", "renewal due")
 }
 
 /// RF6.1 range summary: `min 5 · max 80 · last 40 %`.
@@ -1834,7 +1849,9 @@ fn render_card(
             // The preserved reading is old: no pace from today's clock.
             let clock = pace_clock(view, account_index, report, stale.is_some(), now);
             let recent = recent_of(view, account_index);
-            let row = |(index, metric)| metric_row(metric, clock, points(recent, index));
+            let row = |(index, metric)| {
+                metric_row(metric, report.checked_at, clock, points(recent, index))
+            };
             report
                 .metrics
                 .iter()
@@ -2975,9 +2992,17 @@ fn render_gauge(
     // bar, or nothing when not even the compact one does. Its column is the
     // card's `reset_column` while that fits, so the card's bars line up.
     let room = area.width.saturating_sub(bar_min);
-    let reset = metric
-        .resets_at
-        .and_then(|at| fit_reset(at, now, usize::from(room)));
+    let reset = if metric.renewal_due {
+        Some(Line::from(Span::styled(
+            renewal_due(),
+            Style::default().fg(CYAN),
+        )))
+        .filter(|line| line.width() <= usize::from(room))
+    } else {
+        metric
+            .resets_at
+            .and_then(|at| fit_reset(at, now, usize::from(room)))
+    };
     let chunks = match &reset {
         Some(line) => {
             let width = u16::try_from(line.width()).unwrap_or(room);
@@ -3257,14 +3282,15 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     }
     // PRD 0024 RF7.5: the best account of the group, or what it has left.
     {
-        let rows: Vec<MetricRow> = stale
-            .unwrap_or(report)
+        let shown = stale.unwrap_or(report);
+        let rows: Vec<MetricRow> = shown
             .metrics
             .iter()
             .enumerate()
             .map(|(index, metric)| {
                 let clock = pace_clock(view, account_index, report, stale.is_some(), now);
-                metric_row(metric, clock, points(recent_of(view, account_index), index))
+                let recent = points(recent_of(view, account_index), index);
+                metric_row(metric, shown.checked_at, clock, recent)
             })
             .collect();
         let exhausted = classification(Some(report)) == AccountClass::Exhausted;
@@ -3352,7 +3378,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         let motion_key = account.state_key();
         for (index, metric) in shown.metrics.iter().enumerate() {
             let recent = points(recent_of(view, account_index), index);
-            let row = metric_row(metric, clock, recent);
+            let row = metric_row(metric, shown.checked_at, clock, recent);
             lines.push(Line::default());
             lines.push(Line::from(vec![
                 Span::styled(
@@ -3666,11 +3692,15 @@ fn line_bar(
     let fill = |ratio: f64| motion.map_or(ratio, |(anim, name, i)| anim.bar(name, i, ratio));
     // PRD 0033 re-validation V-11: a reset already past (a renewed window
     // of a preserved reading) has no countdown, never "renews now".
-    let reset_label = metric
-        .resets_at
-        .filter(|reset| *reset >= now)
-        .map(|reset| format!("  {}", format_reset_line(reset, now)))
-        .unwrap_or_default();
+    let reset_label = if metric.renewal_due {
+        format!("  {}", renewal_due())
+    } else {
+        metric
+            .resets_at
+            .filter(|reset| *reset >= now)
+            .map(|reset| format!("  {}", format_reset_line(reset, now)))
+            .unwrap_or_default()
+    };
     let width = usize::from(width)
         .saturating_sub(2 + cells(&reset_label) + 16)
         .max(1);
@@ -3794,7 +3824,7 @@ mod tests {
     fn uncapped_and_full_metrics_say_why() {
         let now = chrono::Utc::now();
         let suffix = |metric: &Metric| {
-            let row = metric_row(metric, None, &[]);
+            let row = metric_row(metric, DateTime::<Utc>::MIN_UTC, None, &[]);
             crate::l10n::with_locale("en-US", || {
                 (
                     line_bar(&row, 60, now, None).to_string(),
@@ -4117,6 +4147,60 @@ mod tests {
                 "{locale}: the card renders the metric text `{expected_metric}`:\n{screen}"
             );
         }
+    }
+
+    /// PRD 0037 RF4: a fresh reading whose reset was already past when the
+    /// provider answered shows "renewal due" on the card, never "renews now"
+    /// or a countdown.
+    #[test]
+    fn a_reset_already_past_at_the_reading_reads_renewal_due_on_the_card() {
+        let checked = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let account = Account {
+            name: "Voice".into(),
+            provider: Provider::Groq,
+            ..Account::default()
+        };
+        let report = Report {
+            account_id: None,
+            diagnostic: None,
+            account: "Voice".into(),
+            provider: Provider::Groq,
+            checked_at: checked,
+            status: Status::Ready,
+            metrics: vec![Metric {
+                billing: Default::default(),
+                scope: None,
+                label: "Monthly".into(),
+                used: Some(2.0),
+                limit: Some(2.0),
+                remaining: Some(0.0),
+                unit: "requests".into(),
+                kind: MetricKind::Quota,
+                window: Some(MetricWindow::Monthly),
+                period: None,
+                resets_at: Some(checked - chrono::Duration::hours(3)),
+                derived_from: None,
+                unlimited: false,
+            }],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        let screen = crate::dashboard::render_for_test(
+            &[account],
+            &[Some(report)],
+            &[],
+            &[0],
+            checked + chrono::Duration::minutes(1),
+            "en-US",
+        );
+        assert!(screen.contains("renewal due"), "{screen}");
+        assert!(!screen.contains("renews now"), "{screen}");
     }
 
     #[test]
@@ -6258,7 +6342,7 @@ mod tests {
                 let mut resets: Vec<Vec<String>> = Vec::new();
                 let mut values: Vec<String> = Vec::new();
                 for metric in metrics {
-                    values.push(metric_row(metric, None, &[]).text);
+                    values.push(metric_row(metric, DateTime::<Utc>::MIN_UTC, None, &[]).text);
                     if let Some(at) = metric.resets_at {
                         resets.push(reset_forms(at, now).iter().map(plain).collect());
                     }

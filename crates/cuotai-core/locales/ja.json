@@ -81,7 +81,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -276,6 +279,8 @@
   "binding.tightest": "最も厳しい：{window}ウィンドウ（{used}%使用）",
   "binding.tightest_metric": "最も厳しい：{metric}（{used}%使用）",
   "binding.blocked_until_metric": "{metric}により{at}まで制限中",
+  "binding.renewal_due": "{window}ウィンドウは上限。リセット予定時刻を過ぎ、プロバイダーの更新待ち",
+  "binding.renewal_due_metric": "{metric} は上限。リセット予定時刻を過ぎ、プロバイダーの更新待ち",
   "binding.blocked_metric": "{metric}により制限中。回復時刻は不明",
   "budget.badge": "自分の予算",
   "budget.describe.daily": "Cuotai は 1 日 {amount} の予算枠を午前 0 時から表示します。",
@@ -1301,6 +1306,7 @@
   "login.zed.oauth.help": "プロバイダーのネイティブクライアントに基づく実験的なフローです（内部インターフェース、公式サポートなし。いつでも失敗したり制限されたりする可能性があります）。同意はブラウザーまたはデバイスコードで行い、Cuotai にパスワードやトークンを入力することはありません。",
   "login.zed.oauth.label": "ブラウザーでネイティブサインイン",
   "metric.renewed_waiting": "{time} にリセット。次の読み取り待ち。",
+  "metric.renewal_due": "{at} からリセット待ち。{provider} がウィンドウをリセットするのを待っています。",
   "metric_window.daily": "日次",
   "metric_window.monthly": "月次",
   "metric_window.weekly": "週次",

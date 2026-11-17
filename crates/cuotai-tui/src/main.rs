@@ -1976,7 +1976,7 @@ fn report_text(
             out += "\n";
         }
         if let Some(reset) = metric.resets_at {
-            out += &renews_line(locale, "    ", metric.kind, &at(reset));
+            out += &reset_line(locale, "    ", metric, report.checked_at, &at(reset));
         }
         if metric.derived_from.is_some() {
             out += &format!(
@@ -2077,6 +2077,30 @@ fn renews_line(locale: &str, indent: &str, kind: cuotai_core::MetricKind, at: &s
         l10n::trf_in(locale, "once.renews", "Renews: {at}", &[("at", &at)])
     };
     format!("{indent}{line}\n")
+}
+
+/// The reset line of `metric`: "Renews: <time>", or "Renewal due since
+/// <time>" when the reset was already past when the provider answered
+/// (PRD 0037 RF4: it had not renewed the window).
+fn reset_line(
+    locale: &str,
+    indent: &str,
+    metric: &cuotai_core::Metric,
+    checked_at: DateTime<Utc>,
+    at: &str,
+) -> String {
+    if !cuotai_core::metrics::renewal_due(metric, checked_at) {
+        return renews_line(locale, indent, metric.kind, at);
+    }
+    format!(
+        "{indent}{}\n",
+        l10n::trf_in(
+            locale,
+            "once.renewal_due",
+            "Renewal due since {at}",
+            &[("at", &at)]
+        )
+    )
 }
 
 /// PRD 0036 RF9.3: the block of an aggregator account, indented under its
@@ -2180,7 +2204,7 @@ fn connection_text(
             ui::metric_text_in(metric, locale)
         );
         if let Some(reset) = metric.resets_at {
-            out += &renews_line(locale, "        ", metric.kind, &at(reset));
+            out += &reset_line(locale, "        ", metric, reading.checked_at, &at(reset));
         }
         if sub.status == cuotai_core::Status::Ready {
             let lines = pace_lines(metric, reading_at, None, interval, now, locale, at);
@@ -3222,6 +3246,37 @@ mod tests {
             report_text(&report, &[], None, FIVE_MIN, now, "pt-BR", at)
         });
         assert!(pt.contains("Semana (7 dias) (%)"), "{pt}");
+    }
+
+    /// PRD 0037 RF4: a fresh reading whose reset was already past when the
+    /// provider answered prints "Renewal due since", never "Renews:" with a
+    /// past time; a reset after the reading keeps "Renews:".
+    #[test]
+    fn once_prints_a_renewal_due_for_a_reset_already_past_at_the_reading() {
+        let checked = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let report = report(
+            "Work",
+            Status::Ready,
+            vec![
+                quota(
+                    MetricWindow::Weekly,
+                    100.0,
+                    Some(checked - chrono::Duration::hours(2)),
+                ),
+                quota(
+                    MetricWindow::Window5h,
+                    40.0,
+                    Some(checked + chrono::Duration::hours(2)),
+                ),
+            ],
+        );
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let text = report_text(&report, &[], None, FIVE_MIN, checked, "en-US", at);
+        assert!(text.contains("    Renewal due since 22:00\n"), "{text}");
+        assert!(!text.contains("Renews: 22:00"), "{text}");
+        assert!(text.contains("    Renews: 02:00\n"), "{text}");
+        let pt = report_text(&report, &[], None, FIVE_MIN, checked, "pt-BR", at);
+        assert!(pt.contains("    Renovação pendente desde 22:00\n"), "{pt}");
     }
 
     #[test]

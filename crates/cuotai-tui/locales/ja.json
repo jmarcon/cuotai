@@ -39,7 +39,9 @@
       "dashboard.hint.more_pools",
       "dashboard.metric.no_cap",
       "dashboard.metric.full",
-      "once.cycle_ends"
+      "once.cycle_ends",
+      "dashboard.reset.renewal_due",
+      "once.renewal_due"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -251,6 +253,7 @@
   "dashboard.models.one": "1 モデル",
   "dashboard.reset.now": "今",
   "dashboard.reset.renews": "リセット ",
+  "dashboard.reset.renewal_due": "リセット待ち",
   "dashboard.reset.soon": "まもなく",
   "dashboard.sub.also_direct": " · 直接監視あり",
   "dashboard.too_small": "Cuotai：ターミナルを 45 × 18 以上に広げてください。q で終了します。",
@@ -370,6 +373,7 @@
   "once.pool": "  プール：{summary}",
   "once.provider_status": "  プロバイダーの状態：{parts}",
   "once.renews": "リセット：{at}",
+  "once.renewal_due": "{at} からリセット待ち",
   "once.source": "  出典：{source}",
   "once.sub.disabled": "9router でオフ",
   "once.sub.duplicate": "直接監視あり",

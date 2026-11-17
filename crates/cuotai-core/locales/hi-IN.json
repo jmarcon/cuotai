@@ -54,7 +54,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -251,6 +254,8 @@
   "binding.tightest": "सबसे सीमित: {window} विंडो {used}% पर",
   "binding.tightest_metric": "सबसे सीमित: {metric} {used}% पर",
   "binding.blocked_until_metric": "{metric} से {at} तक ब्लॉक",
+  "binding.renewal_due": "{window} विंडो सीमा पर; नवीनीकरण बाकी, प्रदाता का इंतज़ार",
+  "binding.renewal_due_metric": "{metric} सीमा पर; नवीनीकरण बाकी, प्रदाता का इंतज़ार",
   "binding.blocked_metric": "{metric} से ब्लॉक; वापसी का समय अज्ञात",
   "budget.badge": "आपका बजट",
   "budget.describe.daily": "Cuotai आधी रात से प्रति दिन {amount} का बजट कोटा दिखाएगा।",
@@ -1294,6 +1299,7 @@
   "login.zed.oauth.help": "प्रदाता के नेटिव क्लाइंट पर आधारित प्रायोगिक प्रवाह (आंतरिक इंटरफ़ेस, आधिकारिक समर्थन नहीं; कभी भी विफल या प्रतिबंधित हो सकता है)। सहमति ब्राउज़र/डिवाइस कोड में दी जाती है; Cuotai में कोई पासवर्ड या टोकन टाइप नहीं किया जाता।",
   "login.zed.oauth.label": "ब्राउज़र में नेटिव लॉगिन",
   "metric.renewed_waiting": "{time} पर रीसेट हुआ; अगली रीडिंग का इंतज़ार.",
+  "metric.renewal_due": "{at} से नवीनीकरण बाकी; {provider} के विंडो रीसेट करने का इंतज़ार.",
   "metric_window.daily": "दैनिक",
   "metric_window.monthly": "मासिक",
   "metric_window.weekly": "साप्ताहिक",

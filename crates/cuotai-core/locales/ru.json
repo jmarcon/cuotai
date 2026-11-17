@@ -87,7 +87,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -288,6 +291,8 @@
   "binding.tightest": "самый жёсткий лимит: {window} квота, использовано {used} %",
   "binding.tightest_metric": "самый жёсткий лимит: {metric}, использовано {used} %",
   "binding.blocked_until_metric": "заблокировано до {at}: {metric}",
+  "binding.renewal_due": "{window} квота на пределе; обновление ожидается, ждём провайдера",
+  "binding.renewal_due_metric": "{metric}: лимит достигнут; обновление ожидается, ждём провайдера",
   "binding.blocked_metric": "заблокировано: {metric}; время возврата неизвестно",
   "budget.badge": "Ваш бюджет",
   "budget.describe.daily": "Cuotai покажет бюджетную квоту {amount} в день, с полуночи.",
@@ -1367,6 +1372,7 @@
   "login.zed.oauth.help": "ЭКСПЕРИМЕНТАЛЬНЫЙ поток на основе встроенного клиента провайдера (внутренний интерфейс без официальной поддержки; может в любой момент перестать работать или быть ограничен). Согласие даётся в браузере или по коду устройства; в Cuotai пароли и токены не вводятся.",
   "login.zed.oauth.label": "Встроенный вход в браузере",
   "metric.renewed_waiting": "Обновлено в {time}; ожидается следующее показание.",
+  "metric.renewal_due": "Обновление ожидается с {at}; ждём, пока {provider} обновит квоту.",
   "metric_window.daily": "суточная",
   "metric_window.monthly": "месячная",
   "metric_window.weekly": "недельная",

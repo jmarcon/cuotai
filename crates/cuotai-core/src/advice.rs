@@ -133,6 +133,14 @@ fn candidate(view: &AccountView, now: DateTime<Utc>) -> Option<Candidate> {
     if !view.enabled {
         return None;
     }
+    // PRD 0037 RF4: an account at its limit whose reset was already past
+    // when the provider answered is waiting for a renewal the provider has
+    // not made; it is no candidate until the next reading.
+    if metrics::binding(report).is_some_and(|binding| {
+        binding.renewal_due && binding.reason == metrics::BindingReason::Exhausted
+    }) {
+        return None;
+    }
     let mut score: Option<f64> = None;
     let mut remaining: Option<f64> = None;
     for metric in report.metrics.iter().filter(|m| metrics::limits_account(m)) {
@@ -140,7 +148,13 @@ fn candidate(view: &AccountView, now: DateTime<Utc>) -> Option<Candidate> {
             continue;
         };
         let left = (1.0 - consumption.percent / 100.0).clamp(0.0, 1.0);
-        let effective = effective_remaining(left, metric.resets_at.map(|at| at - now));
+        // A reset already past at the reading earns no renewal credit (the
+        // provider had not renewed); one that passed since does (PRD 0033).
+        let until_reset = metric
+            .resets_at
+            .filter(|_| !metrics::renewal_due(metric, report.checked_at))
+            .map(|at| at - now);
+        let effective = effective_remaining(left, until_reset);
         score = Some(score.map_or(effective, |best| best.min(effective)));
         remaining = Some(remaining.map_or(left, |best| best.min(left)));
     }

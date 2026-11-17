@@ -187,6 +187,11 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // certificate that changed (its own dialog: old and new fingerprints, Cancel focused, Replace behind a checkbox).
   ["dialog-cert-first", "index.html?aggtest=cert-first", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]', "#aggregator-test"]],
   ["dialog-cert-changed", "index.html?aggtest=cert-changed", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]', "#aggregator-test"]],
+  // PRD 0037 RF4: a reset already past when the provider answered: "Renewal due since …" on the card, the tray and the
+  // details, never a past "blocked until".
+  ["main-renewal-due", "index.html?renewal-due", 1200, 820, {}],
+  ["tray-renewal-due", "tray.html?renewal-due", 380, 600, {}],
+  ["details-renewal-due", "index.html?renewal-due", 1200, 820, {}, '.card[data-card="claude::renewal@example.com"] [data-details]'],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [

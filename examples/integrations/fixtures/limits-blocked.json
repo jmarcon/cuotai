@@ -22,7 +22,8 @@
         "remaining": 0.0,
         "resets_at": "2026-10-20T14:00:00Z",
         "reason": "exhausted",
-        "blocked_until": "2026-10-20T14:00:00Z"
+        "blocked_until": "2026-10-20T14:00:00Z",
+        "renewal_due": false
       },
       "age_seconds": 30,
       "freshness": "fresh",

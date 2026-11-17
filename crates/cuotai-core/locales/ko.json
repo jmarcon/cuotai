@@ -55,7 +55,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -250,6 +253,8 @@
   "binding.tightest": "가장 제한적: {window} 구간 {used}% 사용",
   "binding.tightest_metric": "가장 제한적: {metric} {used}% 사용",
   "binding.blocked_until_metric": "{metric}에 의해 {at}까지 차단됨",
+  "binding.renewal_due": "{window} 구간 한도 도달, 초기화 예정, 제공업체를 기다리는 중",
+  "binding.renewal_due_metric": "{metric} 한도 도달, 초기화 예정, 제공업체를 기다리는 중",
   "binding.blocked_metric": "{metric}에 의해 차단됨, 복귀 시각을 알 수 없음",
   "budget.badge": "내 예산",
   "budget.describe.daily": "Cuotai가 자정부터 하루 {amount}의 예산 할당량을 표시합니다.",
@@ -1275,6 +1280,7 @@
   "login.zed.oauth.help": "제공업체 기본 클라이언트를 기반으로 한 실험적 흐름입니다(내부 인터페이스이며 공식 지원이 없어 언제든 실패하거나 제한될 수 있음). 동의는 브라우저/기기 코드에서 이루어지며 비밀번호나 토큰을 Cuotai에 입력하지 않습니다.",
   "login.zed.oauth.label": "브라우저 기본 로그인",
   "metric.renewed_waiting": "{time}에 초기화됨, 다음 조회값을 기다리는 중.",
+  "metric.renewal_due": "{at}부터 초기화 예정, {provider}이(가) 구간을 초기화하기를 기다리는 중.",
   "metric_window.daily": "일간",
   "metric_window.monthly": "월간",
   "metric_window.weekly": "주간",
