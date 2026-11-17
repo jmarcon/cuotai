@@ -211,6 +211,13 @@ fn release_edit_records_a_wording_fix_that_the_check_and_refresh_keep() {
     )
     .unwrap();
     assert_eq!(outcome.replaced.len(), 1);
+    let body = std::fs::read_to_string(&outcome.pr_body).unwrap();
+    assert!(
+        body.contains(&format!(
+            "### Wording edits\n\n- `Changelog-Entry: {f}#1 {x}#1 [Changed] Accounts keep their sorted order.`\n"
+        )),
+        "{body}"
+    );
     let changelog = read(&repo, "CHANGELOG.md");
     assert!(
         changelog.contains(&format!(

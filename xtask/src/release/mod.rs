@@ -574,11 +574,13 @@ pub fn check_release(repo: &Path, rev: &str) -> Res<CheckOutcome> {
     }
     let plan_paths = tree.plan_files()?;
     for (path, text) in plan_paths.iter().zip(tree.read_many(&plan_paths)?) {
-        let count = render::count_next(&text.unwrap_or_default());
-        if count > 0 {
+        // F-20: where, and what to do about it.
+        for line in render::next_lines(&text.unwrap_or_default()) {
             problems.push(format!(
-                "{path} still has {count} '{}' token(s)",
-                render::NEXT_TOKEN
+                "{path}:{line}: a '{token}' token is left; run `cargo xtask release prepare --refresh` \
+                 on the release branch, which writes {version} there (or put the token in backticks \
+                 when it is not a delivery marker)",
+                token = render::NEXT_TOKEN
             ));
         }
     }

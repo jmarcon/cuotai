@@ -448,6 +448,22 @@ pub fn count_next(text: &str) -> usize {
     replace_next(text, "X").1
 }
 
+/// The 1-based line numbers that still carry a `vNEXT` token (code spans
+/// and fences excluded, as [`replace_next`] does), each once.
+pub fn next_lines(text: &str) -> Vec<usize> {
+    const MARK: &str = "\u{1}NEXT\u{1}";
+    let (marked, count) = replace_next(text, MARK);
+    if count == 0 {
+        return Vec::new();
+    }
+    marked
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| line.contains(MARK))
+        .map(|(index, _)| index + 1)
+        .collect()
+}
+
 /// RF6.2: the `0000_control.md` header and the generated §3 rows.
 pub fn update_control(text: &str, version: &str, date: &str, rows: &[String]) -> String {
     let lines: Vec<&str> = text.lines().collect();

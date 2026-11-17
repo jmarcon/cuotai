@@ -41,7 +41,7 @@ pub fn is_noreply(email: &str) -> bool {
 }
 
 /// `n***@example.com`: a failure must not reprint the address.
-fn mask(email: &str) -> String {
+pub fn mask(email: &str) -> String {
     match email.split_once('@') {
         Some((local, domain)) => {
             let first = local.chars().next().unwrap_or('?');

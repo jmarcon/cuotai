@@ -15,6 +15,11 @@ use super::{
 use crate::commits::{self, Bump, EntryEdit};
 use crate::{err, git, Error, Res, Version};
 
+/// The next step after a release PR merged (F-06): a stable tag unless the
+/// owner asked for a release candidate (owner decision of 2026-11-05).
+pub const TAG_HINT: &str =
+    "`cargo xtask release tag` (add `--rc` only when the owner asked for an rc)";
+
 /// Command-line options of `release prepare`.
 #[derive(Clone, Debug, Default)]
 pub struct Options {
@@ -63,6 +68,8 @@ pub struct Outcome {
     pub edits: Vec<EntryEdit>,
     /// `<short> <subject>: <reason>` for every `Changelog: skip` commit.
     pub skipped: Vec<String>,
+    /// The release PR body written next to the release commit (`--branch`).
+    pub pr_body: Option<std::path::PathBuf>,
 }
 
 /// A release commit re-rendered from its parent (the line-level check and
@@ -101,6 +108,9 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
             "these release files differ from HEAD (modified, staged or untracked); versions and the changelog are written only by release prepare, so commit, discard or move them first:\n{}",
             dirty.join("\n")
         ));
+    }
+    for trailer in &opts.trailers {
+        check_trailer(trailer)?;
     }
     let Some(mut outcome) = compute(repo, &Tree::Work(repo), "HEAD", opts, None)? else {
         return Ok(None);
@@ -158,8 +168,203 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
             &only,
         )?;
         outcome.branch = Some(branch);
+        outcome.pr_body = Some(write_pr_body(repo, &outcome)?);
     }
     Ok(Some(outcome))
+}
+
+/// Trailer keys `release prepare` writes itself, or that belong only to
+/// other commits: `--trailer` cannot set them.
+const RESERVED_TRAILERS: [&str; 7] = [
+    "Changelog",
+    "Changelog-Category",
+    "Changelog-Entry",
+    "Changelog-Edit",
+    "Version-Override",
+    "Refs",
+    "BREAKING-CHANGE",
+];
+
+/// A `--trailer "Key: value"` of the release commit (F-13): one line, a
+/// token key that `release prepare` does not write itself, and every
+/// e-mail address in the value a noreply one (AGENTS.md, "Commit
+/// identity"). Returns the trailer as it is written.
+pub fn check_trailer(text: &str) -> Res<String> {
+    let text = text.trim();
+    if text.contains(['\n', '\r']) {
+        return err("--trailer takes one line, 'Key: value'");
+    }
+    let Some((key, value)) = text.split_once(": ") else {
+        return err(format!(
+            "--trailer '{text}' is not 'Key: value' (e.g. 'Co-Authored-By: Name <noreply@example.com>')"
+        ));
+    };
+    let valid_key = key.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+        && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if !valid_key || value.trim().is_empty() {
+        return err(format!(
+            "--trailer '{text}' is not 'Key: value' (a key of letters, digits and '-', then a value)"
+        ));
+    }
+    if let Some(reserved) = RESERVED_TRAILERS
+        .iter()
+        .find(|r| r.eq_ignore_ascii_case(key))
+    {
+        return err(format!(
+            "--trailer cannot set '{reserved}:': release prepare writes the release commit's own trailers"
+        ));
+    }
+    for word in value.split(|c: char| c.is_whitespace() || "<>(),;\"'".contains(c)) {
+        if word.contains('@') && !crate::preflight::message::is_noreply(word) {
+            return err(format!(
+                "--trailer '{key}' uses {}: commit identities use a noreply address (AGENTS.md, \"Commit identity\")",
+                crate::preflight::message::mask(word)
+            ));
+        }
+    }
+    Ok(text.to_string())
+}
+
+/// Where the release PR body goes: `$(git rev-parse --git-path
+/// cuotai-release-pr-body.md)`, inside the repository's own Git directory
+/// (never a shared temporary name, and per worktree).
+pub fn pr_body_path(repo: &Path) -> Res<std::path::PathBuf> {
+    let path = git::run(
+        repo,
+        &["rev-parse", "--git-path", "cuotai-release-pr-body.md"],
+    )?;
+    let path = std::path::PathBuf::from(path.trim());
+    Ok(if path.is_absolute() {
+        path
+    } else {
+        repo.join(path)
+    })
+}
+
+/// Writes [`pr_body`] to [`pr_body_path`].
+pub fn write_pr_body(repo: &Path, outcome: &Outcome) -> Res<std::path::PathBuf> {
+    let path = pr_body_path(repo)?;
+    std::fs::write(&path, pr_body(repo, outcome))?;
+    Ok(path)
+}
+
+/// The heading of the per-release checklist in `docs/releasing.md`, the one
+/// source of the list the release PR body repeats (F-07).
+pub const CHECKLIST_HEADING: &str = "## Manual desktop checklist per release";
+
+/// The release PR body (F-07, RF4.5): the bump rationale, the wording
+/// edits, the commits skipped with a reason, the section, then the manual
+/// checklist of `docs/releasing.md` under a heading that says it is no
+/// merge condition.
+pub fn pr_body(repo: &Path, outcome: &Outcome) -> String {
+    let mut out = format!(
+        "## Release {}\n\n{} bump from {}.\n\n",
+        outcome.version,
+        outcome.bump.as_str(),
+        outcome.base.describe()
+    );
+    out.push_str("### Bump rationale\n\n");
+    if outcome.rationale.is_empty() {
+        out.push_str("No commit raises the version (an explicit `--version`).\n");
+    }
+    for line in &outcome.rationale {
+        out.push_str(&format!("- {line}\n"));
+    }
+    out.push_str("\n### Wording edits\n\n");
+    if outcome.edits.is_empty() {
+        out.push_str(
+            "None. Fix wording with `cargo xtask release edit <hash>#<n> --text \"<sentence>\"`.\n",
+        );
+    }
+    for edit in &outcome.edits {
+        out.push_str(&format!("- `Changelog-Entry: {edit}`\n"));
+    }
+    out.push_str("\n### Skipped with a reason (no entry)\n\n");
+    if outcome.skipped.is_empty() {
+        out.push_str("None.\n");
+    }
+    for line in &outcome.skipped {
+        out.push_str(&format!("- {line}\n"));
+    }
+    out.push_str("\n### Changelog section\n\n");
+    for line in outcome.section.trim_end().lines() {
+        // One level down, under this body's own headings.
+        if line.starts_with('#') {
+            out.push('#');
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out.push_str("\n## After publication, by a person (not a merge condition)\n\n");
+    match Tree::Work(repo)
+        .read("docs/releasing.md")
+        .ok()
+        .and_then(|doc| checklist(&doc))
+    {
+        Some(list) => out.push_str(&list),
+        None => out.push_str(&format!(
+            "See `docs/releasing.md` (no \"{}\" section was found).\n",
+            CHECKLIST_HEADING
+                .trim_start_matches("# ")
+                .trim_start_matches('#')
+                .trim()
+        )),
+    }
+    // The neutralizer drops the final line break; a file ends with one.
+    commits::neutralize_skip_markers(&out)
+        .trim_end()
+        .to_string()
+        + "\n"
+}
+
+/// The `- [ ]` items of the checklist section of `docs/releasing.md`, with
+/// their continuation lines; links are made relative to the repository
+/// root, as a pull request body resolves them.
+pub fn checklist(doc: &str) -> Option<String> {
+    let start = doc
+        .lines()
+        .position(|l| l.trim_end() == CHECKLIST_HEADING)?;
+    let mut out = String::new();
+    let mut in_item = false;
+    for line in doc.lines().skip(start + 1) {
+        if line.starts_with("## ") {
+            break;
+        }
+        if line.starts_with("- [ ]") {
+            in_item = true;
+        } else if line.trim().is_empty() || !line.starts_with(' ') {
+            in_item = false;
+        }
+        if in_item {
+            let line = line.replace("](#", "](docs/releasing.md#");
+            out.push_str(&relative_doc_links(&line));
+            out.push('\n');
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+/// `](name.md…)` → `](docs/name.md…)` for links between documents of
+/// `docs/`.
+fn relative_doc_links(line: &str) -> String {
+    let mut out = String::new();
+    let mut rest = line;
+    while let Some(index) = rest.find("](") {
+        out.push_str(&rest[..index + 2]);
+        rest = &rest[index + 2..];
+        let target_end = rest.find(')').unwrap_or(rest.len());
+        let target = &rest[..target_end];
+        let local = !target.contains("://")
+            && !target.starts_with('#')
+            && !target.starts_with('/')
+            && !target.starts_with("docs/")
+            && !target.starts_with("../");
+        if local {
+            out.push_str("docs/");
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Writes every change atomically.
@@ -435,6 +640,7 @@ pub(crate) fn compute(
         branch: None,
         edits,
         skipped,
+        pr_body: None,
     }))
 }
 
@@ -465,7 +671,7 @@ pub fn idle_status(repo: &Path) -> Res<String> {
     let base = release_base(repo, "HEAD", None)?;
     Ok(match pending_release(repo, &base, "HEAD", &current)? {
         Some(pending) => format!(
-            "Nothing new to release: {} is prepared at {} and waits for its tag (cargo xtask release tag --rc).",
+            "Nothing new to release: {} is prepared at {} and waits for its tag ({TAG_HINT}).",
             pending.version,
             &pending.sha[..7]
         ),
