@@ -1,11 +1,12 @@
 {
   "schema": 1,
-  "schema_revision": 1,
+  "schema_revision": 2,
   "generated_at": "2026-10-20T12:00:00Z",
   "accounts": [
     {
       "id": "acc_y0nx85xc4kt2",
       "key": "copilot:Personal",
+      "position": 1,
       "name": "Personal",
       "provider": "copilot",
       "provider_name": "GitHub Copilot",
@@ -54,6 +55,7 @@
     {
       "id": "acc_nhwzwqmwfzz3",
       "key": "claude:Work",
+      "position": 0,
       "name": "Work",
       "provider": "claude",
       "provider_name": "Claude",
@@ -184,6 +186,7 @@
     {
       "id": "acc_npcefbht0bsj",
       "key": "groq:Spare",
+      "position": 2,
       "name": "Spare",
       "provider": "groq",
       "provider_name": "Groq",

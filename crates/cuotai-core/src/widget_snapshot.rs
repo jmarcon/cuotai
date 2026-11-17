@@ -42,8 +42,9 @@ pub const SCHEMA: u32 = 1;
 /// PRD 0051 RF3.1: the additive revision of [`SCHEMA`] this release writes.
 /// Revision 0 wrote no `schema_revision` member, as every release before
 /// the envelope did. Revision 1 (PRD 0034) adds the snapshot's `locale` and
-/// each metric's `label_text` and `unit_text`.
-pub const SCHEMA_REVISION: u32 = 1;
+/// each metric's `label_text` and `unit_text`. Revision 2 (PRD 0014 widget
+/// options) adds each account's `position` in the configuration.
+pub const SCHEMA_REVISION: u32 = 2;
 
 /// PRD 0014 RF2.1: on macOS the file always lives here, below the home
 /// directory, whatever the data folder is: the widget extension's sandbox
@@ -121,6 +122,11 @@ pub struct WidgetAccount {
     /// [`crate::Account::key`]: `<provider slug>:<name>`, changed by a
     /// rename; widgets pinned before ids still match on it.
     pub key: String,
+    /// The account's place in the configuration (0 for the first), so a
+    /// widget can list the accounts in the order the user set them while
+    /// the file keeps the binding order (schema revision 2). An
+    /// aggregator's connections follow it in its own order.
+    pub position: usize,
     pub name: String,
     pub provider: Provider,
     /// The provider's display name ([`Provider::label`]), so a widget
@@ -220,8 +226,10 @@ impl WidgetSnapshot {
         let mut accounts: Vec<WidgetAccount> = export
             .units()
             .iter()
-            .map(|(account, parent)| WidgetAccount {
+            .enumerate()
+            .map(|(position, (account, parent))| WidgetAccount {
                 parent: parent.clone(),
+                position,
                 ..project(account)
             })
             .collect();
@@ -450,6 +458,7 @@ fn project(account: &AccountExport) -> WidgetAccount {
     WidgetAccount {
         id: account.id.clone(),
         key: account.key.clone(),
+        position: 0,
         name: account.name.clone(),
         provider: account.provider,
         provider_name: account.provider.label(),
@@ -805,6 +814,12 @@ mod tests {
         assert!(snapshot.truncated);
         let keys: Vec<&str> = snapshot.accounts.iter().map(|a| a.key.as_str()).collect();
         assert_eq!(keys, ["groq:tight", "groq:middle"]);
+        // The file keeps the binding order; each account still says where
+        // it sits in the configuration, for a widget set to that order.
+        let positions: Vec<usize> = snapshot.accounts.iter().map(|a| a.position).collect();
+        assert_eq!(positions, [1, 2]);
+        let json = serde_json::to_value(&snapshot).unwrap();
+        assert_eq!(json["accounts"][0]["position"], 1);
     }
 
     #[test]
