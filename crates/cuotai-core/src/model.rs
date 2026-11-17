@@ -675,6 +675,13 @@ fn is_hidden(c: char) -> bool {
         )
 }
 
+/// Drop the [`crate::text::is_disguising`] characters of `text`, in place.
+fn strip_disguising(text: &mut String) {
+    if text.chars().any(crate::text::is_disguising) {
+        text.retain(|c| !crate::text::is_disguising(c));
+    }
+}
+
 /// Drop the [`is_hidden`] characters of `text`, in place.
 fn strip_hidden(text: &mut String) {
     if text.chars().any(is_hidden) {
@@ -727,29 +734,34 @@ impl Report {
         self.session_expires_at = crate::instant::plausible(self.session_expires_at);
     }
 
+    /// Visit every metric of the report: its own, its sub-reports' and its
+    /// breakdown rows' (PRD 0038 re-validation S-01). The boundary passes
+    /// ([`Self::normalize_figures`], [`Self::strip_disguising_text`]) walk
+    /// metrics through it, so none of them can miss a part of the report.
+    pub fn for_each_metric_mut(&mut self, mut f: impl FnMut(&mut Metric)) {
+        self.metrics.iter_mut().for_each(&mut f);
+        for sub in &mut self.sub_reports {
+            sub.metrics.iter_mut().for_each(&mut f);
+        }
+        for row in &mut self.breakdown {
+            row.metrics.iter_mut().for_each(&mut f);
+        }
+    }
+
     /// PRD 0037 S-03: store a figure of minus zero as zero, in the metrics,
     /// the sub-reports and the breakdown rows (the only figure-bearing parts
     /// of a report), so `--json`, the export and every view show 0.
     pub fn normalize_figures(&mut self) {
-        for metric in &mut self.metrics {
-            metric.normalize_figures();
-        }
-        for sub in &mut self.sub_reports {
-            sub.normalize_figures();
-        }
-        for row in &mut self.breakdown {
-            for metric in &mut row.metrics {
-                metric.normalize_figures();
-            }
-        }
+        self.for_each_metric_mut(Metric::normalize_figures);
     }
 
     /// PRD 0023 re-validation (S-01): drop control characters and bidi
     /// overrides ([`crate::text::is_disguising`]) from every metric's label,
-    /// unit and period, here and in the sub-reports, so no provider or
-    /// extension text can reorder or forge a line in a front end, a JSON
-    /// export or a hook payload. Visible text is unchanged, so history keys
-    /// of ordinary labels stay the same.
+    /// unit, period, scope and `derived_from` label, here, in the
+    /// sub-reports and in the breakdown rows, so no provider or extension
+    /// text can reorder or forge a line in a front end, a JSON export or a
+    /// hook payload. Visible text is unchanged, so history keys of ordinary
+    /// labels stay the same.
     ///
     /// PRD 0034 re-validation (S-01): the same boundary cleans the notes,
     /// whose params can carry server text (a plan name, for example):
@@ -757,10 +769,12 @@ impl Report {
     /// included) lose control and format characters (Unicode `Cc` and
     /// `Cf`: bidi controls, marks and zero-width characters), and each
     /// text param is capped at [`NOTE_PARAM_MAX_CHARS`].
+    ///
+    /// PRD 0038 re-validation (S-01, S-02): breakdown row labels and notes,
+    /// and the schema-drift diagnostic's paths, types and fingerprint keys,
+    /// are cleaned too.
     pub fn strip_disguising_text(&mut self) {
-        for metric in &mut self.metrics {
-            metric.strip_disguising_text();
-        }
+        self.for_each_metric_mut(Metric::strip_disguising_text);
         for note in &mut self.notes {
             strip_hidden(note);
         }
@@ -768,7 +782,14 @@ impl Report {
             clean_note(note);
         }
         for sub in &mut self.sub_reports {
-            sub.strip_disguising_text();
+            sub.strip_text_fields();
+        }
+        for row in &mut self.breakdown {
+            strip_disguising(&mut row.label);
+            row.notes.iter_mut().for_each(clean_note);
+        }
+        if let Some(diagnostic) = &mut self.diagnostic {
+            diagnostic.strip_disguising_text();
         }
     }
 
@@ -1179,17 +1200,20 @@ impl Metric {
         }
     }
 
-    /// [`Report::strip_disguising_text`] for one metric.
+    /// [`Report::strip_disguising_text`] for one metric: its label, unit,
+    /// period, scope id and label, and the label a derived metric copies.
     pub fn strip_disguising_text(&mut self) {
-        fn strip(text: &mut String) {
-            if text.chars().any(crate::text::is_disguising) {
-                text.retain(|c| !crate::text::is_disguising(c));
-            }
-        }
-        strip(&mut self.label);
-        strip(&mut self.unit);
+        strip_disguising(&mut self.label);
+        strip_disguising(&mut self.unit);
         if let Some(period) = &mut self.period {
-            strip(period);
+            strip_disguising(period);
+        }
+        if let Some(scope) = &mut self.scope {
+            strip_disguising(&mut scope.id);
+            strip_disguising(&mut scope.label);
+        }
+        if let Some(from) = &mut self.derived_from {
+            strip_disguising(&mut from.label);
         }
     }
 
@@ -1403,6 +1427,12 @@ impl SubReport {
         for metric in &mut self.metrics {
             metric.strip_disguising_text();
         }
+        self.strip_text_fields();
+    }
+
+    /// [`Self::strip_disguising_text`] without the metrics, which
+    /// [`Report::for_each_metric_mut`] visits.
+    fn strip_text_fields(&mut self) {
         for note in &mut self.notes_l10n {
             clean_note(note);
         }
@@ -1745,6 +1775,224 @@ mod tests {
         let json = serde_json::to_string(&report).unwrap();
         assert!(!json.chars().any(is_hidden));
         assert!(!json.contains("\\u"), "no escaped control characters");
+    }
+
+    /// PRD 0038 re-validation (S-01, S-02): every string field of a report
+    /// is either cleaned at the boundary or exempt for a stated reason. The
+    /// destructuring is exhaustive (no `..`), so a new field fails to
+    /// compile here until it is classified.
+    #[test]
+    fn report_string_fields_are_all_filtered() {
+        use crate::breakdown::BreakdownRow;
+        use crate::diagnostic::{Diagnostic, DriftPath, SchemaDrift};
+        use crate::text::{Localized, ParamValue};
+        const FORGED: &str = "a\u{202E}b\u{2066}c\u{1b}";
+        const CLEAN: &str = "abc";
+        let hex = "0123456789abcdef";
+        let note = || Localized::with_param("note.id", "name", FORGED, "Note a\u{202E}b.");
+        let metric = || {
+            let mut metric = Metric::usage(FORGED, -0.0, FORGED, MetricKind::Spend, None);
+            metric.period = Some(FORGED.into());
+            metric.scope = Some(Scope {
+                kind: ScopeKind::Model,
+                id: FORGED.into(),
+                label: FORGED.into(),
+            });
+            metric.derived_from = Some(DerivedFrom {
+                kind: MetricKind::Spend,
+                label: FORGED.into(),
+                budget: 0,
+            });
+            metric
+        };
+        let fingerprint = vec![(FORGED.to_string(), FORGED.to_string())];
+        let mut report = Report {
+            account_id: None,
+            diagnostic: Some(Diagnostic::SchemaDrift(SchemaDrift {
+                paths: vec![DriftPath {
+                    path: FORGED.into(),
+                    expected: FORGED.into(),
+                    found: FORGED.into(),
+                }],
+                digest: crate::diagnostic::digest(&fingerprint),
+                fingerprint,
+            })),
+            account: "Work".into(),
+            provider: Provider::OpenRouter,
+            checked_at: Utc::now(),
+            status: Status::Ready,
+            metrics: vec![metric()],
+            notes: vec![FORGED.into()],
+            notes_l10n: vec![note()],
+            source: "https://openrouter.ai/api/v1/credits".into(),
+            session_expires_at: None,
+            sub_reports: vec![SubReport {
+                id: hex.into(),
+                upstream: FORGED.into(),
+                provider: None,
+                label: FORGED.into(),
+                status: Status::Ready,
+                metrics: vec![metric()],
+                notes_l10n: vec![note()],
+                checked_at: Utc::now(),
+                as_of: None,
+                enabled_upstream: None,
+                duplicate_of: Some(hex.into()),
+                plan: Some(FORGED.into()),
+                via: Some("https://example.com/def.js".into()),
+                identity: None,
+            }],
+            as_of: None,
+            overage_hint: None,
+            breakdown: vec![BreakdownRow {
+                scope: ScopeKind::Key,
+                id: hex.into(),
+                label: FORGED.into(),
+                metrics: vec![metric()],
+                truncated: false,
+                notes: vec![note()],
+            }],
+        };
+        report.strip_disguising_text();
+        report.normalize_figures();
+
+        let check_note = |note: &Localized| {
+            let Localized {
+                id,
+                params,
+                fallback,
+            } = note;
+            assert_eq!(id, "note.id", "exempt: an adapter constant");
+            assert_eq!(fallback, "Note ab.");
+            assert_eq!(params.get("name"), Some(&ParamValue::Text(CLEAN.into())));
+        };
+        let check_metric = |metric: &Metric| {
+            let Metric {
+                label,
+                used,
+                limit: _,
+                remaining: _,
+                unit,
+                kind: _,
+                window: _,
+                period,
+                resets_at: _,
+                billing: _,
+                scope,
+                derived_from,
+                unlimited: _,
+            } = metric;
+            assert_eq!((label.as_str(), unit.as_str()), (CLEAN, CLEAN));
+            assert_eq!(period.as_deref(), Some(CLEAN));
+            assert!(
+                used.is_some_and(|used| used.is_sign_positive()),
+                "minus zero"
+            );
+            let Some(Scope { kind: _, id, label }) = scope else {
+                panic!("scope kept");
+            };
+            assert_eq!((id.as_str(), label.as_str()), (CLEAN, CLEAN));
+            let Some(DerivedFrom {
+                kind: _,
+                label,
+                budget: _,
+            }) = derived_from
+            else {
+                panic!("derived_from kept");
+            };
+            assert_eq!(label, CLEAN);
+        };
+        let is_hex = |text: &str| text.chars().all(|c| c.is_ascii_hexdigit());
+
+        let Report {
+            account,
+            account_id: _,
+            provider: _,
+            checked_at: _,
+            status: _,
+            metrics,
+            notes,
+            notes_l10n,
+            source,
+            session_expires_at: _,
+            diagnostic,
+            sub_reports,
+            as_of: _,
+            overage_hint: _,
+            breakdown,
+        } = &report;
+        assert_eq!(account, "Work", "exempt: the config validates names");
+        assert!(
+            source.starts_with("https://"),
+            "exempt: an adapter constant"
+        );
+        metrics.iter().for_each(check_metric);
+        assert_eq!(notes, &[CLEAN]);
+        notes_l10n.iter().for_each(check_note);
+        let Some(Diagnostic::SchemaDrift(SchemaDrift {
+            paths,
+            fingerprint,
+            digest,
+        })) = diagnostic
+        else {
+            panic!("diagnostic kept");
+        };
+        for DriftPath {
+            path,
+            expected,
+            found,
+        } in paths
+        {
+            assert_eq!([path, expected, found], [CLEAN, CLEAN, CLEAN]);
+        }
+        assert_eq!(fingerprint, &[(CLEAN.to_string(), CLEAN.to_string())]);
+        assert_eq!(digest, &crate::diagnostic::digest(fingerprint));
+        for sub in sub_reports {
+            let SubReport {
+                id,
+                upstream,
+                provider: _,
+                label,
+                status: _,
+                metrics,
+                notes_l10n,
+                checked_at: _,
+                as_of: _,
+                enabled_upstream: _,
+                duplicate_of,
+                plan,
+                via,
+                identity: _,
+            } = sub;
+            assert!(is_hex(id), "exempt: a hash");
+            assert!(
+                duplicate_of.as_deref().is_some_and(is_hex),
+                "exempt: a hash"
+            );
+            assert_eq!((upstream.as_str(), label.as_str()), (CLEAN, CLEAN));
+            assert_eq!(plan.as_deref(), Some(CLEAN));
+            assert!(
+                via.as_deref()
+                    .is_some_and(|via| via.starts_with("https://")),
+                "exempt: an adapter constant"
+            );
+            metrics.iter().for_each(check_metric);
+            notes_l10n.iter().for_each(check_note);
+        }
+        for row in breakdown {
+            let BreakdownRow {
+                scope: _,
+                id,
+                label,
+                metrics,
+                truncated: _,
+                notes,
+            } = row;
+            assert!(is_hex(id), "exempt: a digest");
+            assert_eq!(label, CLEAN);
+            metrics.iter().for_each(check_metric);
+            notes.iter().for_each(check_note);
+        }
     }
 
     #[test]

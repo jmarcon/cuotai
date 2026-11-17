@@ -352,16 +352,23 @@ pub fn fallback_label(scope: ScopeKind, id: &str) -> String {
     }
 }
 
-/// RF1.3: the label a row may show. Control characters go; e-mail
-/// addresses and URLs are removed (a label that is only an e-mail becomes
-/// [`fallback_label`]); a word shaped like a key (`sk-…`, `or-…`, long
+/// RF1.3: the label a row may show. Control, direction and format
+/// characters go; e-mail addresses and URLs are removed (a label that is
+/// only an e-mail becomes [`fallback_label`]); a word shaped like a key (`sk-…`, `or-…`, long
 /// random runs) is replaced by "…" and its last four characters; the
 /// result is cut at [`LABEL_MAX`] characters. Empty input gives
 /// [`fallback_label`].
 pub fn redact_label(raw: &str, scope: ScopeKind, id: &str) -> String {
+    // PRD 0038 re-validation (S-01): a control character still separates
+    // words, and every other direction or format character
+    // ([`crate::text::is_disguising`]) is dropped.
     let clean: String = raw
         .chars()
-        .map(|c| if c.is_control() { ' ' } else { c })
+        .filter_map(|c| match c {
+            c if c.is_control() => Some(' '),
+            c if crate::text::is_disguising(c) => None,
+            c => Some(c),
+        })
         .collect();
     let mut words = Vec::new();
     for word in clean.split_whitespace() {
@@ -768,6 +775,7 @@ mod tests {
         for (raw, expected) in [
             ("Proj-A", "Proj-A"),
             ("  Team\u{7}  Blue ", "Team Blue"),
+            ("ci\u{202E}yek\u{2066} prod\u{2069}", "ciyek prod"),
             ("dev@example.com", "Project …c123"),
             ("ci key (dev@example.com)", "ci key"),
             ("see https://example.com/x?token=1 now", "see now"),

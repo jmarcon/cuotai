@@ -99,6 +99,34 @@ impl Diagnostic {
         drift
     }
 
+    /// PRD 0038 re-validation (S-01): drop control characters and bidi
+    /// overrides ([`crate::text::is_disguising`]) from the paths, the types
+    /// and the fingerprint, whose keys come from the response. The digest
+    /// follows the cleaned fingerprint.
+    pub fn strip_disguising_text(&mut self) {
+        fn strip(text: &mut String) -> bool {
+            let dirty = text.chars().any(crate::text::is_disguising);
+            if dirty {
+                text.retain(|c| !crate::text::is_disguising(c));
+            }
+            dirty
+        }
+        let Self::SchemaDrift(drift) = self;
+        for path in &mut drift.paths {
+            strip(&mut path.path);
+            strip(&mut path.expected);
+            strip(&mut path.found);
+        }
+        let mut changed = false;
+        for (key, kind) in &mut drift.fingerprint {
+            changed |= strip(key);
+            changed |= strip(kind);
+        }
+        if changed {
+            drift.digest = digest(&drift.fingerprint);
+        }
+    }
+
     /// The ids of [`Diagnostic::text`]: front ends that render the block
     /// ([`Diagnostic::view`]) skip the report note with one of these ids,
     /// which stays for `--json` and other plain consumers.
