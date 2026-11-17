@@ -497,7 +497,7 @@ fn check_data_dir(inputs: &Inputs) -> Check {
 }
 
 /// Human file size with binary units, as the history ceiling.
-fn size_text(bytes: u64) -> String {
+pub(crate) fn size_text(bytes: u64) -> String {
     if bytes < 1 << 20 {
         format!("{:.1} KiB", bytes as f64 / 1024.0)
     } else {

@@ -194,7 +194,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2860,6 +2861,7 @@
     "other": "숨긴 프로젝트 {count}개는 이 수치에 포함되지 않습니다."
   },
   "cost.hidden.unhide": "{command}로 다시 합계에 포함합니다.",
+  "cost.sources.size": "인덱스: 디스크에서 {size}",
   "doctor.title.metered": "과금되는 조회의 공유 기록 {path}",
   "doctor.metered.unusable": "사용자 전용 폴더가 아니거나 쓸 수 없습니다. 고칠 때까지 1회성 명령은 AWS Bedrock을 조회하지 않습니다.",
   "doctor.fix.metered": "이 경로에 있는 것(파일, 링크, 다른 사용자의 폴더)을 제거하거나 사용자만 읽고 쓸 수 있는 폴더로 만드세요. Cuotai가 다시 만듭니다.",

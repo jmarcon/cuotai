@@ -193,7 +193,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2923,6 +2924,7 @@
     "other": "{count} छिपे प्रोजेक्ट इन आंकड़ों में शामिल नहीं हैं।"
   },
   "cost.hidden.unhide": "{command} उनमें से एक को फिर से गिनता है।",
+  "cost.sources.size": "इंडेक्स: डिस्क पर {size}",
   "doctor.title.metered": "बिल की गई क्वेरी का साझा रिकॉर्ड {path}",
   "doctor.metered.unusable": "यह आपके उपयोगकर्ता का निजी फ़ोल्डर नहीं है, या इसमें लिखा नहीं जा सकता; इसे ठीक होने तक एक-बार वाले कमांड AWS Bedrock से क्वेरी नहीं करते।",
   "doctor.fix.metered": "इस पथ पर जो है उसे हटाएँ (कोई फ़ाइल, लिंक या किसी दूसरे उपयोगकर्ता का फ़ोल्डर) या इसे ऐसा फ़ोल्डर बनाएँ जिसे केवल आपका उपयोगकर्ता पढ़ और लिख सके; Cuotai इसे फिर से बना देगा।",

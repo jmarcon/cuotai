@@ -175,7 +175,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2841,6 +2842,7 @@
     "other": "{count} proyek yang disembunyikan tidak dihitung dalam angka ini."
   },
   "cost.hidden.unhide": "{command} menghitung salah satunya lagi.",
+  "cost.sources.size": "Indeks: {size} di disk",
   "doctor.title.metered": "Catatan bersama kueri berbayar {path}",
   "doctor.metered.unusable": "Ini bukan folder pribadi pengguna Anda, atau tidak dapat ditulisi; perintah sekali jalan tidak mengkueri AWS Bedrock sampai diperbaiki.",
   "doctor.fix.metered": "Hapus apa pun yang ada di jalur ini (file, tautan, atau folder pengguna lain) atau jadikan folder yang hanya dapat dibaca dan ditulis oleh pengguna Anda; Cuotai membuatnya kembali.",

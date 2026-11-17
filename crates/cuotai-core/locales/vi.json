@@ -177,7 +177,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2843,6 +2844,7 @@
     "other": "{count} dự án đã ẩn không được tính trong các số liệu này."
   },
   "cost.hidden.unhide": "{command} sẽ tính lại một dự án.",
+  "cost.sources.size": "Chỉ mục: {size} trên đĩa",
   "doctor.title.metered": "Bản ghi dùng chung các truy vấn tính phí {path}",
   "doctor.metered.unusable": "Đây không phải thư mục riêng của người dùng của bạn, hoặc không ghi được; các lệnh chạy một lần sẽ không truy vấn AWS Bedrock cho đến khi được sửa.",
   "doctor.fix.metered": "Xóa thứ đang nằm ở đường dẫn này (một tệp, một liên kết hoặc thư mục của người dùng khác) hoặc biến nó thành thư mục chỉ người dùng của bạn đọc và ghi được; Cuotai sẽ tạo lại.",

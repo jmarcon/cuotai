@@ -198,7 +198,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2928,6 +2929,7 @@
     "other": "{count} ausgeblendete Projekte sind in diesen Zahlen nicht enthalten."
   },
   "cost.hidden.unhide": "{command} zählt eines davon wieder mit.",
+  "cost.sources.size": "Index: {size} auf dem Datenträger",
   "doctor.title.metered": "Gemeinsames Protokoll abgerechneter Abfragen {path}",
   "doctor.metered.unusable": "Es ist kein privater Ordner Ihres Benutzers oder nicht beschreibbar; einmalige Befehle fragen AWS Bedrock erst nach der Behebung ab.",
   "doctor.fix.metered": "Entfernen Sie, was unter diesem Pfad liegt (eine Datei, ein Link oder der Ordner eines anderen Benutzers), oder machen Sie daraus einen Ordner, den nur Ihr Benutzer lesen und schreiben kann; Cuotai legt ihn neu an.",

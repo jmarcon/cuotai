@@ -226,7 +226,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -3084,6 +3085,7 @@
     "other": "{count} скрытого проекта не учтены в этих цифрах."
   },
   "cost.hidden.unhide": "{command} снова учитывает один из них.",
+  "cost.sources.size": "Индекс: {size} на диске",
   "doctor.title.metered": "Общая запись платных запросов {path}",
   "doctor.metered.unusable": "Это не личная папка вашего пользователя, или в неё нельзя записать; одноразовые команды не запрашивают AWS Bedrock, пока это не исправлено.",
   "doctor.fix.metered": "Удалите то, что находится по этому пути (файл, ссылку или папку другого пользователя), или сделайте его папкой, которую может читать и изменять только ваш пользователь; Cuotai создаст её заново.",

@@ -213,7 +213,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2879,6 +2880,7 @@
     "other": "{count} 个已隐藏项目未计入这些数字。"
   },
   "cost.hidden.unhide": "使用 {command} 可重新计入其中一个。",
+  "cost.sources.size": "索引：磁盘占用 {size}",
   "doctor.title.metered": "计费查询的共享记录 {path}",
   "doctor.metered.unusable": "它不是当前用户专属的文件夹，或无法写入；修复之前，一次性命令不会查询 AWS Bedrock。",
   "doctor.fix.metered": "删除此路径上的内容（文件、链接或其他用户的文件夹），或将其改为只有当前用户可以读写的文件夹；Cuotai 会重新创建它。",

@@ -53,7 +53,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -2783,6 +2784,7 @@
     "other": "{count} proyectos ocultos no se cuentan en estas cifras."
   },
   "cost.hidden.unhide": "{command} vuelve a contar uno de ellos.",
+  "cost.sources.size": "Índice: {size} en disco",
   "doctor.title.metered": "Registro compartido de consultas facturadas {path}",
   "doctor.metered.unusable": "No es una carpeta privada de tu usuario o no se puede escribir; los comandos de una sola ejecución no consultan AWS Bedrock hasta que se corrija.",
   "doctor.fix.metered": "Elimina lo que haya en esta ruta (un archivo, un enlace o la carpeta de otro usuario) o conviértela en una carpeta que solo tu usuario pueda leer y escribir; Cuotai la vuelve a crear.",

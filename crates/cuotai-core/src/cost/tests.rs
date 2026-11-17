@@ -8,6 +8,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+#[path = "future_tests.rs"]
+mod future;
 #[path = "hidden_tests.rs"]
 mod hidden;
 #[path = "hidden_chars_tests.rs"]
@@ -405,7 +407,7 @@ fn usage_older_than_the_retention_is_not_kept() {
     assert_eq!(index.usage_in(None, Period::All, today).unwrap().len(), 1);
     // Pruning drops days before the first one kept.
     index
-        .prune(NaiveDate::from_ymd_opt(2025, 9, 29).unwrap(), 0)
+        .prune(NaiveDate::from_ymd_opt(2025, 9, 29).unwrap(), today, 0)
         .unwrap();
     assert!(f.usage().is_empty());
 }

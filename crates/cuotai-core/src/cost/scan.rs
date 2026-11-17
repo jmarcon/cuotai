@@ -27,6 +27,11 @@ use std::time::{Duration, Instant, SystemTime};
 /// A line without its final newline counts once the file has not changed
 /// for this long (the tool finished writing it).
 const SETTLED: Duration = Duration::from_secs(10 * 60);
+/// PRD 0042 re-validation S-04: a line dated more than this after the
+/// scan's `now` is skipped and counted as invalid. The logs are written by
+/// this computer's own clock, so a bigger gap is a wrong timestamp, and
+/// such a row would outlive the retention.
+const FUTURE_SLACK: TimeDelta = TimeDelta::hours(1);
 /// Lines read between two looks at the clock.
 const CLOCK_EVERY: usize = 512;
 /// The longest pause after a file (pacing).
@@ -368,8 +373,11 @@ impl Scanner {
             sources.push(self.scan_source(db, source, &roots, custom, &window, &mut budget)?);
         }
         if !on.is_empty() {
-            self.index
-                .prune(window.first_day, (now - kept).timestamp_millis())?;
+            self.index.prune(
+                window.first_day,
+                self.zone.day(now),
+                (now - kept).timestamp_millis(),
+            )?;
         }
         self.index.prune_backup(now)?;
         Ok(ScanReport {
@@ -678,6 +686,12 @@ impl Scanner {
                 }
             }
             match parsed {
+                Line::Usage(entry) if entry.at > window.now + FUTURE_SLACK => {
+                    // Counted the first time the line was read.
+                    if row.position > row.backfill {
+                        found.invalid += 1;
+                    }
+                }
                 Line::Usage(entry) => {
                     let day = self.zone.day(entry.at);
                     if day < window.first_day {
