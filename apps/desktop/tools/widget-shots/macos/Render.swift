@@ -175,6 +175,61 @@ func stateShots(_ snapshot: WidgetSnapshot, now: Date) -> [Shot] {
                            view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, snapshot: snapshot, pinnedKey: account.id))),
                            fills: (account.history ?? []).isEmpty ? .none : .area))
     }
+    return result + optionShots(snapshot, now: now)
+}
+
+/// The widgets' choices (PRD 0014, owner request of 2026-11-17), each set
+/// away from its default once: what was used instead of what is left,
+/// compact, the configuration order with the empty accounts hidden, a
+/// chosen quota, a shorter History period.
+func optionShots(_ snapshot: WidgetSnapshot, now: Date) -> [Shot] {
+    var used = WidgetDisplay(); used.share = .used
+    var compact = WidgetDisplay(); compact.detail = .compact
+    var quiet = WidgetDisplay(); quiet.showAge = false; quiet.showReset = false
+    let ordered = AccountSelection(order: .configuration, hideUnused: true, hideWithoutData: true)
+    let listed = snapshot.accounts.contains { $0.hasPlanLimit && !$0.isUnavailable } ? Coverage.width : .none
+    // The History choices on an account that has a series, when one does.
+    let charted = snapshot.accounts.first { !($0.history ?? []).isEmpty }
+    let chartFills: Coverage = charted == nil ? .none : .area
+    var result = [
+        Shot(name: "option-summary-small-used", family: .systemSmall,
+             view: AnyView(SummaryWidgetEntryView(entry: SummaryEntry(date: now, snapshot: snapshot, pinnedKey: nil, display: used))),
+             fills: listed),
+        Shot(name: "option-summary-medium-compact", family: .systemMedium,
+             view: AnyView(SummaryWidgetEntryView(entry: SummaryEntry(date: now, snapshot: snapshot, pinnedKey: nil, display: compact))),
+             fills: listed),
+        Shot(name: "option-summary-large-compact", family: .systemLarge,
+             view: AnyView(SummaryWidgetEntryView(entry: SummaryEntry(date: now, snapshot: snapshot, pinnedKey: nil, display: compact))),
+             fills: listed),
+        Shot(name: "option-summary-large-ordered", family: .systemLarge,
+             view: AnyView(SummaryWidgetEntryView(entry: SummaryEntry(date: now, snapshot: snapshot, pinnedKey: nil,
+                                                                      selection: ordered, display: quiet))),
+             fills: listed),
+        Shot(name: "option-summary-medium-used", family: .systemMedium,
+             view: AnyView(SummaryWidgetEntryView(entry: SummaryEntry(date: now, snapshot: snapshot, pinnedKey: nil, display: used))),
+             fills: listed),
+        Shot(name: "option-history-used", family: .systemMedium,
+             view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, snapshot: snapshot, pinnedKey: charted?.id, display: used))),
+             fills: chartFills),
+        Shot(name: "option-history-compact-6h", family: .systemMedium,
+             view: AnyView(HistoryWidgetEntryView(entry: HistoryEntry(date: now, snapshot: snapshot, pinnedKey: charted?.id,
+                                                                      period: .hours6, display: compact))),
+             fills: chartFills),
+    ]
+    // A chosen quota: the second metric of the first account that has two.
+    if let account = snapshot.accounts.first(where: { $0.metrics.count > 1 && !$0.isUnavailable }) {
+        let pick = AccountSelection(metric: account.metrics[1].choiceKey)
+        for family in [WidgetFamily.systemSmall, .systemMedium] {
+            result.append(Shot(name: "option-account-quota-\(family == .systemSmall ? "small" : "medium")", family: family,
+                               view: AnyView(AccountWidgetEntryView(entry: SummaryEntry(date: now, snapshot: snapshot,
+                                                                                         pinnedKey: account.id, selection: pick))),
+                               fills: .of(account, .area)))
+        }
+        result.append(Shot(name: "option-account-compact-used", family: .systemMedium,
+                           view: AnyView(AccountWidgetEntryView(entry: SummaryEntry(date: now, snapshot: snapshot,
+                                                                                     pinnedKey: account.id, display: { var d = used; d.detail = .compact; return d }()))),
+                           fills: .of(account, .area)))
+    }
     return result
 }
 

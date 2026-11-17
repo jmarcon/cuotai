@@ -58,6 +58,25 @@ struct AccountIntent: WidgetConfigurationIntent {
 
     @Parameter(title: "Account")
     var account: AccountEntity?
+
+    @Parameter(title: "Quota")
+    var metric: MetricEntity?
+
+    @Parameter(title: "Show", default: .remaining)
+    var share: ShareDisplay
+
+    @Parameter(title: "Detail", default: .detailed)
+    var detail: WidgetDetail
+
+    @Parameter(title: "Show the reset time", default: true)
+    var showReset: Bool
+
+    @Parameter(title: "Show the age of the data", default: true)
+    var showAge: Bool
+
+    var display: WidgetDisplay {
+        WidgetDisplay(share: share, detail: detail, showAge: showAge, showReset: showReset)
+    }
 }
 
 struct AccountProvider: AppIntentTimelineProvider {
@@ -71,16 +90,21 @@ struct AccountProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: AccountIntent, in context: Context) async -> Timeline<SummaryEntry> {
-        let entry = self.entry(for: configuration, in: context)
-        let next = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date()
-        return Timeline(entries: [entry], policy: .after(next))
+        let read = WidgetSnapshot.read()
+        WidgetTimeline.announce(read)
+        let now = Date()
+        let entries = WidgetTimeline.dates(from: now).map { entry(for: configuration, in: context, read: read, date: $0) }
+        return Timeline(entries: entries, policy: WidgetTimeline.policy(from: now))
     }
 
-    private func entry(for configuration: AccountIntent, in context: Context) -> SummaryEntry {
-        SummaryEntry(date: Date(),
-                     read: WidgetSnapshot.read(),
+    private func entry(for configuration: AccountIntent, in context: Context,
+                       read: SnapshotRead = WidgetSnapshot.read(), date: Date = Date()) -> SummaryEntry {
+        SummaryEntry(date: date,
+                     read: read,
                      pinnedKey: configuration.account?.id,
-                     displaySize: context.displaySize)
+                     displaySize: context.displaySize,
+                     selection: AccountSelection(metric: configuration.metric?.metricKey),
+                     display: configuration.display)
     }
 }
 
@@ -92,6 +116,7 @@ struct AccountWidgetEntryView: View {
         WidgetCanvas(displaySize: entry.displaySize, language: entry.snapshot?.language) { size in
             content(size)
         }
+        .environment(\.widgetDisplay, entry.display)
     }
 
     @ViewBuilder
@@ -103,29 +128,28 @@ struct AccountWidgetEntryView: View {
             // (RF3.5). Not the same as an account that went away.
             EmptyStateView(size: size)
         } else if let account = entry.accounts.first {
-            if family == .systemSmall {
-                VStack(alignment: .leading, spacing: 6) {
-                    WidgetHeader(title: Text("Account"), width: size.width)
-                    AccountRowView(account: account, style: .hero, width: size.width, height: size.height)
-                }
+            let metric = entry.selection.metric
+            let headline = account.headline(metric: metric)
+            // Without a plan limit every metric is "other".
+            let others = OtherMetrics.list(account, leaving: headline?.metricIndex)
+            if family == .systemSmall || entry.display.detail == .compact || others.isEmpty {
+                AccountRowView(account: account, style: .hero, metric: metric, width: size.width, height: size.height)
             } else {
-                // Without a plan limit every metric is "other".
-                let others = account.metrics.count > (account.hasPlanLimit ? 1 : 0)
                 let spacing: CGFloat = 16
-                let column = others ? max((size.width - spacing) / 2, 0) : size.width
+                let column = max((size.width - spacing) / 2, 0)
+                let pace = headline?.pace
                 VStack(alignment: .leading, spacing: 8) {
-                    WidgetHeader(title: Text("Account"), width: size.width)
                     HStack(alignment: .top, spacing: spacing) {
-                        AccountRowView(account: account, style: .hero, width: column, height: size.height)
-                        if others {
-                            OtherMetrics(account: account, width: column)
-                        }
+                        AccountRowView(account: account, style: .hero, metric: metric, width: column,
+                                       height: size.height - (pace == nil ? 0 : 22))
+                        OtherMetrics(account: account, metrics: others, width: column)
                     }
                     .frame(width: size.width, alignment: .topLeading)
-                    if account.hasPlanLimit, let pace = account.metrics.first?.pace {
+                    if let pace, !account.isStale {
                         PaceLine(pace: pace, width: size.width)
                     }
                 }
+                .frame(width: size.width, height: size.height, alignment: .topLeading)
             }
         } else {
             // The pinned account is not in the file: say it, never draw
@@ -135,47 +159,47 @@ struct AccountWidgetEntryView: View {
     }
 }
 
-/// The account's other quotas, beside the binding one in the medium size:
-/// each with its own share, so the widget shows what else is close.
+/// The account's other quotas, beside the headline one in the medium
+/// size: each with its own share, so the widget shows what else is close.
 struct OtherMetrics: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.widgetDisplay) private var display
     let account: WidgetAccount
+    let metrics: [WidgetAccount.Metric]
     let width: CGFloat
 
-    /// `binding.index` points into the file's `metrics` (the binding one
-    /// goes first); without a binding every metric is listed.
-    private var others: [WidgetAccount.Metric] {
-        let binding = account.binding?.index
-        return account.metrics.enumerated()
-            .filter { $0.offset != binding }
-            .map(\.element)
-            .prefix(3)
-            .map { $0 }
+    /// Up to three metrics of the file other than the headline one
+    /// (`index`); every metric without one.
+    static func list(_ account: WidgetAccount, leaving index: Int?) -> [WidgetAccount.Metric] {
+        Array(account.metrics.enumerated().filter { $0.offset != index }.map(\.element).prefix(3))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            ForEach(Array(others.enumerated()), id: \.offset) { _, metric in
+            ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
+                let share = QuotaShare(used: metric.usedFraction, exhausted: metric.usedFraction.safeFraction >= 1)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(verbatim: metric.displayLabel)
+                        Text(verbatim: account.shortLabel(metric.displayLabel))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .layoutPriority(-1)
                         Gap.horizontal(width, min: 4)
-                        Text("\(Int((metric.usedFraction.safeFraction * 100).rounded()))%")
+                        Text(verbatim: share.text(locale, display.share))
                             .font(.system(.caption, design: .rounded).weight(.semibold))
+                            .foregroundStyle(share.level.color)
                             .monospacedDigit()
                             .fixedSize()
                     }
                     .frame(width: width, alignment: .leading)
-                    UsageBar(usedFraction: metric.usedFraction, width: width, stale: account.isStale, height: 4)
+                    UsageBar(share: share, display: display.share, width: width, height: 4)
                 }
                 .accessibilityElement(children: .combine)
             }
         }
         .frame(width: width, alignment: .topLeading)
-        .opacity(account.isStale ? 0.6 : 1)
+        .opacity(account.isStale ? 0.5 : 1)
     }
 }
 
@@ -227,7 +251,7 @@ struct AccountWidget: Widget {
         // The views apply the system's margins themselves (`WidgetCanvas`).
         .contentMarginsDisabled()
         .configurationDisplayName("Cuotai account")
-        .description("One account you pin, with its binding quota and the age of the measurement.")
+        .description("One account you pin, with the quota you choose and the age of the measurement.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

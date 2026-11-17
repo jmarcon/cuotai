@@ -47,6 +47,27 @@ Every image below is drawn from the same example `widget.json` ([`fixtures/widge
 
 The widgets declare no accessory (Lock Screen) family.
 
+#### What the widgets show
+
+The face of a widget carries the information, not the app's name: an account's name, what is **left** of its quota (or what was used, if you choose so) in the level colour the app uses everywhere (green from 70% left, orange from 30%, red below or exhausted), the quota's name and when it renews. A share is rounded honestly: above nothing never reads `0%` (`< 1%`), below all of it never `100%`. One age line per widget gives the age of the oldest current reading; an old reading says its own age on its row (`Stale · 5 min ago`) and is drawn at half opacity. The age is the system's live relative text, laid out alone in a frame of a fixed width, never measured beside another view. When a widget reads a newer file it asks the other Cuotai widgets to read it too, so two widgets do not show readings of different refreshes side by side.
+
+#### Choices
+
+Right-click a widget and choose **Edit widget** (or the widget's own settings in the gallery):
+
+| Choice | Widgets | Default | Why |
+|---|---|---|---|
+| Accounts | Summary | none chosen (every published account) | Keep the accounts you watch; an account that disappears is left out, never replaced. |
+| Account | Account, History | the first published account | One account, pinned by its stable id. |
+| Quota | Account | the most restrictive quota | Watch a particular window (for example the 5-hour session) instead of the binding one. |
+| Order | Summary | most restrictive first | Or the order of the accounts in Cuotai (`position`). |
+| Show | all | what is left | What is left (as in the app) or what was used. |
+| Detail | all | detailed | Compact: Summary rows of one line, the Account widget without the other quotas, History without the axis labels and the span. |
+| Hide accounts with nothing used / without data | Summary | off | Leave out idle accounts, or accounts without a reading or a plan limit. |
+| Show the reset time | all | on | "Resets in 2 days" beside the quota's name, where there is room. |
+| Show the age of the data | all | on | The age line; an old reading still says its own age. |
+| Period | History | everything published | 6 hours, 24 hours or 7 days of the published series. |
+
 ### Linux (Waybar)
 
 <p align="center">
@@ -101,7 +122,7 @@ write(&export, std::path::Path::new("widget.json"), 6)?;
 | Field | Type | Meaning |
 |---|---|---|
 | `schema` | integer | Always `1`. Its own version, independent of `export::v1`. |
-| `schema_revision` | integer or absent | The additive revision of schema `1` (PRD 0051 RF3.1): `1` adds `locale` and each metric's `label_text` and `unit_text`. Absent in files of revision `0`. A reader ignores members it does not know. |
+| `schema_revision` | integer or absent | The additive revision of schema `1` (PRD 0051 RF3.1): `1` adds `locale` and each metric's `label_text` and `unit_text`; `2` adds each account's `position`. Absent in files of revision `0`. A reader ignores members it does not know. |
 | `generated_at` | RFC 3339 | When the snapshot was built. |
 | `accounts` | array | The published accounts, in binding order (the most restrictive first). |
 | `truncated` | boolean | `true` when accounts were dropped by the user's limit or by the size cap. |
@@ -113,6 +134,7 @@ write(&export, std::path::Path::new("widget.json"), 6)?;
 |---|---|---|
 | `id` | string | The stable account id (PRD 0029), the same `id` as in `export::v1`. A pinned widget matches on it, so a rename keeps the pin; when the account is gone the widget shows it as unavailable and never another account. |
 | `key` | string | `<provider slug>:<name>` (`claude:Work`), the same key as in `export::v1`; a rename changes it. Widgets pinned before ids still match on it. |
+| `position` | integer | The account's place in the configuration (0 for the first; an aggregator's connections follow it), so a widget can list the accounts in the order you set while the file keeps the binding order. Schema revision 2; absent in older files. |
 | `name`, `provider` | string | Display name (the configured name, or the provider's name for an unnamed account) and provider slug. |
 | `provider_name` | string | The provider's display name (`GitHub Copilot` for `copilot`), which the account picker shows. Absent in files written before it was added. |
 | `email` | string | Only when the user turned identity on; absent otherwise. |
@@ -152,9 +174,10 @@ Sources live in [`apps/desktop/widgets/macos`](../apps/desktop/widgets/macos):
 |---|---|
 | `Sources/CuotaiSnapshot.swift` | The file's model and its location, the per-user data directory. |
 | `Sources/WidgetViews.swift` | Shared drawing: the age in the system's relative text, dimmed bars for stale data, the empty state, the "Update Cuotai" state for a file the extension cannot read, and the layout guard every widget's root goes through. |
-| `Sources/SummaryWidget.swift` | Summary: each account's binding metric (small, medium, large). |
-| `Sources/AccountWidget.swift` | One account pinned by an App Intent, by its stable id; never falls back to another account. |
-| `Sources/HistoryWidget.swift` | An area chart of the binding metric's series, only when the file carries one. |
+| `Sources/SummaryWidget.swift` | Summary: each account's binding metric (small, medium, large), with the accounts, order and filters the user chose. |
+| `Sources/AccountWidget.swift` | One account pinned by an App Intent, by its stable id, with the quota the user chose; never falls back to another account. |
+| `Sources/HistoryWidget.swift` | An area chart of the binding metric's series over the chosen period, only when the file carries one. |
+| `Sources/WidgetOptions.swift` | The widgets' choices (App Intents), the account selection and order, and the timeline that keeps the widgets on the same file. |
 | `Sources/CuotaiWidgets.swift` | The `WidgetBundle` with the three widgets. |
 | `typecheck.sh` | Type-checks the sources with the Command Line Tools. |
 

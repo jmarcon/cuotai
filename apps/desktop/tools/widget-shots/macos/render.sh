@@ -56,6 +56,7 @@ elif [ "${1:-}" = --check ]; then
             "ready:$here/../fixtures/widget.json" \
             "ready:$here/../fixtures/widget-edge.json" \
             "ready:$here/../fixtures/widget-localized.json" \
+            "ready:$here/../fixtures/widget-many.json" \
             "ready:$compat/major-1-revision-0/widget.json" \
             "ready:$compat/major-1-revision-1/widget.json" \
             "unreadable:$compat/major-2-revision-0/widget.json"
