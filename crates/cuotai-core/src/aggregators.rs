@@ -22,7 +22,8 @@ pub struct ConnectionWarnings {
     /// a password.
     pub exposed: bool,
     /// RF2.3: unencrypted `http` on the private network, by the user's
-    /// choice (`allow_private_http`).
+    /// choice (`allow_private_http`): the password or key travels
+    /// unencrypted on that network.
     pub private_http: bool,
 }
 
@@ -48,7 +49,7 @@ impl ConnectionWarnings {
         if self.private_http {
             chips.push(Localized::fixed(
                 "aggregators.chip.private_http",
-                "Unencrypted",
+                "Password or key unencrypted",
             ));
         }
         chips

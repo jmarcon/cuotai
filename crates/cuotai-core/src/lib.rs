@@ -39,6 +39,7 @@ pub mod identity;
 pub mod incidents;
 pub mod insights;
 pub mod instant;
+mod local_listener;
 
 /// RNF performance budgets in tests: the PRD figure in an optimized build,
 /// twenty times it in a debug build (CI runs the debug suite on shared

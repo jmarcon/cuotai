@@ -66,6 +66,10 @@ libc = "0.2"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
+    # PRD 0036 S-01: the owner of a loopback listening socket
+    # (`local_listener`: GetExtendedTcpTable, then the process token).
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
     "Win32_Security",
     # PRD 0050 §13 (option A, narrowed): DACL checks of `private_fs`.
     "Win32_Security_Authorization",

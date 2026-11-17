@@ -4690,7 +4690,7 @@ mod tests {
     fn aggregator_card_shows_the_exposure_and_private_http_chips() {
         let (accounts, reports) = aggregator_fixture();
         let (plain, _) = draw_aggregators_of(accounts, reports, false, "", 120, None);
-        assert!(!plain.contains("No password") && !plain.contains("Unencrypted"));
+        assert!(!plain.contains("No password") && !plain.contains("unencrypted"));
         let (accounts, reports) = aggregator_fixture_with(exposure_notes());
         let (text, _) = draw_aggregators_of(accounts, reports, false, "", 120, None);
         let chips = warning_chips(reports_ref(&aggregator_fixture_with(exposure_notes()).1));

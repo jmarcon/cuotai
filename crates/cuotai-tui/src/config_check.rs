@@ -27,12 +27,18 @@ fn render(check: &ConfigCheck, path: &str, json: bool, locale: &str) -> String {
         return serde_json::to_string_pretty(check).unwrap_or_default() + "\n";
     }
     if check.valid {
-        return l10n::trf_in(
+        let mut text = l10n::trf_in(
             locale,
             "cli.check_config.valid",
             "The configuration {path} is valid.",
             &[("path", &path)],
         ) + "\n";
+        // PRD 0036 re-validation: advisories (texts from the core).
+        for warning in &check.warnings {
+            text.push_str(&warning.note.resolve(locale));
+            text.push('\n');
+        }
+        return text;
     }
     check
         .diagnostics
@@ -63,6 +69,19 @@ mod tests {
                 "diagnostics": [{ "kind": "parse", "line": 4, "column": 1, "path": "accounts[0].note" }]
             })
         );
+        let warned = config_file::check_bytes(
+            b"[[accounts]]\nname = \"Home\"\nprovider = \"nine_router\"\n[accounts.params]\nbase_url = \"http://192.168.1.10:20128\"\nallow_private_http = \"true\"\n",
+        );
+        let human = render(&warned, "/x/cuotai.toml", false, "en-US");
+        assert!(
+            human.starts_with("The configuration /x/cuotai.toml is valid.\n"),
+            "{human}"
+        );
+        assert!(
+            human.contains("accounts[0].params.allow_private_http"),
+            "{human}"
+        );
+        assert!(human.contains("pinned certificate"), "{human}");
         let valid = config_file::check_bytes(b"accounts = []\n");
         assert_eq!(
             render(&valid, "/x/cuotai.toml", false, "en-US"),

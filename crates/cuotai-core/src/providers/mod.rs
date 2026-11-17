@@ -54,6 +54,18 @@ pub(crate) struct Context<'a> {
     pub timeout: Duration,
 }
 
+/// Re-validation S-01/S-06: an aggregator account reached over plain HTTP
+/// on its private network by its own choice (`allow_private_http`): its
+/// password or key, when one is set, travels unencrypted on that network.
+pub(crate) fn private_http_in_effect(account: &crate::Account) -> bool {
+    let base = match account.provider {
+        crate::Provider::NineRouter => nine_router::account_base(account),
+        crate::Provider::LiteLlm => litellm::account_base(account),
+        _ => return false,
+    };
+    base.is_ok_and(|base| base.scheme() == "http" && !nine_router::base_is_loopback(&base))
+}
+
 /// Result of a provider fetch. `notes` is the legacy English text vector
 /// (preserved for [`crate::Report::notes`] and the CLI JSON); `notes_l10n`
 /// is the parallel [`crate::text::Localized`] sidecar the desktop resolves
@@ -341,9 +353,19 @@ pub(crate) async fn read_json<T: DeserializeOwned>(
 }
 
 pub(crate) async fn send(request: RequestBuilder) -> Result<reqwest::Response, QueryError> {
+    send_checked(request, false).await
+}
+
+/// [`send`] for an aggregator account whose private-network opt-in
+/// (`allow_private_http`) also lets the secret travel over plain HTTP to a
+/// private host ([`crate::transport::secret_may_travel`], PRD 0036 S-06).
+pub(crate) async fn send_checked(
+    request: RequestBuilder,
+    allow_private_http: bool,
+) -> Result<reqwest::Response, QueryError> {
     let (client, request) = request.build_split();
     let request = request.map_err(|_| QueryError::transport())?;
-    if !crate::transport::is_secure(request.url()) {
+    if !crate::transport::secret_may_travel(request.url(), allow_private_http) {
         return Err(QueryError::insecure());
     }
     let response = client.execute(request).await.map_err(|error| {
@@ -544,7 +566,15 @@ pub(crate) fn param<'a>(account: &'a Account, key: &str) -> Result<&'a str, Quer
 
 /// Never return response bodies or request URLs: both can contain credentials.
 pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result<T, QueryError> {
-    let response = send(request).await?;
+    json_checked(request, false).await
+}
+
+/// [`json`] through [`send_checked`].
+pub(crate) async fn json_checked<T: DeserializeOwned>(
+    request: RequestBuilder,
+    allow_private_http: bool,
+) -> Result<T, QueryError> {
+    let response = send_checked(request, allow_private_http).await?;
     let code = response.status();
     if !code.is_success() {
         return Err(QueryError {

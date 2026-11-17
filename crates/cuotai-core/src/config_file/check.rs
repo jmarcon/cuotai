@@ -33,6 +33,11 @@ pub struct ConfigDiagnostic {
 pub struct ConfigCheck {
     pub valid: bool,
     pub diagnostics: Vec<ConfigDiagnostic>,
+    /// Advisories of a valid file, never a reason to fail it (PRD 0036
+    /// re-validation: an aggregator whose password or key travels over
+    /// plain HTTP on the private network). Left out of the JSON when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<ConfigDiagnostic>,
 }
 
 /// The stable kind of a [`ConfigError`].
@@ -92,6 +97,7 @@ fn failed(diagnostic: ConfigDiagnostic) -> ConfigCheck {
     ConfigCheck {
         valid: false,
         diagnostics: vec![diagnostic],
+        warnings: Vec::new(),
     }
 }
 
@@ -122,15 +128,44 @@ fn check_bytes_at(bytes: &[u8], identity: Option<&super::ConfigIdentity>) -> Con
     };
     let result = parse(text, ConfigParseMode::Strict).and_then(|parsed| {
         parsed.config.check_ids(identity)?;
-        parsed.config.validate()
+        parsed.config.validate()?;
+        Ok(parsed.config)
     });
     match result {
-        Ok(()) => ConfigCheck {
+        Ok(config) => ConfigCheck {
             valid: true,
             diagnostics: Vec::new(),
+            warnings: warnings(&config),
         },
         Err(error) => failed(diagnostic(&error)),
     }
+}
+
+/// The advisories of a valid configuration: every aggregator account whose
+/// password or key would travel over plain HTTP on the private network
+/// (`allow_private_http`), with HTTPS and a pinned certificate offered.
+fn warnings(config: &crate::Config) -> Vec<ConfigDiagnostic> {
+    config
+        .accounts
+        .iter()
+        .enumerate()
+        .filter(|(_, account)| crate::providers::private_http_in_effect(account))
+        .map(|(index, _)| {
+            let path = format!("accounts[{index}].params.allow_private_http");
+            ConfigDiagnostic {
+                kind: "private_http",
+                line: None,
+                column: None,
+                note: Localized::with_param(
+                    "config.warning.private_http",
+                    "path",
+                    path.clone(),
+                    "Warning: {path} sends the account's password or key unencrypted over plain HTTP on your private network. Prefer HTTPS with a pinned certificate.",
+                ),
+                path: Some(path),
+            }
+        })
+        .collect()
 }
 
 /// Check the configuration file at `path` strictly. A missing or unreadable
@@ -177,6 +212,37 @@ mod tests {
             serde_json::to_value(&check).unwrap(),
             serde_json::json!({ "valid": true, "diagnostics": [] })
         );
+    }
+
+    /// PRD 0036 re-validation S-06: a valid file still warns when an
+    /// aggregator's password or key would travel over plain HTTP on the
+    /// private network; JSON keeps `warnings` out when there are none.
+    #[test]
+    fn a_secret_over_private_http_is_a_warning_of_a_valid_file() {
+        let check = check_bytes(
+            b"[[accounts]]\nname = \"Home\"\nprovider = \"nine_router\"\n[accounts.params]\nbase_url = \"http://192.168.1.10:20128\"\nallow_private_http = \"1\"\n\n[[accounts]]\nname = \"Proxy\"\nprovider = \"litellm\"\ncredential_env = \"LITELLM_API_KEY\"\n[accounts.params]\nbase_url = \"http://10.0.0.7:4000\"\nallow_private_http = \"true\"\n\n[[accounts]]\nname = \"Local\"\nprovider = \"nine_router\"\n",
+        );
+        assert!(check.valid, "{:?}", check.diagnostics);
+        let paths: Vec<_> = check
+            .warnings
+            .iter()
+            .map(|warning| (warning.kind, warning.path.as_deref().unwrap_or_default()))
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                ("private_http", "accounts[0].params.allow_private_http"),
+                ("private_http", "accounts[1].params.allow_private_http"),
+            ]
+        );
+        let text = check.warnings[0].note.resolve("en-US");
+        assert!(
+            text.contains("unencrypted") && text.contains("HTTPS"),
+            "{text}"
+        );
+        assert!(!text.contains("192.168"), "{text}");
+        let json = serde_json::to_value(&check).unwrap();
+        assert_eq!(json["warnings"][0]["kind"], "private_http");
     }
 
     #[test]

@@ -23,11 +23,20 @@
 //!   dropped by the deserializer and never reaches a report.
 //! - The dashboard JWT lives only in memory, is sent only to the base URL
 //!   and a failed login is never retried inside the instance's lockout
-//!   window.
+//!   window. A one-shot command therefore logs in on each run.
+//! - Never a secret first (re-validation S-01): before the first password
+//!   or session goes to an instance in a process, and again after any
+//!   transport failure, `GET /api/health` must answer `{ "ok": true }` and
+//!   `GET /api/version` a plausible version, both without a credential.
+//!   On loopback over plain HTTP, the program listening on the port must
+//!   also belong to the current user or the superuser
+//!   ([`crate::local_listener`]) before each login and before the first
+//!   request of a refresh that carries the session cookie.
 //! - Plain HTTP is accepted for loopback hosts, and for private-network
 //!   hosts only with `allow_private_http`; everything else needs HTTPS.
 
 use super::{Context, Data, QueryError};
+use crate::local_listener::{self, ListenerCheck, Verdict};
 use crate::model::{Metric, MetricKind, MetricWindow, Provider, Status, SubReport};
 use crate::providers::nine_router_tls as tls;
 use crate::text::{params, Localized, Notes, ParamValue};
@@ -38,7 +47,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -149,38 +157,8 @@ pub(crate) enum BaseUrlError {
     Insecure,
 }
 
-/// True for the hosts that never leave the machine.
-fn is_loopback(host: &Host<&str>) -> bool {
-    match host {
-        Host::Domain(domain) => domain.eq_ignore_ascii_case("localhost"),
-        Host::Ipv4(ip) => IpAddr::V4(*ip).is_loopback(),
-        Host::Ipv6(ip) => IpAddr::V6(*ip).is_loopback(),
-    }
-}
-
-fn private_v4(ip: Ipv4Addr) -> bool {
-    let [a, b, ..] = ip.octets();
-    ip.is_private() || ip.is_link_local() || (a == 100 && (64..128).contains(&b))
-}
-
-fn private_v6(ip: Ipv6Addr) -> bool {
-    let first = ip.segments()[0];
-    // Unique local fc00::/7 and link-local fe80::/10.
-    (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
-}
-
-/// RFC 1918, link-local, CGNAT/Tailscale `100.64.0.0/10`, ULA and `.local` /
-/// `.ts.net` names: the only hosts the private-network opt-in covers.
-pub(crate) fn is_private_network(host: &Host<&str>) -> bool {
-    match host {
-        Host::Domain(domain) => {
-            let domain = domain.to_ascii_lowercase();
-            domain.ends_with(".local") || domain.ends_with(".ts.net")
-        }
-        Host::Ipv4(ip) => private_v4(*ip),
-        Host::Ipv6(ip) => private_v6(*ip),
-    }
-}
+use crate::transport::is_loopback_host as is_loopback;
+pub(crate) use crate::transport::is_private_network;
 
 /// Parse and normalize a base URL (scheme, host, optional port, optional
 /// path prefix for a reverse proxy). The result ends without a slash.
@@ -213,7 +191,7 @@ pub(crate) fn parse_base(raw: &str, allow_private_http: bool) -> Result<Url, Bas
 }
 
 /// True when the base URL is a loopback host.
-fn base_is_loopback(base: &Url) -> bool {
+pub(crate) fn base_is_loopback(base: &Url) -> bool {
     base.host().is_some_and(|host| match host {
         Host::Domain(domain) => is_loopback(&Host::Domain(domain)),
         Host::Ipv4(ip) => is_loopback(&Host::Ipv4(ip)),
@@ -221,8 +199,10 @@ fn base_is_loopback(base: &Url) -> bool {
     })
 }
 
-fn truthy(value: Option<&String>) -> bool {
-    value.is_some_and(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "1"))
+/// PRD 0036 RF2.3: whether `account` chose plain HTTP on its private
+/// network (`allow_private_http`, `"true"` or `"1"`), for both aggregators.
+pub(crate) fn allows_private_http(account: &Account) -> bool {
+    crate::transport::truthy(account.params.get("allow_private_http").map(String::as_str))
 }
 
 /// The validated base URL of `account`; used by `Config::validate`.
@@ -233,7 +213,7 @@ pub(crate) fn account_base(account: &Account) -> Result<Url, BaseUrlError> {
         .map(String::as_str)
         .filter(|value| !value.trim().is_empty())
         .unwrap_or(DEFAULT_BASE_URL);
-    parse_base(raw, truthy(account.params.get("allow_private_http")))
+    parse_base(raw, allows_private_http(account))
 }
 
 fn base_error(error: BaseUrlError) -> QueryError {
@@ -562,10 +542,26 @@ enum Slot {
 static SESSIONS: LazyLock<tokio::sync::Mutex<HashMap<String, Slot>>> =
     LazyLock::new(|| tokio::sync::Mutex::new(HashMap::new()));
 
-/// Tests: forget the in-memory login of `base` (a reused test port).
+/// Re-validation S-01: the instances (by base URL) whose health and version
+/// answered as a 9router, without a credential, since their last transport
+/// failure. It belongs with the session slot (a refresh holding a valid
+/// token adds no request), under its own lock because a failed send clears
+/// it while a login holds the session lock.
+static VERIFIED: LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+    LazyLock::new(Default::default);
+
+fn verified() -> std::sync::MutexGuard<'static, std::collections::HashSet<String>> {
+    VERIFIED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Tests: forget the in-memory login and verification of `base` (a reused
+/// test port).
 #[cfg(test)]
 pub(crate) async fn forget_login(base: &str) {
     SESSIONS.lock().await.remove(base);
+    verified().remove(base);
 }
 
 /// A random key drawn once per process for [`fingerprint`].
@@ -614,6 +610,13 @@ pub(crate) struct Instance<'a> {
     /// PRD 0036 RF2.3: raised by the pinned verifier when the instance
     /// presented another certificate.
     pin_mismatch: Option<Arc<AtomicBool>>,
+    /// Re-validation S-01: who owns a loopback listening socket.
+    listener: &'a dyn ListenerCheck,
+    /// The listener check passed during this refresh (cleared by a
+    /// transport failure; a login always checks again).
+    listener_ok: AtomicBool,
+    /// The version the health-first exchange read, reused by the reading.
+    version_seen: std::sync::Mutex<Option<String>>,
 }
 
 impl<'a> Instance<'a> {
@@ -624,7 +627,96 @@ impl<'a> Instance<'a> {
             limits,
             timeout,
             pin_mismatch: None,
+            listener: &local_listener::System,
+            listener_ok: AtomicBool::new(false),
+            version_seen: std::sync::Mutex::new(None),
         }
+    }
+
+    fn with_listener(mut self, listener: &'a dyn ListenerCheck) -> Self {
+        self.listener = listener;
+        self
+    }
+
+    /// Re-validation S-01 part 2: before a request that carries a password
+    /// or a session to a loopback address over plain HTTP, every program
+    /// listening on that port must belong to the current user or the
+    /// superuser. HTTPS is authenticated by its certificate, and a
+    /// private-network host is not on this machine. `fresh` (a login)
+    /// ignores an earlier pass of this refresh.
+    fn check_listener(&self, fresh: bool) -> Result<(), QueryError> {
+        if self.base.scheme() != "http" {
+            return Ok(());
+        }
+        let Some(targets) = self
+            .base
+            .host()
+            .and_then(|host| local_listener::loopback_targets(&host))
+        else {
+            return Ok(());
+        };
+        if !fresh && self.listener_ok.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        let port = self.base.port_or_known_default().unwrap_or(80);
+        match self.listener.verdict(&targets, port) {
+            Verdict::Trusted => {
+                self.listener_ok.store(true, Ordering::Relaxed);
+                Ok(())
+            }
+            Verdict::Foreign | Verdict::Unconfirmed => Err(listener_foreign(port)),
+        }
+    }
+
+    fn is_verified(&self) -> bool {
+        verified().contains(&self.key())
+    }
+
+    /// A transport failure (a restart, a port that changed hands): the next
+    /// secret waits for the health-first exchange and the listener check.
+    fn forget_verification(&self) {
+        self.listener_ok.store(false, Ordering::Relaxed);
+        verified().remove(&self.key());
+    }
+
+    /// Re-validation S-01 part 1: never a secret first. Unless this process
+    /// already saw it since the last transport failure, `GET /api/health`
+    /// must answer `{ "ok": true }` and `GET /api/version` a plausible
+    /// version, both without a credential; otherwise nothing is sent.
+    async fn ensure_genuine(&self) -> Result<(), QueryError> {
+        if self.is_verified() {
+            return Ok(());
+        }
+        let health = self.send(self.request(&Route::Health, None)?).await?;
+        let healthy = health.status().is_success()
+            && super::read_json::<Value>(health)
+                .await
+                .ok()
+                .and_then(|value| value.get("ok").and_then(Value::as_bool))
+                == Some(true);
+        if !healthy {
+            return Err(not_nine_router());
+        }
+        let response = self.send(self.request(&Route::Version, None)?).await?;
+        let version = if response.status().is_success() {
+            read_version(response).await
+        } else {
+            None
+        };
+        let Some(version) = version.filter(|version| plausible_version(version)) else {
+            return Err(not_nine_router());
+        };
+        *self
+            .version_seen
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(version);
+        verified().insert(self.key());
+        Ok(())
+    }
+
+    /// Test connection already read both routes: record the result.
+    fn mark_verified(&self) {
+        verified().insert(self.key());
     }
 
     fn with_pin_flag(mut self, flag: Option<Arc<AtomicBool>>) -> Self {
@@ -651,6 +743,9 @@ impl<'a> Instance<'a> {
     /// Build the request of `route`. The URL is `base` + the route path: no
     /// other host or path can result.
     fn request(&self, route: &Route, token: Option<&str>) -> Result<RequestBuilder, QueryError> {
+        if token.is_some() || *route == Route::Login {
+            self.check_listener(*route == Route::Login)?;
+        }
         let url = self
             .base
             .join(&route.path())
@@ -671,6 +766,7 @@ impl<'a> Instance<'a> {
 
     async fn send(&self, request: RequestBuilder) -> Result<Response, QueryError> {
         request.send().await.map_err(|error| {
+            self.forget_verification();
             if self.pin_changed() {
                 tls::changed()
             } else if error.is_timeout() {
@@ -706,7 +802,10 @@ impl<'a> Instance<'a> {
         }
         match sessions.get(&key) {
             Some(Slot::Token { value, renew_at }) if now < *renew_at => {
-                return Ok(Some(value.clone()));
+                let value = value.clone();
+                // A transport failure since: check who answers first.
+                self.ensure_genuine().await?;
+                return Ok(Some(value));
             }
             Some(Slot::Rejected {
                 until,
@@ -723,6 +822,7 @@ impl<'a> Instance<'a> {
             _ => {}
         }
         sessions.remove(&key);
+        self.ensure_genuine().await?;
         let body = serde_json::json!({ "password": password });
         let request = self.request(&Route::Login, None)?.json(&body);
         let response = self.send(request).await?;
@@ -801,8 +901,59 @@ impl<'a> Instance<'a> {
                     "9router does not accept password login here (SSO is on or the tunnel blocks access).",
                 ),
             }),
+            // S-07: a redirect at login is the instance (or a proxy in front
+            // of it) sending the request to its login page: authentication,
+            // never followed and never retried.
+            300..=399 => Err(redirected()),
             _ => Err(http_error(code)),
         }
+    }
+}
+
+/// Re-validation S-01: the address does not answer like a 9router.
+fn not_nine_router() -> QueryError {
+    QueryError {
+        diagnostic: None,
+        status: Status::Error,
+        note: Localized::fixed(
+            "query.nine_router.not_nine_router",
+            "The address answers but does not look like a 9router; the password or session was not sent.",
+        ),
+    }
+}
+
+/// Re-validation S-01: the listener on a loopback port is not provably the
+/// current user's (or the superuser's).
+fn listener_foreign(port: u16) -> QueryError {
+    QueryError {
+        diagnostic: None,
+        status: Status::Error,
+        note: Localized::with_param(
+            "query.nine_router.listener_foreign",
+            "port",
+            port,
+            "The program listening on port {port} could not be confirmed as yours (it may belong to another user), so the 9router password or session was not sent. Start 9router as yourself, or reach it over HTTPS with a pinned certificate.",
+        ),
+    }
+}
+
+/// The note of an instance reached over plain HTTP on the private network
+/// by the account's choice (both aggregators; the overlay chip reads it).
+pub(crate) fn private_http_note() -> Localized {
+    Localized::fixed(
+        "note.nine_router.private_http",
+        "Plain HTTP on your private network, by your choice: the password or key travels unencrypted on that network. Prefer HTTPS with a pinned certificate.",
+    )
+}
+
+fn redirected() -> QueryError {
+    QueryError {
+        diagnostic: None,
+        status: Status::AuthenticationError,
+        note: Localized::fixed(
+            "query.nine_router.redirected",
+            "9router redirected the request to its login; enter the dashboard password.",
+        ),
     }
 }
 
@@ -831,14 +982,7 @@ fn check_status(response: &Response) -> Result<(), QueryError> {
         return Ok(());
     }
     if status.is_redirection() {
-        return Err(QueryError {
-            diagnostic: None,
-            status: Status::AuthenticationError,
-            note: Localized::fixed(
-                "query.nine_router.redirected",
-                "9router redirected the request to its login; enter the dashboard password.",
-            ),
-        });
+        return Err(redirected());
     }
     if status.as_u16() == 401 {
         return Err(QueryError {
@@ -906,6 +1050,7 @@ async fn start(
     now: DateTime<Utc>,
 ) -> Result<(Option<String>, Option<String>, bool), QueryError> {
     if let Some(token) = sso_token(account, ctx)? {
+        instance.ensure_genuine().await?;
         return Ok((Some(token), None, true));
     }
     let password = password_of(account, ctx)?;
@@ -1250,7 +1395,18 @@ pub(crate) async fn fetch_at(
     limits: Limits,
     now: DateTime<Utc>,
 ) -> Result<Data, QueryError> {
-    let allow_private = truthy(account.params.get("allow_private_http"));
+    fetch_with(account, ctx, limits, now, &local_listener::System).await
+}
+
+/// [`fetch_at`] with an injected listener check (tests).
+pub(crate) async fn fetch_with(
+    account: &Account,
+    ctx: &Context<'_>,
+    limits: Limits,
+    now: DateTime<Utc>,
+    listener: &dyn ListenerCheck,
+) -> Result<Data, QueryError> {
+    let allow_private = allows_private_http(account);
     let base = account_base(account).map_err(base_error)?;
     let trust = tls::mode(account, &base).map_err(tls_error)?;
     let own = tls::client(&trust, ctx.timeout)?;
@@ -1258,7 +1414,9 @@ pub(crate) async fn fetch_at(
         Some((client, flag)) => (client, flag.clone()),
         None => (ctx.http, None),
     };
-    let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
+    let instance = Instance::new(http, base, limits, ctx.timeout)
+        .with_pin_flag(flag)
+        .with_listener(listener);
     let deadline = tokio::time::Instant::now() + limits.instance;
 
     let (mut token, password, sso) = start(&instance, account, ctx, now).await?;
@@ -1293,7 +1451,16 @@ pub(crate) async fn fetch_at(
         ]),
         "{ready} of {total} 9router connections with usage.",
     );
-    if let Some(version) = best_effort_version(&instance, token.as_deref()).await {
+    let seen = instance
+        .version_seen
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .take();
+    let version = match seen {
+        Some(version) => Some(version),
+        None => best_effort_version(&instance, token.as_deref()).await,
+    };
+    if let Some(version) = version {
         notes.push_params(
             "note.nine_router.version",
             params([("version", ParamValue::from(version.clone()))]),
@@ -1316,10 +1483,7 @@ pub(crate) async fn fetch_at(
         );
     }
     if instance.base.scheme() == "http" && !base_is_loopback(&instance.base) && allow_private {
-        notes.push(
-            "note.nine_router.private_http",
-            "Unencrypted connection on the private network, by your choice.",
-        );
+        notes.push_note(private_http_note());
     }
     let mut data = Data::new(
         Vec::new(),
@@ -1334,6 +1498,11 @@ pub(crate) async fn fetch_at(
 /// never changes the reading.
 async fn best_effort_version(instance: &Instance<'_>, token: Option<&str>) -> Option<String> {
     let response = instance.get(&Route::Version, token).await.ok()?;
+    read_version(response).await
+}
+
+/// `currentVersion` of a `GET /api/version` answer, cleaned, or nothing.
+async fn read_version(response: Response) -> Option<String> {
     let value: Value = super::read_json(response).await.ok()?;
     let version = clean_text(value.get("currentVersion")?.as_str()?, 32);
     (!version.is_empty()
@@ -1343,24 +1512,39 @@ async fn best_effort_version(instance: &Instance<'_>, token: Option<&str>) -> Op
     .then_some(version)
 }
 
-/// The numeric parts of a version ("v0.5.109-beta" → `[0, 5, 109]`), or
-/// `None` when it does not start with a number.
-fn version_parts(version: &str) -> Option<Vec<u64>> {
+/// The numeric parts of a version and whether it is a release
+/// ("v0.5.109-beta" → `([0, 5, 109], false)`; build metadata after `+` is
+/// ignored), or `None` when it does not start with a number.
+fn version_parts(version: &str) -> Option<(Vec<u64>, bool)> {
     let core = version.trim().trim_start_matches(['v', 'V']);
-    let core = core.split(['-', '+']).next().unwrap_or_default();
-    let parts: Vec<u64> = core
+    let core = core.split('+').next().unwrap_or_default();
+    let (numbers, pre) = match core.split_once('-') {
+        Some((numbers, _)) => (numbers, true),
+        None => (core, false),
+    };
+    let parts: Vec<u64> = numbers
         .split('.')
         .map(str::parse)
         .collect::<Result<_, _>>()
         .ok()?;
-    (!parts.is_empty()).then_some(parts)
+    (!parts.is_empty()).then_some((parts, !pre))
 }
 
-/// PRD 0036 RF2.2/RF3.8: true when `version` is older than `min`. An
-/// unparsable version is never called older (no warning without evidence),
-/// and neither is any version while `min` is `None`.
+/// Re-validation S-01: a version the health-first exchange accepts: it
+/// parses, and its major is below 1000 (a plausibility bound, not a block;
+/// an old version stays a warning).
+fn plausible_version(version: &str) -> bool {
+    version_parts(version).is_some_and(|(parts, _)| parts[0] < 1000)
+}
+
+/// PRD 0036 RF2.2/RF3.8: true when `version` is older than `min`. A
+/// pre-release sorts before its release (B-a: `0.5.109-beta` < `0.5.109`).
+/// An unparsable version is never called older (no warning without
+/// evidence), and neither is any version while `min` is `None`.
 pub(crate) fn below_tested_min(version: &str, min: Option<&str>) -> bool {
-    let (Some(have), Some(want)) = (version_parts(version), min.and_then(version_parts)) else {
+    let (Some((have, have_release)), Some((want, want_release))) =
+        (version_parts(version), min.and_then(version_parts))
+    else {
         return false;
     };
     let len = have.len().max(want.len());
@@ -1369,7 +1553,7 @@ pub(crate) fn below_tested_min(version: &str, min: Option<&str>) -> bool {
             .map(|i| parts.get(i).copied().unwrap_or(0))
             .collect()
     };
-    pad(&have) < pad(&want)
+    (pad(&have), have_release) < (pad(&want), want_release)
 }
 
 /// The reading's warning for an instance older than `min` (RF3.8).
@@ -1422,6 +1606,10 @@ pub enum TestOutcome {
     CertificateChanged { fingerprint: String },
     /// PRD 0036 RF2.3: the chosen CA file is missing or not PEM.
     CaFileUnreadable,
+    /// Re-validation S-01: the program listening on this loopback `port`
+    /// could not be confirmed as the current user's (or the superuser's);
+    /// the password or session was not sent.
+    ListenerForeign { port: u16 },
 }
 
 /// PRD 0036 RF10.3: the sentence of a LiteLLM proxy test, which never
@@ -1526,6 +1714,12 @@ fn outcome_text_with_min(outcome: &TestOutcome, min: Option<&str>) -> Localized 
             "query.nine_router.ca_file",
             "The 9router CA file could not be read as PEM.",
         ),
+        TestOutcome::ListenerForeign { port } => Localized::with_param(
+            "test.nine_router.listener_foreign",
+            "port",
+            *port,
+            "The program listening on port {port} could not be confirmed as yours (it may belong to another user); the password or session was not sent. Start 9router as yourself, or reach it over HTTPS with a pinned certificate.",
+        ),
     }
 }
 
@@ -1585,6 +1779,17 @@ pub(crate) async fn test_connection_at(
     limits: Limits,
     now: DateTime<Utc>,
 ) -> TestOutcome {
+    test_connection_with(account, ctx, limits, now, &local_listener::System).await
+}
+
+/// [`test_connection_at`] with an injected listener check (tests).
+pub(crate) async fn test_connection_with(
+    account: &Account,
+    ctx: &Context<'_>,
+    limits: Limits,
+    now: DateTime<Utc>,
+    listener: &dyn ListenerCheck,
+) -> TestOutcome {
     let Ok(base) = account_base(account) else {
         return TestOutcome::Unreachable;
     };
@@ -1611,7 +1816,10 @@ pub(crate) async fn test_connection_at(
         Some((client, flag)) => (client, flag.clone()),
         None => (ctx.http, None),
     };
-    let instance = Instance::new(http, base, limits, ctx.timeout).with_pin_flag(flag);
+    let port = base.port_or_known_default().unwrap_or(80);
+    let instance = Instance::new(http, base, limits, ctx.timeout)
+        .with_pin_flag(flag)
+        .with_listener(listener);
     let health = match instance.request(&Route::Health, None) {
         Ok(request) => match request.send().await {
             Ok(response) if response.status().is_success() => {
@@ -1631,6 +1839,14 @@ pub(crate) async fn test_connection_at(
         return TestOutcome::NotNineRouter;
     }
     let version = best_effort_version(&instance, None).await;
+    // Re-validation S-01: a password or session goes only to an address
+    // that answered both public routes like a 9router.
+    if sso.is_some() || password.is_some() {
+        if !version.as_deref().is_some_and(plausible_version) {
+            return TestOutcome::NotNineRouter;
+        }
+        instance.mark_verified();
+    }
     let login = match &sso {
         Some(token) => Ok(Some(token.clone())),
         None => instance.token(password.as_deref(), now, false).await,
@@ -1647,6 +1863,8 @@ pub(crate) async fn test_connection_at(
                     },
                 },
                 "query.nine_router.login_refused" => TestOutcome::LoginRefused,
+                "query.nine_router.listener_foreign" => TestOutcome::ListenerForeign { port },
+                "query.nine_router.not_nine_router" => TestOutcome::NotNineRouter,
                 _ => TestOutcome::Unreachable,
             };
         }
@@ -1662,6 +1880,9 @@ pub(crate) async fn test_connection_at(
             },
             Err(_) => TestOutcome::NotNineRouter,
         },
+        Err(error) if error.note.id == "query.nine_router.listener_foreign" => {
+            TestOutcome::ListenerForeign { port }
+        }
         Err(error) if error.status == Status::AuthenticationError => {
             if sso.is_some() {
                 TestOutcome::SessionRejected
@@ -1716,6 +1937,19 @@ mod tests {
             "unparsable minimum"
         );
         assert!(!below_tested_min("0.1.0", None));
+        // B-a: a pre-release sorts before its release; build metadata does
+        // not count.
+        assert!(below_tested_min("0.5.109-beta", Some("0.5.109")));
+        assert!(below_tested_min("v0.5.109-rc.1", Some("0.5.109")));
+        assert!(!below_tested_min("0.5.109", Some("0.5.109-beta")));
+        assert!(!below_tested_min("0.5.109-beta", Some("0.5.109-beta")));
+        assert!(!below_tested_min("0.5.110-beta", Some("0.5.109")));
+        // The health-first plausibility bound.
+        assert!(plausible_version("0.5.109"));
+        assert!(plausible_version("v999.0.0-beta"));
+        assert!(!plausible_version("1000.0.0"));
+        assert!(!plausible_version("garbage"));
+        assert!(!plausible_version(""));
         let note = untested_version_note("0.5.35", Some("0.5.109")).unwrap();
         assert_eq!(note.id, "note.nine_router.version_untested");
         assert!(note
@@ -2607,10 +2841,23 @@ mod tests {
 
     // --- login ------------------------------------------------------------
 
+    /// The two public routes a genuine instance answers (re-validation
+    /// S-01: checked before any secret).
+    async fn mount_genuine(server: &MockServer) {
+        mount_json(server, "/api/health", json!({ "ok": true })).await;
+        mount_json(
+            server,
+            "/api/version",
+            json!({ "currentVersion": "0.5.109" }),
+        )
+        .await;
+    }
+
     async fn mount_login(server: &MockServer, response: ResponseTemplate, expect: u64) {
         // A dropped test server's port can be reused by the next one: start
         // from a clean login state for this base URL.
-        SESSIONS.lock().await.remove(&format!("{}/", server.uri()));
+        forget_login(&format!("{}/", server.uri())).await;
+        mount_genuine(server).await;
         Mock::given(method("POST"))
             .and(path("/api/auth/login"))
             .respond_with(response)
@@ -3043,5 +3290,316 @@ mod tests {
             let base = parse_base(url, true).unwrap();
             assert_eq!(base_is_loopback(&base), loopback, "{url}");
         }
+    }
+
+    // --- re-validation S-01, S-07, R-01 ------------------------------------
+
+    /// A listener check with a fixed answer.
+    struct FixedListener(Verdict);
+    impl ListenerCheck for FixedListener {
+        fn verdict(&self, _: &[std::net::IpAddr], _: u16) -> Verdict {
+            self.0
+        }
+    }
+
+    /// The pasted SSO session of `TEST_NR_SSO`.
+    struct SsoOnly(String);
+    impl Credentials for SsoOnly {
+        fn get(&self, name: &str) -> Option<String> {
+            (name == "TEST_NR_SSO").then(|| self.0.clone())
+        }
+    }
+
+    fn sso_account(server: &MockServer) -> Account {
+        account(
+            server,
+            false,
+            &[(crate::user_session::NINE_ROUTER_SSO_SLOT, "TEST_NR_SSO")],
+        )
+    }
+
+    async fn mount_refused(server: &MockServer) {
+        // Nothing that carries a secret may be requested.
+        for (verb, route) in [
+            ("POST", "/api/auth/login"),
+            ("GET", "/api/providers/client"),
+        ] {
+            Mock::given(method(verb))
+                .and(path(route))
+                .respond_with(ResponseTemplate::new(500))
+                .expect(0)
+                .mount(server)
+                .await;
+        }
+    }
+
+    /// S-01 part 1 (R-01 item 6): no login and no cookie before the address
+    /// answers `{ok:true}` and a plausible version.
+    #[tokio::test]
+    async fn no_password_or_session_goes_out_before_the_instance_answers_like_a_9router() {
+        let token = jwt(Utc::now().timestamp() + 3_600);
+        let http = client();
+        for (health, version) in [
+            (
+                Some(json!({ "status": "fine" })),
+                Some(json!({ "currentVersion": "0.5.109" })),
+            ),
+            (None, Some(json!({ "currentVersion": "0.5.109" }))),
+            (Some(json!({ "ok": true })), None),
+            (
+                Some(json!({ "ok": true })),
+                Some(json!({ "currentVersion": "nightly" })),
+            ),
+            (
+                Some(json!({ "ok": true })),
+                Some(json!({ "currentVersion": "4000.1.0" })),
+            ),
+        ] {
+            for sso in [false, true] {
+                let server = MockServer::start().await;
+                forget_login(&format!("{}/", server.uri())).await;
+                if let Some(body) = &health {
+                    mount_json(&server, "/api/health", body.clone()).await;
+                }
+                if let Some(body) = &version {
+                    mount_json(&server, "/api/version", body.clone()).await;
+                }
+                mount_refused(&server).await;
+                let error = if sso {
+                    let credentials = SsoOnly(format!("auth_token={token}"));
+                    let ctx = Context {
+                        http: &http,
+                        credentials: &credentials,
+                        timeout: Duration::from_secs(5),
+                    };
+                    fetch_at(&sso_account(&server), &ctx, Limits::DEFAULT, Utc::now()).await
+                } else {
+                    fetch_at(
+                        &account(&server, true, &[]),
+                        &context(&http),
+                        Limits::DEFAULT,
+                        Utc::now(),
+                    )
+                    .await
+                }
+                .unwrap_err();
+                assert_eq!(error.note.id, "query.nine_router.not_nine_router");
+                for request in server.received_requests().await.unwrap() {
+                    assert!(request.headers.get("cookie").is_none());
+                    assert_eq!(request.method.to_string(), "GET");
+                }
+            }
+        }
+    }
+
+    /// S-01 part 1: health and version come first, once per process; a
+    /// refresh holding a valid token adds no request.
+    #[tokio::test]
+    async fn the_health_first_exchange_runs_once_before_the_first_login() {
+        let server = MockServer::start().await;
+        let token = jwt(Utc::now().timestamp() + 86_400);
+        mount_login(
+            &server,
+            ResponseTemplate::new(200).insert_header("set-cookie", format!("auth_token={token}")),
+            1,
+        )
+        .await;
+        mount_json(&server, "/api/providers/client", page(json!([]), 1)).await;
+        let http = client();
+        let acct = account(&server, true, &[]);
+        let data = fetch_at(&acct, &context(&http), Limits::DEFAULT, Utc::now())
+            .await
+            .unwrap();
+        // The version the exchange read is reused by the reading.
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|note| note.id == "note.nine_router.version"));
+        let first = requests_of(&server.received_requests().await.unwrap());
+        assert_eq!(
+            first[..3],
+            [
+                ("GET".to_string(), "/api/health".to_string()),
+                ("GET".to_string(), "/api/version".to_string()),
+                ("POST".to_string(), "/api/auth/login".to_string()),
+            ]
+        );
+        fetch_at(&acct, &context(&http), Limits::DEFAULT, Utc::now())
+            .await
+            .unwrap();
+        let all = requests_of(&server.received_requests().await.unwrap());
+        let health = all
+            .iter()
+            .filter(|(_, target)| target == "/api/health")
+            .count();
+        assert_eq!(health, 1, "{all:?}");
+    }
+
+    /// S-01 part 2 (R-01 item 6): a listener the check refuses gets neither
+    /// the password nor the session, in a refresh, a one-connection refresh
+    /// and Test connection.
+    #[tokio::test]
+    async fn no_secret_goes_to_a_port_whose_listener_is_not_confirmed() {
+        let token = jwt(Utc::now().timestamp() + 3_600);
+        let http = client();
+        for verdict in [Verdict::Foreign, Verdict::Unconfirmed] {
+            let check = FixedListener(verdict);
+            for sso in [false, true] {
+                let server = MockServer::start().await;
+                forget_login(&format!("{}/", server.uri())).await;
+                mount_genuine(&server).await;
+                mount_refused(&server).await;
+                let credentials = SsoOnly(format!("auth_token={token}"));
+                let ctx = if sso {
+                    Context {
+                        http: &http,
+                        credentials: &credentials,
+                        timeout: Duration::from_secs(5),
+                    }
+                } else {
+                    context(&http)
+                };
+                let acct = if sso {
+                    sso_account(&server)
+                } else {
+                    account(&server, true, &[])
+                };
+                let port = server.address().port();
+                let error = fetch_with(&acct, &ctx, Limits::DEFAULT, Utc::now(), &check)
+                    .await
+                    .unwrap_err();
+                assert_eq!(error.note.id, "query.nine_router.listener_foreign");
+                let text = error.note.resolve("en-US");
+                assert!(text.contains(&port.to_string()), "{text}");
+                assert!(text.contains("not sent"), "{text}");
+                let outcome =
+                    test_connection_with(&acct, &ctx, Limits::DEFAULT, Utc::now(), &check).await;
+                assert_eq!(outcome, TestOutcome::ListenerForeign { port });
+                assert_eq!(
+                    outcome_text(&outcome).id,
+                    "test.nine_router.listener_foreign"
+                );
+                for request in server.received_requests().await.unwrap() {
+                    assert!(request.headers.get("cookie").is_none());
+                    assert_eq!(request.method.to_string(), "GET");
+                }
+            }
+        }
+        // A trusted listener lets the login through (the system check passes
+        // for this test process's own server on every OS).
+        let server = MockServer::start().await;
+        mount_login(
+            &server,
+            ResponseTemplate::new(200).insert_header("set-cookie", format!("auth_token={token}")),
+            1,
+        )
+        .await;
+        mount_json(&server, "/api/providers/client", page(json!([]), 1)).await;
+        fetch_at(
+            &account(&server, true, &[]),
+            &context(&http),
+            Limits::DEFAULT,
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+    }
+
+    /// S-07 (R-01 item 2): a redirect at login is authentication, is not
+    /// followed and is not tried again.
+    #[tokio::test]
+    async fn a_login_answered_with_a_redirect_is_authentication_and_is_not_followed() {
+        let elsewhere = MockServer::start().await;
+        Mock::given(wiremock::matchers::any())
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&elsewhere)
+            .await;
+        let server = MockServer::start().await;
+        mount_login(
+            &server,
+            ResponseTemplate::new(302)
+                .insert_header("location", format!("{}/steal", elsewhere.uri())),
+            1,
+        )
+        .await;
+        let http = client();
+        let error = fetch_at(
+            &account(&server, true, &[]),
+            &context(&http),
+            Limits::DEFAULT,
+            Utc::now(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.status, Status::AuthenticationError);
+        assert_eq!(error.note.id, "query.nine_router.redirected");
+        let seen = requests_of(&server.received_requests().await.unwrap());
+        assert_eq!(
+            seen.iter().filter(|(verb, _)| verb == "POST").count(),
+            1,
+            "{seen:?}"
+        );
+        assert!(!seen
+            .iter()
+            .any(|(_, target)| target.starts_with("/api/providers")));
+    }
+
+    /// R-01 item 1: hostile connection ids in a recorded full refresh: only
+    /// allow-listed targets are requested, none of those ids, never `force`.
+    #[tokio::test]
+    async fn a_refresh_never_requests_a_hostile_connection_id() {
+        let server = MockServer::start().await;
+        let long = "a".repeat(129);
+        let hostile = [
+            "../../api/providers",
+            "abc%2F..%2Fsettings",
+            "a?force=1",
+            long.as_str(),
+        ];
+        let mut list: Vec<Value> = hostile
+            .iter()
+            .map(|id| connection(id, "claude", "Hostile"))
+            .collect();
+        list.push(connection("dup", "claude", "One"));
+        list.push(connection("dup", "claude", "Two"));
+        mount_json(
+            &server,
+            "/api/providers/client",
+            page(Value::Array(list), 1),
+        )
+        .await;
+        mount_json(
+            &server,
+            "/api/version",
+            json!({ "currentVersion": "0.5.109" }),
+        )
+        .await;
+        mount_json(&server, "/api/usage/dup", claude_usage()).await;
+        let http = client();
+        let data = fetch_at(
+            &account(&server, false, &[]),
+            &context(&http),
+            Limits::DEFAULT,
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(data.sub_reports.len(), 6);
+        let seen = requests_of(&server.received_requests().await.unwrap());
+        for (verb, target) in &seen {
+            assert_eq!(verb, "GET", "{target}");
+            assert!(!target.contains("force"), "{target}");
+            let allowed = target == "/api/version"
+                || target.starts_with("/api/providers/client?")
+                || target == "/api/usage/dup";
+            assert!(allowed, "{target}");
+            for id in hostile {
+                assert!(!target.contains(id), "{target}");
+            }
+            assert!(!target.contains("settings"), "{target}");
+            assert!(!target.contains(".."), "{target}");
+        }
+        assert!(seen.iter().any(|(_, target)| target == "/api/usage/dup"));
     }
 }
