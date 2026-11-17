@@ -40,6 +40,7 @@ pub struct UserTheme {
 /// the messages, never the file.
 #[derive(Serialize)]
 pub struct UserLocale {
+    /// The file name, made safe to show by the core (S-03).
     name: String,
     code: String,
     label: String,
@@ -60,10 +61,12 @@ pub struct UserError {
 }
 
 impl UserError {
+    /// `name` is made safe to show (PRD 0035 re-validation S-03: no control, direction or hidden character, at most
+    /// 64 characters); a notice never shows a file name as the folder spells it.
     fn new(kind: &'static str, name: String, reason: &'static str) -> Self {
         Self {
             kind,
-            name,
+            name: cuotai_core::user_pack::safe_file_name(&name),
             reason,
             count: None,
         }
@@ -178,7 +181,7 @@ fn parse_locales(files: Vec<UserFile>, errors: &mut Vec<UserError>) -> Vec<UserL
                         });
                     }
                     Some(UserLocale {
-                        name: file.name,
+                        name: pack.file,
                         code: pack.code,
                         label: pack.label,
                         flag: pack.flag,
@@ -474,5 +477,36 @@ mod tests {
                 .any(|catalog| catalog.contains_key(id));
             assert!(ui.contains_key(id) || core, "{id}");
         }
+    }
+
+    /// S-03: the shell sends the core's label and a safe file name, and
+    /// refuses an `en-US.json` pack.
+    #[test]
+    fn a_pack_is_labelled_by_the_core_and_named_safely() {
+        let files = vec![
+            UserFile {
+                name: "fr.json".into(),
+                text: r#"{"_meta":{"name":"Deutsch"},"tray.ok":"x"}"#.into(),
+            },
+            UserFile {
+                name: "en-US.json".into(),
+                text: r#"{"_meta":{"name":"English"},"tray.ok":"x"}"#.into(),
+            },
+            UserFile {
+                name: "xx\u{202E}.json".into(),
+                text: r#"{"_meta":{"name":"X"}}"#.into(),
+            },
+        ];
+        let mut errors = Vec::new();
+        let locales = parse_locales(files, &mut errors);
+        assert_eq!(locales.len(), 1);
+        assert_eq!(locales[0].label, "Français");
+        assert_eq!(locales[0].name, "fr.json");
+        let reasons: Vec<(&str, &str)> =
+            errors.iter().map(|e| (e.name.as_str(), e.reason)).collect();
+        assert_eq!(
+            reasons,
+            [("en-US.json", "reservedCode"), ("xx.json", "invalidCode")]
+        );
     }
 }

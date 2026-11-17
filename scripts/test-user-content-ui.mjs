@@ -109,7 +109,7 @@ assert.equal(intlFormatter("NumberFormat", "en-US-US", { maximumFractionDigits: 
 await i18n.setLocale("en-US");
 assert.match(skippedMessage(content.errors[1]), /not a theme token/);
 const reasons = ["syntax", "atRule", "externalUrl", "function", "scope", "property", "value", "modes", "invalidMeta", "invalidId",
-  "invalidCode", "invalidKey", "invalidValue", "invalidJson", "tooLarge", "unreadable"];
+  "invalidCode", "reservedCode", "invalidKey", "invalidValue", "invalidJson", "tooLarge", "unreadable"];
 for (const code of ["en-US", "pt-BR", "es", "it", "fr", "de", "ja", "zh-CN", "ko", "hi-IN", "id-ID", "tr", "ru", "vi"]) {
   const catalog = JSON.parse(await readFile(new URL(`../apps/desktop/ui/locales/${code}.json`, import.meta.url), "utf8"));
   for (const reason of reasons) assert.ok(catalog[`userContent.reason.${reason}`], `${code}: userContent.reason.${reason}`);
@@ -141,6 +141,58 @@ for (const { name, input, output } of fixture) {
     [output.code, output.label, output.flag, output.digest], name);
   for (const id of output.ignored) assert.ok(!Object.hasOwn(registered.messages, id), `${name}: ${id} was filtered`);
 }
+// S-03: a pack cannot pose as a shipped language. Its label is the core's (the registry endonym for a built-in code,
+// the code when its name folds to an endonym), its selector item and field carry the protected "user pack · file"
+// marker with the file isolated in <bdi>, en-US is refused, and the fallback layer stays the shipped en-US.
+{
+  const { langMenuHtml } = await import("../apps/desktop/ui/js/lib.js");
+  const catalog = async (code) => JSON.parse(await readFile(new URL(`../apps/desktop/ui/locales/${code}.json`, import.meta.url), "utf8"));
+  const byInput = (name, needle) => fixture.find((c) => c.name === name && c.input.includes(needle));
+  const posing = byInput("fr.json", '"Deutsch"');
+  assert.equal(posing.output.label, "Français", "fr.json named Deutsch is labelled Français");
+  const impostor = byInput("xx.json", '"Français"');
+  assert.equal(impostor.output.label, "xx", "xx.json named Français is labelled xx");
+  assert.equal(byInput("en-US.json", "English").output.refused, "reservedCode");
+  const enUs = await catalog("en-US");
+  for (const c of [posing, impostor]) {
+    payload.themes = []; payload.errors = [];
+    payload.locales = [{ name: c.name, ...c.output }];
+    await loadUserContent();
+    await i18n.setLocale(c.output.code);
+    // The marker reads in the pack's shipped language (fr), else English (xx).
+    const cat = c.output.code === "fr" ? await catalog("fr") : enUs;
+    const marker = cat["userContent.packMarker"].replace("{file}", `<bdi>${c.name}</bdi>`);
+    for (const html of [langMenuHtml({ field: true }), langMenuHtml({ inline: true }), langMenuHtml()]) {
+      assert.ok(html.includes(`>${c.output.label}</span>`), `${c.name}: the selector shows ${c.output.label}`);
+    }
+    assert.ok(langMenuHtml({ field: true }).includes(`<small class="lang-pack">${marker}</small>`), `${c.name}: the field carries the marker`);
+    assert.ok(langMenuHtml().includes(`title="${cat["lang.label"]}: ${c.output.label} (${cat["userContent.packMarker"].replace("{file}", c.name)})"`),
+      `${c.name}: the icon button names the pack`);
+    // The shipped French item keeps no marker; only the pack's does.
+    const shippedItem = langMenuHtml({ inline: true }).match(/<button[^>]*data-locale="pt-BR"[\s\S]*?<\/button>/)[0];
+    assert.ok(!shippedItem.includes("lang-pack"), "a shipped language has no marker");
+    const userCount = i18n.LOCALES.filter((l) => l.user).length;
+    assert.equal((langMenuHtml({ inline: true }).match(/class="lang-pack"/g) ?? []).length, userCount);
+  }
+  await i18n.setLocale("en-US");
+  // The webview refuses en-US too (defence in depth), and a registration never replaces the fallback.
+  payload.themes = []; payload.errors = [];
+  payload.locales = [{ name: "en-US.json", code: "en-US", label: "English", flag: null, digest: "0".repeat(64), messages: { "tray.ok": "Nope" }, ignored: [] }];
+  const refused = await loadUserContent();
+  assert.deepEqual(refused.errors.map((e) => e.reason), ["reservedCode"]);
+  i18n.registerLocale("en-US", "English", { "tray.ok": "Nope" });
+  assert.equal(i18n.t("tray.ok"), enUs["tray.ok"]);
+  // With an en-GB pack active, a key it lacks reads the shipped English.
+  const gb = byInput("en-GB.json", "UK");
+  payload.locales = [{ name: gb.name, ...gb.output }];
+  await loadUserContent();
+  await i18n.setLocale("en-GB");
+  assert.equal(i18n.t("tray.ok"), "All fine, mate");
+  assert.equal(i18n.t("settings.page.general"), enUs["settings.page.general"]);
+  assert.equal(i18n.t("confirm.cancel"), enUs["confirm.cancel"]);
+  await i18n.setLocale("en-US");
+}
+
 // The webview applies what it registered: the last fixture pack's texts are what `t` returns in that language.
 const last = fixture.findLast((c) => !c.output.refused && Object.values(c.output.messages).some((v) => typeof v === "string" && v));
 const [lastId, lastText] = Object.entries(last.output.messages).find(([, v]) => typeof v === "string" && v);

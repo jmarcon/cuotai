@@ -246,6 +246,17 @@ does not carry keeps the built-in translation, and the shipped catalog's
 `_meta` still says whether it was machine-translated. The pack never replaces
 the catalog. Settings › General names the active pack's file.
 
+**A pack cannot pose as a shipped language (PRD 0035 re-validation S-03).**
+The language selector never shows a name the pack chose for a shipped
+language: a pack whose code is, or normalizes to, a built-in language shows
+that language's own name (a `fr.json` named "Deutsch" reads "Français"); any
+other pack shows its `_meta.name`, or its code when that name matches a
+built-in language's name (an `xx.json` named "Français" reads "xx"). Its item
+and the language field always add "user pack · file". `en-US.json` is refused:
+English (United States) is the fallback every language reads, so a pack cannot
+replace it; `en-GB.json` is allowed and reads the shipped English for every key
+it leaves out.
+
 **Protected texts (PRD 0050 RF3.3, PRD 0035 re-validation S-01).** A pack
 cannot change the words of a confirmation, a consent or disclosure, a billed-query
 or cost warning, a security or privacy warning, the sign-in, session, secret and

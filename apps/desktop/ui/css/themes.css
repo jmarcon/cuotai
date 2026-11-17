@@ -488,6 +488,12 @@ svg.i {
 .lang-list button.pending small {
   font-size: var(--text-micro);
 }
+/* PRD 0035 re-validation S-03: the "user pack · file" marker of a user language pack, in text (not only color). */
+.lang-pack {
+  font-size: var(--text-micro);
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
 svg.i.sel-tick {
   width: 14px;
   height: 14px;

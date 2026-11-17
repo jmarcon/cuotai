@@ -51,8 +51,13 @@ pub struct Pack {
     /// The language code: the file name without `.json`, a BCP 47 tag
     /// `Intl` reads ([`is_language_tag`]).
     pub code: String,
-    /// What the language selector shows: `_meta.name`.
+    /// What the language selector shows (S-03, never a shipped endonym the
+    /// pack chose): the registry endonym of a built-in code, else
+    /// `_meta.name`, else the code when the name poses as a built-in
+    /// language ([`label_for`]).
     pub label: String,
+    /// The file name, safe to show ([`safe_file_name`]).
+    pub file: String,
     /// `_meta.flag`: two ASCII letters, a country code.
     pub flag: Option<String>,
     /// The SHA-256 of the file's bytes, lowercase hex: tells two contents
@@ -71,6 +76,9 @@ pub struct Pack {
 pub enum Refusal {
     /// The file name is not `<language tag>.json`.
     InvalidCode,
+    /// The code is `en-US`, the fallback every other language reads
+    /// (S-03): a pack may not replace it (`en-GB.json` is allowed).
+    ReservedCode,
     /// The file is larger than [`MAX_PACK_BYTES`].
     TooLarge,
     /// Not a JSON object, a syntax error, a number out of range, nesting
@@ -93,6 +101,7 @@ impl Refusal {
     pub fn reason(self) -> &'static str {
         match self {
             Refusal::InvalidCode => "invalidCode",
+            Refusal::ReservedCode => "reservedCode",
             Refusal::TooLarge => "tooLarge",
             Refusal::InvalidJson => "invalidJson",
             Refusal::InvalidMeta => "invalidMeta",
@@ -235,6 +244,9 @@ pub fn is_protected(id: &str) -> bool {
 /// and filter it, or refuse it whole.
 pub fn load(file_name: &str, text: &str) -> Result<Pack, Refusal> {
     let code = pack_code(file_name).ok_or(Refusal::InvalidCode)?;
+    if code.eq_ignore_ascii_case(crate::text::source_locale().code) {
+        return Err(Refusal::ReservedCode);
+    }
     if text.len() > MAX_PACK_BYTES {
         return Err(Refusal::TooLarge);
     }
@@ -262,12 +274,54 @@ pub fn load(file_name: &str, text: &str) -> Result<Pack, Refusal> {
     let (messages, ignored) = filter(raw.messages);
     Ok(Pack {
         code: code.to_owned(),
-        label: name,
+        label: label_for(code, &name),
+        file: safe_file_name(file_name),
         flag: meta.flag,
         digest: digest(text.as_bytes()),
         messages,
         ignored,
     })
+}
+
+/// What the language selector calls a pack (PRD 0035 re-validation S-03):
+/// a pack never names itself after a shipped language. A code that is, or
+/// normalizes to, a registry language (`fr`, `fr-CA`, `en-GB`) shows that
+/// language's registry endonym, whatever the pack's name; any other code
+/// shows `name`, unless `name` folds to a registry endonym ("Français" for
+/// `xx`), when it shows the code. The interface adds a "user pack" marker.
+pub fn label_for(code: &str, name: &str) -> String {
+    use crate::text::{fold, locale_row, normalize, LOCALES};
+    if let Some(row) = locale_row(code).or_else(|| normalize(code)) {
+        return row.endonym.to_owned();
+    }
+    let folded = fold(name.trim());
+    if LOCALES.iter().any(|row| fold(row.endonym) == folded) {
+        code.to_owned()
+    } else {
+        name.to_owned()
+    }
+}
+
+/// The longest file name shown, in characters.
+pub const MAX_FILE_CHARS: usize = 64;
+
+/// A user file's name, safe to show (S-03): without control, direction,
+/// hidden or zero-width characters, and at most [`MAX_FILE_CHARS`]
+/// characters (a longer one ends in `…`). The webview still escapes it and
+/// isolates it in `<bdi>`.
+pub fn safe_file_name(name: &str) -> String {
+    let clean: Vec<char> = name
+        .chars()
+        .filter(|c| !c.is_control() && !is_hidden_or_directional(*c))
+        .collect();
+    if clean.len() <= MAX_FILE_CHARS {
+        clean.into_iter().collect()
+    } else {
+        clean[..MAX_FILE_CHARS - 1]
+            .iter()
+            .chain(['…'].iter())
+            .collect()
+    }
 }
 
 /// The code of a pack file: `file_name` without its `.json` (any case),

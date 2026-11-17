@@ -92,6 +92,11 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // the default Settings size (`settings_window.rs`).
   ["settings-general-lang-open", "settings.html?page=general", 640, 460, {}, "[data-lang-toggle]"],
   ["settings-general-lang-open-default", "settings.html?page=general", 860, 640, {}, "[data-lang-toggle]"],
+  // PRD 0035 re-validation S-03: a user language pack active (the demo's `?pack`, Dutch): the "user pack · file" marker
+  // in the field and the open list, and the Settings › General line naming the file; the main window shows its notice.
+  ["settings-general-pack", "settings.html?page=general&pack", 640, 460, { "cuotai.locale": "nl" }],
+  ["settings-general-pack-open", "settings.html?page=general&pack", 640, 460, { "cuotai.locale": "nl" }, "[data-lang-toggle]"],
+  ["main-pack", "index.html?pack", 1200, 820, { "cuotai.locale": "nl" }],
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
   // PRD 0032 re-validation R-03: the quiet-hours sub-page with the demo's schedule on (weekday rows, two intervals on

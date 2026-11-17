@@ -1229,24 +1229,32 @@ export function themeSwitchHtml({ themeSelect = false, labels = false, selectOnl
 let langOpen = false;
 let themeOpen = false;
 const flagOf = (l) => flagSvg(flagCountry(l.code, l.flag));
+// PRD 0035 re-validation S-03: a user pack is never mistaken for a shipped language. Its item and the field carry a
+// marker from a protected text ("user pack · fr.json"); the file name comes from the core already stripped of control
+// and direction characters, is escaped here and isolated in <bdi>.
+const packFile = (l) => (l.user && typeof l.file === "string" ? l.file : null);
+const packMarkHtml = (l) => (packFile(l)
+  ? `<small class="lang-pack">${te("userContent.packMarker", { file: "\u0000" }).replace("\u0000", `<bdi>${esc(packFile(l))}</bdi>`)}</small>` : "");
+const packMarkText = (l) => (packFile(l) ? ` (${t("userContent.packMarker", { file: packFile(l) })})` : "");
 /** Button with the current language's flag and a menu (flag + name). `inline` shows the open list (settings screen). */
 export function langMenuHtml({ inline = false, field = false } = {}) {
   const cur = LOCALES.find((l) => l.code === currentLocale()) ?? LOCALES[0];
+  const curName = esc(cur.name + packMarkText(cur));
   // PRD 0022 RF9.6 (DS-CMP-SEL-3): flag (decorative) + the endonym in its own language; the selected one is marked
   // by a check and weight, not by color alone.
   const role = inline ? "radio" : "menuitemradio";
-  const items = LOCALES.map((l) => `<button role="${role}" aria-checked="${l.code === cur.code}" class="${l.code === cur.code ? "on" : ""}" data-locale="${esc(l.code)}"${inline ? ` tabindex="${l.code === cur.code ? 0 : -1}"` : ""}>${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span>${l.code === cur.code ? icon("tick", "sel-tick") : ""}</button>`).join("")
+  const items = LOCALES.map((l) => `<button role="${role}" aria-checked="${l.code === cur.code}" class="${l.code === cur.code ? "on" : ""}" data-locale="${esc(l.code)}"${inline ? ` tabindex="${l.code === cur.code ? 0 : -1}"` : ""}>${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span>${packMarkHtml(l)}${l.code === cur.code ? icon("tick", "sel-tick") : ""}</button>`).join("")
     // PRD 0035 RF1/RF3.3: registry languages without catalogs yet stay visible, in the fixed order, but cannot be chosen.
     + pendingLocales().map((l) => `<button type="button" role="${role}" aria-checked="false" aria-disabled="true" class="pending" data-locale-pending="${esc(l.code)}" tabindex="-1">${flagOf(l)}<span lang="${esc(l.code)}">${esc(l.name)}</span><small>${te("lang.inProgress")}</small></button>`).join("");
   if (inline) return `<div class="lang-list" role="radiogroup" aria-label="${te("lang.label")}">${items}</div>`;
   // DS-CMP-SEL-3 (mockup 50-settings-general-language): one field with the flag and the endonym, opening the list of
   // every language; it scales to the 14 languages of PRD 0035.
   if (field) return `<div class="lang lang-field">
-    <button type="button" class="lang-field-btn" data-lang-toggle aria-haspopup="menu" aria-expanded="${langOpen}" aria-label="${te("lang.label")}: ${esc(cur.name)}">${flagOf(cur)}<span lang="${esc(cur.code)}">${esc(cur.name)}</span>${icon("chevDown")}</button>
+    <button type="button" class="lang-field-btn" data-lang-toggle aria-haspopup="menu" aria-expanded="${langOpen}" aria-label="${te("lang.label")}: ${curName}">${flagOf(cur)}<span lang="${esc(cur.code)}">${esc(cur.name)}</span>${packMarkHtml(cur)}${icon("chevDown")}</button>
     <div class="lang-menu${menuPlaceClass(langOpen)}" role="menu" ${langOpen ? menuPlaceStyle() : "hidden"}>${items}</div>
   </div>`;
   return `<div class="lang">
-    <button class="icon lang-btn" data-lang-toggle title="${te("lang.label")}: ${esc(cur.name)}" aria-label="${te("lang.label")}: ${esc(cur.name)}" aria-haspopup="menu" aria-expanded="${langOpen}">${flagOf(cur)}</button>
+    <button class="icon lang-btn" data-lang-toggle title="${te("lang.label")}: ${curName}" aria-label="${te("lang.label")}: ${curName}" aria-haspopup="menu" aria-expanded="${langOpen}">${flagOf(cur)}</button>
     <div class="lang-menu${menuPlaceClass(langOpen)}" role="menu" ${langOpen ? menuPlaceStyle() : "hidden"}>${items}</div>
   </div>`;
 }

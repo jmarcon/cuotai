@@ -774,6 +774,11 @@ fn the_webview_fixture_matches_the_core() {
         ("ko.json", format!(r#"{{"_meta":{{"name":"한국어","p":{}{}}},"serve.allow_browsers.warning":"Sans risque","tray.ok":"OK"}}"#, "[".repeat(200), "]".repeat(200))),
         ("de.json", r#"{"_meta":{"name":"Deutsch\ud800"},"serve.allow_browsers.warning":"Kein Risiko","tray.ok":"OK"}"#.to_owned()),
         ("fr.json", r#"{"_meta":{"name":"Français","flag":["fr"]},"tray.ok":"OK"}"#.to_owned()),
+        // S-03: a pack cannot pose as a shipped language, and en-US is reserved.
+        ("fr.json", r#"{"_meta":{"name":"Deutsch"},"tray.ok":"Tout va bien"}"#.to_owned()),
+        ("xx.json", r#"{"_meta":{"name":"Français"},"tray.ok":"OK"}"#.to_owned()),
+        ("en-US.json", r#"{"_meta":{"name":"English"},"tray.ok":"Nope"}"#.to_owned()),
+        ("en-GB.json", r#"{"_meta":{"name":"English (UK)"},"tray.ok":"All fine, mate"}"#.to_owned()),
     ]
     .into_iter()
     .map(|(name, input)| (name.to_owned(), input))
@@ -817,4 +822,53 @@ fn the_webview_fixture_matches_the_core() {
         path.display()
     );
     assert!(stored == rendered, "{hint}");
+}
+
+/// PRD 0035 re-validation S-03: a pack cannot pose as a shipped language.
+// security-invariant: SEC-USER-PACK
+#[test]
+fn a_pack_never_labels_itself_as_a_shipped_language() {
+    let label = |file: &str, name: &str| {
+        load(file, &format!(r#"{{"_meta":{{"name":"{name}"}}}}"#))
+            .unwrap()
+            .label
+    };
+    // A built-in code (or one that normalizes to it) shows the registry endonym.
+    assert_eq!(label("fr.json", "Deutsch"), "Français");
+    assert_eq!(label("fr-CA.json", "Mon français"), "Français");
+    assert_eq!(label("en-GB.json", "Deutsch"), "English");
+    assert_eq!(label("pt-PT.json", "Português de Portugal"), "Português");
+    // Another code keeps its own name, unless the name folds to an endonym.
+    assert_eq!(label("nl.json", "Nederlands"), "Nederlands");
+    assert_eq!(label("xx.json", "Français"), "xx");
+    assert_eq!(label("xx.json", "  FRANCAIS "), "xx");
+    assert_eq!(label("xx.json", "deutsch"), "xx");
+    assert_eq!(label("sr-Latn-RS.json", "Srpski"), "Srpski");
+    // en-US is every language's fallback: refused, in any case; en-GB is not.
+    for file in ["en-US.json", "en-us.json", "EN-US.json"] {
+        assert_eq!(
+            reason(file, r#"{"_meta":{"name":"English"}}"#),
+            "reservedCode",
+            "{file}"
+        );
+    }
+    assert_eq!(
+        reason("en-GB.json", r#"{"_meta":{"name":"English"}}"#),
+        "ok"
+    );
+}
+
+/// S-03: the file name the interface shows is stripped of control,
+/// direction and hidden characters and capped.
+#[test]
+fn the_file_name_shown_is_safe() {
+    assert_eq!(safe_file_name("fr.json"), "fr.json");
+    assert_eq!(safe_file_name("f\u{202E}nosj.rf"), "fnosj.rf");
+    assert_eq!(safe_file_name("a\u{200B}b\u{7}\n\u{2066}.json"), "ab.json");
+    let long = format!("{}.json", "x".repeat(100));
+    let shown = safe_file_name(&long);
+    assert_eq!(shown.chars().count(), MAX_FILE_CHARS);
+    assert!(shown.ends_with('…'));
+    let pack = load("fr.json", r#"{"_meta":{"name":"F"}}"#).unwrap();
+    assert_eq!(pack.file, "fr.json");
 }

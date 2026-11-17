@@ -95,12 +95,14 @@ export const currentRow = () => registry.find((r) => r.code === current) ?? null
 
 /** Registers a user language (already parsed and filtered by the core). It overlays the shipped catalog of its
  *  language (R-01): the UI catalogs stay the shipped ones. */
-export function registerLocale(code, name, messages, flag) {
+export function registerLocale(code, name, messages, flag, file = null) {
+  // S-03: en-US is the fallback every language reads; a pack never takes its place (the core refuses it first).
+  if (code === FALLBACK) return;
   userCatalogs.set(code, messages);
   merged.clear();
   const i = LOCALES.findIndex((l) => l.code === code);
   const row = registry.find((r) => r.code === code);
-  const entry = { ...(row ? fromRow(row) : {}), code, name, flag: flag ?? row?.flag, user: true };
+  const entry = { ...(row ? fromRow(row) : {}), code, name, flag: flag ?? row?.flag, user: true, file };
   if (i >= 0) LOCALES[i] = entry;
   else LOCALES.push(entry);
 }
@@ -159,7 +161,8 @@ function mergedCatalog(code) {
   const base = shippedBase(code);
   const ui = (base && uiCatalogs.get(base)) ?? {};
   const fallback = uiCatalogs.get(FALLBACK) ?? {};
-  const user = userCatalogs.get(code); // if absent, no user pack
+  // The fallback layer is always the shipped en-US: never a pack (S-03).
+  const user = code === FALLBACK ? null : userCatalogs.get(code); // if absent, no user pack
   const core = (base && coreCatalogs.get(base)) ?? {};
   const out = {};
   // Merge order (overlay wins): shipped en-US UI < core(base) < shipped UI(base) < user pack. English comes first:
