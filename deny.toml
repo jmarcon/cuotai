@@ -38,6 +38,8 @@ unmaintained = "workspace"
 yanked = "deny"
 ignore = [
     { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack (timing side channel); no fixed release exists. The only use is decrypting the Zed login token with an ephemeral key generated for that single login (oauth/reference_native.rs), so an attacker cannot observe repeated private-key operations. Revisit when a fixed rsa is released." },
+    { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained (announced in chronotope/chrono#1768); no fixed release exists and no known vulnerability. Owner decision 2026-11-17: accepted until 2027-02-15, when a migration off chrono is reviewed." },
+    { id = "RUSTSEC-2026-0555", reason = "chrono-tz is unmaintained (announced in chronotope/chrono#1768); no fixed release exists and no known vulnerability. Owner decision 2026-11-17: accepted until 2027-02-15, when a migration off chrono-tz is reviewed." },
 ]
 
 [bans]
