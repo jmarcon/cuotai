@@ -35,7 +35,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1868,6 +1871,9 @@
   "query.eleven_labs.region": "Khu vực không hợp lệ: hãy dùng default, us, eu, in hoặc sg trong params.region.",
   "query.gemini_ai.unsupported": "Gemini AI (khóa API AI Studio, `generativelanguage.googleapis.com`) không cung cấp endpoint công khai về mức sử dụng hay hạn mức còn lại. Giá trị chỉ hiện trên bảng điều khiển AI Studio (https://aistudio.google.com/rate-limit). Để truy vấn bằng chương trình, hãy đăng ký cùng tài khoản qua OAuth trong 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list trên `serviceruntime.googleapis.com/quota/limit` và `quota/rate/net_usage`). Nguồn: {source}.",
   "query.http": "Truy vấn trả về HTTP {code}. Hãy kiểm tra quyền truy cập và quyền hạn.",
+  "query.http_redirect": "Nhà cung cấp đã trả lời bằng một chuyển hướng (HTTP {code}) mà Cuotai không theo; địa chỉ hoặc giao diện của họ có thể đã thay đổi.",
+  "query.http_server": "Nhà cung cấp đã trả lời bằng lỗi máy chủ (HTTP {code}); hãy thử lại sau.",
+  "query.http_unavailable": "Nhà cung cấp không khả dụng hoặc đang bảo trì (HTTP 503); hãy thử lại sau.",
   "query.inference.grok_team_id_required": "Hãy đặt params.team_id bằng Team ID hiển thị tại console.x.ai/team/default/settings/team.",
   "query.inference.invalid_path_identifier": "params.{key} chứa ký tự không hợp lệ cho mã định danh.",
   "query.inference.missing_endpoint_credential": "Thiếu khóa {class} cho endpoint này. {hint}",

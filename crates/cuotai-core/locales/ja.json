@@ -78,7 +78,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -1911,6 +1914,9 @@
   "query.eleven_labs.region": "リージョンが無効です。params.region には default、us、eu、in、sg のいずれかを使用してください。",
   "query.gemini_ai.unsupported": "Gemini AI（AI Studio の API キー、`generativelanguage.googleapis.com`）には、使用量や残りクォータの公開エンドポイントがありません。値は AI Studio のダッシュボード（https://aistudio.google.com/rate-limit）にのみ表示されます。プログラムで照会するには、同じアカウントを OAuth で「Gemini (Cloud Monitoring)」に登録してください（`serviceruntime.googleapis.com/quota/limit` と `quota/rate/net_usage` に対する monitoring.timeSeries.list）。出典：{source}。",
   "query.http": "照会が HTTP {code} を返しました。アクセスと権限を確認してください。",
+  "query.http_redirect": "プロバイダーがリダイレクト（HTTP {code}）で応答しました。Cuotai はリダイレクトに従いません。アドレスかインターフェースが変わった可能性があります。",
+  "query.http_server": "プロバイダーがサーバーエラー（HTTP {code}）で応答しました。しばらくしてから再試行してください。",
+  "query.http_unavailable": "プロバイダーが利用できないか、メンテナンス中です（HTTP 503）。しばらくしてから再試行してください。",
   "query.inference.grok_team_id_required": "params.team_id に console.x.ai/team/default/settings/team で確認できる Team ID を設定してください。",
   "query.inference.invalid_path_identifier": "params.{key} に識別子として無効な文字が含まれています。",
   "query.inference.missing_endpoint_credential": "このエンドポイントの {class} キーがありません。{hint}",

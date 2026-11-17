@@ -56,7 +56,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -1914,6 +1917,9 @@
   "query.eleven_labs.region": "Ungültige Region: Verwenden Sie default, us, eu, in oder sg in params.region.",
   "query.gemini_ai.unsupported": "Gemini AI (API-Schlüssel von AI Studio, `generativelanguage.googleapis.com`) stellt keinen öffentlichen Endpunkt für Nutzung oder Restkontingent bereit. Die Werte erscheinen nur im AI-Studio-Dashboard (https://aistudio.google.com/rate-limit). Für eine programmatische Abfrage registrieren Sie dasselbe Konto per OAuth unter 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list über `serviceruntime.googleapis.com/quota/limit` und `quota/rate/net_usage`). Quelle: {source}.",
   "query.http": "Die Abfrage lieferte HTTP {code}. Prüfen Sie Zugriff und Berechtigungen.",
+  "query.http_redirect": "Der Anbieter hat mit einer Weiterleitung geantwortet (HTTP {code}), der Cuotai nicht folgt; seine Adresse oder Schnittstelle hat sich möglicherweise geändert.",
+  "query.http_server": "Der Anbieter hat mit einem Serverfehler geantwortet (HTTP {code}); versuchen Sie es später erneut.",
+  "query.http_unavailable": "Der Anbieter ist nicht verfügbar oder in Wartung (HTTP 503); versuchen Sie es später erneut.",
   "query.inference.grok_team_id_required": "Konfigurieren Sie params.team_id mit der Team ID, sichtbar unter console.x.ai/team/default/settings/team.",
   "query.inference.invalid_path_identifier": "params.{key} enthält ungültige Zeichen für eine Kennung.",
   "query.inference.missing_endpoint_credential": "Schlüssel der Klasse {class} fehlt für diesen Endpunkt. {hint}",

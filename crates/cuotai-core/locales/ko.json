@@ -52,7 +52,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -1885,6 +1888,9 @@
   "query.eleven_labs.region": "올바르지 않은 리전입니다. params.region에 default, us, eu, in 또는 sg를 사용하세요.",
   "query.gemini_ai.unsupported": "Gemini AI(AI Studio API 키, `generativelanguage.googleapis.com`)는 사용량이나 잔여 할당량의 공개 엔드포인트를 제공하지 않습니다. 값은 AI Studio 대시보드(https://aistudio.google.com/rate-limit)에서만 표시됩니다. 프로그램으로 조회하려면 같은 계정을 OAuth로 'Gemini (Cloud Monitoring)'에 등록하세요(`serviceruntime.googleapis.com/quota/limit` 및 `quota/rate/net_usage`에 대한 monitoring.timeSeries.list). 출처: {source}.",
   "query.http": "조회가 HTTP {code}을(를) 반환했습니다. 접근 권한을 확인하세요.",
+  "query.http_redirect": "제공업체가 리디렉션(HTTP {code})으로 응답했으며 Cuotai는 이를 따르지 않습니다. 주소나 인터페이스가 바뀌었을 수 있습니다.",
+  "query.http_server": "제공업체가 서버 오류(HTTP {code})로 응답했습니다. 나중에 다시 시도하세요.",
+  "query.http_unavailable": "제공업체를 사용할 수 없거나 점검 중입니다(HTTP 503). 나중에 다시 시도하세요.",
   "query.inference.grok_team_id_required": "console.x.ai/team/default/settings/team에서 보이는 Team ID로 params.team_id를 설정하세요.",
   "query.inference.invalid_path_identifier": "params.{key}에 식별자로 쓸 수 없는 문자가 있습니다.",
   "query.inference.missing_endpoint_credential": "이 엔드포인트에 필요한 {class} 키가 없습니다. {hint}",

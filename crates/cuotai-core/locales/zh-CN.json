@@ -71,7 +71,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -1904,6 +1907,9 @@
   "query.eleven_labs.region": "区域无效：请在 params.region 中使用 default、us、eu、in 或 sg。",
   "query.gemini_ai.unsupported": "Gemini AI（AI Studio API 密钥，`generativelanguage.googleapis.com`）没有公开的用量或剩余额度接口。这些数值只显示在 AI Studio 仪表板中（https://aistudio.google.com/rate-limit）。如需以编程方式查询，请通过 OAuth 在“Gemini (Cloud Monitoring)”中添加同一账户（对 `serviceruntime.googleapis.com/quota/limit` 和 `quota/rate/net_usage` 调用 monitoring.timeSeries.list）。来源：{source}。",
   "query.http": "查询返回 HTTP {code}。请检查访问和权限。",
+  "query.http_redirect": "提供商以重定向（HTTP {code}）作答，Cuotai 不会跟随；其地址或接口可能已更改。",
+  "query.http_server": "提供商返回了服务器错误（HTTP {code}）；请稍后重试。",
+  "query.http_unavailable": "提供商暂不可用或正在维护（HTTP 503）；请稍后重试。",
   "query.inference.grok_team_id_required": "请将 params.team_id 设置为 console.x.ai/team/default/settings/team 中显示的 Team ID。",
   "query.inference.invalid_path_identifier": "params.{key} 包含标识符不允许的字符。",
   "query.inference.missing_endpoint_credential": "此接口缺少 {class} 密钥。{hint}",

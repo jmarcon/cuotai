@@ -33,7 +33,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -1891,6 +1894,9 @@
   "query.eleven_labs.region": "Geçersiz bölge: params.region içinde default, us, eu, in veya sg kullanın.",
   "query.gemini_ai.unsupported": "Gemini AI (AI Studio API anahtarı, `generativelanguage.googleapis.com`) kullanım veya kalan kota için herkese açık bir uç nokta sunmaz. Değerler yalnızca AI Studio panosunda gösterilir (https://aistudio.google.com/rate-limit). Programatik sorgu için aynı hesabı OAuth ile 'Gemini (Cloud Monitoring)' içinde kaydedin (`serviceruntime.googleapis.com/quota/limit` ve `quota/rate/net_usage` üzerinde monitoring.timeSeries.list). Kaynak: {source}.",
   "query.http": "Sorgu HTTP {code} döndürdü. Erişimi ve izinleri kontrol edin.",
+  "query.http_redirect": "Sağlayıcı bir yönlendirmeyle yanıt verdi (HTTP {code}); Cuotai yönlendirmeleri izlemez. Adresi veya arayüzü değişmiş olabilir.",
+  "query.http_server": "Sağlayıcı bir sunucu hatasıyla yanıt verdi (HTTP {code}); daha sonra yeniden deneyin.",
+  "query.http_unavailable": "Sağlayıcı kullanılamıyor veya bakımda (HTTP 503); daha sonra yeniden deneyin.",
   "query.inference.grok_team_id_required": "params.team_id değerini console.x.ai/team/default/settings/team adresinde görünen Team ID ile ayarlayın.",
   "query.inference.invalid_path_identifier": "params.{key}, bir tanımlayıcı için geçersiz karakterler içeriyor.",
   "query.inference.missing_endpoint_credential": "Bu uç nokta için {class} anahtarı eksik. {hint}",

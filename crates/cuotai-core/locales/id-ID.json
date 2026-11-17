@@ -33,7 +33,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1866,6 +1869,9 @@
   "query.eleven_labs.region": "Wilayah tidak valid: gunakan default, us, eu, in, atau sg di params.region.",
   "query.gemini_ai.unsupported": "Gemini AI (kunci API AI Studio, `generativelanguage.googleapis.com`) tidak menyediakan endpoint publik untuk penggunaan atau sisa kuota. Nilainya hanya tampil di dasbor AI Studio (https://aistudio.google.com/rate-limit). Untuk kueri terprogram, daftarkan akun yang sama lewat OAuth di 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list pada `serviceruntime.googleapis.com/quota/limit` dan `quota/rate/net_usage`). Sumber: {source}.",
   "query.http": "Kueri mengembalikan HTTP {code}. Periksa akses dan izin.",
+  "query.http_redirect": "Penyedia menjawab dengan pengalihan (HTTP {code}), yang tidak diikuti Cuotai; alamat atau antarmukanya mungkin telah berubah.",
+  "query.http_server": "Penyedia menjawab dengan kesalahan server (HTTP {code}); coba lagi nanti.",
+  "query.http_unavailable": "Penyedia tidak tersedia atau sedang dalam pemeliharaan (HTTP 503); coba lagi nanti.",
   "query.inference.grok_team_id_required": "Atur params.team_id dengan Team ID yang terlihat di console.x.ai/team/default/settings/team.",
   "query.inference.invalid_path_identifier": "params.{key} berisi karakter yang tidak valid untuk pengenal.",
   "query.inference.missing_endpoint_credential": "Kunci {class} tidak ada untuk endpoint ini. {hint}",

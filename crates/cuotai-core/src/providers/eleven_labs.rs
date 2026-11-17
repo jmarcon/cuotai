@@ -145,15 +145,7 @@ fn classify_http(code: u16, detail: Option<&str>) -> QueryError {
             "ElevenLabs rate-limited the queries; the interval will be increased automatically.",
         ),
         422 => QueryError::schema(),
-        _ => QueryError {
-            status: Status::Error,
-            note: Localized::with_params(
-                "query.http",
-                params([("code", ParamValue::from(code))]),
-                "Query returned HTTP {code}. Check access and permissions.",
-            ),
-            diagnostic: None,
-        },
+        _ => super::http_failure(code),
     }
 }
 
@@ -957,12 +949,18 @@ mod tests {
             assert_eq!(err.note.id, "note.eleven_labs.rate_limited");
         }
         let err = failure_of(ResponseTemplate::new(500)).await;
-        assert_eq!((err.status, &*err.note.id), (Status::Error, "query.http"));
+        assert_eq!(
+            (err.status, &*err.note.id),
+            (Status::Error, "query.http_server")
+        );
         let err = failure_of(
             ResponseTemplate::new(503).set_body_json(json!({"detail": {"code": "maintenance"}})),
         )
         .await;
-        assert_eq!((err.status, &*err.note.id), (Status::Error, "query.http"));
+        assert_eq!(
+            (err.status, &*err.note.id),
+            (Status::Error, "query.http_unavailable")
+        );
         let err = failure_of(ResponseTemplate::new(402)).await;
         assert_eq!(&*err.note.id, "query.http");
         let err = failure_of(ResponseTemplate::new(422)).await;
@@ -986,10 +984,48 @@ mod tests {
         assert_eq!(&*err.note.id, "query.schema");
         let err = failure_of(ResponseTemplate::new(200).set_body_json(json!([1, 2]))).await;
         assert_eq!(&*err.note.id, "query.schema");
-        let err =
-            failure_of(ResponseTemplate::new(302).insert_header("location", "https://evil.test/"))
-                .await;
-        assert_eq!((err.status, &*err.note.id), (Status::Error, "query.http"));
+    }
+
+    /// S-05: the production client never follows a redirect, so the key
+    /// never reaches the `location` target, and the answer has its own note.
+    #[tokio::test]
+    async fn production_client_does_not_follow_redirects() {
+        let target = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(base(1, 10)))
+            .mount(&target)
+            .await;
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(PATH))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("location", format!("{}{PATH}", target.uri())),
+            )
+            .mount(&server)
+            .await;
+        // The Monitor's production builder; without a proxy, so an
+        // environment proxy cannot intercept the loopback mocks.
+        let http = crate::network::direct_client(
+            crate::network::ClientPurpose::Provider,
+            Duration::from_secs(5),
+        )
+        .expect("client");
+        let ctx = Context {
+            http: &http,
+            direct: &http,
+            credentials: &TestCredentials,
+            timeout: Duration::from_secs(5),
+        };
+        let err = eleven_labs_at(&account(), &ctx, &server.uri())
+            .await
+            .unwrap_err();
+        assert_eq!(
+            (err.status, &*err.note.id),
+            (Status::Error, "query.http_redirect")
+        );
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+        assert!(target.received_requests().await.unwrap().is_empty());
     }
 
     #[tokio::test]

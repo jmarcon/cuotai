@@ -316,6 +316,9 @@ fn console_referer(region: Region) -> &'static str {
 }
 
 fn http_error(code: reqwest::StatusCode, session: bool) -> QueryError {
+    if super::http_failure_is_specific(code.as_u16()) {
+        return super::http_failure(code.as_u16());
+    }
     let status = match code.as_u16() {
         401 | 403 => Status::AuthenticationError,
         429 => Status::RateLimited,
@@ -1341,6 +1344,9 @@ async fn token_plan_send(
         super::send_session(request, crate::Provider::AlibabaTokenPlan, "session_env").await?;
     if !response.status().is_success() {
         let code = response.status();
+        if super::http_failure_is_specific(code.as_u16()) {
+            return Err(super::http_failure(code.as_u16()));
+        }
         return Err(QueryError {
             diagnostic: None,
             status: match code.as_u16() {
@@ -1459,14 +1465,13 @@ async fn token_plan_with_session(
     )
     .await?;
     let code = info.status();
-    if code.as_u16() == 429 || code.is_server_error() {
+    if code.is_server_error() {
+        return Err(super::http_failure(code.as_u16()));
+    }
+    if code.as_u16() == 429 {
         return Err(QueryError {
             diagnostic: None,
-            status: if code.as_u16() == 429 {
-                Status::RateLimited
-            } else {
-                Status::Error
-            },
+            status: Status::RateLimited,
             note: Localized::with_params(
                 "query.alibaba_plans.token_plan_http",
                 params([

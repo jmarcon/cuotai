@@ -84,7 +84,10 @@
       "edit_error.interval_aggregator_min",
       "account_edit.interval_aggregator_hint",
       "note.aggregator.interval_raised",
-      "edit_error.base_url_field"
+      "edit_error.base_url_field",
+      "query.http_redirect",
+      "query.http_server",
+      "query.http_unavailable"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1992,6 +1995,9 @@
   "query.eleven_labs.region": "Недопустимый регион: используйте default, us, eu, in или sg в params.region.",
   "query.gemini_ai.unsupported": "Gemini AI (ключ API AI Studio, `generativelanguage.googleapis.com`) не предоставляет публичного эндпоинта использования или остатка квоты. Значения видны только в панели AI Studio (https://aistudio.google.com/rate-limit). Для программного запроса зарегистрируйте ту же запись через OAuth в разделе 'Gemini (Cloud Monitoring)' (monitoring.timeSeries.list по `serviceruntime.googleapis.com/quota/limit` и `quota/rate/net_usage`). Источник: {source}.",
   "query.http": "Запрос вернул HTTP {code}. Проверьте доступ и права.",
+  "query.http_redirect": "Провайдер ответил перенаправлением (HTTP {code}), которому Cuotai не следует; возможно, изменился его адрес или интерфейс.",
+  "query.http_server": "Провайдер ответил ошибкой сервера (HTTP {code}); повторите попытку позже.",
+  "query.http_unavailable": "Провайдер недоступен или на техническом обслуживании (HTTP 503); повторите попытку позже.",
   "query.inference.grok_team_id_required": "Задайте params.team_id с Team ID, видимым на console.x.ai/team/default/settings/team.",
   "query.inference.invalid_path_identifier": "params.{key} содержит недопустимые символы для идентификатора.",
   "query.inference.missing_endpoint_credential": "Для этого эндпоинта отсутствует ключ класса {class}. {hint}",

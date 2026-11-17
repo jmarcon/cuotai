@@ -224,18 +224,6 @@ fn failure(status: Status, id: &'static str, text: &'static str) -> QueryError {
     }
 }
 
-fn http(code: u16) -> QueryError {
-    QueryError {
-        status: Status::Error,
-        note: Localized::with_params(
-            "query.http",
-            params([("code", ParamValue::from(code))]),
-            "Query returned HTTP {code}. Check access and permissions.",
-        ),
-        diagnostic: None,
-    }
-}
-
 fn rate_limited() -> QueryError {
     failure(
         Status::RateLimited,
@@ -253,7 +241,7 @@ fn classify_token(code: u16) -> QueryError {
             "JetBrains rejected the service account client ID or secret; check both variables or rotate the secret in the JetBrains Central Console.",
         ),
         429 => rate_limited(),
-        _ => http(code),
+        _ => super::http_failure(code),
     }
 }
 
@@ -272,7 +260,7 @@ fn classify_usage(code: u16) -> QueryError {
         ),
         429 => rate_limited(),
         400 | 422 => QueryError::schema(),
-        _ => http(code),
+        _ => super::http_failure(code),
     }
 }
 
@@ -708,7 +696,7 @@ mod tests {
                 "note.jetbrains_ai.forbidden",
             ),
             (429, Status::RateLimited, "note.jetbrains_ai.rate_limited"),
-            (500, Status::Error, "query.http"),
+            (500, Status::Error, "query.http_server"),
         ] {
             let error = run(ResponseTemplate::new(code)
                 .insert_header("retry-after", "120")
