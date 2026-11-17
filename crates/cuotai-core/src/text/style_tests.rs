@@ -357,3 +357,55 @@ fn appearance_and_theme_are_distinct() {
         "settings.appearance equals theme.label in {same:?}"
     );
 }
+
+// G12 ---------------------------------------------------------------------
+
+// G12
+/// V35-09: French typography (README register table): U+00A0 before `:`,
+/// U+202F before `; ? !`, U+00A0 inside « ». A plain space before those
+/// marks or inside the guillemets is refused, and so is the wrong no-break
+/// space. Text inside `backticks` and `{placeholders}` is not checked, nor
+/// a mark followed by anything but whitespace, the end or a closing quote
+/// or bracket (code such as `::1`, `:free`, `?to=`).
+#[test]
+fn fr_spacing_uses_no_break_spaces() {
+    let code_spans = Regex::new(r"`[^`]*`|\{[A-Za-z0-9_]*\}").unwrap();
+    let ends_word =
+        |next: Option<char>| next.is_none_or(|c| c.is_whitespace() || "\"')]»”".contains(c));
+    let bad = offending_ids("fr", |_, text| {
+        let text = code_spans.replace_all(text, "`");
+        let chars: Vec<char> = text.chars().collect();
+        chars.iter().enumerate().any(|(i, &c)| {
+            let before = i.checked_sub(1).map(|j| chars[j]);
+            let next = chars.get(i + 1).copied();
+            match c {
+                ':' | ';' | '?' | '!' if ends_word(next) => match before {
+                    Some(' ') => true,
+                    Some('\u{a0}') => c != ':',
+                    Some('\u{202f}') => c == ':',
+                    _ => false,
+                },
+                '»' => before == Some(' '),
+                '«' => next == Some(' '),
+                _ => false,
+            }
+        })
+    });
+    assert!(
+        bad.is_empty(),
+        "fr texts need U+00A0 before ':', U+202F before '; ? !' and U+00A0 inside « »: {bad:#?}"
+    );
+}
+
+// G12
+/// V35-08: Japanese writes the full-width colon `：` after Japanese text,
+/// never an ASCII `:`.
+#[test]
+fn ja_colon_is_full_width_after_japanese_text() {
+    let colon = Regex::new(r"[\u{3040}-\u{30FF}\u{3400}-\u{9FFF}\u{FF00}-\u{FFEF}]:").unwrap();
+    let bad = offending_ids("ja", |_, text| colon.is_match(text));
+    assert!(
+        bad.is_empty(),
+        "ja texts use an ASCII ':' after Japanese text: {bad:#?}"
+    );
+}

@@ -66,7 +66,7 @@ const wording = (code, clock) => ({
   tr: `${clock} saatinde yenilendi; sonraki okuma bekleniyor`,
   vi: `Đã đặt lại lúc ${clock}; đang chờ lần đọc tiếp theo`,
   "zh-CN": `已于 ${clock} 重置；等待下一次读数`,
-  fr: `Réinitialisé à ${clock} ; en attente du prochain relevé`,
+  fr: `Réinitialisé à ${clock} ; en attente du prochain relevé`,
   ja: `${clock} にリセット。次の読み取り待ち`,
 })[code];
 // V-09: the core's clock (`text::clock::format_time`) for 1:05 today: 12-hour locales never pad the hour.
