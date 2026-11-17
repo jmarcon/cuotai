@@ -49,7 +49,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2194,6 +2196,8 @@
   "user_session.warning_env": "Dies ist eine vollständige Anmeldesitzung. Cuotai liest sie aus einer Umgebungsvariable und nutzt sie nur, um diesen Dienst abzufragen; verschieben Sie sie im Kontoassistenten in den Systemtresor.",
   "watch.error.interval_range": "Das Intervall von watch muss zwischen {min} und {max} Sekunden liegen; Werte außerhalb dieses Bereichs werden abgelehnt, nicht angepasst.",
   "watch.error.unknown_event": "Unbekanntes Ereignis: „{name}“. Gültige Ereignisse: {known}.",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} legt ein Zertifikat vor, dem dieser Computer nicht vertraut. SHA-256-Fingerabdruck: {fingerprint}. Vergleichen Sie ihn mit dem des Servers; F6 vertraut ihm und testet erneut.",
+  "wizard.nine_router.cert_changed_prompt": "Das Zertifikat von {host}:{port} hat sich geändert, seit Sie ihm vertraut haben. Alt: {previous}. Neu: {fingerprint}. Es wurde vielleicht erneuert, oder jemand zwischen Ihnen und dem Server legt sein eigenes vor. Prüfen Sie den neuen Fingerabdruck auf dem Server und drücken Sie dann erneut F6, um das angeheftete Zertifikat zu ersetzen; jede andere Taste behält es.",
   "oauth.xiaomi.invalid_code": "Ungültiger Code oder von einer anderen Sitzung; kopieren Sie den Code dieses Versuchs.",
   "login.progress.cursor_import": "Autorisierte Cursor-Sitzung wird schreibgeschützt gelesen...",
   "login.progress.preparing": "Autorisierung beim Anbieter wird vorbereitet...",

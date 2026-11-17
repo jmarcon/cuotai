@@ -26,7 +26,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2171,6 +2173,8 @@
   "user_session.warning_env": "Bu tam bir oturum açma oturumudur. Cuotai onu bir ortam değişkeninden okur ve yalnızca bu hizmeti sorgulamak için kullanır; hesap sihirbazında sistem kasasına taşıyın.",
   "watch.error.interval_range": "İzleme aralığı {min} ile {max} saniye arasında olmalıdır; bu aralığın dışındaki değerler ayarlanmaz, reddedilir.",
   "watch.error.unknown_event": "Bilinmeyen olay: \"{name}\". Geçerli olaylar: {known}.",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port}, bu bilgisayarın güvenmediği bir sertifika sunuyor. SHA-256 parmak izi: {fingerprint}. Sunucununkiyle karşılaştırın; F6 ona güvenir ve yeniden test eder.",
+  "wizard.nine_router.cert_changed_prompt": "{host}:{port} sertifikası, ona güvendiğinizden beri değişti. Eski: {previous}. Yeni: {fingerprint}. Yenilenmiş olabilir ya da sizinle sunucu arasındaki biri kendi sertifikasını sunuyor olabilir. Yeni parmak izini sunucuda kontrol edin, ardından sabitlenen sertifikayı değiştirmek için F6'ya yeniden basın; başka bir tuş onu korur.",
   "oauth.xiaomi.invalid_code": "Geçersiz kod veya başka bir oturumun kodu; bu denemenin kodunu kopyalayın.",
   "login.progress.cursor_import": "Yetkilendirilmiş Cursor oturumu salt okunur kipte okunuyor...",
   "login.progress.preparing": "Sağlayıcıyla yetkilendirme hazırlanıyor...",

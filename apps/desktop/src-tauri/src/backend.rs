@@ -5812,6 +5812,7 @@ impl Backend {
         Ok(AggregatorTestView {
             ok: test.is_ok(),
             fingerprint: test.fingerprint().map(str::to_owned),
+            certificate: test.certificate,
             message: test.message,
         })
     }
@@ -7128,6 +7129,10 @@ pub struct AggregatorTestView {
     /// PRD 0036 RF2.3: the certificate fingerprint offered for trust on
     /// first use (untrusted or changed); the dialog asks before pinning it.
     pub fingerprint: Option<String>,
+    /// Re-validation S-03: the certificate offer as data (`untrusted` or
+    /// `changed`, host, port, the new and the pinned fingerprint), so a
+    /// changed pin opens its own dialog.
+    pub certificate: Option<cuotai_core::aggregators::CertificateOffer>,
 }
 
 /// PRD 0016 RF2.1: the outcome of the dialog's read-only session test.

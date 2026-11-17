@@ -695,6 +695,62 @@ pub fn pools(report: &Report) -> Vec<Pool> {
     pools
 }
 
+/// Re-validation S-03: why a test offers a certificate for trust.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CertificateState {
+    /// First sighting: the platform (or the CA file) does not trust it.
+    Untrusted,
+    /// The pinned certificate no longer matches: the instance presents
+    /// another one. Replacing the pin is a deliberate second action.
+    Changed,
+}
+
+/// Re-validation S-03 (PRD 0036 RF2.3): the certificate a test offers for
+/// trust, as data, so each front end shows its own dialog for a first
+/// sighting and for a changed pin. Never a body, URL or token.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CertificateOffer {
+    pub state: CertificateState,
+    /// The instance's host and port, as configured.
+    pub host: String,
+    pub port: u16,
+    /// The SHA-256 fingerprint presented now ("AB:CD:…").
+    pub fingerprint: String,
+    /// The fingerprint pinned in the draft, normalized; `Some` only for a
+    /// changed certificate.
+    pub previous: Option<String>,
+}
+
+impl CertificateOffer {
+    /// The terminal's prompt for this offer: a first sighting says F6
+    /// trusts it; a changed pin shows the old and the new fingerprint and
+    /// says F6 again replaces the pin (any other key keeps it).
+    pub fn prompt(&self) -> Localized {
+        match self.state {
+            CertificateState::Untrusted => Localized::with_params(
+                "wizard.nine_router.cert_first_prompt",
+                params([
+                    ("host", self.host.clone().into()),
+                    ("port", self.port.into()),
+                    ("fingerprint", self.fingerprint.clone().into()),
+                ]),
+                "{host}:{port} presents a certificate this computer does not trust. SHA-256 fingerprint: {fingerprint}. Compare it with the server's; F6 trusts it and tests again.",
+            ),
+            CertificateState::Changed => Localized::with_params(
+                "wizard.nine_router.cert_changed_prompt",
+                params([
+                    ("host", self.host.clone().into()),
+                    ("port", self.port.into()),
+                    ("previous", self.previous.clone().unwrap_or_default().into()),
+                    ("fingerprint", self.fingerprint.clone().into()),
+                ]),
+                "The certificate of {host}:{port} changed since you trusted it. Old: {previous}. New: {fingerprint}. It may have been renewed, or someone between you and the server may be presenting their own. Check the new fingerprint on the server, then press F6 again to replace the pinned certificate; any other key keeps it.",
+            ),
+        }
+    }
+}
+
 /// Result of testing an aggregator connection before saving it (PRD 0036
 /// RF2.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -702,13 +758,41 @@ pub struct AggregatorTest {
     pub outcome: TestOutcome,
     /// One sentence for the outcome; never a body, URL or token.
     pub message: Localized,
+    /// Re-validation S-03: the certificate offered for trust, with its
+    /// state; `None` for every other outcome.
+    pub certificate: Option<CertificateOffer>,
 }
 
 impl AggregatorTest {
     /// The test result of `outcome`, with its core sentence.
     pub fn new(outcome: TestOutcome) -> Self {
         let message = crate::providers::nine_router::outcome_text(&outcome);
-        Self { outcome, message }
+        let certificate = offer_of(&outcome, String::new(), 0, None);
+        Self {
+            outcome,
+            message,
+            certificate,
+        }
+    }
+
+    /// The test result of `outcome` on `account`: its provider's sentence
+    /// and, for a certificate outcome, the offer with the account's host,
+    /// port and current pin.
+    pub fn for_account(account: &Account, outcome: TestOutcome) -> Self {
+        let mut test = Self::for_provider(account.provider, outcome);
+        let base = crate::providers::nine_router::account_base(account).ok();
+        let host = base
+            .as_ref()
+            .and_then(|url| url.host_str())
+            .unwrap_or_default()
+            .to_owned();
+        let port = base
+            .as_ref()
+            .and_then(|url| url.port_or_known_default())
+            .unwrap_or(0);
+        let previous = crate::providers::nine_router_tls::pinned_fingerprint(account);
+        test.certificate = offer_of(&test.outcome, host, port, previous);
+        test
     }
 
     /// The test result of `outcome` for an instance of `provider`: a
@@ -716,7 +800,12 @@ impl AggregatorTest {
     pub fn for_provider(provider: crate::Provider, outcome: TestOutcome) -> Self {
         if provider == crate::Provider::LiteLlm {
             if let Some(message) = crate::providers::nine_router::litellm_outcome_text(&outcome) {
-                return Self { outcome, message };
+                let certificate = offer_of(&outcome, String::new(), 0, None);
+                return Self {
+                    outcome,
+                    message,
+                    certificate,
+                };
             }
         }
         Self::new(outcome)
@@ -732,12 +821,33 @@ impl AggregatorTest {
     /// the server: an untrusted or a changed one. Saving it is the front
     /// end's explicit, confirmed step; the core never pins by itself.
     pub fn fingerprint(&self) -> Option<&str> {
-        match &self.outcome {
-            TestOutcome::UntrustedCertificate { fingerprint }
-            | TestOutcome::CertificateChanged { fingerprint } => Some(fingerprint),
-            _ => None,
-        }
+        self.certificate
+            .as_ref()
+            .map(|offer| offer.fingerprint.as_str())
     }
+}
+
+/// The certificate offer of `outcome`, if it is a certificate outcome.
+fn offer_of(
+    outcome: &TestOutcome,
+    host: String,
+    port: u16,
+    previous: Option<String>,
+) -> Option<CertificateOffer> {
+    let (state, fingerprint) = match outcome {
+        TestOutcome::UntrustedCertificate { fingerprint } => {
+            (CertificateState::Untrusted, fingerprint)
+        }
+        TestOutcome::CertificateChanged { fingerprint } => (CertificateState::Changed, fingerprint),
+        _ => return None,
+    };
+    Some(CertificateOffer {
+        state,
+        host,
+        port,
+        fingerprint: fingerprint.clone(),
+        previous: previous.filter(|_| state == CertificateState::Changed),
+    })
 }
 
 #[cfg(test)]
@@ -815,6 +925,70 @@ mod tests {
                 test.message.fallback
             );
         }
+    }
+
+    /// Re-validation S-03: a certificate outcome carries its state, the
+    /// host and port, and for a changed pin the normalized old fingerprint;
+    /// each state has its own prompt, in every catalog.
+    #[test]
+    fn certificate_offers_name_their_state_host_and_old_pin() {
+        let new_print = "AB:".repeat(31) + "AB";
+        let mut router = Account {
+            name: "home".into(),
+            provider: Provider::NineRouter,
+            ..Account::default()
+        };
+        router
+            .params
+            .insert("base_url".into(), "https://router.example.com:8443".into());
+        let first = AggregatorTest::for_account(
+            &router,
+            TestOutcome::UntrustedCertificate {
+                fingerprint: new_print.clone(),
+            },
+        );
+        let offer = first.certificate.clone().expect("an offer");
+        assert_eq!(offer.state, CertificateState::Untrusted);
+        assert_eq!(
+            (offer.host.as_str(), offer.port),
+            ("router.example.com", 8443)
+        );
+        assert_eq!(offer.previous, None);
+        assert_eq!(first.fingerprint(), Some(new_print.as_str()));
+        assert_eq!(offer.prompt().id, "wizard.nine_router.cert_first_prompt");
+
+        router
+            .params
+            .insert("tls_pin_sha256".into(), "cd".repeat(32));
+        let changed = AggregatorTest::for_account(
+            &router,
+            TestOutcome::CertificateChanged {
+                fingerprint: new_print.clone(),
+            },
+        );
+        let offer = changed.certificate.clone().expect("an offer");
+        assert_eq!(offer.state, CertificateState::Changed);
+        assert_eq!(offer.previous, Some("CD:".repeat(31) + "CD"));
+        let json = serde_json::to_value(&offer).unwrap();
+        assert_eq!(json["state"], "changed");
+        let prompt = offer.prompt();
+        assert_eq!(prompt.id, "wizard.nine_router.cert_changed_prompt");
+        for locale in crate::text::catalog_locales() {
+            let text = prompt.resolve(locale);
+            assert!(
+                text.contains(&new_print) && text.contains("CD:CD"),
+                "{locale}"
+            );
+            assert!(
+                text.contains("router.example.com") && text.contains("8443"),
+                "{locale}"
+            );
+        }
+        assert!(
+            AggregatorTest::for_account(&router, TestOutcome::PasswordWrong)
+                .certificate
+                .is_none()
+        );
     }
     use crate::model::MetricKind;
     use chrono::TimeZone;

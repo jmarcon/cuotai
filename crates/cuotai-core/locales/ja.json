@@ -71,7 +71,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2184,6 +2186,8 @@
   "user_session.warning_env": "これは完全なログインセッションです。Cuotai は環境変数から読み取り、このサービスの照会にのみ使用します。アカウントのウィザードでシステムの保管庫に移動してください。",
   "watch.error.interval_range": "watch の間隔は {min}〜{max} 秒にしてください。この範囲外の値は調整されず、拒否されます。",
   "watch.error.unknown_event": "不明なイベント：\"{name}\"。有効なイベント：{known}。",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} は、このコンピューターで信頼されていない証明書を提示しています。SHA-256 フィンガープリント：{fingerprint}。サーバーのものと照合してください。F6 で信頼して再テストします。",
+  "wizard.nine_router.cert_changed_prompt": "{host}:{port} の証明書は、信頼した後に変更されました。以前：{previous}。新しい：{fingerprint}。証明書が更新された可能性と、サーバーとの間にいる誰かが独自の証明書を提示している可能性があります。サーバーで新しいフィンガープリントを確認してから、もう一度 F6 を押すと固定した証明書を置き換えます。ほかのキーでは置き換えません。",
   "oauth.xiaomi.invalid_code": "コードが無効か、別のセッションのものです。今回の試行のコードをコピーしてください。",
   "login.progress.cursor_import": "承認済みの Cursor のセッションを読み取り専用で読み取っています...",
   "login.progress.preparing": "プロバイダーとの認証を準備しています...",

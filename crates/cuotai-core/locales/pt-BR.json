@@ -2155,6 +2155,8 @@
   "user_session.warning_env": "Esta é uma sessão de login completa. O Cuotai a lê de uma variável de ambiente e a usa só para consultar este serviço; mova-a para o cofre do sistema no assistente da conta.",
   "watch.error.interval_range": "O intervalo do watch deve ficar entre {min} e {max} segundos; valores fora dessa faixa são recusados, não ajustados.",
   "watch.error.unknown_event": "Evento desconhecido: \"{name}\". Eventos válidos: {known}.",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} apresenta um certificado em que este computador não confia. Impressão digital SHA-256: {fingerprint}. Compare-a com a do servidor; F6 confia nele e testa de novo.",
+  "wizard.nine_router.cert_changed_prompt": "O certificado de {host}:{port} mudou desde que você confiou nele. Antiga: {previous}. Nova: {fingerprint}. Ele pode ter sido renovado, ou alguém entre você e o servidor pode estar apresentando o próprio. Confira a nova impressão digital no servidor e pressione F6 de novo para substituir o certificado fixado; qualquer outra tecla o mantém.",
   "oauth.xiaomi.invalid_code": "Código inválido ou de outra sessão; copie o código desta tentativa.",
   "login.progress.cursor_import": "Lendo sessão Cursor autorizada, em modo somente leitura...",
   "login.progress.preparing": "Preparando autorização no provedor...",

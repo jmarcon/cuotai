@@ -1555,6 +1555,8 @@
   "events.summary.quota_reset_soon": "{metric}: la cuota se renueva pronto",
   "watch.error.interval_range": "El intervalo del watch debe estar entre {min} y {max} segundos; los valores fuera de ese rango se rechazan, no se ajustan.",
   "watch.error.unknown_event": "Evento desconocido: \"{name}\". Eventos válidos: {known}.",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} presenta un certificado en el que este equipo no confía. Huella SHA-256: {fingerprint}. Compárala con la del servidor; F6 confía en él y vuelve a probar.",
+  "wizard.nine_router.cert_changed_prompt": "El certificado de {host}:{port} cambió desde que confiaste en él. Anterior: {previous}. Nuevo: {fingerprint}. Puede que se haya renovado, o que alguien entre tú y el servidor esté presentando el suyo. Comprueba la nueva huella en el servidor y pulsa F6 otra vez para reemplazar el certificado fijado; cualquier otra tecla lo conserva.",
   "changelog.category.added": "Añadido",
   "changelog.category.changed": "Modificado",
   "changelog.category.deprecated": "Obsoleto",

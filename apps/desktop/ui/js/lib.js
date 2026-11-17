@@ -2955,9 +2955,16 @@ const demoAggregatorSchema = (provider) => {
     terminal_only_fields: [], preselect: [], interval: { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
     fields: DEMO_AGG_FIELDS[provider].map(field) };
 };
+const DEMO_CERT_NEW = "3F:A1:9C:07:D2:5E:88:41:B6:0D:E3:72:1A:C9:54:F0:2B:7D:96:E8:13:4C:A5:6F:D0:39:82:BE:57:0A:C4:1E";
+const DEMO_CERT_OLD = "8B:22:E7:4D:01:9A:C3:F6:5D:70:B8:2E:94:1F:A6:3C:D9:05:6B:E1:48:7A:C2:93:0F:5E:B4:27:D8:61:3A:9C";
 /** The Test connection results `?aggtest=` selects, as the core words them (`nine_router::test_message`). */
 const DEMO_AGG_TESTS = {
   locked: () => ({ ok: false, message: coreNote("query.nine_router.locked", "Too many 9router login attempts; wait {seconds} s before trying again.".replace("{seconds}", "300"), { seconds: 300 }) }),
+  // Re-validation S-03: a first sighting and a changed pin, with the core's certificate offer.
+  "cert-first": () => ({ ok: false, message: coreNote("test.nine_router.untrusted_certificate", `This computer does not trust the instance's certificate. SHA-256 fingerprint: ${DEMO_CERT_NEW}. Check it on the server before trusting it.`, { fingerprint: DEMO_CERT_NEW }),
+    fingerprint: DEMO_CERT_NEW, certificate: { state: "untrusted", host: "router.example.com", port: 443, fingerprint: DEMO_CERT_NEW, previous: null } }),
+  "cert-changed": () => ({ ok: false, message: coreNote("test.nine_router.certificate_changed", `The instance's certificate changed and no longer matches the pinned one. New SHA-256 fingerprint: ${DEMO_CERT_NEW}. Check it on the server before trusting it.`, { fingerprint: DEMO_CERT_NEW }),
+    fingerprint: DEMO_CERT_NEW, certificate: { state: "changed", host: "router.example.com", port: 443, fingerprint: DEMO_CERT_NEW, previous: DEMO_CERT_OLD } }),
   insecure: () => ({ ok: false, message: coreNote("query.nine_router.base_url_insecure", "Outside this machine 9router requires HTTPS (HTTP only on a private network, with the explicit option). Nothing was sent.") }),
 };
 // PRD 0033 re-validation V-06: when the demo's metered account last made a billed query (per account name), and the
@@ -3160,8 +3167,11 @@ const demo = {
   // PRD 0036 RF2.2: the demo instance answers like a local 9router with three connections.
   test_aggregator: async ({ input }) => {
     // PRD 0036 re-validation (V-12): `?aggtest=<outcome>` answers with one of the core's other results (`DEMO_AGG_TESTS`).
-    const forced = DEMO_AGG_TESTS[new URLSearchParams(location.search).get("aggtest")];
-    if (forced) return forced(input);
+    const outcome = new URLSearchParams(location.search).get("aggtest") ?? "";
+    const forced = Object.hasOwn(DEMO_AGG_TESTS, outcome) && typeof DEMO_AGG_TESTS[outcome] === "function" ? DEMO_AGG_TESTS[outcome] : null;
+    // Once the demo certificate is pinned (after either certificate dialog), the instance connects.
+    const pinned = (input.fields ?? []).find((f) => f.key === "tls_pin_sha256")?.text === DEMO_CERT_NEW;
+    if (forced && !pinned) return forced(input);
     const base = (input.fields ?? []).find((f) => f.key === "base_url")?.text ?? "";
     if (base && !/^https?:\/\//.test(base)) {
       return { ok: false, message: { id: "test.nine_router.unreachable", params: {}, fallback: "The address could not be reached." } };

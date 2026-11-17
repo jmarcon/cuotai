@@ -77,7 +77,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -2286,6 +2288,8 @@
   "user_session.warning_env": "Это полный сеанс входа. Cuotai читает его из переменной окружения и использует только для запросов к этому сервису; перенесите его в системное хранилище в мастере учётных записей.",
   "watch.error.interval_range": "Интервал watch должен быть от {min} до {max} секунд; значения вне этого диапазона отклоняются, а не подгоняются.",
   "watch.error.unknown_event": "Неизвестное событие: «{name}». Допустимые события: {known}.",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} предъявляет сертификат, которому этот компьютер не доверяет. Отпечаток SHA-256: {fingerprint}. Сверьте его с отпечатком сервера; F6 доверяет ему и проверяет снова.",
+  "wizard.nine_router.cert_changed_prompt": "Сертификат {host}:{port} изменился с тех пор, как вы ему доверились. Старый: {previous}. Новый: {fingerprint}. Возможно, его обновили, или кто-то между вами и сервером предъявляет свой. Сверьте новый отпечаток на сервере, затем снова нажмите F6, чтобы заменить закреплённый сертификат; любая другая клавиша его сохраняет.",
   "oauth.xiaomi.invalid_code": "Недопустимый код или код другого сеанса; скопируйте код этой попытки.",
   "login.progress.cursor_import": "Считывание авторизованного сеанса Cursor в режиме только для чтения...",
   "login.progress.preparing": "Подготовка авторизации у провайдера...",

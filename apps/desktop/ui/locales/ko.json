@@ -5,7 +5,6 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
-      "dialog.aggregator.trustTitle",
       "dialog.deleteBody",
       "dialog.deleteBodyVault",
       "dialog.detect.ask",
@@ -42,7 +41,17 @@
       "agg.tls.platform",
       "agg.tls.caFile",
       "agg.tls.pinned",
-      "agg.lastDiscovery"
+      "agg.lastDiscovery",
+      "confirm.certificate.firstTitle",
+      "confirm.certificate.firstBody",
+      "confirm.certificate.trust",
+      "confirm.certificate.changedTitle",
+      "confirm.certificate.changedBody",
+      "confirm.certificate.old",
+      "confirm.certificate.new",
+      "confirm.certificate.host",
+      "confirm.certificate.checked",
+      "confirm.certificate.replace"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -140,9 +149,6 @@
   "dialog.aggregator.testing": "연결을 테스트하는 중…",
   "dialog.aggregator.testingSave": "저장하기 전에 연결을 테스트하는 중…",
   "dialog.aggregator.title": "연결 테스트",
-  "dialog.aggregator.trust": "신뢰하고 테스트",
-  "dialog.aggregator.trustBody": "이 인스턴스가 이 컴퓨터가 신뢰하지 않는 인증서를 제시했습니다. 신뢰하기 전에 아래 SHA-256 지문을 서버의 지문과 비교하세요. Cuotai는 이 인증서만 허용하며, 인증서가 바뀌면 계정이 중지되고 다시 묻습니다.",
-  "dialog.aggregator.trustTitle": "이 인증서를 신뢰하시겠습니까?",
   "quota.count": {
     "other": "할당량 {count}개"
   },
@@ -1498,6 +1504,16 @@
   "cost.line": "로컬 비용 · 오늘 {today} · {span} {period}(추정)",
   "common.details": "상세",
   "confirm.cancel": "취소",
+  "confirm.certificate.firstTitle": "이 인증서를 신뢰하시겠습니까?",
+  "confirm.certificate.host": "주소",
+  "confirm.certificate.new": "제시된 지문(새 지문)",
+  "confirm.certificate.old": "고정된 지문(이전)",
+  "confirm.certificate.replace": "고정된 인증서 교체",
+  "confirm.certificate.changedTitle": "신뢰한 이후 인증서가 바뀌었습니다",
+  "confirm.certificate.checked": "서버에서 새 지문을 확인했습니다",
+  "confirm.certificate.changedBody": "이 인스턴스가 이제 고정한 인증서와 다른 인증서를 제시합니다. 서버의 인증서가 갱신되거나 교체되었을 수도 있고, 서버와의 사이에 있는 누군가가 보내는 내용을 읽으려고 자신의 인증서를 제시하고 있을 수도 있습니다. 서버에서 새 지문을 확인한 뒤에만 고정된 인증서를 교체하세요.",
+  "confirm.certificate.trust": "신뢰하고 테스트",
+  "confirm.certificate.firstBody": "이 인스턴스가 이 컴퓨터가 신뢰하지 않는 인증서를 제시했습니다. 신뢰하기 전에 아래 SHA-256 지문을 서버의 지문과 비교하세요. Cuotai는 이 인증서만 허용하며, 인증서가 바뀌면 계정이 중지되고 다시 묻습니다.",
   "confirm.remove": "제거",
   "confirm.close": "닫기",
   "confirm.back": "뒤로",
