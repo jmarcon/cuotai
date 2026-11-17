@@ -52,6 +52,10 @@ const SAME_BOUNDARY: TimeDelta = TimeDelta::hours(1);
 /// boundary is accepted for a monthly budget starting on the 1st, with a
 /// note (RF2.2).
 const MONTH_SLACK: TimeDelta = TimeDelta::hours(15);
+/// The longest stretch between two readings (or between the period start
+/// and its first reading) whose unrecorded use is taken as negligible: a
+/// longer one across a reset or a top-up makes the result a lower bound.
+const GAP: TimeDelta = TimeDelta::hours(1);
 
 /// RF1.1: the metric kinds a budget can target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -659,24 +663,48 @@ fn provider_window_start(
     })
 }
 
-/// What [`apply`] reads from the history: the recorded samples of the
+/// One recorded reading of a budget's target metric: when it was taken,
+/// its value (`used`, or `remaining` for a balance) and the provider's own
+/// reset as reported then.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Reading {
+    pub taken_at: DateTime<Utc>,
+    pub value: f64,
+    pub resets_at: Option<DateTime<Utc>>,
+}
+
+impl From<Point> for Reading {
+    fn from(point: Point) -> Self {
+        Self {
+            taken_at: point.taken_at,
+            value: point.used,
+            resets_at: None,
+        }
+    }
+}
+
+/// What [`apply`] reads from the history: the recorded readings of the
 /// target metric (by its series) from `since` to now, in time order.
 pub trait Baselines {
-    fn samples(&self, target: &Metric, since: DateTime<Utc>) -> Vec<Point>;
+    fn samples(&self, target: &Metric, since: DateTime<Utc>) -> Vec<Reading>;
 }
 
 /// No history: every derivation that needs a baseline yields `None`.
 pub struct NoHistory;
 
 impl Baselines for NoHistory {
-    fn samples(&self, _: &Metric, _: DateTime<Utc>) -> Vec<Point> {
+    fn samples(&self, _: &Metric, _: DateTime<Utc>) -> Vec<Reading> {
         Vec::new()
     }
 }
 
-impl<F: Fn(&Metric, DateTime<Utc>) -> Vec<Point>> Baselines for F {
-    fn samples(&self, target: &Metric, since: DateTime<Utc>) -> Vec<Point> {
-        self(target, since)
+impl<F, R> Baselines for F
+where
+    F: Fn(&Metric, DateTime<Utc>) -> Vec<R>,
+    R: Into<Reading>,
+{
+    fn samples(&self, target: &Metric, since: DateTime<Utc>) -> Vec<Reading> {
+        self(target, since).into_iter().map(Into::into).collect()
     }
 }
 
@@ -702,21 +730,30 @@ enum Derivation {
     Provider,
     /// The provider's month is close to, not equal to, the local one.
     ProviderMonth,
-    /// Current value minus the first value recorded in the period.
-    Baseline,
-    /// Sum of the decreases of a balance in the period.
-    Drops { topped_up: bool },
+    /// The use added up reading by reading since the period start
+    /// ([`counted_use`]).
+    Counted { topped_up: bool },
+}
+
+/// A budget's use in its period: the amount, and whether it is only a
+/// lower bound (`partial`: part of the period was not recorded).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Use {
+    used: f64,
+    partial: bool,
+    how: Derivation,
 }
 
 /// RF2.2/RF2.3: the use of `target` in the period starting at `start`
-/// (ending at `end`), or `None` with the reason.
+/// (ending at `end`) at `now`, or the reason it is unknown.
 fn used_in_period(
     budget: &Budget,
     target: &Metric,
     start: DateTime<Utc>,
     end: DateTime<Utc>,
+    now: DateTime<Utc>,
     history: &dyn Baselines,
-) -> Result<(f64, Derivation), &'static str> {
+) -> Result<Use, &'static str> {
     let current = current_value(target).ok_or("target_missing")?;
     let covers = |window: MetricWindow| {
         target.window == Some(window)
@@ -725,45 +762,132 @@ fn used_in_period(
                 .is_some_and(|at| (at - end).abs() <= SAME_BOUNDARY)
     };
     if !counts_down(target) {
-        if budget.period == BudgetPeriod::Window || budget.period.window().is_some_and(covers) {
-            return Ok((current, Derivation::Provider));
-        }
         let first_of_month = budget.period == BudgetPeriod::Monthly
             && matches!(budget.starts, None | Some(BudgetStart::Day(1)));
-        if first_of_month
+        let how = if budget.period == BudgetPeriod::Window
+            || budget.period.window().is_some_and(covers)
+        {
+            Some(Derivation::Provider)
+        } else if first_of_month
             && target.window == Some(MetricWindow::Monthly)
             && target
                 .resets_at
                 .is_none_or(|at| (at - end).abs() <= MONTH_SLACK)
         {
-            return Ok((current, Derivation::ProviderMonth));
+            Some(Derivation::ProviderMonth)
+        } else {
+            None
+        };
+        if let Some(how) = how {
+            // F-16: a negative spend is a net credit, not a use of 0 or
+            // less; it is unknown rather than clamped.
+            if current < 0.0 {
+                return Err("negative");
+            }
+            return Ok(Use {
+                used: current,
+                partial: false,
+                how,
+            });
         }
     }
-    let samples: Vec<Point> = history
+    let readings: Vec<Reading> = history
         .samples(target, start)
         .into_iter()
-        .filter(|point| point.taken_at >= start && point.used.is_finite())
+        .filter(|reading| {
+            reading.taken_at >= start && reading.taken_at <= now && reading.value.is_finite()
+        })
         .collect();
-    let Some(first) = samples.first() else {
+    if readings.is_empty() {
         return Err("no_baseline");
-    };
-    if !counts_down(target) {
-        return Ok(((current - first.used).max(0.0), Derivation::Baseline));
     }
-    // A balance: add every drop; a rise is a top-up and moves the
-    // baseline up by its amount instead of counting as negative use.
+    let latest = Reading {
+        taken_at: now,
+        value: current,
+        resets_at: target.resets_at,
+    };
+    counted_use(&readings, latest, start, target)
+}
+
+/// RF2.2/RF2.3 (design D1): the use added up segment by segment over the
+/// readings of the period (`readings`, in time order, the first one being
+/// the baseline) and the current reading `latest`. A counter that restarts
+/// at the provider's reset adds the value after the reset; a balance adds
+/// its drops and treats a rise as a top-up. A stretch longer than [`GAP`]
+/// whose use cannot be known (before the first reading, across a reset or
+/// a top-up, or a counter that went down) makes the result a lower bound.
+fn counted_use(
+    readings: &[Reading],
+    latest: Reading,
+    start: DateTime<Utc>,
+    target: &Metric,
+) -> Result<Use, &'static str> {
+    let first = readings.first().ok_or("no_baseline")?;
+    let mut partial = first.taken_at - start > GAP;
     let mut used = 0.0;
     let mut topped_up = false;
-    let mut previous = first.used;
-    for value in samples.iter().skip(1).map(|p| p.used).chain([current]) {
-        if value < previous {
-            used += previous - value;
-        } else if value > previous {
-            topped_up = true;
+    let balance = counts_down(target);
+    let mut previous = *first;
+    for next in readings.iter().skip(1).copied().chain([latest]) {
+        let (a, b) = (previous, next);
+        let gap = b.taken_at - a.taken_at;
+        if balance {
+            if b.value <= a.value {
+                used += a.value - b.value;
+            } else {
+                // A top-up: use and a top-up inside one long gap hide
+                // each other.
+                topped_up = true;
+                partial |= gap > GAP;
+            }
+        } else {
+            // A reset is known when the instant `a` announced has passed
+            // by `b`, or when `b` belongs to a later instance and the
+            // counter went down. A `resets_at` that only rolls forward
+            // with the clock is not a reset.
+            let reset = a.resets_at.filter(|at| {
+                (*at > a.taken_at && *at <= b.taken_at)
+                    || (b.value < a.value
+                        && b.resets_at.is_some_and(|next| next > *at + SAME_BOUNDARY))
+            });
+            if let Some(reset) = reset.map(|at| at.min(b.taken_at)) {
+                // The use between `a` and the reset is not recorded.
+                partial |= reset - a.taken_at > GAP;
+                // Neither is an instance that came and went in between.
+                let skipped = b
+                    .resets_at
+                    .and_then(|next| provider_window_start(target.window, next))
+                    .is_some_and(|began| began > reset + SAME_BOUNDARY);
+                partial |= skipped;
+                used += b.value.max(0.0);
+            } else if b.value >= a.value {
+                used += b.value - a.value;
+            } else {
+                let same_instance = match (a.resets_at, b.resets_at) {
+                    (Some(x), Some(y)) => (x - y).abs() <= SAME_BOUNDARY,
+                    _ => false,
+                };
+                if same_instance {
+                    // A refund or a revised estimate: the counter is not
+                    // monotonic, so what was used is not known exactly.
+                    partial = true;
+                } else {
+                    // A reset at an unknown time: the counter restarted.
+                    used += b.value.max(0.0);
+                    partial |= gap > GAP;
+                }
+            }
         }
-        previous = value;
+        previous = next;
     }
-    Ok((used, Derivation::Drops { topped_up }))
+    if !used.is_finite() {
+        return Err("not_finite");
+    }
+    Ok(Use {
+        used,
+        partial,
+        how: Derivation::Counted { topped_up },
+    })
 }
 
 fn note(id: &'static str, label: &str, fallback: &'static str) -> Localized {
@@ -816,7 +940,8 @@ pub fn apply<Tz: TimeZone>(
 
 /// PRD 0045 RF5.2: the baselines of a row's metric since a time (the row
 /// unit's series).
-pub type RowBaselines<'a> = dyn Fn(&crate::BreakdownRow, &Metric, DateTime<Utc>) -> Vec<Point> + 'a;
+pub type RowBaselines<'a> =
+    dyn Fn(&crate::BreakdownRow, &Metric, DateTime<Utc>) -> Vec<Reading> + 'a;
 
 /// PRD 0045 RF5.2: the budgets of `account` that follow a breakdown row,
 /// each added to its row as a derived quota (after the row's own metrics,
@@ -945,6 +1070,7 @@ fn derive<Tz: TimeZone>(
                 .unwrap_or(MetricKind::Spend),
             label: target_label,
             budget: index,
+            partial: false,
         }),
         unlimited: false,
     };
@@ -976,10 +1102,25 @@ fn derive<Tz: TimeZone>(
                     ),
                 );
             } else {
-                match used_in_period(budget, target, start, end, history) {
-                    Ok((used, how)) => {
+                match used_in_period(budget, target, start, end, now, history) {
+                    Ok(Use { used, partial, how }) => {
                         metric.used = Some(used);
-                        metric.remaining = Some((budget.amount - used).max(0.0));
+                        if partial {
+                            // A lower bound: what is left is not known.
+                            if let Some(from) = &mut metric.derived_from {
+                                from.partial = true;
+                            }
+                            push_note_to(
+                                notes,
+                                note(
+                                    "note.budget.partial",
+                                    &display,
+                                    "{budget}: part of this period's use was not recorded, so at least this much was used.",
+                                ),
+                            );
+                        } else {
+                            metric.remaining = Some((budget.amount - used).max(0.0));
+                        }
                         match how {
                             Derivation::ProviderMonth => push_note_to(
                                 notes,
@@ -989,7 +1130,7 @@ fn derive<Tz: TimeZone>(
                                     "{budget}: counted over the provider's billing month, which may start in another time zone.",
                                 ),
                             ),
-                            Derivation::Drops { topped_up: true } => push_note_to(
+                            Derivation::Counted { topped_up: true } => push_note_to(
                                 notes,
                                 note(
                                     "note.budget.topup_detected",
@@ -1000,6 +1141,14 @@ fn derive<Tz: TimeZone>(
                             _ => {}
                         }
                     }
+                    Err("negative") => push_note_to(
+                        notes,
+                        note(
+                            "note.budget.negative",
+                            &display,
+                            "{budget}: the metric shows a net credit this period, so this budget cannot count it.",
+                        ),
+                    ),
                     Err("no_baseline") => push_note_to(
                         notes,
                         note(
@@ -1060,6 +1209,7 @@ pub fn mark_restored(account: &Account, report: &mut Report) {
                         .unwrap_or(MetricKind::Spend),
                     label: target.map_or_else(String::new, |t| t.label.clone()),
                     budget: index,
+                    partial: false,
                 });
                 break;
             }
@@ -1339,3 +1489,7 @@ pub mod editor;
 #[cfg(test)]
 #[path = "budget_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "budget_reset_tests.rs"]
+mod reset_tests;

@@ -1050,7 +1050,9 @@
       "feed.line.left_exhausted",
       "feed.provenance.api",
       "feed.provenance.claude_code",
-      "feed.provenance.codex_cli"
+      "feed.provenance.codex_cli",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -2419,6 +2421,8 @@
   "note.budget.target_missing": "{budget} : la métrique suivie par ce budget manque dans cette lecture.",
   "note.budget.topup_detected": "{budget} : une recharge a été détectée ; elle ne compte pas comme consommation.",
   "note.budget.unit_mismatch": "{budget} : la métrique est fournie dans une autre unité, ce budget ne peut donc pas compter.",
+  "note.budget.partial": "{budget} : une partie de la consommation de cette période n’a pas été enregistrée, donc au moins ce montant a été consommé.",
+  "note.budget.negative": "{budget} : la métrique affiche un crédit net sur cette période ; ce budget ne peut donc pas la compter.",
   "note.claude_code.answered_by_api": "Réponse de la requête Claude : aucune mesure récente de Claude Code.",
   "note.claude_code.answered_by_feed": "Réponse de la ligne d’état de Claude Code (aucune requête réseau).",
   "note.claude_code.fed": "Alimenté par la ligne d’état documentée de Claude Code : aucune requête réseau, aucun jeton réutilisé.",

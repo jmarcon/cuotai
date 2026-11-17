@@ -1504,34 +1504,37 @@ impl Monitor {
             return;
         }
         let store = self.history();
-        let baselines = |target: &Metric, since: chrono::DateTime<Utc>| -> Vec<pace::Point> {
+        // PRD 0041 RF2.2: readings up to now, with the provider's resets,
+        // so a budget counts across a reset inside its period.
+        let now = self.now();
+        let baselines = |target: &Metric, since: chrono::DateTime<Utc>| -> Vec<budget::Reading> {
             store
                 .as_ref()
                 .and_then(|store| {
                     store
-                        .series(account, &history::metric_key(target), since..)
+                        .readings(account, &history::metric_key(target), since..=now)
                         .ok()
                 })
                 .unwrap_or_default()
         };
-        budget::apply(account, report, &baselines, self.now(), &chrono::Local);
+        budget::apply(account, report, &baselines, now, &chrono::Local);
         // PRD 0045 RF5.2: a budget on a breakdown row counts over the row
         // unit's own series.
         let row_baselines = |row: &BreakdownRow,
                              target: &Metric,
                              since: chrono::DateTime<Utc>|
-         -> Vec<pace::Point> {
+         -> Vec<budget::Reading> {
             let unit = breakdown::row_account(account, row);
             store
                 .as_ref()
                 .and_then(|store| {
                     store
-                        .series(&unit, &history::metric_key(target), since..)
+                        .readings(&unit, &history::metric_key(target), since..=now)
                         .ok()
                 })
                 .unwrap_or_default()
         };
-        budget::apply_rows(account, report, &row_baselines, self.now(), &chrono::Local);
+        budget::apply_rows(account, report, &row_baselines, now, &chrono::Local);
     }
 
     /// PRD 0036 RF4.4: refresh only the connection `sub_id` of the

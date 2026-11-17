@@ -132,7 +132,9 @@
       "feed.line.left_exhausted",
       "feed.provenance.api",
       "feed.provenance.claude_code",
-      "feed.provenance.codex_cli"
+      "feed.provenance.codex_cli",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1480,6 +1482,8 @@
   "note.budget.target_missing": "{budget}: metrik yang diikuti anggaran ini tidak ada dalam pembacaan ini.",
   "note.budget.topup_detected": "{budget}: isi ulang terdeteksi; tidak dihitung sebagai penggunaan.",
   "note.budget.unit_mismatch": "{budget}: metrik dilaporkan dalam satuan lain, jadi anggaran ini tidak bisa menghitung.",
+  "note.budget.partial": "{budget}: sebagian penggunaan periode ini tidak tercatat, jadi setidaknya sebanyak ini telah digunakan.",
+  "note.budget.negative": "{budget}: metrik menunjukkan kredit bersih pada periode ini, jadi anggaran ini tidak bisa menghitungnya.",
   "note.claude_code.answered_by_api": "Dijawab oleh kueri Claude: tidak ada pembacaan terbaru dari Claude Code.",
   "note.claude_code.answered_by_feed": "Dijawab oleh baris status Claude Code sendiri (tanpa permintaan jaringan).",
   "note.claude_code.fed": "Diumpan oleh baris status Claude Code yang terdokumentasi: tanpa permintaan jaringan, tanpa memakai ulang token.",

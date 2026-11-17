@@ -170,7 +170,9 @@
       "feed.line.left_exhausted",
       "feed.provenance.api",
       "feed.provenance.claude_code",
-      "feed.provenance.codex_cli"
+      "feed.provenance.codex_cli",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -1518,6 +1520,8 @@
   "note.budget.target_missing": "{budget}：此读数中缺少该预算跟踪的指标。",
   "note.budget.topup_detected": "{budget}：检测到充值；不计为用量。",
   "note.budget.unit_mismatch": "{budget}：该指标以其他单位报告，因此此预算无法计算。",
+  "note.budget.partial": "{budget}：本周期的部分用量未被记录，因此至少已使用这么多。",
+  "note.budget.negative": "{budget}：该指标本周期显示为净抵扣额，因此此预算无法计算。",
   "note.claude_code.answered_by_api": "由 Claude 查询作答：Claude Code 没有最近的读数。",
   "note.claude_code.answered_by_feed": "由 Claude Code 自己的状态栏作答（不发网络请求）。",
   "note.claude_code.fed": "由 Claude Code 有文档的状态栏推送：不发网络请求，不复用令牌。",

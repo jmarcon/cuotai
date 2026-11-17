@@ -1129,6 +1129,10 @@ pub struct DerivedFrom {
     pub label: String,
     /// The position of the budget in the account's `budgets`.
     pub budget: usize,
+    /// PRD 0041 RF2.2: part of the period's use was not recorded, so
+    /// `used` is a lower bound and `remaining` is unknown.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub partial: bool,
 }
 
 /// PRD 0034 RF2: `label`, `unit` and `period` stay the adapters' raw
@@ -1858,6 +1862,7 @@ mod tests {
                 kind: MetricKind::Spend,
                 label: FORGED.into(),
                 budget: 0,
+                partial: false,
             });
             metric
         };
@@ -1952,6 +1957,7 @@ mod tests {
                 kind: _,
                 label,
                 budget: _,
+                partial: _,
             }) = derived_from
             else {
                 panic!("derived_from kept");

@@ -151,7 +151,9 @@
       "feed.line.left_exhausted",
       "feed.provenance.api",
       "feed.provenance.claude_code",
-      "feed.provenance.codex_cli"
+      "feed.provenance.codex_cli",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -1499,6 +1501,8 @@
   "note.budget.target_missing": "{budget}: 이 예산이 추적하는 지표가 이번 측정에 없습니다.",
   "note.budget.topup_detected": "{budget}: 충전이 감지되었습니다. 사용량으로 계산하지 않습니다.",
   "note.budget.unit_mismatch": "{budget}: 지표가 다른 단위로 보고되어 이 예산을 집계할 수 없습니다.",
+  "note.budget.partial": "{budget}: 이 기간 사용량의 일부가 기록되지 않아 최소한 이만큼 사용했습니다.",
+  "note.budget.negative": "{budget}: 이 기간 지표가 순 크레딧을 나타내므로 이 예산으로 집계할 수 없습니다.",
   "note.claude_code.answered_by_api": "Claude 조회로 답했습니다. Claude Code의 최근 측정값이 없습니다.",
   "note.claude_code.answered_by_feed": "Claude Code 자체 상태 표시줄로 답했습니다(네트워크 요청 없음).",
   "note.claude_code.fed": "Claude Code의 문서화된 상태 표시줄이 공급합니다. 네트워크 요청도 토큰 재사용도 없습니다.",

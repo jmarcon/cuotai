@@ -132,7 +132,9 @@
       "feed.line.left_exhausted",
       "feed.provenance.api",
       "feed.provenance.claude_code",
-      "feed.provenance.codex_cli"
+      "feed.provenance.codex_cli",
+      "note.budget.partial",
+      "note.budget.negative"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -1501,6 +1503,8 @@
   "note.budget.target_missing": "{budget}: bu bütçenin izlediği metrik bu ölçümde yok.",
   "note.budget.topup_detected": "{budget}: bir yükleme algılandı; kullanım sayılmaz.",
   "note.budget.unit_mismatch": "{budget}: metrik başka bir birimde bildiriliyor, bu yüzden bu bütçe sayamaz.",
+  "note.budget.partial": "{budget}: bu dönemin kullanımının bir kısmı kaydedilmedi, bu yüzden en az bu kadar kullanıldı.",
+  "note.budget.negative": "{budget}: metrik bu dönemde net alacak gösteriyor, bu yüzden bu bütçe onu sayamaz.",
   "note.claude_code.answered_by_api": "Claude sorgusuyla yanıtlandı: Claude Code’dan yakın tarihli ölçüm yok.",
   "note.claude_code.answered_by_feed": "Claude Code’un kendi durum satırıyla yanıtlandı (ağ isteği yok).",
   "note.claude_code.fed": "Claude Code’un belgelenmiş durum satırından besleniyor: ağ isteği yok, belirteç yeniden kullanılmıyor.",

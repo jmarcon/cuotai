@@ -482,6 +482,20 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   console.log("PASS: a balance shows its amount with its sign, exhausted says how much, and money reads as money");
 }
 
+// PRD 0041 D1: a budget whose period was not fully recorded (`partial`) shows its use as a lower bound, in the meter's
+// title and the card tooltip (`fmtAmount`), as the TUI and `--once` print it.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  await i18n.setLocale("en-US");
+  const budget = { label: "Orçamento · Gasto", unit: "USD", used: 25, limit: 50, remaining: null, kind: "quota", state: "available", ratio: 0.5 };
+  assert.equal(lib.fmtAmount({ ...budget, partial: true }), "≥ $25.00 / $50.00");
+  assert.equal(lib.fmtAmount(budget), "$25.00 / $50.00");
+  assert.equal(lib.textualMetric({ ...budget, limit: null, partial: true, uncapped: true }), "Usage: ≥ $25.00");
+  const card = metricCardHtml({ account: "a@example.com", provider: "open_ai_api", metrics: [budget] }, { ...budget, partial: true });
+  assert.ok(card.includes('title="≥ $25.00 / $50.00"'), card);
+  console.log("PASS: a partial budget shows its use as at least that much");
+}
+
 // PRD 0038 re-validation (F-05): a provider's Retry-After replaces the generic first note with the core's line that
 // says when the account is queried again, on the card, the details and the tray row.
 {

@@ -1224,6 +1224,28 @@ impl HistoryStore {
         metric_key: &str,
         range: impl RangeBounds<DateTime<Utc>>,
     ) -> Result<Vec<Point>, HistoryError> {
+        Ok(self
+            .readings(account, metric_key, range)?
+            .into_iter()
+            .map(|reading| Point {
+                taken_at: reading.taken_at,
+                used: reading.value,
+            })
+            .collect())
+    }
+
+    /// PRD 0041 RF2.2: the samples of one metric within `range`, each with
+    /// its value (by [`sample_value`]: a balance reads back as its
+    /// `remaining`) and the provider's `resets_at` stored with it, in time
+    /// order. A budget reads `since..=now`, so a sample written while the
+    /// clock was ahead is not taken for this period. Samples with no value
+    /// are left out.
+    pub fn readings(
+        &self,
+        account: &Account,
+        metric_key: &str,
+        range: impl RangeBounds<DateTime<Utc>>,
+    ) -> Result<Vec<crate::budget::Reading>, HistoryError> {
         let (start, end) = span(range);
         let db = self.open()?;
         let account_digest = series_digest(&db, &self.config_key, account)?;
@@ -1231,7 +1253,7 @@ impl HistoryStore {
             return Ok(Vec::new());
         };
         let mut query = db.prepare(
-            "SELECT taken_at, used, \"limit\", remaining FROM samples
+            "SELECT taken_at, used, \"limit\", remaining, resets_at FROM samples
              WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3
              ORDER BY taken_at",
         )?;
@@ -1240,12 +1262,19 @@ impl HistoryStore {
                 Ok((
                     instant(row.get(0)?)?,
                     sample_value(row.get(1)?, row.get(2)?, row.get(3)?),
+                    reset_instant(row.get(4)?),
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows
             .into_iter()
-            .filter_map(|(taken_at, value)| value.map(|used| Point { taken_at, used }))
+            .filter_map(|(taken_at, value, resets_at)| {
+                value.map(|value| crate::budget::Reading {
+                    taken_at,
+                    value,
+                    resets_at,
+                })
+            })
             .collect())
     }
 

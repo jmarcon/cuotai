@@ -110,6 +110,7 @@ fn a_reset_alone_or_a_missing_limit_is_not_a_change() {
         kind: MetricKind::Spend,
         label: "Gasto".into(),
         budget: 0,
+        partial: false,
     });
     let mut edited = budget.clone();
     edited.limit = Some(80.0);
