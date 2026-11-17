@@ -6,7 +6,8 @@
 //! standard input ([`claude::parse`]); Codex CLI's rate-limit windows are
 //! read from its own session logs ([`codex`]). Either way the reading lands
 //! here as one small JSON file per source and session, under
-//! `<data dir>/feed/<source>/<session digest>.json` (RF1.1), and the
+//! `<OS local data dir>/cuotai/feed/<source>/<session digest>.json` (RF1.1,
+//! [`FeedStore::default_dir`]), and the
 //! adapters, the live-session block and the status line read it back.
 //!
 //! A feed file holds numbers, times, a model name and a one-way digest of
@@ -34,6 +35,10 @@ use crate::Provider;
 
 /// The feed file format this release writes and reads.
 pub const SCHEMA: u32 = 1;
+/// Debug builds only: the feed folder instead of the fixed per-user one
+/// (tests and manual smokes never touch the real one).
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
+pub const DEBUG_ENV: &str = "CUOTAI_FEED_DIR";
 /// RF1.2: files older than this are deleted (the newest file of a source is
 /// kept, so a quiet agent ages instead of disappearing).
 pub const RETENTION: TimeDelta = TimeDelta::hours(24);
@@ -348,14 +353,49 @@ impl FeedStore {
         }
     }
 
-    /// `<data dir>/feed` ([`crate::data_dir::root`], honouring
-    /// `CUOTAI_DATA_DIR`); `None` when there is no usable data directory.
-    /// Its readers check the consent of each source ([`readable`]).
+    /// The store every process of the user shares, at
+    /// [`FeedStore::default_dir`]; `None` without an OS data directory. Its
+    /// readers check the consent of each source ([`readable`]).
     pub fn in_data_dir() -> Option<Self> {
-        crate::data_dir::root().map(|root| Self {
-            dir: root.join("feed"),
+        Self::default_dir().map(|dir| Self {
+            dir,
             consent: Consent::Checked(std::sync::OnceLock::new()),
         })
+    }
+
+    /// RF1.1 (PRD 0040 re-validation V-08): one fixed per-user place,
+    /// `<OS local data dir>/cuotai/feed`, whatever `CUOTAI_DATA_DIR` or the
+    /// desktop's data folder says. The writer runs under the agent's
+    /// environment and the readers under the desktop's or the shell's, so
+    /// only a fixed place makes them agree without configuration. Debug
+    /// builds honour [`DEBUG_ENV`] for tests and smokes; release builds
+    /// ignore it.
+    pub fn default_dir() -> Option<PathBuf> {
+        #[cfg(debug_assertions)]
+        let debug = std::env::var_os(DEBUG_ENV);
+        #[cfg(not(debug_assertions))]
+        let debug = None;
+        fixed_dir(debug, dirs::data_local_dir())
+    }
+
+    /// V-08: delete the feed folder builds before the fixed place kept in
+    /// the data folder (`<data root>/feed`), best effort and once per
+    /// process. Its readings are at most a day old, so nothing is moved. A
+    /// link is never followed, and the fixed folder itself is never taken
+    /// for it.
+    pub fn remove_legacy_dir() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let (Some(root), fixed) = (crate::data_dir::root(), Self::default_dir()) else {
+                return;
+            };
+            let legacy = root.join("feed");
+            if Some(&legacy) != fixed.as_ref()
+                && std::fs::symlink_metadata(&legacy).is_ok_and(|meta| meta.is_dir())
+            {
+                let _ = std::fs::remove_dir_all(&legacy);
+            }
+        });
     }
 
     /// Test seam: the store at `dir` with the Codex CLI consent `granted`.
@@ -675,6 +715,16 @@ impl AccountReading {
     pub fn newest_window_at(&self) -> Option<DateTime<Utc>> {
         self.window_times.iter().map(|(_, at)| *at).max()
     }
+}
+
+/// [`FeedStore::default_dir`] from the debug override (`None` in release
+/// builds) and the OS local data directory: never the data root, so
+/// `CUOTAI_DATA_DIR` and the desktop's data folder do not move it.
+fn fixed_dir(debug: Option<std::ffi::OsString>, os_local: Option<PathBuf>) -> Option<PathBuf> {
+    if let Some(dir) = debug.filter(|dir| !dir.is_empty()) {
+        return Some(PathBuf::from(dir));
+    }
+    os_local.map(|dir| dir.join("cuotai").join("feed"))
 }
 
 /// RF1.2 (S-01): erase the stored readings of `source` (`cuotai --feed

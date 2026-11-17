@@ -1544,7 +1544,11 @@ fn report_view(
         floors: cuotai_core::budget::floor_statuses(account, report),
         limit_notes: Vec::new(),
         breakdown: breakdown_view(account, report),
-        live: live_view(account, now),
+        // PRD 0040 RF7.2 (S-06): off means not computed at all.
+        live: config
+            .live_sessions
+            .then(|| live_view(account, now))
+            .flatten(),
     }
 }
 
@@ -2360,7 +2364,16 @@ impl Inner {
             .collect();
     }
 
-    fn install(&mut self, file: ConfigFile) -> Result<(), String> {
+    fn install(&mut self, mut file: ConfigFile) -> Result<(), String> {
+        // PRD 0040 re-validation S-06: the live-session switch moved from
+        // desktop.json to the TOML; a device that turned it off keeps it
+        // off, once. Tests never touch the real desktop.json.
+        if !cfg!(test)
+            && crate::settings::legacy_live_session_off()
+            && migrate_live_session(&mut file)
+        {
+            crate::settings::drop_legacy_live_session();
+        }
         let session = match &self.session {
             Some(s) => Arc::clone(s),
             None => {
@@ -2509,6 +2522,18 @@ impl Inner {
         self.load_error = None;
         Ok(())
     }
+}
+
+/// S-06: `live_sessions = false` written to `file` for a device whose
+/// desktop.json had the switch off; `true` once the TOML says so (the old
+/// key can go), `false` when the save failed (tried again next load).
+fn migrate_live_session(file: &mut ConfigFile) -> bool {
+    if !file.config.live_sessions {
+        return true;
+    }
+    let mut config = file.config.clone();
+    config.live_sessions = false;
+    file.save(config).is_ok()
 }
 
 fn config_label(file: &ConfigFile) -> String {
@@ -5072,6 +5097,47 @@ impl Backend {
         }
         self.emit(app).await;
         Ok(())
+    }
+
+    /// PRD 0040 RF7.2 (re-validation S-06): turn the live agent session on
+    /// or off for every front end: `live_sessions` in the TOML, written
+    /// through [`ConfigFile`] like the refresh interval.
+    pub async fn set_live_sessions(&self, app: &AppHandle, on: bool) -> Result<(), String> {
+        self.ensure_loaded().await;
+        {
+            let mut g = self.inner.lock().await;
+            let l = g
+                .loaded
+                .as_mut()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
+            if l.file.config.live_sessions == on {
+                return Ok(());
+            }
+            let mut updated = l.file.config.clone();
+            updated.live_sessions = on;
+            let new_monitor = l
+                .monitor
+                .with_config(updated.clone())
+                .map_err(|e| l10n_to_json(&cuotai_core::edit_error::config_error_note(&e)))?;
+            l.file
+                .save(updated.clone())
+                .map_err(|e| edit_error_to_json(&e))?;
+            l.monitor = Arc::new(new_monitor);
+            l.generation += 1;
+            g.generation = l.generation;
+        }
+        self.emit(app).await;
+        Ok(())
+    }
+
+    /// The configuration's `live_sessions` (on while nothing is loaded).
+    pub async fn live_sessions(&self) -> bool {
+        self.inner
+            .lock()
+            .await
+            .loaded
+            .as_ref()
+            .is_none_or(|l| l.file.config.live_sessions)
     }
 
     /// PRD 0006 RF4.1: keep `days` of measurement history on this device
@@ -7774,6 +7840,25 @@ pub fn tray_view() -> TrayView {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0040 re-validation S-06: a desktop.json that had the live
+    /// session off writes `live_sessions = false` to the TOML once.
+    #[test]
+    fn the_old_live_session_switch_moves_to_the_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai.toml");
+        std::fs::write(
+            &path,
+            "[[accounts]]\nprovider = \"claude\"\nparams = { query_mode = \"claude_code\" }\n",
+        )
+        .unwrap();
+        let mut file = ConfigFile::load(Some(path.clone()), false).unwrap();
+        assert!(super::migrate_live_session(&mut file));
+        assert!(!file.config.live_sessions);
+        let reread = ConfigFile::load(Some(path), false).unwrap();
+        assert!(!reread.config.live_sessions);
+        assert!(super::migrate_live_session(&mut file), "already off");
+    }
+
     /// PRD 0050 RF2.5 (PRD 0017 re-validation S-03): the disclosure the
     /// webview receives holds the lines only, never a candidate token.
     #[test]
@@ -9606,6 +9691,7 @@ mod tests {
             timeout_seconds: 30,
             accounts,
             groups: Vec::new(),
+            live_sessions: true,
         };
         file.save(config.clone()).unwrap();
         let session = Arc::new(

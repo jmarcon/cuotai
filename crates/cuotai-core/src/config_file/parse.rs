@@ -33,10 +33,11 @@ pub enum ConfigParseMode {
 }
 
 /// The top-level keys and tables this release understands.
-const KNOWN_TOP_LEVEL: [&str; 6] = [
+const KNOWN_TOP_LEVEL: [&str; 7] = [
     "refresh_seconds",
     "concurrency",
     "timeout_seconds",
+    "live_sessions",
     "accounts",
     "groups",
     "updates",

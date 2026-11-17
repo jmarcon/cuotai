@@ -264,6 +264,7 @@ mod tests {
             accounts: Some(accounts.clone()),
             mac_home: None,
             metered: None,
+            feed: None,
         };
         (dir, roots, history, accounts)
     }

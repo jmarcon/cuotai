@@ -8,7 +8,9 @@ Claude Code runs a command you choose as its [status line](https://code.claude.c
 
 ### Set it up
 
-1. Add this to `~/.claude/settings.json` (Cuotai never edits it for you; `cuotai --feed claude-statusline --setup` prints the same text, and the desktop has it with **Copy** under Settings › Dashboard › More display options › Claude Code):
+1. Install the **terminal version** of Cuotai (`brew install jmarcon/cuotai/cuotai`, `scoop install cuotai/cuotai`, or the Linux archive or package; see [`../installing.md`](../installing.md)). The desktop app does not include it, and Claude Code runs it, not the app.
+
+   Add this to `~/.claude/settings.json` (Cuotai never edits it for you; `cuotai --feed claude-statusline --setup` prints the same text, and the desktop has it with **Copy** under Settings › Dashboard › More display options › Claude Code, using the terminal version's full path when it finds one):
 
    ```json
    {
@@ -62,7 +64,7 @@ A query-mode account can still show Claude Code's live session with `params = { 
 - A window Claude Code dropped after its reset stays **unknown** until the next prompt brings the new one.
 - Each window comes from the newest session that reported it with its reset still ahead. A new Claude Code window that has not reported its limits yet (before its first API response) does not blank the card, and its status line shows the account's last known windows. The card's age counts from the oldest reading it uses.
 - `claude_code_or_api` uses the feed only while a reading **with** limits is younger than the refresh interval; a fresh session without limits never decides it, so the query answers instead.
-- **Live session** while a session sent a reading in the last 10 minutes: model, "ctx 8%" (the context window share; information only, never an alert) and "≈ $0.42 this session" (Claude Code's own estimate at list price, not a charge). Settings › Dashboard › Show live agent session turns it off. The terminal shows `ctx 8% · ≈$0.42` on the card and `--once` prints a `Live session:` line.
+- **Live session** while a session sent a reading in the last 10 minutes: model, "ctx 8%" (the context window share; information only, never an alert) and "≈ $0.42 this session" (Claude Code's own estimate at list price, not a charge). Settings › Dashboard › Show live agent session turns it off by writing `live_sessions = false` to the accounts file (the same key the terminal reads): then nothing computes or exports the sessions, neither the cards, the details, `--once`, the tray chip, `--json-v1` nor `/v1/*` of the local servers. Claude Code still writes its readings, and the status line keeps its own `ctx N%`. Hooks, the widget and notifications never carry the sessions. The terminal shows `ctx 8% · ≈$0.42` on the card and `--once` prints a `Live session:` line.
 
 ### `cuotai --statusline-claude`
 
@@ -89,7 +91,7 @@ Feed files that fail validation (truncated, edited by hand, out of contract) are
 
 From the status-line JSON Cuotai keeps only: the windows' percentages, resets, spend dollars and period; the context share and size; the session cost estimate; the model id and name (when they are plain text of up to 64 characters); the Claude Code version; and a **digest** of the session id (SHA-256, 16 hex characters). The working directory, `workspace`, `transcript_path`, `output_style`, the session name, prompts and every other field are never copied into a structure, written or logged.
 
-The readings live in `<data dir>/feed/claude_code/`, one `0600` file per session in a `0700` directory, deleted after 24 hours and capped at 64 files. While an account reads them (its feed mode or `feed` binding), the newest one is kept so a quiet agent ages instead of disappearing; without such an account it is deleted after 24 hours too. `docs/privacy.md` lists the directory; **Erase all data** removes it.
+The readings live in `<OS local data>/cuotai/feed/claude_code/` (on macOS `~/Library/Application Support/cuotai/feed`), one fixed folder per user that `CUOTAI_DATA_DIR` and the desktop's data-folder setting do not move, so the status line and the app always agree. A `feed` folder that older builds left in a moved data folder is deleted at the next refresh. One `0600` file per session in a `0700` directory, deleted after 24 hours and capped at 64 files. While an account reads them (its feed mode or `feed` binding), the newest one is kept so a quiet agent ages instead of disappearing; without such an account it is deleted after 24 hours too. `docs/privacy.md` lists the directory; **Erase all data** removes it.
 
 Installing the status line is your consent: Cuotai reads the readings only for the account bound to Claude Code, and the banner only checks whether a recent one exists. To stop, remove the `statusLine` entry from `~/.claude/settings.json` (Claude Code then stops writing) and erase what is stored with `cuotai --feed claude-statusline --forget` or the desktop's Settings › Dashboard › More display options › Claude Code › **Forget Claude Code readings**.
 

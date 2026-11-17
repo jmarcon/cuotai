@@ -132,6 +132,7 @@ pub fn is_listed(url: &str) -> bool {
         || url == EXTENSIONS_GUIDE
         || url == TRANSLATION_GUIDE
         || url == BACKUP_GUIDE
+        || url == INSTALL_GUIDE
         || url == CHANGELOG_URL
         || url == crate::updater::MANUAL_URL
         || about::libraries().iter().any(|l| l.repository == url)
@@ -156,6 +157,10 @@ pub const EXTENSIONS_GUIDE: &str = "https://github.com/jmarcon/cuotai/blob/main/
 /// aligned" recipes the Files page links (`BACKUP_GUIDE_URL` in `js/lib.js`).
 pub const BACKUP_GUIDE: &str =
     "https://github.com/jmarcon/cuotai/blob/main/docs/advanced.md#backup-restore-and-self-check";
+
+/// PRD 0040 re-validation V-07: how to install the terminal version, which the
+/// Claude Code snippet runs (`INSTALL_GUIDE_URL` in `js/settings/dashboard.js`).
+pub const INSTALL_GUIDE: &str = "https://github.com/jmarcon/cuotai/blob/main/docs/installing.md";
 
 /// PRD 0035 RF11.5: the translation guide the machine-translation notice in
 /// Settings › General links (`TRANSLATION_GUIDE_URL` in `js/lib.js`).

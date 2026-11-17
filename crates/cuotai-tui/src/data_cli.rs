@@ -309,6 +309,7 @@ mod tests {
             accounts: Some(dir.join("cuotai.toml")),
             mac_home: None,
             metered: None,
+            feed: None,
         };
         std::fs::create_dir_all(dir.join("local/cuotai/logs")).unwrap();
         std::fs::write(dir.join("local/cuotai/logs/cuotai.log"), b"x").unwrap();

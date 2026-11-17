@@ -581,7 +581,8 @@ impl Export {
         store: Option<&crate::feed::FeedStore>,
         now: DateTime<Utc>,
     ) -> Self {
-        let Some(store) = store else {
+        // RF7.2 (S-06): `live_sessions = false` exports no session at all.
+        let Some(store) = store.filter(|_| config.live_sessions) else {
             return self;
         };
         for (export, account) in self.accounts.iter_mut().zip(&config.accounts) {

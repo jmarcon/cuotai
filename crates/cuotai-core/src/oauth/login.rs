@@ -1671,6 +1671,7 @@ mod tests {
             timeout_seconds: 10,
             accounts: vec![],
             groups: Vec::new(),
+            live_sessions: true,
         }
     }
 

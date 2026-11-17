@@ -2,7 +2,7 @@
 // stay in the main window, which owns them), the sort, the tray view, the row display, the "Recharging" group,
 // consumption pace and the refresh interval.
 import { t, te, tl } from "../i18n.js";
-import { accountTitle, brand, claudeCodeSnippets, durationText, forgetClaudeCodeReadings, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
+import { accountTitle, brand, claudeCodeSnippets, durationText, forgetClaudeCodeReadings, openExternal, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
 import { askDialog, errorText, group, l10nError } from "./common.js";
 import { commitField, disc, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
@@ -10,6 +10,8 @@ import { bind as bindRows, rowsHtml } from "./rowdisplay.js";
 
 // PRD 0020 re-validation V-07: the labels come from the core duration patterns, in the interface language.
 const PRESETS = [60, 300, 900, 3600];
+// PRD 0040 re-validation V-07: the snippet runs the terminal version; the desktop shell allows this page only.
+const INSTALL_GUIDE_URL = "https://github.com/jmarcon/cuotai/blob/main/docs/installing.md";
 
 export function html({ settings: s, view }) {
   const seconds = view()?.refresh_seconds || 300;
@@ -54,10 +56,14 @@ function claudeCodeHtml() {
   // In the display disclosure beside the live-session switch (RF2.2 copy budget); what is read and dropped is in the
   // info popover.
   return row({ key: "claude-code", label: te("settings.claudeCode.title"), info: `${te("settings.claudeCode.desc")}<br />${te("settings.claudeCode.privacy")}`, msg: "claude-code-msg",
-      control: () => `<button type="button" class="btn sm" data-claude-copy="settings">${icon("copy")} ${te("settings.claudeCode.copy")}</button>`,
-      body: `<pre class="snippet" data-claude-snippet></pre>
+      control: () => `<button type="button" class="btn sm" data-claude-copy="settings" aria-label="${te("settings.claudeCode.copyMain")}">${icon("copy")} ${te("settings.claudeCode.copy")}</button>`,
+      // V-07: the desktop bundle ships no command-line tool; the snippet needs the terminal version.
+      body: `<p class="hint">${te("settings.claudeCode.needsTerminal")} <code data-claude-install hidden></code>
+          <a href="${INSTALL_GUIDE_URL}" data-claude-guide>${te("settings.claudeCode.installGuide")}</a></p>
+        <p class="hint" data-claude-cli role="status"></p>
+        <pre class="snippet" data-claude-snippet></pre>
         <p class="hint">${te("settings.claudeCode.chained")}</p><pre class="snippet" data-claude-chained></pre>
-        <p class="dlg-actions left"><button type="button" class="btn sm" data-claude-copy="chained">${icon("copy")} ${te("settings.claudeCode.copy")}</button></p>
+        <p class="dlg-actions left"><button type="button" class="btn sm" data-claude-copy="chained" aria-label="${te("settings.claudeCode.copyChained")}">${icon("copy")} ${te("settings.claudeCode.copy")}</button></p>
         <p class="dlg-actions left"><button type="button" class="btn sm danger-btn" data-claude-forget>${icon("trash")} ${te("settings.claudeCode.forget")}</button></p>` });
 }
 
@@ -71,8 +77,17 @@ async function bindClaudeCode(root) {
     forgetClaudeCodeReadings().then((text) => { rowError(forget, ""); toast(tl(text)); },
       (x) => { rowError(forget, errorText(x)); forget.focus(); });
   };
+  root.querySelector("[data-claude-guide]")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternal(INSTALL_GUIDE_URL).catch(() => {});
+  });
   const snippets = await claudeCodeSnippets().catch(() => null);
   if (!snippets) return;
+  // V-07: the terminal version found (its full path is in the snippet), or not found.
+  const cli = root.querySelector("[data-claude-cli]");
+  if (cli) cli.textContent = snippets.cli ? t("settings.claudeCode.cliFound", { path: snippets.cli }) : t("settings.claudeCode.cliMissing");
+  const install = root.querySelector("[data-claude-install]");
+  if (install && snippets.install) { install.textContent = snippets.install; install.hidden = false; }
   const main = root.querySelector("[data-claude-snippet]");
   const chained = root.querySelector("[data-claude-chained]");
   if (main) main.textContent = snippets.settings;

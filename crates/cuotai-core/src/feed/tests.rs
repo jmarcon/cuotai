@@ -1155,6 +1155,116 @@ fn codex_lines_are_parsed_through_typed_fields() {
     assert_eq!(reading.window(WindowId::Primary).unwrap().used_pct, 9.0);
 }
 
+/// V-07: the desktop's snippets run the terminal version by its absolute
+/// path; a path that cannot be written safely is refused.
+#[test]
+fn the_snippets_run_the_terminal_version_by_its_path() {
+    let command = |snippet: &str| {
+        let value: serde_json::Value = serde_json::from_str(snippet).unwrap();
+        value["statusLine"]["command"].as_str().unwrap().to_owned()
+    };
+    let (main, chained) = claude::snippets_for(Path::new("/opt/homebrew/bin/cuotai")).unwrap();
+    assert_eq!(
+        command(&main),
+        "/opt/homebrew/bin/cuotai --feed claude-statusline --print"
+    );
+    assert!(command(&chained).contains("| /opt/homebrew/bin/cuotai --feed claude-statusline;"));
+    let (main, _) =
+        claude::snippets_for(Path::new(r"C:\Users\Ana Maria\scoop\shims\cuotai.exe")).unwrap();
+    assert_eq!(
+        command(&main),
+        r#""C:\Users\Ana Maria\scoop\shims\cuotai.exe" --feed claude-statusline --print"#
+    );
+    for unsafe_path in [
+        "/tmp/it's/cuotai",
+        "/tmp/$HOME/cuotai",
+        "/tmp/a\"b/cuotai",
+        "",
+    ] {
+        assert_eq!(
+            claude::snippets_for(Path::new(unsafe_path)),
+            None,
+            "{unsafe_path}"
+        );
+    }
+}
+
+// ------------------------------------------- S-06 and V-08
+
+/// V-08: the feed lives in one fixed per-user folder, never under the data
+/// root; only a debug build's override moves it.
+#[test]
+fn the_feed_folder_is_fixed_whatever_the_data_folder() {
+    let os = PathBuf::from("/os-local");
+    assert_eq!(
+        fixed_dir(None, Some(os.clone())),
+        Some(os.join("cuotai").join("feed"))
+    );
+    assert_eq!(
+        fixed_dir(Some("".into()), Some(os.clone())),
+        Some(os.join("cuotai").join("feed"))
+    );
+    assert_eq!(
+        fixed_dir(Some("/sandbox/feed".into()), Some(os)),
+        Some(PathBuf::from("/sandbox/feed"))
+    );
+    let moved = crate::privacy::Roots {
+        local_data: Some(PathBuf::from("/moved/cuotai")),
+        feed: Some(PathBuf::from("/os-local/cuotai/feed")),
+        ..Default::default()
+    };
+    let path = |roots: &crate::privacy::Roots, id: &str| {
+        let artifact = crate::privacy::artifacts()
+            .iter()
+            .find(|a| a.id == id)
+            .unwrap();
+        roots.path_of(artifact)
+    };
+    assert_eq!(
+        path(&moved, "feed.tree"),
+        Some(PathBuf::from("/os-local/cuotai/feed"))
+    );
+    assert_eq!(
+        path(&moved, "feed.tree_legacy"),
+        Some(PathBuf::from("/moved/cuotai/feed"))
+    );
+    let default = crate::privacy::Roots {
+        local_data: Some(PathBuf::from("/os-local/cuotai")),
+        ..moved
+    };
+    assert_eq!(path(&default, "feed.tree_legacy"), None, "the same folder");
+}
+
+/// RF7.2 (S-06): `live_sessions = false` exports no session; the TOML key
+/// is absent by default and round-trips.
+#[test]
+fn live_sessions_off_exports_no_session() {
+    let current = Utc::now();
+    let (_dir, store) = self::store();
+    store
+        .write(&reading("a", current - TimeDelta::minutes(1)), current)
+        .unwrap();
+    let export = |toml: &str| {
+        let config = Config::from_toml(toml).unwrap();
+        let cycle = crate::refresh::RefreshCycle::new(&config, std::time::Instant::now());
+        crate::export::v1::Export::from_cycle(
+            &config,
+            &crate::config_file::ConfigIdentity::Explicit("feed".into()),
+            &cycle,
+            &[],
+            current,
+            Default::default(),
+        )
+        .with_live_sessions(&config, Some(&store), current)
+    };
+    assert_eq!(export(FED).accounts[0].sessions.len(), 1);
+    let off = format!("live_sessions = false\n{FED}");
+    assert!(Config::from_toml(FED).unwrap().live_sessions, "absent = on");
+    assert!(!Config::from_toml(&off).unwrap().live_sessions);
+    let json = serde_json::to_value(export(&off)).unwrap();
+    assert!(json["accounts"][0].get("sessions").is_none(), "{json}");
+}
+
 #[cfg(unix)]
 #[test]
 fn the_codex_reader_never_follows_a_link_outside_its_roots() {

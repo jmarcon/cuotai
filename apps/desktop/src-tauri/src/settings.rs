@@ -1844,11 +1844,19 @@ pub fn save_advice_enabled(enabled: bool) -> Result<(), &'static str> {
     })
 }
 
-/// PRD 0040 RF7.2: show (the default, removes the key) or hide the live
-/// agent session. Error: `unwritable`.
-pub fn save_live_session(show: bool) -> Result<(), &'static str> {
-    let file = settings_file().ok_or("unwritable")?;
-    update(&file, |s| s.live_session = (!show).then_some(false))
+/// PRD 0040 re-validation S-06: whether this device's desktop.json still
+/// holds the old live-session switch turned off (the switch now lives in
+/// the TOML as `live_sessions`).
+pub fn legacy_live_session_off() -> bool {
+    load().live_session == Some(false)
+}
+
+/// S-06: forget the old desktop.json switch once the TOML holds it (best
+/// effort: it is asked again at the next load).
+pub fn drop_legacy_live_session() {
+    if let Some(file) = settings_file() {
+        let _ = update(&file, |s| s.live_session = None);
+    }
 }
 
 /// PRD 0040 RF8.1: when the banner of the agent `source` was dismissed.
@@ -2019,6 +2027,12 @@ pub struct SettingsView {
 }
 
 impl SettingsView {
+    /// PRD 0040 RF7.2: the live-session switch, read from the TOML.
+    pub fn with_live_session(mut self, on: bool) -> Self {
+        self.live_session = on;
+        self
+    }
+
     /// The monogram override of the account with this id.
     pub fn monogram_of(&self, account_id: &str) -> Option<String> {
         self.monograms.get(account_id).cloned()
@@ -2065,7 +2079,8 @@ pub fn view() -> SettingsView {
         local_storage_migrated: migrated_of(&stored),
         pace_unit: pace_unit_of(&stored),
         advice_enabled: advice_of(&stored),
-        live_session: stored.live_session != Some(false),
+        // The TOML's `live_sessions` replaces it ([`SettingsView::with_live_session`]).
+        live_session: true,
         history_days: retention_of(&stored).keep_days(),
         history_days_min: Retention::MIN_DAYS,
         history_days_max: Retention::MAX_DAYS,

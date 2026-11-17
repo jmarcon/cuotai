@@ -369,6 +369,7 @@ pub async fn run(
     let mut state = State {
         accounts: file.config.accounts.clone(),
         refresh_seconds: file.config.refresh_seconds,
+        live_sessions: file.config.live_sessions,
         selection: TableState::default(),
         filter: String::new(),
         filtering: false,
@@ -3471,6 +3472,9 @@ struct State {
     /// own it decides whether a reading is fresh enough for a pace (PRD
     /// 0024 FIX-11).
     refresh_seconds: u64,
+    /// PRD 0040 RF7.2: the configuration's `live_sessions` (off: no live
+    /// session block is read or shown).
+    live_sessions: bool,
     selection: TableState,
     filter: String,
     filtering: bool,
@@ -3520,7 +3524,12 @@ struct LiveCache {
 }
 
 impl LiveCache {
-    fn refresh(&mut self, accounts: &[Account]) {
+    fn refresh(&mut self, accounts: &[Account], on: bool) {
+        if !on {
+            // RF7.2 (S-06): off means not read at all.
+            *self = Self::default();
+            return;
+        }
         let recent = self
             .read_at
             .is_some_and(|at| at.elapsed() < std::time::Duration::from_secs(15));
@@ -3689,6 +3698,7 @@ impl State {
     fn set_accounts(&mut self, config: &Config) {
         self.accounts = config.accounts.clone();
         self.refresh_seconds = config.refresh_seconds;
+        self.live_sessions = config.live_sessions;
         if let Some(notices) = &mut self.notices {
             notices.keep_accounts(config);
         }
@@ -3841,7 +3851,7 @@ impl State {
         }
         let mut targets = dashboard::Targets::default();
         let now = chrono::Utc::now();
-        self.live.refresh(&self.accounts);
+        self.live.refresh(&self.accounts, self.live_sessions);
         terminal.draw(|frame| {
             targets = dashboard::draw(
                 frame,
@@ -4753,6 +4763,7 @@ mod tests {
         State {
             accounts,
             refresh_seconds: Config::default().refresh_seconds,
+            live_sessions: true,
             selection: TableState::default(),
             filter: String::new(),
             filtering: false,

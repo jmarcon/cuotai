@@ -12,6 +12,8 @@ fn run(data: &Path, args: &[&str], input: &[u8]) -> (Output, Duration) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_cuotai"))
         .args(args)
         .env("CUOTAI_DATA_DIR", data)
+        // PRD 0040 re-validation V-08: the fixed feed folder, sandboxed.
+        .env("CUOTAI_FEED_DIR", data.join("feed"))
         .env("CUOTAI_LANG", "en-US")
         .env("CUOTAI_CONFIG", data.join("missing.toml"))
         .env_remove("NO_COLOR")
