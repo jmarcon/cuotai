@@ -172,6 +172,26 @@ fn l10n(error: CostError) -> String {
     serde_json::to_string(&error.l10n()).unwrap_or_else(|_| error.to_string())
 }
 
+/// PRD 0042 re-validation S-08: the UI sends the full digest of the row it
+/// shows (a session digest is 64 hex characters, a project fingerprint 16),
+/// never a prefix to resolve; anything else is refused before the index
+/// opens, with the core's `cost.error.unknown_prefix`.
+fn full_digest(target: LabelTarget, digest: &str) -> Result<(), String> {
+    let len = match target {
+        LabelTarget::Session => 64,
+        LabelTarget::Project => 16,
+    };
+    if digest.len() == len
+        && digest
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
+        Ok(())
+    } else {
+        Err(l10n(CostError::UnknownPrefix))
+    }
+}
+
 impl LocalCost {
     /// The stores of this computer; without a local data directory every
     /// command fails with the core's storage error and nothing is read.
@@ -366,6 +386,7 @@ impl LocalCost {
         digest: &str,
         label: Option<String>,
     ) -> Result<(), String> {
+        full_digest(target, digest)?;
         self.stores()?
             .index
             .set_label(target, digest, label.as_deref())
@@ -375,6 +396,7 @@ impl LocalCost {
 
     /// PRD 0042 RF4.1: hide (or count again) the project `digest`.
     pub fn set_hidden(&self, digest: &str, hidden: bool) -> Result<(), String> {
+        full_digest(LabelTarget::Project, digest)?;
         self.stores()?
             .index
             .set_hidden(digest, hidden)
@@ -850,6 +872,30 @@ mod tests {
         for output in outputs {
             assert!(!output.contains("HINTMARK"), "{output}");
         }
+    }
+
+    /// PRD 0042 re-validation S-08: labels and hiding take only the full
+    /// digest of a row (64 hex for a session, 16 for a project), never a
+    /// prefix, another length or other characters.
+    #[test]
+    fn labels_and_hiding_take_only_a_full_digest() {
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        let refused = |result: Result<(), String>| {
+            let error = result.unwrap_err();
+            assert!(error.contains("cost.error.unknown_prefix"), "{error}");
+        };
+        let session = "a".repeat(64);
+        let project = "0123456789abcdef";
+        for digest in ["abcd", &session[..63], &"A".repeat(64), &"g".repeat(64)] {
+            refused(cost.set_label(LabelTarget::Session, digest, Some("x".into())));
+        }
+        for digest in ["abcd", &project[..15], "0123456789ABCDEF", &session] {
+            refused(cost.set_label(LabelTarget::Project, digest, None));
+            refused(cost.set_hidden(digest, true));
+        }
+        assert_eq!(full_digest(LabelTarget::Session, &session), Ok(()));
+        assert_eq!(full_digest(LabelTarget::Project, project), Ok(()));
     }
 
     /// PRD 0030 RF6.1: the rate is validated and saved; USD is refused.
