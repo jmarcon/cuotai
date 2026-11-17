@@ -879,6 +879,16 @@ pub fn core_catalog(locale: &str) -> Option<&'static Catalog> {
     Locale::resolve(locale).core_catalog()
 }
 
+/// PRD 0035 re-validation V35-13: the ids and English texts of the
+/// placeholder tray menu the desktop shell builds before its interface
+/// loads (open, settings, quit). Each catalog's text equals the desktop
+/// UI's `common.open`, `settings.title` and `common.quit`, which replace it.
+pub const TRAY_MENU: [(&str, &str); 3] = [
+    ("tray.menu.open", "Open"),
+    ("tray.menu.settings", "Settings"),
+    ("tray.menu.quit", "Quit"),
+];
+
 /// The codes of the languages that have a core catalog, in registry order
 /// (every shipped language but the source). Tests loop over this instead
 /// of a list of literals (PRD 0035 RF2.2).
@@ -1837,6 +1847,28 @@ mod tests {
             .join(format!("{code}.json"));
         let raw = std::fs::read_to_string(path).ok()?;
         Some(Catalog::parse(&raw).unwrap())
+    }
+
+    /// PRD 0035 re-validation V35-13: the placeholder tray menu says what
+    /// the interface's menu says, in every language (and English in the
+    /// code), so the two cannot drift.
+    #[test]
+    fn tray_menu_words_match_the_desktop_interface() {
+        const UI_IDS: [&str; 3] = ["common.open", "settings.title", "common.quit"];
+        let mut checked = 0;
+        for row in LOCALES.iter().filter(|row| row.is_translated()) {
+            let ui = ui_catalog_file(row.code);
+            for ((id, english), ui_id) in TRAY_MENU.iter().zip(UI_IDS) {
+                let want = ui.get(ui_id).and_then(Message::as_text);
+                let have = match core_catalog(row.code) {
+                    Some(core) => core.get(*id).and_then(Message::as_text),
+                    None => Some(*english),
+                };
+                assert_eq!(have, want, "{} {id} vs {ui_id}", row.code);
+                checked += 1;
+            }
+        }
+        assert!(checked >= 14 * 3, "{checked} texts");
     }
 
     /// PRD 0035 RF13.3: every plural text of the core and desktop catalogs
