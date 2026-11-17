@@ -30,7 +30,8 @@
       "incident": {
         "state": "partial_outage",
         "stale": false
-      }
+      },
+      "in_summary": true
     }
   ],
   "summary": {

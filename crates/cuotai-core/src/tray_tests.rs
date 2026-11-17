@@ -620,3 +620,218 @@ fn from_report_uses_the_display_name() {
     let view = AccountView::from_report(&account, None, crate::freshness::Freshness::Fresh);
     assert_eq!(view.name, "Claude");
 }
+
+// PRD 0036 RF5.3/RF7.2 (V-05): the items of a summary are units.
+mod units {
+    use super::*;
+    use crate::model::MetricKind;
+    use crate::{Metric, Provider};
+
+    fn quota(used: f64) -> Metric {
+        Metric {
+            billing: Default::default(),
+            scope: None,
+            label: "weekly (7d)".into(),
+            used: Some(used),
+            limit: Some(100.0),
+            remaining: None,
+            unit: "%".into(),
+            kind: MetricKind::Quota,
+            window: None,
+            period: None,
+            resets_at: Some(later(90)),
+            derived_from: None,
+        }
+    }
+
+    fn sub(id: &str, used: Option<f64>) -> SubReport {
+        SubReport {
+            id: id.into(),
+            upstream: "claude".into(),
+            provider: Some(Provider::Claude),
+            label: format!("conn-{id}"),
+            status: Status::Ready,
+            metrics: used.map(quota).into_iter().collect(),
+            notes_l10n: Vec::new(),
+            checked_at: now(),
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+            identity: None,
+        }
+    }
+
+    fn report(name: &str, provider: Provider, status: Status, subs: Vec<SubReport>) -> Report {
+        Report {
+            overage_hint: None,
+            as_of: None,
+            account_id: None,
+            diagnostic: None,
+            account: name.into(),
+            provider,
+            checked_at: now(),
+            status,
+            metrics: if provider.is_aggregator() {
+                Vec::new()
+            } else {
+                vec![quota(30.0)]
+            },
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: subs,
+            breakdown: Vec::new(),
+        }
+    }
+
+    fn account(name: &str, provider: Provider) -> Account {
+        Account {
+            name: name.into(),
+            provider,
+            ..Account::default()
+        }
+    }
+
+    /// A direct Claude account and a 9router instance with `subs`.
+    fn setup(status: Status, subs: Vec<SubReport>, show_both: &str) -> (Vec<Account>, Vec<Report>) {
+        let mut router = account("home", Provider::NineRouter);
+        if !show_both.is_empty() {
+            router.params.insert("show_both".into(), show_both.into());
+        }
+        (
+            vec![account("work", Provider::Claude), router],
+            vec![
+                report("work", Provider::Claude, Status::Ready, Vec::new()),
+                report("home", Provider::NineRouter, status, subs),
+            ],
+        )
+    }
+
+    fn names(views: &[AccountView]) -> Vec<String> {
+        views.iter().map(|v| v.name.clone()).collect()
+    }
+
+    #[test]
+    fn active_connections_count_and_off_or_duplicate_ones_do_not() {
+        let mut off = sub("off", Some(10.0));
+        off.enabled_upstream = Some(false);
+        let mut dup = sub("dup", Some(95.0));
+        dup.duplicate_of = Some("claude:work".into());
+        let (accounts, reports) = setup(
+            Status::Ready,
+            vec![sub("a1", Some(80.0)), off, dup, sub("b2", None)],
+            "",
+        );
+        let views = snapshot_views(&accounts, &reports);
+        // The aggregator is not an item while it has active connections.
+        assert_eq!(names(&views), ["work", "conn-a1", "conn-b2"]);
+        let router = accounts[1].state_key();
+        let a1 = &views[1];
+        assert_eq!(a1.key, format!("{router}/a1"));
+        assert_eq!(a1.parent.as_deref(), Some(router.as_str()));
+        assert_eq!(a1.provider, "claude");
+        assert!((a1.remaining.unwrap() - 0.2).abs() < 1e-9);
+        assert!(!a1.stale);
+        // The tightest item is now a connection, never "—".
+        let s = summary(
+            &views,
+            TrayStyle::TightestPercent,
+            &TraySelection::Auto,
+            now(),
+            &Utc,
+            "en-US",
+        );
+        assert_eq!(s.title.as_deref(), Some("20% · Claude"));
+    }
+
+    /// "Show in both" counts once, as the direct account.
+    #[test]
+    fn a_connection_kept_in_both_places_counts_once() {
+        let (accounts, reports) = setup(
+            Status::Ready,
+            vec![sub("a1", Some(80.0)), sub("both", Some(99.0))],
+            "a1x, BOTH",
+        );
+        assert_eq!(
+            names(&snapshot_views(&accounts, &reports)),
+            ["work", "conn-a1"]
+        );
+    }
+
+    /// A failed instance is one failing item; its connections are not.
+    #[test]
+    fn a_failed_instance_is_one_failing_item() {
+        let (accounts, reports) = setup(Status::Error, vec![sub("a1", Some(80.0))], "");
+        let views = snapshot_views(&accounts, &reports);
+        assert_eq!(names(&views), ["work", "home"]);
+        assert_eq!(views[1].key, accounts[1].state_key());
+        assert!(views[1].stale);
+        assert_eq!(views[1].remaining, None);
+        assert_eq!(views[1].parent, None);
+    }
+
+    /// An instance without an active connection is one unmeasured item.
+    #[test]
+    fn an_empty_instance_is_one_unmeasured_item() {
+        let mut off = sub("off", Some(10.0));
+        off.enabled_upstream = Some(false);
+        for subs in [Vec::new(), vec![off]] {
+            let (accounts, reports) = setup(Status::Ready, subs, "");
+            let views = snapshot_views(&accounts, &reports);
+            assert_eq!(names(&views), ["work", "home"]);
+            assert_eq!(views[1].remaining, None);
+            assert!(!views[1].stale);
+        }
+    }
+
+    /// The desktop's "connections in All: Hidden" leaves every aggregator
+    /// item out (connections and instance items); direct accounts stay.
+    #[test]
+    fn the_hidden_setting_drops_aggregator_items() {
+        let (accounts, reports) = setup(Status::Ready, vec![sub("a1", Some(80.0))], "");
+        let views = snapshot_views(&accounts, &reports);
+        assert_eq!(names(&without_aggregators(&views)), ["work"]);
+        let (accounts, reports) = setup(Status::Error, Vec::new(), "");
+        let views = snapshot_views(&accounts, &reports);
+        assert_eq!(names(&without_aggregators(&views)), ["work"]);
+    }
+
+    /// A custom selection naming the aggregator picks its connections.
+    #[test]
+    fn a_custom_aggregator_id_picks_its_connections() {
+        let (accounts, reports) = setup(
+            Status::Ready,
+            vec![sub("a1", Some(80.0)), sub("b2", Some(10.0))],
+            "",
+        );
+        let views = snapshot_views(&accounts, &reports);
+        let picked = TraySelection::Custom(vec![
+            accounts[1].state_key(),
+            format!("{}/a1", accounts[1].state_key()),
+        ])
+        .pick(&views);
+        let picked: Vec<&str> = picked.iter().map(|v| v.name.as_str()).collect();
+        assert_eq!(picked, ["conn-a1", "conn-b2"]);
+    }
+
+    #[test]
+    fn the_connection_rule() {
+        let flags = ConnectionFlags::default();
+        assert!(connection_counts(flags));
+        assert!(!connection_counts(ConnectionFlags {
+            enabled_upstream: Some(false),
+            ..flags
+        }));
+        assert!(!connection_counts(ConnectionFlags {
+            duplicate_of: Some("claude:work"),
+            ..flags
+        }));
+        assert!(!connection_counts(ConnectionFlags {
+            show_both: true,
+            ..flags
+        }));
+    }
+}

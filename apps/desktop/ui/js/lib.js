@@ -1685,7 +1685,7 @@ const demoPools = (conns) => {
   return pools.map((p) => {
     const upstream = p.provider ? DEMO_AGG_NAMES[p.provider] : p.upstream;
     const summary = p.total && p.exhausted === p.total ? coreNote("pool.exhausted", `${upstream} · all exhausted`, { upstream })
-      : !p.available ? coreNote("pool.unmeasured", `${upstream} · ${p.total} connections with unknown usage`, { upstream, total: String(p.total) })
+      : !p.available ? coreNote("pool.unmeasured", `${upstream} · ${p.total} connections with unknown usage`, { upstream, count: String(p.total) })
         : coreNote("pool.available", `${upstream} · ${p.available} of ${p.total} available`, { upstream, available: String(p.available), total: String(p.total) });
     return { ...p, summary };
   });
@@ -1705,7 +1705,7 @@ const demoRouterConn = (name, n, label, used, extra = {}) => {
 };
 const demoRouterNotes = (conns, version) => [
   coreNote("note.nine_router.summary", `${conns.filter((c) => c.metrics.length).length} of ${conns.length} 9router connections with usage.`,
-    { ready: String(conns.filter((c) => c.metrics.length).length), total: String(conns.length) }),
+    { ready: String(conns.filter((c) => c.metrics.length).length), count: String(conns.length) }),
   coreNote("note.nine_router.version", `9router ${version}.`, { version }),
 ];
 for (const size of (new URLSearchParams(location.search).get("agg") ?? "").split(",").filter(Boolean)) {
@@ -1714,7 +1714,7 @@ for (const size of (new URLSearchParams(location.search).get("agg") ?? "").split
     const conns = [["openai", "open_ai_api", 42.5, 100], ["anthropic", "anthropic_api", 180, 200], ["azure", "azure_open_ai", 12, 50], ["deepinfra", null, 3.2, 20]]
       .map(([upstream, mapped, used, limit], n) => demoConnection(`lit${n}`, upstream, upstream, mapped, budget(used, limit), {}, "gateway", "litellm"));
     demoReports.push(demoInstance("litellm", "gateway", conns, { host: "127.0.0.1:4000",
-      notes: [coreNote("note.litellm.summary", `${conns.length} providers with a budget in LiteLLM.`, { total: String(conns.length) })] }));
+      notes: [coreNote("note.litellm.summary", `${conns.length} providers with a budget in LiteLLM.`, { count: String(conns.length) })] }));
     continue;
   }
   if (size === "exhausted") {
@@ -2080,14 +2080,29 @@ const demoView = () => {
     tray: { style: demoSettings.tray.style, selected: demoTraySelection().map((a) => a.key), popover_view: demoSettings.tray.popover_view ?? "list" } };
 };
 // ponytail: a rough demo of the core's `tray::summary` (PRD 0025 RF1); the app always asks the core.
-const demoTrayAccounts = () => demoReports.map((r, index) => {
+// PRD 0036 RF5.3 (V-05): demo mirror of the core's `tray::summary_units`. An aggregator gives its active connections
+// (on in the aggregator, not a duplicate, not kept in both places), or itself when it failed or has none; Settings ›
+// "Aggregator connections in All: Hidden" leaves every aggregator out (`tray::without_aggregators`).
+const demoTrayAccounts = () => demoReports.flatMap((r, index) => {
   const b = demoBinding(r);
-  return { key: demoAccountId(index), provider: r.provider, provider_label: brand(r.provider).label, name: demoName(r.account),
+  const own = { key: demoAccountId(index), provider: r.provider, provider_label: brand(r.provider).label, name: demoName(r.account),
     remaining: b ? Math.max(0, 1 - b.used_ratio) : null, exhausted: b?.reason === "exhausted" };
+  if (!r.aggregator) return [own];
+  if (aggMode === "hidden") return [];
+  const flags = demoConnFlags;
+  const conns = r.status !== "ready" ? [] : (r.connections ?? []).filter((c) => !flags.hidden.has(c.demo_id) && !flags.show_both.has(c.demo_id)
+    && c.connection.enabled_upstream !== false && !c.connection.duplicate_of);
+  if (!conns.length) return [{ ...own, remaining: null, exhausted: false, stale: r.status !== "ready" }];
+  return conns.map((c) => {
+    const cb = demoConnectionBinding(c);
+    return { key: `${own.key}/${c.demo_id}`, parent: own.key, provider: c.provider, provider_label: brand(c.provider).label, name: c.account,
+      remaining: cb ? Math.max(0, 1 - cb.used_ratio) : null, exhausted: cb?.reason === "exhausted", stale: c.status !== "ready" };
+  });
 });
 function demoTraySelection(style = demoSettings.tray.style, accounts = demoSettings.tray.accounts) {
   const all = demoTrayAccounts();
-  if (accounts) return accounts.map((k) => all.find((a) => a.key === k)).filter(Boolean);
+  // An aggregator's id that is not an item picks its connections (`TraySelection::pick`).
+  if (accounts) return [...new Set(accounts.flatMap((k) => { const a = all.find((x) => x.key === k); return a ? [a] : all.filter((x) => x.parent === k); }))];
   return all.slice(0, style === "meters" ? 4 : style === "logos_percent" ? 6 : all.length);
 }
 function demoTrayPreview({ style, accounts }) {

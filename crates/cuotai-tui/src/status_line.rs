@@ -8,17 +8,19 @@ use std::path::Path;
 
 use chrono::{DateTime, TimeZone, Utc};
 use cuotai_core::{
-    freshness::Freshness,
     serve::{self, client},
     tray::{self, AccountView, Level, TraySelection, TrayStyle},
-    Config, Snapshot, Status,
+    Config, Snapshot,
 };
 
 /// The styles `--status-line` accepts (RF2.1): the two that make a title.
 pub(crate) const STYLES: [&str; 2] = ["tightest_percent", "logos_percent"];
 
 /// The one line for `snapshot`, in `config`'s account order. `ids` empty
-/// selects every account; otherwise only those ids, in the order given.
+/// selects every item of the summary (direct accounts and the active
+/// connections of aggregators, [`tray::summary_units`]); otherwise only
+/// those ids, in the order given (an aggregator's id picks its
+/// connections).
 /// Times read in `tz` and `locale`, as the core writes them (PRD 0025
 /// re-validation V-02: the same clock as the desktop menu bar).
 #[allow(clippy::too_many_arguments)]
@@ -36,20 +38,9 @@ where
     Tz: TimeZone,
     Tz::Offset: Display,
 {
-    let views: Vec<AccountView> = config
-        .accounts
-        .iter()
-        .zip(&snapshot.reports)
-        .map(|(account, report)| {
-            // A failed query keeps its (possibly preserved) reading, marked.
-            let freshness = if report.status == Status::Ready {
-                Freshness::Fresh
-            } else {
-                Freshness::Stale
-            };
-            AccountView::from_report(account, Some(report), freshness)
-        })
-        .collect();
+    // PRD 0036 RF5.3 (V-05): the items are the core's units, so an
+    // aggregator counts through its active connections.
+    let views = tray::snapshot_views(&config.accounts, &snapshot.reports);
     render_views(&views, style, ids, color, now, tz, locale)
 }
 
@@ -130,8 +121,16 @@ pub(crate) async fn from_server(
         })
         .collect();
     let picked = resolve(&candidates, ids, locale)?;
-    let views: Vec<AccountView> = accounts.into_iter().map(|account| account.view).collect();
-    let ids: Vec<String> = picked.iter().map(|&i| views[i].key.clone()).collect();
+    let ids: Vec<String> = picked
+        .iter()
+        .map(|&i| accounts[i].view.key.clone())
+        .collect();
+    // PRD 0036 RF5.3 (V-05): the line covers the summary's items only.
+    let views: Vec<AccountView> = accounts
+        .into_iter()
+        .filter(|account| account.in_summary)
+        .map(|account| account.view)
+        .collect();
     let line = render_views(
         &views,
         style,
@@ -141,10 +140,12 @@ pub(crate) async fn from_server(
         &chrono::Local,
         locale,
     );
-    let failing = views
-        .iter()
-        .filter(|view| ids.is_empty() || ids.contains(&view.key))
-        .any(|view| view.stale);
+    let selection = if ids.is_empty() {
+        TraySelection::Auto
+    } else {
+        TraySelection::Custom(ids)
+    };
+    let failing = selection.pick(&views).iter().any(|view| view.stale);
     Ok((line, if failing { 2 } else { 0 }))
 }
 
@@ -241,7 +242,7 @@ pub(crate) fn use_color(flag: bool, is_terminal: bool, no_color: Option<&str>) -
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use cuotai_core::{Metric, MetricKind, MetricWindow, Provider, Report};
+    use cuotai_core::{Metric, MetricKind, MetricWindow, Provider, Report, Status};
 
     fn config(names: &[&str]) -> Config {
         let toml: String = names
@@ -341,6 +342,49 @@ mod tests {
             "en-US",
         );
         assert_eq!(line, "! 0% → Sun · Claude");
+    }
+
+    /// PRD 0036 RF5.3 (V-05): an aggregator-only setup reads its active
+    /// connections instead of "—"; a connection off in the aggregator or
+    /// duplicating a direct account is not an item, and the aggregator's
+    /// id picks its connections.
+    #[test]
+    fn an_aggregator_counts_through_its_connections() {
+        let cfg = Config::from_toml("[[accounts]]\nname = \"home\"\nprovider = \"nine_router\"\n")
+            .unwrap();
+        let sub = |id: &str, used: f64| cuotai_core::SubReport {
+            id: id.into(),
+            upstream: "claude".into(),
+            provider: Some(Provider::Claude),
+            label: id.into(),
+            status: Status::Ready,
+            metrics: report("x", used, Status::Ready).metrics,
+            notes_l10n: Vec::new(),
+            checked_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+            identity: None,
+        };
+        let mut off = sub("off", 99.0);
+        off.enabled_upstream = Some(false);
+        let mut dup = sub("dup", 98.0);
+        dup.duplicate_of = Some("claude:work".into());
+        let router = Report {
+            provider: Provider::NineRouter,
+            metrics: Vec::new(),
+            sub_reports: vec![sub("a1", 40.0), sub("b2", 70.0), off, dup],
+            ..report("home", 0.0, Status::Ready)
+        };
+        let snap = snapshot(vec![router]);
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 1, 0).unwrap();
+        let go = |style, ids: &[String]| render(&cfg, &snap, style, ids, false, now, &Utc, "en-US");
+        assert_eq!(go(TrayStyle::TightestPercent, &[]), "30% · Claude");
+        assert_eq!(go(TrayStyle::LogosPercent, &[]), "C 60% · C 30%");
+        let id = cfg.accounts[0].id().to_string();
+        assert_eq!(go(TrayStyle::LogosPercent, &[id]), "C 60% · C 30%");
     }
 
     #[test]

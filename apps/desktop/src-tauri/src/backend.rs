@@ -1298,6 +1298,59 @@ pub struct TrayView {
 /// PRD 0025 RF1.1: the menu bar's view of one account: the current binding
 /// share, else the preserved reading's (marked stale), its alerts, outage
 /// and projected exhaustion.
+/// PRD 0036 RF5.3 (V-05): what the core's unit rule reads of a view.
+impl tray::SummaryAccount for ReportView {
+    type Connection = ReportView;
+    fn is_aggregator(&self) -> bool {
+        self.aggregator.is_some() || self.provider.is_aggregator()
+    }
+    fn instance_failed(&self) -> bool {
+        self.status != Status::Ready
+    }
+    fn connections(&self) -> &[ReportView] {
+        &self.connections
+    }
+    fn connection_flags<'c>(&'c self, connection: &'c ReportView) -> tray::ConnectionFlags<'c> {
+        connection
+            .connection
+            .as_ref()
+            .map(|c| tray::ConnectionFlags {
+                enabled_upstream: c.enabled_upstream,
+                duplicate_of: c.duplicate_of.as_deref(),
+                show_both: c.show_both,
+            })
+            .unwrap_or_default()
+    }
+}
+
+/// PRD 0036 RF5.3 (V-05): the menu bar's items are the core's units
+/// ([`tray::summary_units`]): direct accounts and each aggregator's active
+/// connections (the aggregator itself only when its instance failed or has
+/// none). `last_good(index)` is an account's shown last good reading,
+/// `last_good_sub(index, sub)` a connection's.
+fn tray_accounts_of(
+    reports: &[ReportView],
+    last_good: impl Fn(usize) -> Option<Report>,
+    last_good_sub: impl Fn(usize, &str) -> Option<Report>,
+) -> Vec<tray::AccountView> {
+    tray::summary_units(reports)
+        .into_iter()
+        .map(|unit| match unit {
+            tray::SummaryUnit::Account(view) => tray_account(view, last_good(view.index).as_ref()),
+            tray::SummaryUnit::Connection { parent, connection } => {
+                let shown = connection
+                    .connection
+                    .as_ref()
+                    .and_then(|c| last_good_sub(parent.index, &c.sub));
+                tray::AccountView {
+                    parent: Some(parent.account_id.clone()),
+                    ..tray_account(connection, shown.as_ref())
+                }
+            }
+        })
+        .collect()
+}
+
 fn tray_account(view: &ReportView, last_good: Option<&Report>) -> tray::AccountView {
     let (current, preserved) = match &view.binding {
         Some(b) => (Some(b.clone()), false),
@@ -1335,6 +1388,7 @@ fn tray_account(view: &ReportView, last_good: Option<&Report>) -> tray::AccountV
             .overage
             .as_ref()
             .is_some_and(|overage| overage.state.state.is_billing()),
+        parent: None,
     }
 }
 
@@ -2106,13 +2160,21 @@ impl Inner {
             .collect();
         let mut reports = reports;
         mark_best(&mut reports, &l.file.config, &slot_reports, clock);
-        let tray_accounts = reports
-            .iter()
-            .map(|v| {
-                let shown = l.cycle.shown_last_good(v.index, chrono::Utc::now());
-                tray_account(v, shown.as_ref())
-            })
-            .collect();
+        let tray_accounts = tray_accounts_of(
+            &reports,
+            |index| l.cycle.shown_last_good(index, chrono::Utc::now()),
+            |index, sub| {
+                let good = l.cycle.last_good_sub(index, sub)?;
+                let source = l
+                    .cycle
+                    .last_good_report(index)
+                    .or(l.cycle.account_report(index))?;
+                Some(
+                    cuotai_core::aggregators::sub_as_report(source, good)
+                        .collapse_expired(chrono::Utc::now()),
+                )
+            },
+        );
         let next = self
             .notices
             .next(&l.file.config, &notice_readings(&l.cycle), clock)
@@ -8320,6 +8382,77 @@ mod tests {
             lite[0].connection.as_ref().unwrap().aggregator,
             "LiteLLM proxy"
         );
+    }
+
+    /// PRD 0036 RF5.3 (V-05): the menu bar's items are the direct accounts
+    /// and the active connections; an off, duplicate or "show in both"
+    /// connection is not one, and the aggregator stands for itself only
+    /// when its instance failed.
+    #[test]
+    fn tray_accounts_count_connections_not_the_aggregator() {
+        use cuotai_core::MetricWindow::Weekly;
+        let mut router = plain_account("home");
+        router.provider = Provider::NineRouter;
+        router.credential_env = None;
+        router.params.insert("show_both".into(), "c3".into());
+        let config = Config {
+            accounts: vec![plain_account("direct"), router],
+            ..Config::default()
+        };
+        let sub = |id: &str, used: f64| cuotai_core::SubReport {
+            id: id.into(),
+            upstream: "claude".into(),
+            provider: Some(Provider::Claude),
+            label: id.into(),
+            status: Status::Ready,
+            metrics: vec![quota("weekly (7d)", used, Weekly, 24)],
+            notes_l10n: Vec::new(),
+            checked_at: chrono::Utc::now(),
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of: None,
+            plan: None,
+            via: None,
+            identity: None,
+        };
+        let mut off = sub("off", 10.0);
+        off.enabled_upstream = Some(false);
+        let mut dup = sub("dup", 10.0);
+        dup.duplicate_of = Some("alibaba_cloud:direct".into());
+        let views_of = |instance: &Report| {
+            let direct = report_view(
+                0,
+                &ready("direct", vec![quota("week", 50.0, Weekly, 30)]),
+                &config,
+                None,
+                None,
+                0,
+                &[],
+            );
+            let mut parent = report_view(1, instance, &config, None, None, 0, &[]);
+            let (connections, summary) =
+                aggregator_views(1, &config, Some(instance), None, |_| None, None, false);
+            parent.connections = connections;
+            parent.aggregator = Some(summary);
+            tray_accounts_of(&[direct, parent], |_| None, |_, _| None)
+        };
+        let id = config.accounts[1].state_key();
+        let mut instance = ready("home", vec![]);
+        instance.provider = Provider::NineRouter;
+        instance.sub_reports = vec![sub("a1", 80.0), off, dup, sub("c3", 5.0)];
+        let items = views_of(&instance);
+        let keys: Vec<&str> = items.iter().map(|a| a.key.as_str()).collect();
+        assert_eq!(keys, [config.accounts[0].state_key(), format!("{id}/a1")]);
+        assert_eq!(items[1].parent.as_deref(), Some(id.as_str()));
+        assert_eq!(items[1].provider, "claude");
+        assert!((items[1].remaining.unwrap() - 0.2).abs() < 1e-9);
+
+        // A failed instance is one stale item.
+        instance.status = Status::Error;
+        let items = views_of(&instance);
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[1].key, id);
+        assert_eq!(items[1].parent, None);
     }
 
     #[test]

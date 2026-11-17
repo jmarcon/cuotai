@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use crate::freshness::Freshness;
 use crate::metrics;
 use crate::text::{clock, number, params, Localized, ParamValue};
-use crate::{Account, Report};
+use crate::{Account, Report, Status, SubReport};
 
 /// RF1.5: the title never exceeds this many characters.
 pub const TITLE_BUDGET: usize = 24;
@@ -104,10 +104,26 @@ impl TraySelection {
     pub fn pick<'a>(&self, accounts: &'a [AccountView]) -> Vec<&'a AccountView> {
         match self {
             Self::Auto => accounts.iter().collect(),
-            Self::Custom(keys) => keys
-                .iter()
-                .filter_map(|key| accounts.iter().find(|a| &a.key == key))
-                .collect(),
+            // PRD 0036 RF5.3 (V-05): an aggregator's id that is not an
+            // item itself picks its connections, in order.
+            Self::Custom(keys) => {
+                let mut picked: Vec<&AccountView> = Vec::new();
+                for key in keys {
+                    let found: Vec<&AccountView> = match accounts.iter().find(|a| &a.key == key) {
+                        Some(account) => vec![account],
+                        None => accounts
+                            .iter()
+                            .filter(|a| a.parent.as_ref() == Some(key))
+                            .collect(),
+                    };
+                    for account in found {
+                        if !picked.iter().any(|p| std::ptr::eq(*p, account)) {
+                            picked.push(account);
+                        }
+                    }
+                }
+                picked
+            }
         }
     }
 
@@ -199,6 +215,10 @@ pub struct AccountView {
     pub incident: bool,
     /// PRD 0023: the account is consuming extra usage.
     pub on_extra: bool,
+    /// PRD 0036 RF5.3 (V-05): the aggregator account's stable id, for a
+    /// connection; a custom selection naming the aggregator picks it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
 }
 
 impl AccountView {
@@ -229,6 +249,187 @@ impl AccountView {
             ..Self::default()
         }
     }
+
+    /// The view of the connection `sub` of the aggregator `parent`, from
+    /// the aggregator's current `report` (PRD 0036 RF5.3): keyed by the
+    /// connection's id, named by its label, under its mapped provider (the
+    /// aggregator's for an unknown upstream), stale when its own query
+    /// failed.
+    pub fn from_connection(parent: &Account, report: &Report, sub: &SubReport) -> Self {
+        let account = crate::aggregators::sub_account(parent, sub);
+        let reading = crate::aggregators::sub_as_report(report, sub);
+        let freshness = if sub.status == Status::Ready {
+            Freshness::Fresh
+        } else {
+            Freshness::Stale
+        };
+        let provider = sub.provider.unwrap_or(parent.provider);
+        Self {
+            provider: provider.slug().to_owned(),
+            provider_label: provider.label().to_owned(),
+            name: sub.label.trim().to_owned(),
+            parent: Some(parent.state_key()),
+            ..Self::from_report(&account, Some(&reading), freshness)
+        }
+    }
+}
+
+/// The facts of one aggregator connection that decide whether it is an
+/// item of a cross-account summary.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ConnectionFlags<'a> {
+    /// The aggregator's own on/off flag.
+    pub enabled_upstream: Option<bool>,
+    /// The direct account it duplicates (PRD 0036 RF5.2).
+    pub duplicate_of: Option<&'a str>,
+    /// Its id is in the aggregator's `show_both` list.
+    pub show_both: bool,
+}
+
+/// PRD 0036 RF5.3/RF7.2 (V-05): whether one connection of an aggregator
+/// is an item of a cross-account summary (the menu bar, the tray summary,
+/// `--status-line`, `/v1/limits.summary`): on in the aggregator, not a
+/// duplicate of a direct account and not kept "in both places" (such a
+/// connection counts once, as the direct account). Hidden connections
+/// never reach a report.
+pub fn connection_counts(flags: ConnectionFlags<'_>) -> bool {
+    flags.enabled_upstream != Some(false) && flags.duplicate_of.is_none() && !flags.show_both
+}
+
+/// What [`summary_units`] needs to know about one account of a front end
+/// (a report pair, an export, a desktop view).
+pub trait SummaryAccount {
+    type Connection;
+    /// The account is an aggregator (9router, LiteLLM).
+    fn is_aggregator(&self) -> bool;
+    /// The aggregator's own query failed (its connections are then not
+    /// read from this reading).
+    fn instance_failed(&self) -> bool;
+    /// The aggregator's connections, in report order.
+    fn connections(&self) -> &[Self::Connection];
+    /// What decides whether `connection` counts ([`connection_counts`]).
+    fn connection_flags<'c>(&'c self, connection: &'c Self::Connection) -> ConnectionFlags<'c>;
+}
+
+/// One item of a cross-account summary.
+#[derive(Debug)]
+pub enum SummaryUnit<'a, A: SummaryAccount> {
+    /// A direct account, or an aggregator account standing for its
+    /// instance (failed: one failing item; no active connection: one
+    /// unmeasured item).
+    Account(&'a A),
+    /// An active connection of the aggregator `parent`.
+    Connection {
+        parent: &'a A,
+        connection: &'a A::Connection,
+    },
+}
+
+/// PRD 0036 RF5.3/RF7.2 (V-05): the items of a cross-account summary, in
+/// order. Each direct account is one item; an aggregator gives its active
+/// connections ([`connection_counts`]), or itself when its instance failed
+/// or it has no active connection. A pool is never an item: its state
+/// reaches the summary through its connections. The one rule the desktop
+/// menu bar and tray summary, `--status-line` and `/v1/limits.summary`
+/// share.
+pub fn summary_units<A: SummaryAccount>(accounts: &[A]) -> Vec<SummaryUnit<'_, A>> {
+    let mut units = Vec::with_capacity(accounts.len());
+    for account in accounts {
+        if !account.is_aggregator() {
+            units.push(SummaryUnit::Account(account));
+            continue;
+        }
+        let active: Vec<&A::Connection> = if account.instance_failed() {
+            Vec::new()
+        } else {
+            account
+                .connections()
+                .iter()
+                .filter(|connection| connection_counts(account.connection_flags(connection)))
+                .collect()
+        };
+        if active.is_empty() {
+            units.push(SummaryUnit::Account(account));
+        } else {
+            units.extend(
+                active
+                    .into_iter()
+                    .map(|connection| SummaryUnit::Connection {
+                        parent: account,
+                        connection,
+                    }),
+            );
+        }
+    }
+    units
+}
+
+impl<'r> SummaryAccount for (&'r Account, &'r Report) {
+    type Connection = SubReport;
+    fn is_aggregator(&self) -> bool {
+        self.0.provider.is_aggregator()
+    }
+    fn instance_failed(&self) -> bool {
+        self.1.status != Status::Ready
+    }
+    fn connections(&self) -> &[SubReport] {
+        &self.1.sub_reports
+    }
+    fn connection_flags<'c>(&'c self, connection: &'c SubReport) -> ConnectionFlags<'c> {
+        ConnectionFlags {
+            enabled_upstream: connection.enabled_upstream,
+            duplicate_of: connection.duplicate_of.as_deref(),
+            show_both: listed(self.0, "show_both", &connection.id),
+        }
+    }
+}
+
+/// Whether `id` is in the comma-separated list `key` of `account`'s
+/// parameters (case-insensitive, like the aggregator's own lists).
+pub(crate) fn listed(account: &Account, key: &str, id: &str) -> bool {
+    account.params.get(key).is_some_and(|raw| {
+        raw.split(',')
+            .any(|item| item.trim().eq_ignore_ascii_case(id.trim()))
+    })
+}
+
+/// The menu-bar views of a headless refresh (`config`'s accounts with
+/// their `reports`, in order) over [`summary_units`]: what `--status-line`
+/// renders without a server. A failed query keeps its (possibly
+/// preserved) reading, marked stale.
+pub fn snapshot_views(accounts: &[Account], reports: &[Report]) -> Vec<AccountView> {
+    let pairs: Vec<(&Account, &Report)> = accounts.iter().zip(reports).collect();
+    summary_units(&pairs)
+        .into_iter()
+        .map(|unit| match unit {
+            SummaryUnit::Account((account, report)) => {
+                let freshness = if report.status == Status::Ready {
+                    Freshness::Fresh
+                } else {
+                    Freshness::Stale
+                };
+                AccountView::from_report(account, Some(report), freshness)
+            }
+            SummaryUnit::Connection {
+                parent: (account, report),
+                connection,
+            } => AccountView::from_connection(account, report, connection),
+        })
+        .collect()
+}
+
+/// PRD 0036 RF8.3 (V-05): `views` without any aggregator's items (its
+/// connections and its own instance item), for the desktop's
+/// "connections in All: Hidden". `--status-line` never applies it.
+pub fn without_aggregators(views: &[AccountView]) -> Vec<AccountView> {
+    views
+        .iter()
+        .filter(|view| {
+            view.parent.is_none()
+                && !crate::Provider::from_slug(&view.provider).is_some_and(|p| p.is_aggregator())
+        })
+        .cloned()
+        .collect()
 }
 
 /// RF1.2: one selected account as the menu bar shows it.

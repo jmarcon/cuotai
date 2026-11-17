@@ -288,6 +288,10 @@ pub struct SubAccountExport {
     pub via: Option<String>,
     /// PRD 0036 RF6.6: the public status of the mapped provider.
     pub incident: Option<IncidentExport>,
+    /// Its id is in the aggregator's `show_both` list: it then counts once
+    /// in the summaries, as the direct account (V-05). Internal.
+    #[serde(skip)]
+    pub show_both: bool,
 }
 
 /// The instance of an aggregator account (PRD 0036 RF7.1).
@@ -685,6 +689,7 @@ impl SubScope<'_> {
             plan: sub.plan.clone(),
             via: sub.via.clone(),
             incident: None,
+            show_both: crate::tray::listed(self.account, "show_both", &sub.id),
         }
     }
 }
@@ -860,6 +865,12 @@ pub struct AccountLimit {
     /// ready account. Additive.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<LimitFailure>,
+    /// PRD 0036 RF5.3/RF7.2 (V-05): whether this entry is an item of
+    /// [`LimitsSummary`] ([`crate::tray::summary_units`]): a direct
+    /// account, an active connection that is not a duplicate, or an
+    /// aggregator account whose instance failed or has no active
+    /// connection. Additive.
+    pub in_summary: bool,
 }
 
 /// The subset of [`Failure`] kept by [`AccountLimit`].
@@ -1071,17 +1082,63 @@ fn incident_rank(state: IncidentState) -> u8 {
     }
 }
 
+impl crate::tray::SummaryAccount for AccountExport {
+    type Connection = SubAccountExport;
+    fn is_aggregator(&self) -> bool {
+        self.provider.is_aggregator()
+    }
+    fn instance_failed(&self) -> bool {
+        self.failure.is_some()
+            || self
+                .report
+                .as_ref()
+                .is_some_and(|report| report.status != Status::Ready)
+    }
+    fn connections(&self) -> &[SubAccountExport] {
+        &self.sub_accounts
+    }
+    fn connection_flags<'c>(
+        &'c self,
+        connection: &'c SubAccountExport,
+    ) -> crate::tray::ConnectionFlags<'c> {
+        crate::tray::ConnectionFlags {
+            enabled_upstream: connection.enabled_upstream,
+            duplicate_of: connection.duplicate_of.as_deref(),
+            show_both: connection.show_both,
+        }
+    }
+}
+
+impl Export {
+    /// PRD 0036 RF5.3/RF7.2 (V-05): the items of the summaries
+    /// ([`crate::tray::summary_units`]), each as an account (a connection
+    /// through [`SubAccountExport::as_account`]).
+    pub fn summary_units(&self) -> Vec<AccountExport> {
+        crate::tray::summary_units(&self.accounts)
+            .into_iter()
+            .map(|unit| match unit {
+                crate::tray::SummaryUnit::Account(account) => account.clone(),
+                crate::tray::SummaryUnit::Connection { parent, connection } => {
+                    connection.as_account(parent)
+                }
+            })
+            .collect()
+    }
+}
+
 impl Limits {
     pub fn from_export(export: &Export) -> Self {
+        let units = export.summary_units();
         Self {
             schema: export.schema,
             generated_at: export.generated_at,
-            summary: LimitsSummary::from_export(export),
+            summary: LimitsSummary::of_units(&units, export),
             best: export.best.clone(),
             accounts: export
                 .units()
                 .into_iter()
                 .map(|(account, parent)| AccountLimit {
+                    in_summary: units.iter().any(|unit| unit.id == account.id),
                     index: account.index,
                     id: account.id.clone(),
                     key: account.key.clone(),
@@ -1108,9 +1165,12 @@ impl Limits {
 }
 
 impl LimitsSummary {
-    fn from_export(export: &Export) -> Self {
-        let tightest = export
-            .accounts
+    /// The summary over `units` ([`Export::summary_units`]): the worst
+    /// class, the tightest binding and the next reset among the items, so
+    /// an aggregator counts through its active connections (V-05); the
+    /// incidents are the accounts' of `export`.
+    fn of_units(units: &[AccountExport], export: &Export) -> Self {
+        let tightest = units
             .iter()
             .filter_map(|account| Some((account, account.binding.as_ref()?)))
             .fold(
@@ -1136,7 +1196,10 @@ impl LimitsSummary {
                     } else {
                         crate::tray::Level::of(remaining_ratio)
                     },
-                    label: if !account.named || account.name.contains('@') {
+                    label: if !account.named
+                        || account.name.trim().is_empty()
+                        || account.name.contains('@')
+                    {
                         account.provider.label().to_owned()
                     } else {
                         account.name.clone()
@@ -1144,14 +1207,12 @@ impl LimitsSummary {
                 }
             });
         Self {
-            worst_class: export
-                .accounts
+            worst_class: units
                 .iter()
                 .map(|account| account.class)
                 .max_by_key(|class| class_rank(*class)),
             tightest,
-            next_reset_at: export
-                .accounts
+            next_reset_at: units
                 .iter()
                 .filter_map(|account| account.report.as_ref())
                 .flat_map(|report| report.metrics.iter())
@@ -2982,6 +3043,61 @@ mod tests {
         assert_eq!(limits.best[0].group, "provider:claude");
         assert_eq!(limits.best[0].account, format!("{parent}/a1"));
         assert_eq!(limits.best[0].parent.as_deref(), Some(parent.as_str()));
+    }
+
+    /// PRD 0036 RF5.3/RF7.2 (V-05): the summary of `/v1/limits` counts
+    /// the active connections (here the exhausted b2 is the tightest and
+    /// resets first), never the aggregator beside them; `in_summary` says
+    /// which entries are items. A failed instance is one item instead.
+    #[test]
+    fn limits_summary_counts_connections_not_the_aggregator() {
+        let (config, mut cycle) = aggregator_fixture();
+        let limits = Limits::from_export(&build_with(&config, &cycle, &[], Options::default()));
+        let counted: Vec<(&str, bool)> = limits
+            .accounts
+            .iter()
+            .map(|a| (a.key.as_str(), a.in_summary))
+            .collect();
+        assert_eq!(
+            counted,
+            [
+                ("claude:Personal", true),
+                ("nine_router:home", false),
+                ("nine_router:home/a1", true),
+                ("nine_router:home/b2", true),
+                ("nine_router:home/c3", true),
+            ]
+        );
+        let tightest = limits.summary.tightest.as_ref().expect("a tightest item");
+        assert_eq!(tightest.key, "nine_router:home/b2");
+        assert_eq!(tightest.label, "Work");
+        assert_eq!(tightest.level, crate::tray::Level::Bad);
+        assert_eq!(limits.summary.worst_class, Some(AccountClass::Exhausted));
+        assert_eq!(
+            limits.summary.next_reset_at,
+            Some(now() + chrono::TimeDelta::hours(5))
+        );
+        let json = serde_json::to_value(&limits).unwrap();
+        assert_eq!(json["accounts"][1]["in_summary"], false);
+        assert!(json["accounts"][2].get("show_both").is_none());
+
+        // The instance fails: it is the one item, its connections are not.
+        finish(
+            &mut cycle,
+            1,
+            report(&config.accounts[1], Status::Error, minutes_ago(0)),
+        );
+        let limits = Limits::from_export(&build_with(&config, &cycle, &[], Options::default()));
+        let counted: Vec<&str> = limits
+            .accounts
+            .iter()
+            .filter(|a| a.in_summary)
+            .map(|a| a.key.as_str())
+            .collect();
+        assert_eq!(counted, ["claude:Personal", "nine_router:home"]);
+        let tightest = limits.summary.tightest.as_ref().expect("a tightest item");
+        assert_eq!(tightest.key, "claude:Personal");
+        assert_eq!(limits.summary.worst_class, Some(AccountClass::Unmeasured));
     }
 
     /// PRD 0036 RF7.3: connections have events of their own, with

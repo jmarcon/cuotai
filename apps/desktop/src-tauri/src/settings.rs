@@ -1128,6 +1128,12 @@ pub fn show_in_dock() -> bool {
     show_in_dock_of(&load())
 }
 
+/// PRD 0036 RF8.3 (V-05): "Aggregator connections in All" is Hidden, so
+/// the menu bar and the tray summary leave the aggregators out too.
+pub fn aggregators_hidden() -> bool {
+    load().aggregators_in_all.as_deref() == Some("hidden")
+}
+
 /// PRD 0006 RF5.3: whether this device records new readings.
 pub fn history_recording() -> bool {
     recording_of(&load())

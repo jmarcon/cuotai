@@ -30,7 +30,8 @@
       "incident": {
         "state": "operational",
         "stale": false
-      }
+      },
+      "in_summary": true
     },
     {
       "index": 1,
@@ -57,7 +58,8 @@
       "age_seconds": 60,
       "freshness": "fresh",
       "stale": false,
-      "incident": null
+      "incident": null,
+      "in_summary": true
     }
   ],
   "summary": {

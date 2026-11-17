@@ -113,6 +113,26 @@ assert.equal(firstRun.due({ onboarding: 0, onboarding_version: 1 }, { account_co
 assert.equal(firstRun.due({ onboarding: 1, onboarding_version: 1 }, { account_count: 3 }), false);
 assert.equal(firstRun.due({ onboarding: 0, onboarding_version: 1 }, { account_count: 0 }), false, "the step waits for the first account");
 
+// PRD 0036 RF5.3 (V-05): the menu bar's items are units, as the core's `tray::summary_units` decides them. The demo
+// 9router "home" is not an item; its active connections are (the "team" one, off in 9router, is not), keyed by the
+// aggregator's id; its id picks them in a custom selection; "Aggregator connections in All: Hidden" drops them.
+{
+  const view = await lib.getView();
+  const home = view.reports.find((r) => r.aggregator && r.account === "home");
+  assert.ok(home, "the demo has its 9router instance");
+  const items = await lib.trayAccounts();
+  assert.ok(!items.some((a) => a.key === home.account_id), "an aggregator with active connections is not an item");
+  const conns = items.filter((a) => a.parent === home.account_id);
+  assert.deepEqual(conns.map((a) => a.name), ["work", "personal", "zhipu"], "its active connections are items, the off one is not");
+  assert.ok(conns.every((a) => a.key.startsWith(`${home.account_id}/`)));
+  assert.equal(conns.find((a) => a.name === "personal").exhausted, true);
+  const picked = await lib.trayPreview("logos_percent", [home.account_id]);
+  assert.equal(picked.items.length, 3, "the aggregator's id picks its connections");
+  await lib.setAggregatorsInAll("hidden");
+  assert.ok(!(await lib.trayAccounts()).some((a) => a.parent || a.key === home.account_id), "Hidden leaves the aggregators out");
+  await lib.setAggregatorsInAll("grouped");
+}
+
 // RF2.3/RF4.3: the popover reads the selection by stable id and keeps its view in desktop.json.
 const tray = await readFile(ui("js/tray.js"), "utf8");
 assert.match(tray, /splitByMenuBarKeys\(/, "the popover splits through lib.js, which reads the stable id");
