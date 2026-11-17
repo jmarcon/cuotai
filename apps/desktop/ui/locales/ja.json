@@ -54,7 +54,8 @@
       "confirm.certificate.replace",
       "coreText.passwordUnset",
       "metric.noCap",
-      "metric.full"
+      "metric.full",
+      "metric.exhaustedAmount"
     ]
   },
   "agg.alertEach": "接続ごとに通知",
@@ -209,6 +210,7 @@
   "metric.balance": "残高：{amount}",
   "metric.usage": "使用量：{amount}",
   "metric.exhausted": "上限到達",
+  "metric.exhaustedAmount": "上限到達 · {amount}",
   "metric.full": "すべて使用中",
   "metric.noCap": "上限なし",
   "account.empty": "アカウントが設定されていません。",

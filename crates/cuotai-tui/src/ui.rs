@@ -4083,23 +4083,31 @@ pub(crate) fn metric_text_in(metric: &Metric, locale: &str) -> String {
         Some(n) => format_number(n, locale),
         None => "—".into(),
     };
-    let mut text = match metric.used {
-        Some(used) if metric.unit == "%" => format_percent(used, locale),
-        Some(_) if currency => number(metric.used),
+    // PRD 0038 F-03: a balance's main figure is what is left, with its
+    // sign, and nothing reads "left"; the unit agrees with that figure.
+    let balance = metric.is_balance_shaped();
+    let main = if balance {
+        metric.remaining
+    } else {
+        metric.used
+    };
+    let mut text = match main {
+        Some(value) if metric.unit == "%" => format_percent(value, locale),
+        Some(_) if currency => number(main),
         _ => {
-            let unit = unit_text_for(&metric.unit, metric.used, locale);
+            let unit = unit_text_for(&metric.unit, main, locale);
             let unit = safe(&unit);
             if unit.is_empty() {
-                number(metric.used)
+                number(main)
             } else {
-                format!("{}\u{a0}{unit}", number(metric.used))
+                format!("{}\u{a0}{unit}", number(main))
             }
         }
     };
     if metric.limit.is_some() {
         text.push_str(&format!(" / {}", number(metric.limit)));
     }
-    if metric.remaining.is_some() {
+    if metric.remaining.is_some() && !balance {
         text.push_str(&crate::l10n::trf_in(
             locale,
             "metric.remaining",
@@ -4485,6 +4493,48 @@ mod tests {
             "{}",
             metric_text(&live)
         );
+    }
+
+    /// PRD 0038 F-03: a balance reads as its amount, with its sign, on the
+    /// card, the details and `--once` (they share `metric_text_in`); a
+    /// gauged quota keeps "used / limit (left)".
+    #[test]
+    fn a_balance_shows_its_amount_and_a_quota_keeps_its_gauge() {
+        let metric = |used: Option<f64>, limit: Option<f64>, remaining: f64, unit: &str| Metric {
+            billing: Default::default(),
+            scope: None,
+            label: "Balance".into(),
+            used,
+            limit,
+            remaining: Some(remaining),
+            unit: unit.into(),
+            kind: cuotai_core::MetricKind::Credits,
+            window: None,
+            period: None,
+            resets_at: None,
+            derived_from: None,
+            unlimited: false,
+        };
+        let cline = metric(None, None, -2.5, "USD");
+        assert_eq!(
+            metric_text_in(&cline, "en"),
+            cuotai_core::text::number::format_money(-2.5, "USD", "en")
+        );
+        let open_router = metric(None, None, 74.75, "créditos");
+        assert_eq!(metric_text_in(&open_router, "en"), "74.75\u{a0}credits");
+        let one = metric(None, None, 1.0, "créditos");
+        assert_eq!(metric_text_in(&one, "en"), "1\u{a0}credit");
+        let quota = metric(Some(40.0), Some(100.0), 60.0, "solicitações");
+        assert_eq!(
+            metric_text_in(&quota, "en"),
+            "40\u{a0}requests / 100 (60 left)"
+        );
+        for text in [
+            metric_text_in(&cline, "en"),
+            metric_text_in(&open_router, "de"),
+        ] {
+            assert!(!text.contains('—') && !text.contains("left"), "{text}");
+        }
     }
 
     #[test]

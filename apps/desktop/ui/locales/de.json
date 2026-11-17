@@ -44,7 +44,8 @@
       "confirm.certificate.replace",
       "coreText.passwordUnset",
       "metric.noCap",
-      "metric.full"
+      "metric.full",
+      "metric.exhaustedAmount"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -202,6 +203,7 @@
   "metric.balance": "Guthaben: {amount}",
   "metric.usage": "Nutzung: {amount}",
   "metric.exhausted": "Erschöpft",
+  "metric.exhaustedAmount": "Erschöpft · {amount}",
   "metric.full": "Alle belegt",
   "metric.noCap": "Ohne Obergrenze",
   "account.empty": "Keine Konten konfiguriert.",

@@ -685,20 +685,32 @@ const isQuietUnit = (m) => QUIET_UNITS.has(m.unit ?? "") || QUIET_UNIT_IDS.has(m
 // A no-break space: the figure never wraps away from its unit (PRD 0034 re-validation V-10).
 // The unit agrees with the figure printed right before it (`figure`).
 const unitSuffix = (m, figure) => (isQuietUnit(m) ? "" : `\u00a0${unitName(m, figure)}`);
+/** PRD 0038 F-03: the twin of the core's `Metric::is_balance_shaped`: no `used`, no `limit` and a finite `remaining`
+ *  (a prepaid balance). Its main figure is the remaining amount with its sign, never "left". */
+export const isBalanceShaped = (m) =>
+  m?.used == null && m?.limit == null && m?.remaining != null && Number.isFinite(Number(m.remaining));
+// PRD 0038 F-14: an amount in an ISO 4217 currency reads as money ("$4.50"), as the TUI's `format_money` prints it.
+const isCurrencyUnit = (m) => /^[A-Z]{3}$/.test(m?.unit ?? "");
+/** `n` in the unit of metric `m`: money for a currency, else the number and its unit in the figure's plural form. */
+const fmtFigure = (m, n) => (isCurrencyUnit(m) ? fmtMoney(n, m.unit) : `${fmtNumber(n)}${unitSuffix(m, n)}`);
 export function fmtAmount(m) {
-  if (m.limit == null) return m.used == null ? "—" : `${fmtNumber(m.used)}${unitSuffix(m, m.used)}`;
+  if (isBalanceShaped(m)) return fmtFigure(m, m.remaining);
+  if (m.limit == null) return m.used == null ? "—" : fmtFigure(m, m.used);
+  if (isCurrencyUnit(m)) return `${fmtMoney(m.used, m.unit)} / ${fmtMoney(m.limit, m.unit)}`;
   return `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m, m.limit)}`;
 }
-/** One recorded value of metric `m` (history; its `unit` and `unit_text`): "60%", "12.5 USD", or a bare count. */
-export const fmtValue = (v, m) => (m.unit === "%" ? fmtPercent(v, 2) : `${fmtNumber(v)}${unitSuffix(m, v)}`);
+/** One recorded value of metric `m` (history; its `unit` and `unit_text`): "60%", "$12.50", or a bare count. */
+export const fmtValue = (v, m) => (m.unit === "%" ? fmtPercent(v, 2) : fmtFigure(m, v));
 /** Metric without a usable limit: text in place of the bar (never invents "100% free"). PRD 0037 RF5: a metric the
  *  provider stated has no cap (`unlimited`) says "No cap" after its amount. */
 export function textualMetric(m) {
-  if (m.state === "exhausted" && m.no_cap) return t("metric.exhausted");
+  // PRD 0038 F-13: a balance at or below zero still says how much ("Exhausted · −1.50 credits").
+  if (m.state === "exhausted" && m.no_cap)
+    return isBalanceShaped(m) ? t("metric.exhaustedAmount", { amount: fmtFigure(m, m.remaining) }) : t("metric.exhausted");
   if (m.state === "available" && m.uncapped) {
     const amount = m.remaining ?? m.used;
     if (amount == null) return m.unlimited ? t("metric.noCap") : null;
-    const text = t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: `${fmtNumber(amount)}${unitSuffix(m, amount)}` });
+    const text = t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: fmtFigure(m, amount) });
     return m.unlimited ? `${text} · ${t("metric.noCap")}` : text;
   }
   return null;

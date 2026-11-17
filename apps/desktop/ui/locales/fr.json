@@ -322,7 +322,8 @@
       "confirm.certificate.replace",
       "coreText.passwordUnset",
       "metric.noCap",
-      "metric.full"
+      "metric.full",
+      "metric.exhaustedAmount"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -480,6 +481,7 @@
   "metric.balance": "Solde : {amount}",
   "metric.usage": "Utilisation : {amount}",
   "metric.exhausted": "Épuisé",
+  "metric.exhaustedAmount": "Épuisé · {amount}",
   "metric.full": "Tout est utilisé",
   "metric.noCap": "Sans plafond",
   "account.empty": "Aucun compte configuré.",

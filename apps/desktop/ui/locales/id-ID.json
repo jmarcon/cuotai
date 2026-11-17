@@ -157,6 +157,7 @@
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Penggunaan: {amount}",
   "metric.exhausted": "Habis",
+  "metric.exhaustedAmount": "Habis · {amount}",
   "metric.full": "Semua terpakai",
   "metric.noCap": "Tanpa batas atas",
   "account.empty": "Belum ada akun yang dikonfigurasi.",

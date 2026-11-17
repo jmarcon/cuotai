@@ -157,6 +157,7 @@
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Utilizzo: {amount}",
   "metric.exhausted": "Esaurita",
+  "metric.exhaustedAmount": "Esaurita · {amount}",
   "metric.full": "Tutto in uso",
   "metric.noCap": "Senza tetto",
   "account.empty": "Nessun account configurato.",

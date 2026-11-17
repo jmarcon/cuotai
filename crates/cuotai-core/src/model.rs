@@ -1243,6 +1243,15 @@ impl Metric {
             && self.remaining.is_none()
     }
 
+    /// A prepaid balance as providers report it: no `used`, no `limit` and
+    /// a finite `remaining`, whatever its kind. Its main figure is the
+    /// remaining amount with its sign; a metric with a limit is a gauged
+    /// quota and one with `used` is a measured value. Budgets (PRD 0041
+    /// RF2.3), the history readers and every front end share this rule.
+    pub fn is_balance_shaped(&self) -> bool {
+        self.used.is_none() && self.limit.is_none() && self.remaining.is_some_and(f64::is_finite)
+    }
+
     /// The `metric.renewed_waiting` text of an expired metric, with the
     /// renewal time in UTC (the machine-readable export).
     pub fn renewed_waiting(&self) -> Option<crate::text::Localized> {

@@ -58,7 +58,8 @@
       "confirm.certificate.replace",
       "coreText.passwordUnset",
       "metric.noCap",
-      "metric.full"
+      "metric.full",
+      "metric.exhaustedAmount"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -213,6 +214,7 @@
   "metric.balance": "余额：{amount}",
   "metric.usage": "用量：{amount}",
   "metric.exhausted": "已用尽",
+  "metric.exhaustedAmount": "已用尽 · {amount}",
   "metric.full": "已全部占用",
   "metric.noCap": "无上限",
   "account.empty": "未配置账户。",
