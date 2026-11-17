@@ -44,7 +44,8 @@
       "once.renewal_due",
       "feed.forget.failed",
       "wizard.login.choose",
-      "wizard.login.confirm"
+      "wizard.login.confirm",
+      "feed.read_timeout"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -289,6 +290,7 @@
   "extensions.secret.where": "値はシステムの保管庫にのみ保存され、拡張機能の環境にのみ渡されます。",
   "extensions.title": " 拡張機能 ",
   "feed.setup.chained": "自分のステータスラインスクリプトを残すには、代わりに次のように連結します：",
+  "feed.read_timeout": "ステータスラインの入力が時間内に届きませんでした。",
   "feed.forget.failed": "保存されている Claude Code の測定値を消去できませんでした。",
   "feed.setup.docs": "詳細とプライバシーに関する説明：docs/integrations/claude-code.md",
   "feed.setup.intro": "これを ~/.claude/settings.json に追加してください（Cuotai が代わりに編集することはありません）：",

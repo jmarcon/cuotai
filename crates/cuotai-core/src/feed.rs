@@ -456,6 +456,12 @@ impl FeedStore {
             return (Vec::new(), 0);
         }
         self.prune(source, now);
+        self.read_all(source, now)
+    }
+
+    /// [`Self::scan`] without the pruning, for the doctor (re-validation
+    /// S-07), which only looks.
+    fn read_all(&self, source: FeedSource, now: DateTime<Utc>) -> (Vec<FeedReading>, usize) {
         let mut readings = Vec::new();
         let mut unreadable = 0;
         for path in json_files(&self.source_dir(source)) {
@@ -482,11 +488,22 @@ impl FeedStore {
         self.scan(source, now).0
     }
 
-    /// RF1.3: how many files of every source are readable.
+    /// RF1.2/RF1.3: [`Self::sessions`] plus how many files of `source`
+    /// failed validation (re-validation S-07: the details say so).
+    pub fn sessions_counted(
+        &self,
+        source: FeedSource,
+        now: DateTime<Utc>,
+    ) -> (Vec<FeedReading>, usize) {
+        self.scan(source, now)
+    }
+
+    /// RF1.3: how many files of every source are readable. It only reads:
+    /// nothing is pruned.
     pub fn health(&self, now: DateTime<Utc>) -> FeedHealth {
         let mut health = FeedHealth::default();
         for source in FeedSource::ALL {
-            let (readings, unreadable) = self.scan(source, now);
+            let (readings, unreadable) = self.read_all(source, now);
             health.readable += readings.len();
             health.unreadable += unreadable;
         }
@@ -497,6 +514,7 @@ impl FeedStore {
     /// keep at most [`MAX_FILES`] per source. Best effort: a file that
     /// cannot be removed stays.
     fn prune(&self, source: FeedSource, now: DateTime<Utc>) {
+        prune_temp_files(&self.source_dir(source), now);
         let mut files: Vec<(PathBuf, std::time::SystemTime)> = json_files(&self.source_dir(source))
             .into_iter()
             .filter_map(|path| {
@@ -518,6 +536,31 @@ impl FeedStore {
         match std::fs::remove_dir_all(&self.dir) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
             other => other,
+        }
+    }
+}
+
+/// Re-validation S-05: how old an interrupted write's temporary file must be
+/// before it is removed (a write in progress is far younger).
+const TEMP_FILE_AGE: TimeDelta = TimeDelta::seconds(60);
+
+/// Remove the `.tmp*` regular files of `dir` older than [`TEMP_FILE_AGE`]:
+/// the copies a writer killed before its rename leaves behind, which the
+/// retention and the cap never see. Best effort; never through a link.
+fn prune_temp_files(dir: &Path, now: DateTime<Utc>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let cutoff: std::time::SystemTime = (now - TEMP_FILE_AGE).into();
+    for entry in entries.filter_map(Result::ok) {
+        if !entry.file_name().to_string_lossy().starts_with(".tmp") {
+            continue;
+        }
+        let Ok(metadata) = std::fs::symlink_metadata(entry.path()) else {
+            continue;
+        };
+        if metadata.is_file() && metadata.modified().is_ok_and(|modified| modified < cutoff) {
+            let _ = std::fs::remove_file(entry.path());
         }
     }
 }

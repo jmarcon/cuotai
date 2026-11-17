@@ -247,6 +247,7 @@
   "extensions.secret.where": "Nilai hanya tersimpan di brankas sistem dan hanya sampai ke lingkungan ekstensi.",
   "extensions.title": " Ekstensi ",
   "feed.setup.chained": "Untuk mempertahankan skrip baris status Anda sendiri, rangkaikan seperti ini:",
+  "feed.read_timeout": "Tidak ada input baris status yang tiba tepat waktu.",
   "feed.forget.failed": "Tidak dapat menghapus pembacaan Claude Code yang tersimpan.",
   "feed.setup.docs": "Detail dan pernyataan privasi: docs/integrations/claude-code.md",
   "feed.setup.intro": "Tambahkan ini ke ~/.claude/settings.json (Cuotai tidak pernah mengubahnya untuk Anda):",

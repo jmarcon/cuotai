@@ -131,11 +131,29 @@ pub struct LiveBlock {
     pub sessions: Vec<LiveSession>,
     /// Live sessions left out by the cap.
     pub more: usize,
+    /// RF1.3 (re-validation S-07): files of the account's feed that failed
+    /// validation and were ignored; the details say so. Omitted when none.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub unreadable: usize,
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 impl LiveBlock {
     pub fn is_empty(&self) -> bool {
         self.sessions.is_empty()
+    }
+
+    /// "1 unreadable feed file ignored." when files of the feed were
+    /// ignored ([`super::FeedHealth::note`]).
+    pub fn unreadable_note(&self) -> Option<Localized> {
+        super::FeedHealth {
+            readable: 0,
+            unreadable: self.unreadable,
+        }
+        .note()
     }
 
     /// "and 2 more" (`feed.live.more`), when sessions were left out.
@@ -190,7 +208,11 @@ pub fn block(readings: &[FeedReading], now: DateTime<Utc>) -> LiveBlock {
             written_at: reading.written_at,
         })
         .collect();
-    LiveBlock { sessions, more }
+    LiveBlock {
+        sessions,
+        more,
+        unreadable: 0,
+    }
 }
 
 /// RF8.1: the banner offered when an agent sends readings no account uses.
@@ -260,7 +282,13 @@ pub fn unbound_banner(
 /// is bound to; empty for an account without a feed.
 pub fn block_for(account: &Account, store: &super::FeedStore, now: DateTime<Utc>) -> LiveBlock {
     match super::bound_source(account) {
-        Some(source) => block(&store.sessions(source, now), now),
+        Some(source) => {
+            let (readings, unreadable) = store.sessions_counted(source, now);
+            LiveBlock {
+                unreadable,
+                ..block(&readings, now)
+            }
+        }
         None => LiveBlock::default(),
     }
 }

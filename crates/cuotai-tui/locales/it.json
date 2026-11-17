@@ -256,6 +256,7 @@
   "extensions.secret.where": "Il valore resta solo nel portachiavi di sistema e arriva solo all'ambiente dell'estensione.",
   "extensions.title": " Estensioni ",
   "feed.setup.chained": "Per mantenere il tuo script della riga di stato, concatenalo così:",
+  "feed.read_timeout": "Nessun input della riga di stato è arrivato in tempo.",
   "feed.forget.failed": "Impossibile cancellare le letture salvate di Claude Code.",
   "feed.setup.docs": "Dettagli e informativa sulla privacy: docs/integrations/claude-code.md",
   "feed.setup.intro": "Aggiungi questo a ~/.claude/settings.json (Cuotai non lo modifica mai al posto tuo):",

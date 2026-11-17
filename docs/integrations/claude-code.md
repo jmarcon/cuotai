@@ -77,7 +77,11 @@ Reads the status-line JSON on standard input (like `--feed`), stores it and prin
 - `--max-width N` drops the context share first, then the other account, then cuts Claude's windows with "…".
 - Colour only with `--color`, on a terminal, with `NO_COLOR` unset.
 
-Exit codes: `0` for a valid object (absent windows are normal), `1` for malformed input or input over 64 KiB.
+Both commands read standard input up to the end of the first JSON object, and wait for it at most a quarter of a second: a writer that sends nothing, or never closes its end, cannot hold Claude Code's prompt.
+
+Exit codes: `0` for a valid object (absent windows are normal), `1` for malformed input or input over 64 KiB, `3` when no input arrived within 250 ms (nothing on stdout, one line on stderr).
+
+Feed files that fail validation (truncated, edited by hand, out of contract) are ignored, never read as 0: `cuotai --doctor` and the fed account's details say how many. A temporary file left by an interrupted write is removed a minute later.
 
 `cuotai --feed claude-statusline --forget` erases the stored Claude Code readings and exits (`0`, or `1` when they could not be erased).
 

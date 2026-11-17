@@ -253,6 +253,7 @@
   "extensions.secret.where": "Değer yalnızca sistem kasasında kalır ve yalnızca uzantının ortamına ulaşır.",
   "extensions.title": " Uzantılar ",
   "feed.setup.chained": "Kendi durum satırı betiğinizi korumak için bunun yerine zincirleyin:",
+  "feed.read_timeout": "Durum satırı girdisi zamanında gelmedi.",
   "feed.forget.failed": "Kayıtlı Claude Code ölçümleri silinemedi.",
   "feed.setup.docs": "Ayrıntılar ve gizlilik açıklaması: docs/integrations/claude-code.md",
   "feed.setup.intro": "Bunu ~/.claude/settings.json dosyasına ekleyin (Cuotai sizin yerinize asla düzenlemez):",

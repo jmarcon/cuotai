@@ -17,7 +17,8 @@
       "once.renewal_due",
       "feed.forget.failed",
       "wizard.login.choose",
-      "wizard.login.confirm"
+      "wizard.login.confirm",
+      "feed.read_timeout"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -262,6 +263,7 @@
   "extensions.secret.where": "Giá trị chỉ nằm trong kho của hệ thống và chỉ đến môi trường của tiện ích mở rộng.",
   "extensions.title": " Tiện ích mở rộng ",
   "feed.setup.chained": "Để giữ script dòng trạng thái của riêng bạn, hãy nối chuỗi như sau:",
+  "feed.read_timeout": "Không có dữ liệu dòng trạng thái nào đến kịp lúc.",
   "feed.forget.failed": "Không thể xoá các số liệu Claude Code đã lưu.",
   "feed.setup.docs": "Chi tiết và tuyên bố quyền riêng tư: docs/integrations/claude-code.md",
   "feed.setup.intro": "Thêm nội dung này vào ~/.claude/settings.json (Cuotai không bao giờ tự sửa tệp đó):",

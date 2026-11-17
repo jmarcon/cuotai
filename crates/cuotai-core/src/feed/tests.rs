@@ -1445,3 +1445,79 @@ fn the_add_form_preselects_the_claude_code_mode_when_detected() {
     )
     .is_empty());
 }
+
+/// Re-validation S-05: a writer killed before its rename leaves a `.tmp*`
+/// copy; pruning removes it after a minute, never a fresh one (a write in
+/// progress), a folder or a link.
+#[test]
+fn interrupted_writes_are_cleaned_after_a_minute() {
+    let (dir, store) = store();
+    let _ = &dir; // links are checked on Unix only
+    let current = Utc::now();
+    let source = store.dir().join("claude_code");
+    crate::private_fs::ensure_dir(store.dir()).unwrap();
+    crate::private_fs::ensure_dir(&source).unwrap();
+    let age = |path: &std::path::Path, delta: TimeDelta| {
+        let mtime: std::time::SystemTime = (current - delta).into();
+        std::fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(mtime)
+            .unwrap();
+    };
+    let old = source.join(".tmpABC123");
+    std::fs::write(&old, b"{}").unwrap();
+    age(&old, TimeDelta::days(300));
+    let fresh = source.join(".tmpNEW456");
+    std::fs::write(&fresh, b"{}").unwrap();
+    age(&fresh, TimeDelta::seconds(10));
+    std::fs::create_dir(source.join(".tmpDIR")).unwrap();
+    #[cfg(unix)]
+    {
+        let outside = dir.path().join("outside");
+        std::fs::write(&outside, b"keep").unwrap();
+        age(&outside, TimeDelta::days(300));
+        std::os::unix::fs::symlink(&outside, source.join(".tmpLINK")).unwrap();
+    }
+    // The doctor's count only looks.
+    assert_eq!(store.health(current), FeedHealth::default());
+    assert!(old.exists());
+    store.write(&reading("fresh", current), current).unwrap();
+    assert!(!old.exists(), "an interrupted write is removed");
+    assert!(fresh.exists(), "a write in progress stays");
+    assert!(source.join(".tmpDIR").is_dir());
+    #[cfg(unix)]
+    {
+        assert!(std::fs::symlink_metadata(source.join(".tmpLINK")).is_ok());
+        assert!(dir.path().join("outside").exists());
+    }
+}
+
+/// RF1.3 (re-validation S-07): the live block of a fed account counts the
+/// feed files that were ignored, so the details can say so.
+#[test]
+fn the_live_block_counts_ignored_files() {
+    let (_dir, store) = store();
+    let current = Utc::now();
+    let config = Config::from_toml(
+        "[[accounts]]\nname = \"fed\"\nprovider = \"claude\"\nparams = { query_mode = \"claude_code\" }\n",
+    )
+    .unwrap();
+    let account = &config.accounts[0];
+    store.write(&reading("good", current), current).unwrap();
+    let clean = live::block_for(account, &store, current);
+    assert_eq!((clean.sessions.len(), clean.unreadable), (1, 0));
+    assert!(clean.unreadable_note().is_none());
+    std::fs::write(store.dir().join("claude_code").join("bad.json"), b"{").unwrap();
+    let block = live::block_for(account, &store, current);
+    assert_eq!((block.sessions.len(), block.unreadable), (1, 1));
+    assert_eq!(
+        block.unreadable_note().unwrap().resolve("en-US"),
+        "1 unreadable feed file ignored."
+    );
+    // The count never reaches the JSON when it is zero.
+    assert!(!serde_json::to_string(&clean)
+        .unwrap()
+        .contains("unreadable"));
+}
