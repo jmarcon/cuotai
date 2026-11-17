@@ -1028,7 +1028,11 @@ export const noteText = (report, index) =>
 export const sessionAction = (r) => (r.paste_session ? "paste" : r.status !== "ready" && desktopAction(r.notes_l10n?.[0]) === "session" ? "connect" : null);
 /** PRD 0005 RF4.2: what a failed account shows first: the core's explanation (an Unavailable account's reason, a
  *  changed undocumented interface), else the adapter's first note, else the status. */
-export const causeText = (r) => (r.pending ? t("card.waiting") : r.access?.explanation ? tl(r.access.explanation) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
+/** PRD 0038 re-validation (F-05): a provider's `Retry-After` replaces the generic first note with the core's line
+ *  that says when the account is queried again (`retry_note`). */
+export const causeText = (r) => (r.pending ? t("card.waiting") : r.access?.explanation ? tl(r.access.explanation) : r.retry_note ? tl(r.retry_note) : r.notes.length ? noteText(r, 0) : statusLabel(r.status));
+/** The tray row's failure line: the wait a `Retry-After` imposes, the first note, or the status. */
+export const trayCauseText = (r) => (r.retry_note ? tl(r.retry_note) : noteText(r, 0) || statusLabel(r.status));
 /** Adapter notes still to list after `causeText` (all of them when the core's explanation took the first place). */
 export const restNotes = (r) => r.notes.map((_, index) => noteText(r, index)).slice(r.access?.explanation ? 0 : 1);
 /** PRD 0016 RF4.1: an account whose query uses a web session shows the `UserSession` level and the core's warning.

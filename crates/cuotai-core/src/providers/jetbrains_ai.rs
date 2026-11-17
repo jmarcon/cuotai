@@ -228,7 +228,7 @@ fn rate_limited() -> QueryError {
     failure(
         Status::RateLimited,
         "note.jetbrains_ai.rate_limited",
-        "JetBrains rate-limited the queries; the interval will be increased automatically.",
+        "JetBrains rate-limited the queries.",
     )
 }
 

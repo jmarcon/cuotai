@@ -137,7 +137,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2028,10 +2029,11 @@
   "query.open_router.key_expired": "OpenRouter 密钥已过期；请在 openrouter.ai/settings/keys 创建新密钥。",
   "query.open_router.management_key_required": "此操作需要管理密钥；请在 openrouter.ai/settings/management-keys 创建，或使用密钥的默认视图。",
   "query.open_router.params": "参数无效：params.product 必须为 key 或 account，params.breakdown（仅与 account 一起）必须为 off、provider 或 model。",
-  "query.open_router.rate_limited": "OpenRouter 限制了查询；下次刷新时会再试。",
+  "query.open_router.rate_limited": "OpenRouter 限制了查询。",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio（QWEN_API_KEY）无法访问账户的计费余额。该密钥只授权通过 /api/v1/services/aigc/... 进行推理；Alibaba Cloud 余额需要使用主账户的 AccessKey ID/Secret 认证的 QueryAccountBalance（Financial Management API）。主要来源：{dashscope_docs} 和 {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code OAuth：会话已认证，但没有已确认的额度接口。提供商已于 2026/04/15 停止免费 OAuth 套餐；我们不会用此令牌查询 DashScope。",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type“{type}”无效；请使用 auto、pat 或 bearer。",
+  "query.retry_after_until": "{provider} 要求 Cuotai 等待；此账户的下次查询：{time}。",
   "query.router_accounts.invalid_qoder_region": "params.region“{region}”无效；请使用 intl 或 cn。",
   "query.router_accounts.provider_not_supported": "此适配器不支持查询该提供商。",
   "query.router_existing.missing_gemini_project": "Gemini CLI 未返回 Code Assist 项目；请设置 params.project_id。",
@@ -2554,7 +2556,7 @@
   "models.unsupported.reason.admin_key": "该账户保存的是管理、管理平台或分析密钥，提供商未公开用它列出模型的方式；请把该密钥放在其专用参数中，把推理密钥作为账户凭据。",
   "models.unsupported.reason.admin_key_only": "该账户只保存了管理密钥，提供商未公开用它列出模型的方式。",
   "query.jetbrains_ai.missing_secret": "缺少凭据：{env}（服务账号的 client secret）。",
-  "note.jetbrains_ai.rate_limited": "JetBrains 限制了查询；间隔将自动延长。",
+  "note.jetbrains_ai.rate_limited": "JetBrains 限制了查询。",
   "note.jetbrains_ai.client_rejected": "JetBrains 拒绝了服务账号的 client ID 或 client secret；请检查这两个变量，或在 JetBrains Central Console 中轮换 secret。",
   "note.jetbrains_ai.token_rejected": "Analytics API 拒绝了服务账号的令牌；请在 JetBrains Central Console 中检查该服务账号。",
   "note.jetbrains_ai.forbidden": "服务账号无权读取 AI analytics：请为其分配具有 View AI analytics 权限的角色（Business 或 Enterprise 套餐）。",

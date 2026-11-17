@@ -539,6 +539,12 @@ pub struct ReportView {
     /// fallback. `skip_serializing_if = "Vec::is_empty"` keeps the CLI/Snapshot
     /// JSON identical to pre-RF8 when there are no notes.
     notes_l10n: Vec<cuotai_core::text::Localized>,
+    /// PRD 0038 re-validation (F-05): when a provider's `Retry-After` holds
+    /// the account back, the core's line that says when it is queried again
+    /// (`query.retry_after_until`, the instant in the app clock). The UI
+    /// shows it in place of the generic note; absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_note: Option<cuotai_core::text::Localized>,
     /// PRD 0028 RF1.3 (DS-CMP-DIAG-1): the "What changed" block of a query
     /// whose response changed: heading, sentence, field paths and the
     /// privacy note. Value-free; absent otherwise.
@@ -1496,6 +1502,8 @@ fn report_view(
         metrics,
         notes: report.notes.clone(),
         notes_l10n: report.notes_l10n.clone(),
+        retry_note: report
+            .retry_wait_note(now, |at| cuotai_core::text::ParamValue::l10n(local_at(at))),
         drift: report.diagnostic.as_ref().map(|d| d.view()),
         source: report.source.clone(),
         class: classify_report(Some(report)),

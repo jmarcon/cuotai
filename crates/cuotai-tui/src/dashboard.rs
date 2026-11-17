@@ -1828,6 +1828,17 @@ fn live_lines(
     lines
 }
 
+/// PRD 0038 re-validation (F-05): when a provider's `Retry-After` holds the
+/// account back, the line that says when it is queried again, in the local
+/// clock and the interface language; `None` once that instant passed.
+pub(crate) fn retry_wait_text(report: &Report, now: DateTime<Utc>) -> Option<String> {
+    report
+        .retry_wait_note(now, |at| {
+            cuotai_core::text::ParamValue::l10n(crate::ui::clock(at))
+        })
+        .map(|note| resolve_l10n(&note))
+}
+
 /// The report's first note in the interface language (PRD 0035 RF5.1): the
 /// structured sidecar when present, the English fallback otherwise.
 fn first_note_text(report: &Report) -> Option<String> {
@@ -1890,10 +1901,12 @@ fn render_card(
     } else {
         None
     };
+    let wait_text = report.and_then(|report| retry_wait_text(report, now));
     let first_note = if rows.is_empty() {
         explanation
             .clone()
             .or_else(|| aggregator.as_ref().map(|lines| lines.header.clone()))
+            .or_else(|| wait_text.clone())
             .or_else(|| report.and_then(first_note_text))
     } else {
         None
@@ -2001,9 +2014,14 @@ fn render_card(
     let visible_metrics = rows.len().min(METRICS_VISIBLE_IN_CARD);
     // PRD 0023 RF8.1: the "extra" line takes a free row under the status
     // line, only while extra usage bills and the card has room for it.
-    let extra_text = report
-        .filter(|_| stale.is_none())
-        .and_then(|report| extra_usage_text(report, tui_locale()));
+    // PRD 0038 re-validation (F-05): over a preserved reading, the same
+    // row says when a `Retry-After` lets the account be queried again.
+    let wait_row = wait_text.filter(|_| !rows.is_empty());
+    let extra_text = wait_row.clone().or_else(|| {
+        report
+            .filter(|_| stale.is_none())
+            .and_then(|report| extra_usage_text(report, tui_locale()))
+    });
     let needed = 1 + 2 * visible_metrics + note_rows + hint_rows;
     let extra_rows = usize::from(extra_text.is_some() && usize::from(inner.height) > needed);
     if extra_rows > 0 {
@@ -2100,9 +2118,12 @@ fn render_card(
             frame.render_widget(
                 Paragraph::new(Line::styled(
                     safe(text).into_owned(),
-                    Style::default()
-                        .fg(extra_usage_color(report))
-                        .add_modifier(Modifier::BOLD),
+                    match wait_row {
+                        Some(_) => Style::default().fg(status_color(Status::RateLimited)),
+                        None => Style::default()
+                            .fg(extra_usage_color(report))
+                            .add_modifier(Modifier::BOLD),
+                    },
                 )),
                 chunks[chunk_index],
             );
@@ -3547,7 +3568,16 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             None => fallback_text.clone(),
         });
     }
-    for text in &note_texts {
+    // PRD 0038 re-validation (F-05): when the account is queried again.
+    let wait_text = retry_wait_text(report, now);
+    if shown_notes == 0 && wait_text.is_some() {
+        lines.push(Line::default());
+        lines.push(Line::styled(
+            tr("dashboard.detail.notes", "  NOTES"),
+            Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+        ));
+    }
+    for text in note_texts.iter().chain(&wait_text) {
         lines.push(Line::from(Span::styled(
             safe(text),
             Style::default().fg(YELLOW),
@@ -7191,6 +7221,34 @@ mod tests {
         })];
         let pt = render_for_test(&accounts, &plain, &[], &[0], at_min(0), "pt-BR");
         assert!(pt.contains("plain adapter note"), "{pt}");
+    }
+
+    /// PRD 0038 re-validation (F-05): a rate-limited card says when the
+    /// provider's `Retry-After` lets the account be queried again.
+    #[test]
+    fn card_says_when_a_retry_after_lets_the_account_be_queried() {
+        let (mut accounts, _) = access_fixture();
+        accounts.truncate(1);
+        accounts[0].provider = Provider::OpenRouter;
+        let mut note = cuotai_core::text::Localized::fixed(
+            "query.open_router.rate_limited",
+            "OpenRouter rate-limited the queries.",
+        );
+        note.params.insert(
+            Report::RETRY_AFTER_PARAM.into(),
+            cuotai_core::text::ParamValue::from(600u64),
+        );
+        let limited = Report {
+            provider: Provider::OpenRouter,
+            checked_at: at_min(0),
+            notes: vec![note.fallback.to_string()],
+            notes_l10n: vec![note],
+            ..report(Status::RateLimited, Vec::new())
+        };
+        assert!(retry_wait_text(&limited, at_min(0)).is_some());
+        assert!(retry_wait_text(&limited, at_min(11)).is_none(), "passed");
+        let card = render_for_test(&accounts, &[Some(limited)], &[], &[0], at_min(0), "en-US");
+        assert!(card.contains("OpenRouter asked Cuotai to wait"), "{card}");
     }
 
     #[test]

@@ -816,6 +816,39 @@ impl Report {
             .map(|seconds| std::time::Duration::from_secs(seconds.min(RETRY_AFTER_MAX_SECONDS)))
     }
 
+    /// PRD 0038 re-validation (F-05): when the provider's `Retry-After`
+    /// lets this account be queried again: [`Self::checked_at`] plus
+    /// [`Self::retry_after`] (capped at [`RETRY_AFTER_MAX_SECONDS`]). `None`
+    /// when the report carries no wait.
+    pub fn retry_not_before(&self) -> Option<DateTime<Utc>> {
+        let wait = chrono::Duration::from_std(self.retry_after()?).ok()?;
+        self.checked_at.checked_add_signed(wait)
+    }
+
+    /// The localized line that says when this account is queried again
+    /// ([`Self::retry_not_before`]), only while that instant is after `now`.
+    /// `time` words the instant in the front end's clock (the core's
+    /// [`crate::text::clock`] gives the time today, a weekday or a date and
+    /// time further away), as [`Metric::renewed_waiting_at`] does.
+    pub fn retry_wait_note(
+        &self,
+        now: DateTime<Utc>,
+        time: impl FnOnce(DateTime<Utc>) -> crate::text::ParamValue,
+    ) -> Option<crate::text::Localized> {
+        let at = self.retry_not_before().filter(|at| *at > now)?;
+        Some(crate::text::Localized::with_params(
+            "query.retry_after_until",
+            crate::text::params([
+                (
+                    "provider",
+                    crate::text::ParamValue::from(self.provider.label()),
+                ),
+                ("time", time(at)),
+            ]),
+            "{provider} asked Cuotai to wait; this account is queried again at {time}.",
+        ))
+    }
+
     /// PRD 0033 RF2.1: a copy for showing as a preserved or restored
     /// reading at `now`, with every expired metric collapsed, an
     /// aggregator's connections included (re-validation R-3).

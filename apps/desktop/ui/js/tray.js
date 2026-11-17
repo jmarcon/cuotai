@@ -12,7 +12,7 @@ import { mountTimeline } from "./timeline.js";
 import { costLineHtml, sourceFor } from "./cost.js";
 import { accountName,
   accountTitle, bestChipHtml, liveChipHtml, costUsage, bindStatusLinks, bindThemeSwitch, bindSettingsShortcut, brand, createStore, disabledAccounts, esc, fmtAge, icon,
-  initHiddenAccounts, splitByMenuBarKeys, initOrderSync, initTheme, initTrayView, level, nextNoticeParts, noteText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
+  initHiddenAccounts, splitByMenuBarKeys, initOrderSync, initTheme, initTrayView, level, nextNoticeParts, trayCauseText, onDisabledChange, onHiddenChange, onSettingsChanged, onTrayViewChange,
   billingOverage, openAggregatorDashboard, openMainWindow, openSettingsWindow, overageChipHtml, reportKey, setMetricAlert, sortReports, statusLabel, trayViewPref, wordmark,
   errText, isDesktop, hourlyStrip,
 } from "./lib.js";
@@ -188,7 +188,7 @@ function aggregatorViewHtml(r, view) {
     <div class="agg-head">${instanceHeadHtml(r, 24)}
       ${r.aggregator.dashboard ? `<button class="link" data-agg-dashboard="${r.index}">${icon("window")}<span>${te("agg.openDashboard")}</span></button>` : ""}</div>
     ${warningChipsHtml(r) ? `<p class="agg-chips">${warningChipsHtml(r)}</p>` : ""}
-    ${r.status !== "ready" ? `<div class="call critical">${icon("alert")}<div>${esc(noteText(r, 0) || statusLabel(r.status))}</div></div>` : ""}
+    ${r.status !== "ready" ? `<div class="call critical">${icon("alert")}<div>${esc(trayCauseText(r))}</div></div>` : ""}
     ${groupsHtml(r, view)}
   </div>`;
 }

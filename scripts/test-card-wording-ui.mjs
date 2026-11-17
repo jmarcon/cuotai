@@ -481,3 +481,27 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   }
   console.log("PASS: a balance shows its amount with its sign, exhausted says how much, and money reads as money");
 }
+
+// PRD 0038 re-validation (F-05): a provider's Retry-After replaces the generic first note with the core's line that
+// says when the account is queried again, on the card, the details and the tray row.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  await i18n.setLocale("en-US");
+  const note = { id: "query.open_router.rate_limited", params: { retry_after_seconds: "600" }, fallback: "OpenRouter rate-limited the queries." };
+  const retry = {
+    id: "query.retry_after_until",
+    params: { provider: "OpenRouter", time: "14:30" },
+    fallback: "OpenRouter asked Cuotai to wait; this account is queried again at 14:30.",
+  };
+  const limited = { status: "rate_limited", notes: [note.fallback], notes_l10n: [note], retry_note: retry, access: null };
+  assert.equal(lib.causeText(limited), retry.fallback);
+  assert.equal(lib.trayCauseText(limited), retry.fallback);
+  assert.deepEqual(lib.restNotes(limited), [], "the generic note gives way to the wait");
+  const plain = { ...limited, retry_note: undefined };
+  assert.equal(lib.causeText(plain), note.fallback);
+  assert.equal(lib.trayCauseText(plain), note.fallback);
+  await i18n.setLocale("de");
+  assert.match(lib.causeText(limited), /nächste Abfrage dieses Kontos: 14:30\./);
+  await i18n.setLocale("en-US");
+  console.log("PASS: a Retry-After wait is shown as the time the account is queried again");
+}

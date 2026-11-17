@@ -144,7 +144,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2035,10 +2036,11 @@
   "query.open_router.key_expired": "OpenRouter のキーの期限が切れました。openrouter.ai/settings/keys で新しいキーを作成してください。",
   "query.open_router.management_key_required": "この操作には管理キーが必要です。openrouter.ai/settings/management-keys で作成するか、キーの既定の表示を使用してください。",
   "query.open_router.params": "パラメーターが無効です。params.product は key または account、params.breakdown（account の場合のみ）は off、provider、model のいずれかにしてください。",
-  "query.open_router.rate_limited": "OpenRouter が照会を制限しました。次回の更新で再試行します。",
+  "query.open_router.rate_limited": "OpenRouter が照会を制限しました。",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio（QWEN_API_KEY）では、アカウントの請求残高にアクセスできません。このキーが許可するのは /api/v1/services/aigc/... による推論のみです。Alibaba Cloud の残高には、マスターアカウントの AccessKey ID/Secret で認証する QueryAccountBalance（Financial Management API）が必要です。一次情報：{dashscope_docs} と {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code の OAuth：セッションは認証済みですが、確認済みのクォータのエンドポイントがありません。無料の OAuth プランはプロバイダーにより 2026/04/15 に終了しました。このトークンで DashScope は照会しません。",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type「{type}」は無効です。auto、pat、bearer のいずれかを使用してください。",
+  "query.retry_after_until": "{provider} から待機を求められました。このアカウントの次回の照会：{time}。",
   "query.router_accounts.invalid_qoder_region": "params.region「{region}」は無効です。intl または cn を使用してください。",
   "query.router_accounts.provider_not_supported": "このアダプターではこのプロバイダーを照会できません。",
   "query.router_existing.missing_gemini_project": "Gemini CLI が Code Assist のプロジェクトを返しませんでした。params.project_id を設定してください。",
@@ -2561,7 +2563,7 @@
   "models.unsupported.reason.admin_key": "このアカウントには管理・マネジメント・分析用のキーが保存されていますが、プロバイダーはそのキーでのモデル一覧取得を公開していません。そのキーは専用のパラメーターに、推論キーはアカウントの認証情報に設定してください。",
   "models.unsupported.reason.admin_key_only": "このアカウントには管理キーしか保存されておらず、プロバイダーはそのキーでのモデル一覧取得を公開していません。",
   "query.jetbrains_ai.missing_secret": "認証情報がありません：{env}（サービスアカウントの client secret）。",
-  "note.jetbrains_ai.rate_limited": "JetBrains がクエリを制限しました。間隔は自動的に延長されます。",
+  "note.jetbrains_ai.rate_limited": "JetBrains がクエリを制限しました。",
   "note.jetbrains_ai.client_rejected": "JetBrains がサービスアカウントの client ID または client secret を拒否しました。両方の変数を確認するか、JetBrains Central Console で secret を更新してください。",
   "note.jetbrains_ai.token_rejected": "Analytics API がサービスアカウントのトークンを拒否しました。JetBrains Central Console でサービスアカウントを確認してください。",
   "note.jetbrains_ai.forbidden": "サービスアカウントは AI analytics を読み取れません。View AI analytics 権限を持つロールを付与してください（Business または Enterprise プラン）。",

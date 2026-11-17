@@ -805,6 +805,15 @@ pub(crate) async fn openai_models(
 /// Parse a `Retry-After` header: delta-seconds or an HTTP date (RFC 9110
 /// 10.2.3). A date in the past yields `None`.
 pub(crate) fn retry_after_seconds(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    retry_after_seconds_at(headers, chrono::Utc::now())
+}
+
+/// [`retry_after_seconds`] with the date form measured from `now`, so
+/// adapters with an injected clock (and their tests) agree with it.
+pub(crate) fn retry_after_seconds_at(
+    headers: &reqwest::header::HeaderMap,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<u64> {
     let raw = headers
         .get(reqwest::header::RETRY_AFTER)?
         .to_str()
@@ -814,7 +823,7 @@ pub(crate) fn retry_after_seconds(headers: &reqwest::header::HeaderMap) -> Optio
         return Some(seconds);
     }
     let date = chrono::DateTime::parse_from_rfc2822(raw).ok()?;
-    let delta = (date.with_timezone(&chrono::Utc) - chrono::Utc::now()).num_seconds();
+    let delta = (date.with_timezone(&chrono::Utc) - now).num_seconds();
     u64::try_from(delta).ok().filter(|seconds| *seconds > 0)
 }
 
