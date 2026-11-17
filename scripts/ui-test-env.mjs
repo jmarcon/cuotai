@@ -56,3 +56,39 @@ export function report({ provider = "claude", account = "work@example.com", inde
     identity: { email: null, badges: [], copy: null },
   };
 }
+
+const VOID = new Set(["area", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "wbr"]);
+const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " };
+const decode = (text) => text.replace(/&(#?\w+);/g, (m, e) => ENTITIES[e] ?? m);
+
+/** Parses the HTML a render function returns into a small tree (`tag`, `attrs`, `children`, `parent`), so a test
+ *  asserts elements, attributes and their nesting instead of matching the markup as a string. Enough for the UI's
+ *  own markup (quoted attributes, void elements, no scripts). `all(pred)` walks the tree in document order,
+ *  `find(pred)` returns the first match, `text()` the decoded text and `cls` the class list. */
+export function parseHtml(html) {
+  const node = (tag, attrs, parent) => ({ tag, attrs, parent, children: [],
+    get cls() { return (this.attrs.class ?? "").split(/\s+/).filter(Boolean); },
+    text() { return this.children.map((c) => (typeof c === "string" ? c : c.text())).join(""); },
+    all(pred) { return this.children.flatMap((c) => (typeof c === "string" ? [] : [...(pred(c) ? [c] : []), ...c.all(pred)])); },
+    find(pred) { return this.all(pred)[0] ?? null; },
+    closest(pred) { let n = this; while (n && !pred(n)) n = n.parent; return n ?? null; } });
+  const root = node("#root", {}, null);
+  let current = root;
+  for (const [, close, tag, attrs, text] of html.matchAll(/<(\/?)([a-zA-Z][\w-]*)((?:\s+[\w:-]+(?:="[^"]*")?)*)\s*\/?>|([^<]+)/g)) {
+    if (text != null) { current.children.push(decode(text)); continue; }
+    if (close) {
+      let n = current;
+      while (n !== root && n.tag !== tag.toLowerCase()) n = n.parent;
+      if (n !== root) current = n.parent;
+      continue;
+    }
+    const parsed = Object.fromEntries([...attrs.matchAll(/([\w:-]+)(?:="([^"]*)")?/g)].map(([, k, v]) => [k, decode(v ?? "")]));
+    const child = node(tag.toLowerCase(), parsed, current);
+    current.children.push(child);
+    if (!VOID.has(child.tag)) current = child;
+  }
+  return root;
+}
+/** Predicates for `parseHtml` trees: an element carrying attribute `name`, or class `c`. */
+export const hasAttr = (name) => (n) => name in n.attrs;
+export const hasClass = (c) => (n) => n.cls.includes(c);

@@ -755,6 +755,12 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: development store refused in a release build
         run: cargo test --locked -p cuotai-core --release --lib oauth::store
+      # PRD 0040 RF2.3/RF5.4: the agent-feed commands within their budgets
+      # (50 ms, 150 ms with a loopback server), measured on the release binary.
+      - name: agent-feed commands within their time budgets
+        env:
+          CUOTAI_TIMING: "1"
+        run: cargo test --locked -p cuotai-tui --release --test feed_timing -- --nocapture
 
   # Release preflight (PRD 0039 RF8.3): read-only, no secrets. Runs actionlint
   # and the checked release policies when a change touches release tooling,

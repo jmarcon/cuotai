@@ -3,7 +3,8 @@
 // Codex, Cursor on extra usage, Kimi, a stale Groq, an Anthropic API account needing sign-in), example.com identities
 // only; `&bedrock` adds the metered AWS Bedrock account (PRD 0027 RF3.1) and `?mono=XY` the first account's monogram
 // override (DS-CMP-MONO-4). PRD 0036 re-validation (V-12): `?agg=0,1,12,40,exhausted,litellm` adds aggregator
-// instances of every size, and the 9router and LiteLLM forms carry the core's descriptors.
+// instances of every size, and the 9router and LiteLLM forms carry the core's descriptors. PRD 0040 re-validation
+// (V-10): `?feed=`, `?live=N` and `?feed-banner` give the agent-fed accounts, the live sessions and the unbound banner.
 import assert from "node:assert/strict";
 import { installUiEnv } from "./ui-test-env.mjs";
 
@@ -133,5 +134,59 @@ assert.deepEqual([orBy.limited.status, orBy.limited.notes_l10n[0].id], ["rate_li
 assert.equal(orBy.limited.retry_note?.id, "query.retry_after_until", "the core's wait line");
 const orIds = new Set(or.reports.flatMap((r) => [...(r.notes_l10n ?? []).map((n) => n.id), r.retry_note?.id, ...r.metrics.flatMap((m) => [m.label_text?.id, m.unit_text?.id, m.period_text?.id])]).filter(Boolean));
 for (const id of orIds) assert.ok(id in core, `core catalog id ${id}`);
-console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set");
+
+// PRD 0040 re-validation (V-10): `?feed=` puts agent-fed accounts first, in the backend's shapes; `?live=N` gives the
+// first fed Claude account N sessions (five shown, then "and N more"); `?feed-banner` the unbound Claude Code banner.
+globalThis.location = { search: "?feed=fresh,stale,absent,invalid,one-window&live=7&feed-banner" };
+const feedLib = await import("../apps/desktop/ui/js/lib.js?feed");
+const feedView = await feedLib.getView();
+const fedBy = Object.fromEntries(feedView.reports.slice(0, 6).map((r) => [r.account.split("@")[0], r]));
+assert.deepEqual(Object.keys(fedBy), ["fed", "hybrid", "stale", "waiting", "codex", "one-window"], "the fed accounts come first, example.com only");
+const noteIds = (r) => r.notes_l10n.map((n) => n.id);
+assert.deepEqual([fedBy.fed.source, fedBy.fed.status, fedBy.fed.freshness, fedBy.fed.metrics.length], ["feed:claude_code", "ready", "fresh", 2]);
+assert.deepEqual(noteIds(fedBy.fed), ["note.claude_code.fed"]);
+assert.deepEqual([fedBy.fed.access.level, fedBy.fed.access.summary.id, fedBy.fed.access.evidence.url],
+  ["official", "access.summary.claude_code", "https://code.claude.com/docs/en/statusline"], "the Claude Code feed's own access entry");
+assert.deepEqual([fedBy.hybrid.access.summary.id, noteIds(fedBy.hybrid)], ["access.summary.claude_code_or_api", ["note.claude_code.answered_by_api"]],
+  "a hybrid account that fell back says the query answered");
+assert.equal(fedBy.stale.freshness, "stale");
+assert.ok(Date.now() - Date.parse(fedBy.stale.measured_at) >= 119 * 60e3, "the stale reading was measured two hours ago");
+assert.ok(Date.now() - Date.parse(fedBy.stale.checked_at) < 60e3, "and queried now");
+assert.deepEqual([fedBy.waiting.status, fedBy.waiting.metrics.length, noteIds(fedBy.waiting)], ["needs_configuration", 0, ["note.claude_code.no_feed"]],
+  "no reading yet: needs setup, never a zero");
+assert.deepEqual([fedBy.codex.provider, fedBy.codex.source, fedBy.codex.status, noteIds(fedBy.codex), fedBy.codex.access.summary.id],
+  ["chat_gpt", "feed:codex_cli", "error", ["query.schema"], "access.summary.codex_cli"], "a Codex CLI log in an unknown shape");
+assert.deepEqual(fedBy["one-window"].metrics.map((m) => m.window), ["window_5h"], "one window: the week is absent, not zero");
+assert.ok(noteIds(fedBy["one-window"]).includes("note.claude_code.window_absent"));
+const liveBlock = fedBy.fed.live;
+assert.equal(liveBlock.sessions.length, 5, "five sessions shown");
+assert.deepEqual([liveBlock.more.id, liveBlock.more.params.n], ["feed.live.more", 2], "and 2 more");
+assert.deepEqual(liveBlock.sessions.slice(0, 3).map((x) => [x.context.params.pct, x.level]), [["50", "good"], ["75", "warn"], ["95", "bad"]],
+  "the context at 50, 75 and 95 % in their display roles");
+assert.deepEqual([liveBlock.chip, liveBlock.chip_level], [liveBlock.sessions[0].context, "good"], "the tray chip is the newest session");
+assert.ok(Object.values(fedBy).filter((r) => r !== fedBy.fed).every((r) => !r.live), "only one account reads the live sessions");
+assert.deepEqual(feedView.feed_banners.map((b) => [b.source, b.provider, b.query_mode, b.text.id, b.action.id]),
+  [["claude_code", "claude", "claude_code", "feed.banner.claude_code", "feed.banner.add"]]);
+const feedIds = new Set(feedView.reports.slice(0, 6).flatMap((r) => [...noteIds(r), r.access.summary.id, ...(r.live?.sessions ?? []).flatMap((x) => [x.context.id, x.cost.id])]));
+for (const id of [...feedIds, "feed.live.title", "feed.live.caveat", "feed.live.more", "feed.banner.claude_code", "feed.banner.add"]) assert.ok(id in core, `core catalog id ${id}`);
+// The Claude form: Source and Live session with the core's ids; the feed mode asks for no credential (`feed_only`) and
+// hides Live session, which only a query-mode account binds.
+const claudeSchema = await feedLib.formSchema("claude");
+assert.deepEqual(claudeSchema.fields.map((f) => f.key), ["query_mode", "feed"]);
+assert.deepEqual(claudeSchema.fields[0].options.map((o) => o.value), ["api", "claude_code", "claude_code_or_api"]);
+for (const id of claudeSchema.fields.flatMap((f) => [f.label.id, f.help.id, ...f.options.map((o) => o.label.id)])) assert.ok(id in core, `core catalog id ${id}`);
+assert.deepEqual(claudeSchema.feed_only, { key: "query_mode", choice: 1 });
+assert.deepEqual(await feedLib.visibleFields("claude", {}, "credential"), ["query_mode", "feed"]);
+assert.deepEqual(await feedLib.visibleFields("claude", { query_mode: 1 }, "credential"), ["query_mode"]);
+assert.deepEqual(await feedLib.visibleFields("claude", { query_mode: 2 }, "credential"), ["query_mode"]);
+// `?live=1` without a fed account gives the first Claude account one session; `?live=0` and no flag give none.
+for (const [search, count] of [["?live=1", 1], ["?live=0", 0], ["", 0]]) {
+  globalThis.location = { search };
+  const liveLib = await import(`../apps/desktop/ui/js/lib.js?live${count}${search.length}`);
+  const liveView = await liveLib.getView();
+  assert.equal(liveView.reports.reduce((n, r) => n + (r.live?.sessions.length ?? 0), 0), count, `${search || "no flag"}: ${count} session(s)`);
+  assert.deepEqual(liveView.feed_banners, [], "no banner without `?feed-banner`");
+  assert.ok(!liveView.reports.some((r) => r.source.startsWith("feed:")), "no fed account without `?feed`");
+}
+console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set; the agent-fed accounts, live sessions, banner and Claude form");
 process.exit(0); // the shared modules keep a BroadcastChannel open

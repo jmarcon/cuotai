@@ -2248,6 +2248,65 @@ if (DEMO_QUERY.has("renewal-due")) {
   DEMO_BINDINGS.set(due, [0, 0]);
   DEMO_WINDOWS.set(due, [1, 0]);
 }
+// PRD 0040 re-validation (V-10): agent-fed accounts as the backend reports them, first in the list (example.com only).
+// `?feed=` takes a comma list: `fresh` (a Claude account fed by Claude Code, read a minute ago, and a hybrid one that
+// fell back to the query), `stale` (its newest reading is two hours old), `absent` (no reading yet), `invalid` (a
+// ChatGPT / Codex account fed by Codex CLI's logs in an unknown shape) and `one-window` (only the 5 h window: the week
+// is unknown, not zero). `?live=N` gives the first fed Claude account (else the first Claude account) N live sessions,
+// the context at 50, 75 and 95 % in turn (five shown, then "and N more"); `?feed-banner` shows the unbound Claude Code
+// banner (`feed_banners`), whose Add account opens the Claude form prefilled with the Claude Code mode.
+const DEMO_FEED = new Set((DEMO_QUERY.get("feed") ?? "").split(",").filter(Boolean));
+const demoFed = (account, metrics, notes, extra = {}) => ({ ...dr(account, "claude", metrics), ...coreNotes(notes), source: "feed:claude_code",
+  checked_at: ago(0), demo_access: "claude_code", demo_level: "official", ...extra });
+const FED_NOTE = coreNote("note.claude_code.fed", "Fed by Claude Code's documented status line: no network request, no token reuse.");
+const demoFedWindows = () => [dm("session (5h)", 23, 100, 2.5, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 70, "quota", "weekly", "%")];
+const demoFeedFirst = [];
+if (DEMO_FEED.has("fresh")) {
+  const fed = demoFed("fed@example.com", demoFedWindows(), [FED_NOTE], { data_as_of: null, measured_at: ago(1) });
+  const hybrid = { ...dr("hybrid@example.com", "claude", demoFedWindows()), ...coreNotes([coreNote("note.claude_code.answered_by_api",
+    "Answered by the Claude query: no recent reading from Claude Code.")]), demo_access: "claude_code_or_api", demo_level: "official", plan: "Pro" };
+  demoFeedFirst.push(fed, hybrid);
+  for (const r of [fed, hybrid]) { DEMO_BINDINGS.set(r, [1, 0]); DEMO_WINDOWS.set(r, [0, 1]); }
+}
+if (DEMO_FEED.has("stale")) {
+  // Queried now, the reading two hours old: the backend's `measured_at` is when Claude Code wrote it, and the reading
+  // is presented as stale.
+  const stale = demoFed("stale@example.com", demoFedWindows(), [FED_NOTE], { freshness: "stale", data_as_of: ago(120), measured_at: ago(120) });
+  demoFeedFirst.push(stale);
+  DEMO_BINDINGS.set(stale, [1, 0]);
+  DEMO_WINDOWS.set(stale, [0, 1]);
+}
+if (DEMO_FEED.has("absent")) {
+  demoFeedFirst.push(demoFed("waiting@example.com", [], [coreNote("note.claude_code.no_feed",
+    "No reading from Claude Code yet: add the status line (see docs) and send one prompt.")], { status: "needs_configuration", class: "unmeasured" }));
+}
+if (DEMO_FEED.has("invalid")) {
+  demoFeedFirst.push({ ...demoFed("codex@example.com", [], [coreNote("query.schema", "Response is incompatible with the query interface; no value was estimated.")],
+    { status: "error", class: "unmeasured" }), provider: "chat_gpt", source: "feed:codex_cli", demo_access: "codex_cli", demo_level: "undocumented" });
+}
+if (DEMO_FEED.has("one-window")) {
+  const one = demoFed("one-window@example.com", [demoFedWindows()[0]], [FED_NOTE, coreNote("note.claude_code.window_absent",
+    "Claude Code drops a window once it resets and sends it again after the next prompt; until then it is unknown, not zero.")]);
+  demoFeedFirst.push(one);
+  DEMO_BINDINGS.set(one, [0, 0]);
+  DEMO_WINDOWS.set(one, [0]);
+}
+demoFirst.push(...demoFeedFirst);
+const DEMO_LIVE = Number.parseInt(DEMO_QUERY.get("live") ?? "", 10);
+if (DEMO_LIVE > 0) {
+  const target = demoFeedFirst.find((r) => r.provider === "claude" && r.status === "ready") ?? demoReports.find((r) => r.provider === "claude");
+  const ctx = (pct) => ({ context: coreNote("feed.live.ctx", `ctx ${pct}%`, { pct: String(pct) }), level: pct >= 90 ? "bad" : pct >= 70 ? "warn" : "good" });
+  const sessions = Array.from({ length: Math.min(DEMO_LIVE, 5) }, (_, i) => ({
+    model_name: ["Opus", "Sonnet", "Haiku"][i % 3], ...ctx([50, 75, 95][i % 3]),
+    cost: coreNote("feed.live.cost", `≈ $${(0.42 * (i + 1)).toFixed(2)} this session`, { usd: (0.42 * (i + 1)).toFixed(2) }),
+    written_at: ago(i * 2) }));
+  const more = DEMO_LIVE - sessions.length;
+  if (target) target.live = { title: coreNote("feed.live.title", "Live session"), caveat: coreNote("feed.live.caveat", "Agent estimate at list price, not a charge."),
+    more: more > 0 ? coreNote("feed.live.more", `and ${more} more`, { n: more }) : null, chip: sessions[0].context, chip_level: sessions[0].level, sessions };
+}
+const demoFeedBanners = () => (DEMO_QUERY.has("feed-banner") ? [{ source: "claude_code", provider: "claude", query_mode: "claude_code",
+  text: coreNote("feed.banner.claude_code", "Claude Code is sending readings; add a Claude account fed by Claude Code."),
+  action: coreNote("feed.banner.add", "Add account") }] : []);
 demoReports.unshift(...demoFirst);
 // The core's binding of a demo connection: its most consumed quota (demo only; the app gets it from the core).
 const demoConnectionBinding = (c) => {
@@ -2303,6 +2362,7 @@ const demoView = () => {
       ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "The history went over 64 MiB: its 1200 oldest measurements were deleted." }
       : null,
     history_epoch: demoSettings.historyEpoch,
+    feed_banners: demoFeedBanners(),
     notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
     status: { enabled: demoSettings.statusQueries, domains: [...new Set(demoReports.map((r) => DEMO_STATUS_HOSTS[r.provider]).filter(Boolean))],
       outage: reports.some((r) => ["partial_outage", "major_outage"].includes(r.incident?.state)) },
@@ -2475,17 +2535,27 @@ function demoNextNotice(reports) {
     .sort((a, b) => a.at.localeCompare(b.at, "en")); // ISO instants: a fixed, language-free order
   return next[0] ?? null;
 }
+// The core's summaries of the agent-fed modes (`access::classify`), English fallbacks of their catalog texts.
+const DEMO_FEED_ACCESS = {
+  claude_code: "Claude plan windows handed over by Claude Code's documented status line, with no network request and no token reuse.",
+  claude_code_or_api: "Claude Code's documented status line while it is recent, otherwise the internal interface the official clients use.",
+  codex_cli: "Codex limit windows read from Codex CLI's own local session logs, with no network request.",
+};
 // ponytail: demo mirror of `access::describe` + `UsageAccess::explain` (default modes, generic pt summary and
 // evidence); the app reads both from the core.
 const DEMO_ROUTER = "https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/";
 function demoAccess(r) {
   const level = r.demo_level ?? demoLevelOf(r.provider);
-  const reason = level === "unavailable" ? dlx(`access.reason.${r.provider}`, "demo.access.reason", "No public usage query for this credential (demo).") : null;
-  const url = level === "undocumented" ? `${DEMO_ROUTER}${r.provider}.js` : "https://example.com/docs (demo)";
+  // PRD 0040: an agent-fed mode has its own access entry (`access.summary.claude_code`, the status-line page).
+  const slug = r.demo_access ?? r.provider;
+  const reason = level === "unavailable" ? dlx(`access.reason.${slug}`, "demo.access.reason", "No public usage query for this credential (demo).") : null;
+  const url = slug === "claude_code" || slug === "claude_code_or_api" ? "https://code.claude.com/docs/en/statusline"
+    : slug === "codex_cli" ? "https://github.com/openai/codex/blob/86ac0916597244a2e67a197822a5483924660ff1/codex-rs/protocol/src/protocol.rs"
+    : level === "undocumented" ? `${DEMO_ROUTER}${r.provider}.js` : "https://example.com/docs (demo)";
   const changed = level === "undocumented" && r.status === "error" && r.notes_l10n?.some((n) => n.id === "query.schema")
     ? { id: "access.interface_changed", params: {}, fallback: "The response does not follow the known internal interface: it may have changed without notice." }
     : null;
-  return { level, label: demoLevel(level), summary: dlx(`access.summary.${r.provider}`, "demo.access.summary", "Demo usage query."), reason, metered: r.provider === "aws_bedrock",
+  return { level, label: demoLevel(level), summary: DEMO_FEED_ACCESS[slug] ? dl(`access.summary.${slug}`, DEMO_FEED_ACCESS[slug]) : dlx(`access.summary.${slug}`, "demo.access.summary", "Demo usage query."), reason, metered: r.provider === "aws_bedrock",
     evidence: { kind: level === "undocumented" ? "reference" : "documentation", url },
     explanation: r.status === "ready" ? null : reason ?? changed, reference: changed ? url : null,
     reference_label: { id: "access.reference", params: {}, fallback: "Reference contract" }, session: demoSessionNotice(demoSessionState(r)) };
@@ -3173,6 +3243,18 @@ const demoElevenSchema = () => ({ credential_kind: "env", default_env: "ELEVENLA
     help: dl("field.eleven_labs.region.help", "default (default): api.elevenlabs.io. us, eu, in and sg: data-residency endpoints; use the one of the account's region."),
     required: false, options: DEMO_ELEVEN_REGIONS.map(([value, text], index) => ({ id: `field.eleven_labs.region.option.${value}`, index, value,
       label: dl(`field.eleven_labs.region.option.${value}`, text) })) }] });
+// PRD 0040 re-validation (V-10): Claude's fields as `account_edit` describes them; Live session shows only in the query
+// mode (`visible_fields`).
+const demoClaudeChoice = (key, options) => options.map(([value, text], index) => ({ id: `field.claude.${key}.option.${value}`, index, value,
+  label: dl(`field.claude.${key}.option.${value}`, text) }));
+const demoClaudeFields = () => [
+  { id: "field.claude.query_mode", key: "query_mode", label: dl("field.claude.query_mode.label", "Source"), decides_credential: false, required: false,
+    help: dl("field.claude.query_mode.help", "Query (default): the internal interface with your Claude token. Fed by Claude Code: Claude Code's documented status line, no network request and no token reuse (needs the status line, see docs). Claude Code, else the query: the status line while it is recent, otherwise the query."),
+    options: demoClaudeChoice("query_mode", [["api", "Query (default)"], ["claude_code", "Fed by Claude Code"], ["claude_code_or_api", "Claude Code, else the query"]]) },
+  { id: "field.claude.feed", key: "feed", label: dl("field.claude.feed.label", "Live session"), decides_credential: false, required: false,
+    help: dl("field.claude.feed.help", "Show Claude Code's live session on this account. Only one account can read it."),
+    options: demoClaudeChoice("feed", [["none", "Off (default)"], ["claude_code", "From Claude Code"]]) },
+];
 // PRD 0038 review F-07/F-08: the OpenRouter form as the backend's `form_schema` builds it: the product decides the key
 // (`decides_credential`), and `credential_variants` names each product's key and its page (`account_edit::credential_for`).
 const demoOpenRouterKeys = () => ({
@@ -3330,12 +3412,16 @@ const demo = {
     login: { modes: [{ id: "oauth", label: { id: "demo.login.oauth.label", params: {}, fallback: "OAuth sign-in (demo)" }, help: { id: "demo.login.oauth.help", params: {}, fallback: "The browser demo does not run the sign-in." }, completion_notice: { id: "demo.login.oauth.completion", params: {}, fallback: "Sign-in authorized (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "demo.login.oauth.unavailable", params: {}, fallback: "Sign-in is not available in the demo." } }], unsupported_reason: null },
     sessions: provider === "xiaomi_mimo" ? [DEMO_SESSION_SLOT] : [],
     session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
-    fields: [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
+    // PRD 0040 re-validation (V-10): Claude's Source and Live session fields as `form_schema(Provider::Claude)` builds
+    // them, and the feed-only mode in which the form asks for no credential (`feed_only`).
+    ...(provider === "claude" ? { feed_only: { key: "query_mode", choice: 1 }, preselect: [] } : {}),
+    fields: provider === "claude" ? demoClaudeFields() : [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
   visible_fields: async ({ provider, choices, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
     : provider === "aws_bedrock" ? ["cli_path"] : provider === "eleven_labs" ? ["region"]
-    : provider === "open_router" ? ["product", ...(choices?.product === 1 ? ["breakdown"] : [])] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
+    : provider === "open_router" ? ["product", ...(choices?.product === 1 ? ["breakdown"] : [])]
+    : provider === "claude" ? ["query_mode", ...(choices?.query_mode ? [] : ["feed"])] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
   field_choices: async ({ provider, choices, authMode }) => {
     const schema = provider === "kiro" ? demoKiroSchema() : await demo.form_schema({ provider });
     return schema.fields.filter((field) => field.options).map((field) => {
