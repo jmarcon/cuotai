@@ -13,6 +13,38 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.8] - 2026-11-17
+
+### Fixed
+
+- A provider outage, maintenance or redirect now says so and suggests trying again later, instead of asking you to check access and permissions (PRD 0037 RF7; 1134672).
+- A usage figure a provider reports as minus zero now shows as zero (PRD 0037 RF3; b757230).
+- A metric without a limit now says why: "no cap" when the provider states it, the amount alone for money spent, or "limit not reported" (PRD 0037 RF5; PRD 0038 RF4; 7d34b64).
+- A usage counter that is full, such as every voice slot taken, now reads "all in use" instead of "exhausted" (PRD 0037 RF5; PRD 0038 RF4; 7d34b64).
+- The single-refresh output says when a spending cycle ends instead of calling it a renewal (PRD 0037 RF5; PRD 0038 RF4; 7d34b64).
+- The account wizard's Review step names a chosen option by its label instead of its raw value (PRD 0037 RF5; PRD 0038 RF4; 7d34b64).
+- An incident on one ElevenLabs region's status page now shows only on that region's accounts, and its link opens that region's page (PRD 0037 RF8; PRD 0011 RF2; 421dc8c).
+- A quota whose reset time had already passed when the provider answered now reads "renewal due" instead of "blocked until" a past time, and is no longer suggested as the best account (PRD 0037 RF4; PRD 0033 RF2; f145747).
+- A plan the provider reports with a zero allowance and nothing left now reads as exhausted instead of available (PRD 0037 RF3; PRD 0038 RF4; 0d5460c).
+- Metric labels, units and periods that some providers reported in Portuguese (ElevenLabs voices, Meta usage, Ollama, Alibaba plans, Kimchi budgets, Vertex AI and others) now read in your language (PRD 0037 RF6; PRD 0034 RF2; 32c7960).
+- Counted units such as credits, voices and requests take the singular or plural form their number needs in every language (PRD 0037 RF6; PRD 0034 RF2; 462c48a).
+- ElevenLabs accounts say that extra usage is reported in money, list everything Cuotai reads, use the subscription currency when the extra-usage currency is missing, and explain an unknown currency (PRD 0037 RF2, RF5; PRD 0036 RF8; d5ebda4).
+- Searching the settings for LiteLLM finds the aggregator connections row (PRD 0037 RF2, RF5; PRD 0036 RF8; d5ebda4).
+- A prepaid balance now appears in the history charts and summaries, and a credits budget on a balance counts what was spent instead of saying there is no baseline (PRD 0038 RF9.3; PRD 0041 RF2.3; PRD 0006 RF3, RF6; cc170f4).
+- A prepaid balance shows its amount, with its sign, as the main figure instead of a dash and "left", an exhausted balance says how much is left, and currency amounts on the desktop read as money (PRD 0038 RF5.1, RF5.5; 054ab7c).
+- When a provider asks Cuotai to wait, the account says when it is queried again instead of promising the next refresh (PRD 0038 RF7.1; bcd08bb).
+- The desktop details show each metric's period after its name, and a daily limit that resets at midnight UTC says so when your time zone is not UTC (PRD 0038 RF4.1; 694d0ed).
+- OpenRouter's BYOK spend and budgets with an unnamed scope are labelled in your language (PRD 0038 RF2.3, RF3.2; PRD 0034 RF2; 9fe148f).
+- OpenRouter's spend by provider or model is shown in credits, the unit of the balance, instead of dollars (PRD 0038 RF6.2, RF5.3; b041809).
+- OpenRouter accounts explain a refused key, insufficient credits, a redirect and a bad low-balance threshold, and keep long model names apart (PRD 0038 RF1.4, RF6.2, RF7.1, RF9.2; 545fc09).
+- When you add an OpenRouter account, Cuotai asks for the product first and then for the matching key, with the right page to create it (PRD 0038 RF1.3, RF7.2; fe3be32).
+- Cuotai refuses to save OpenRouter's inference-key variable for the account balance, and an expired management key points to the management-keys page (PRD 0038 RF1.3, RF7.2; fe3be32).
+- OpenRouter's texts and docs now say which key each view needs, what a management key can do if it leaks, and that every browser sign-in creates a new key you should delete on openrouter.ai when you no longer use it (PRD 0038 RF14.1, RF8.2; 2d4158a).
+
+### Security
+
+- Key, project and model names from a provider can no longer carry hidden direction or format characters into breakdown rows, model scopes or diagnostics (PRD 0038 RF6.2, RF6.4; PRD 0045 RF1.3; 2bcdafe).
+
 ## [0.86.7] - 2026-11-17
 
 ### Fixed
@@ -1037,7 +1069,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.7...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.8...HEAD
+[0.86.8]: https://github.com/jmarcon/cuotai/compare/v0.86.7...v0.86.8
 [0.86.7]: https://github.com/jmarcon/cuotai/compare/v0.86.6...v0.86.7
 [0.86.6]: https://github.com/jmarcon/cuotai/compare/v0.86.5...v0.86.6
 [0.86.5]: https://github.com/jmarcon/cuotai/compare/v0.86.4...v0.86.5
