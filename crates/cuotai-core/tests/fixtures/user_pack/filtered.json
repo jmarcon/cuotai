@@ -1,0 +1,380 @@
+[
+  {
+    "input": "{\"_meta\":{\"name\":\"日本語\",\"n\":1e400},\"serve.allow_browsers.warning\":\"Sans risque\",\"dialog.delete\":\"Annuler\",\"tray.ok\":\"OK\"}",
+    "name": "ja.json",
+    "output": {
+      "refused": "invalidJson"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"한국어\",\"p\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]},\"serve.allow_browsers.warning\":\"Sans risque\",\"tray.ok\":\"OK\"}",
+    "name": "ko.json",
+    "output": {
+      "refused": "invalidMeta"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Deutsch\\ud800\"},\"serve.allow_browsers.warning\":\"Kein Risiko\",\"tray.ok\":\"OK\"}",
+    "name": "de.json",
+    "output": {
+      "refused": "invalidJson"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Français\",\"flag\":[\"fr\"]},\"tray.ok\":\"OK\"}",
+    "name": "fr.json",
+    "output": {
+      "refused": "invalidMeta"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"dialog.copyFailed\":{\"other\":\"a\\nb\",\"one\":\"a\\nb\",\"few\":\"<token>\",\"other\":\"日本語のテキスト\"},\"access.risk.undocumented\":\"a\\nb\",\"access.risk.undocumented\":\"<token>\",\"quota.count\":\"Ünïcödé · {name}\",\"settings.page.general\":\"Tout va bien\"}",
+    "name": "fr.json",
+    "output": {
+      "code": "fr",
+      "digest": "01b15778175a3eb088eb67b5a831a41b00ea66d4ce78709c13467817c8207348",
+      "flag": null,
+      "ignored": [
+        "access.risk.undocumented"
+      ],
+      "label": "Langue",
+      "messages": {
+        "dialog.copyFailed": {
+          "few": "<token>",
+          "one": "a\nb",
+          "other": "日本語のテキスト"
+        },
+        "quota.count": "Ünïcödé · {name}",
+        "settings.page.general": "Tout va bien"
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"quota.count\":\"bell\\u0007\",\"card.connectSession\":\"<b>bold</b>\",\"sort.custom\":\"Tout va bien\",\"tray.ok\":{\"other\":\"{count} quota\",\"other\":\"Ünïcödé · {name}\"},\"settings.hooks.confirm.title\":\"x\\udfffy\",\"dialog.copyFailed\":\"tab\\there\",\"serve.allow_browsers.warning\":{\"other\":\"{count} quota\"}}",
+    "name": "xx.json",
+    "output": {
+      "refused": "invalidJson"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"extensions.consent.risk\":\"日本語のテキスト\",\"custom.1\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]],\"a/b\":{\"other\":\"Ünïcödé · {name}\",\"zero\":\"a\\nb\",\"few\":\"a\\nb\",\"other\":\"R&D\"}}",
+    "name": "pt-PT.json",
+    "output": {
+      "refused": "invalidValue"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"hooks.error.command\":\"{count} quota\",\"user_session.slot.secret\":{\"other\":\"<b>bold</b>\"},\"a/b\":2.5,\"serve.allow_browsers.warning\":\"😀\",\"custom.0\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]],\"extensions.title\":\"{count} quota\",\"access.summary.claude\":\"Ünïcödé · {name}\",\"card.connectSession\":null}",
+    "name": "pt-PT.json",
+    "output": {
+      "refused": "invalidValue"
+    }
+  },
+  {
+    "input": "{}",
+    "name": "nl.json",
+    "output": {
+      "refused": "invalidMeta"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"settings.page.general\":{\"other\":\"{count} quota\",\"many\":\"x < y\",\"other\":\"\"},\"extensions.title\":\"日本語のテキスト\",\"__proto__\":\"⁧isolate\",\"metric.label.balance_organization\":{\"two\":\"日本語のテキスト\",\"one\":\"a\\nb\"},\"custom.0\":\"Ünïcödé · {name}\",\"credential_help.openai_api\":\"Ünïcödé · {name}\",\"é\":{\"other\":\"Ünïcödé · {name}\",\"zero\":\"a\\nb\",\"many\":\"😀\"},\"card.connectSession\":\"Tout va bien\"}",
+    "name": "nl.json",
+    "output": {
+      "refused": "invalidValue"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"settings.page.general\":\"😀\",\"card.connectSession\":2.5,\"serve.allow_browsers.warning\":\"\\ud800\"}",
+    "name": "nl.json",
+    "output": {
+      "refused": "invalidValue"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"extensions.consent.risk\":\"{count} quota\",\"metric.label.balance_organization\":\"Ünïcödé · {name}\",\"hooks.error.command\":\"😀\",\"dialog.copyFailed\":\"Tout va bien\",\"custom.2\":\"⁧isolate\",\"settings.page.general\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]],\"serve.allow_browsers.warning\":\"a\\nb\"}",
+    "name": "fr.json",
+    "output": {
+      "refused": "invalidValue"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"update.verify.failed\":{\"other\":\"a\\nb\",\"many\":\"日本語のテキスト\"},\"hooks.confirm.command\":{\"other\":\"x < y\",\"zero\":\"日本語のテキスト\",\"one\":\"日本語のテキスト\"},\"user_session.slot.secret\":{\"other\":\"<img src=x>\",\"one\":\"Tout va bien\"},\"oauth_error.store.sqlite_dev_only\":\"x\\udfffy\",\"credential_help.openai_api\":\"<b>bold</b>\",\"settings.page.general\":\"{count} quota\",\"edit_error.toml_int_range\":\"😀\",\"hooks.confirm.command\":\"\\ud800\"}",
+    "name": "nl.json",
+    "output": {
+      "refused": "invalidJson"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"settings.page.general\":\"Ünïcödé · {name}\"}",
+    "name": "xx.json",
+    "output": {
+      "code": "xx",
+      "digest": "8adb65597f4f64462561f149dbcfbb145a3a0d2ede2d25e3ff081151cf1523ac",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {
+        "settings.page.general": "Ünïcödé · {name}"
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\",\"status\":\"draft\",\"reviewed\":false,\"pending_review\":[\"tray.ok\"]},\"dialog.delete\":\"a\\nb\",\"user_session.slot.secret\":\"<token>\"}",
+    "name": "sr-Latn-RS.json",
+    "output": {
+      "code": "sr-Latn-RS",
+      "digest": "a32d84b3f7158200f8c3d32eec87f5d1939bae4564e0e418f09845c12cc1eb63",
+      "flag": null,
+      "ignored": [
+        "dialog.delete",
+        "user_session.slot.secret"
+      ],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\",\"status\":\"draft\",\"reviewed\":false,\"pending_review\":[\"tray.ok\"]},\"serve.allow_browsers.warning\":\"<token>\",\"tray.ok\":\"<token>\"}",
+    "name": "nl.json",
+    "output": {
+      "code": "nl",
+      "digest": "e8ad92568000c6d1ac6154477249418a9d87e3fa6ea92570c8da7ef43a66b2b5",
+      "flag": null,
+      "ignored": [
+        "serve.allow_browsers.warning"
+      ],
+      "label": "Langue",
+      "messages": {
+        "tray.ok": "<token>"
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"}}",
+    "name": "fr.json",
+    "output": {
+      "code": "fr",
+      "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"}}",
+    "name": "nl.json",
+    "output": {
+      "code": "nl",
+      "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"dialog.copyFailed\":{\"other\":\"R&D\",\"two\":\"😀\",\"few\":\"a\\nb\"},\"dialog.copyFailed\":\"😀\",\"sort.custom\":\"x < y\",\"models.search\":{\"other\":\"Tout va bien\",\"one\":\"x < y\",\"two\":\"😀\",\"few\":\"<token>\"},\"dialog.copyFailed\":\"😀\",\"metric.label.balance_organization\":{\"other\":\"Tout va bien\",\"zero\":\"R&D\",\"one\":\"\"},\"quota.count\":\"日本語のテキスト\"}",
+    "name": "de-CH-1996.json",
+    "output": {
+      "code": "de-CH-1996",
+      "digest": "25e10fcf81f25ed49ed217d0cd508f27d88ec7ece3f677c15af9e6fd6280b38e",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {
+        "dialog.copyFailed": "😀",
+        "metric.label.balance_organization": {
+          "one": "",
+          "other": "Tout va bien",
+          "zero": "R&D"
+        },
+        "models.search": {
+          "few": "<token>",
+          "one": "x < y",
+          "other": "Tout va bien",
+          "two": "😀"
+        },
+        "quota.count": "日本語のテキスト",
+        "sort.custom": "x < y"
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"dialog.copyFailed\":\"😀\",\"sort.custom\":{\"other\":\"<token>\",\"few\":\"Ünïcödé · {name}\",\"many\":\"Ünïcödé · {name}\"},\"cost.plan.single\":\"a\\nb\"}",
+    "name": "de-CH-1996.json",
+    "output": {
+      "code": "de-CH-1996",
+      "digest": "a4016a918d5134e7fc9e81a581f1814a86e1701aac170b13394d0cf50c383052",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {
+        "cost.plan.single": "a\nb",
+        "dialog.copyFailed": "😀",
+        "sort.custom": {
+          "few": "Ünïcödé · {name}",
+          "many": "Ünïcödé · {name}",
+          "other": "<token>"
+        }
+      }
+    }
+  },
+  {
+    "input": "{\"settings.hooks.confirm.title\":\"Tout va bien\",\"credential_help.openai_api\":\"x < y\",\"hooks.confirm.command\":\"R&D\",\"models.search\":{\"other\":\"😀\",\"zero\":\"😀\",\"two\":\"R&D\",\"other\":\"R&D\"},\"_meta\":{\"name\":\"Langue\",\"flag\":\"BR\"}}",
+    "name": "fr.json",
+    "output": {
+      "code": "fr",
+      "digest": "30124182634f83bfec4f199a5232e68fe3c7b07502b496f6607f8e45bb175278",
+      "flag": "BR",
+      "ignored": [
+        "credential_help.openai_api",
+        "hooks.confirm.command",
+        "settings.hooks.confirm.title"
+      ],
+      "label": "Langue",
+      "messages": {
+        "models.search": {
+          "other": "R&D",
+          "two": "R&D",
+          "zero": "😀"
+        }
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"}}",
+    "name": "xx.json",
+    "output": {
+      "code": "xx",
+      "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\",\"flag\":\"BR\"},\"credential_help.openai_api\":{\"other\":\"日本語のテキスト\",\"zero\":\"a\\nb\",\"two\":\"R&D\",\"few\":\"<token>\"},\"extensions.consent.risk\":{\"other\":\"Tout va bien\",\"many\":\"R&D\"},\"sort.custom\":{\"other\":\"<token>\",\"two\":\"x < y\",\"few\":\"Tout va bien\"}}",
+    "name": "pt-PT.json",
+    "output": {
+      "code": "pt-PT",
+      "digest": "6624880d1249a0ec01ffb92b39a90a14a4bb489a22933bfb4f38be793a235b5a",
+      "flag": "BR",
+      "ignored": [
+        "credential_help.openai_api",
+        "extensions.consent.risk"
+      ],
+      "label": "Langue",
+      "messages": {
+        "sort.custom": {
+          "few": "Tout va bien",
+          "other": "<token>",
+          "two": "x < y"
+        }
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"dialog.copyFailed\":\"😀\",\"extensions.consent.risk\":\"\",\"update.verify.failed\":{\"other\":\"x < y\",\"zero\":\"<token>\",\"one\":\"a\\nb\",\"two\":\"<token>\",\"many\":\"\"}}",
+    "name": "sr-Latn-RS.json",
+    "output": {
+      "code": "sr-Latn-RS",
+      "digest": "e61a72a8fd09b545e450e011486ac2de82cc17ce2b48fc32a25c5ef107ae56df",
+      "flag": null,
+      "ignored": [
+        "extensions.consent.risk",
+        "update.verify.failed"
+      ],
+      "label": "Langue",
+      "messages": {
+        "dialog.copyFailed": "😀"
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\",\"flag\":\"BR\"}}",
+    "name": "de-CH-1996.json",
+    "output": {
+      "code": "de-CH-1996",
+      "digest": "df1d6fdf94b59b673cd4f85569dd0c7a220d73e0a10edccea0291d99295bb25c",
+      "flag": "BR",
+      "ignored": [],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"user_session.slot.secret\":{\"other\":\"<token>\",\"two\":\"a\\nb\",\"few\":\"{count} quota\"},\"access.risk.undocumented\":{\"other\":\"{count} quota\",\"many\":\"R&D\"}}",
+    "name": "sr-Latn-RS.json",
+    "output": {
+      "code": "sr-Latn-RS",
+      "digest": "6c0642392459715f101986f50a276271cc9dd6b2a0882c6c42de80f1818ac895",
+      "flag": null,
+      "ignored": [
+        "access.risk.undocumented",
+        "user_session.slot.secret"
+      ],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\",\"status\":\"draft\",\"reviewed\":false,\"pending_review\":[\"tray.ok\"]},\"access.risk.undocumented\":\"日本語のテキスト\",\"settings.hooks.confirm.title\":\"日本語のテキスト\"}",
+    "name": "sr-Latn-RS.json",
+    "output": {
+      "code": "sr-Latn-RS",
+      "digest": "8841c7c923961d6cf4ab17cf24e96ffd8c3565425afa4d1e45a0c37ada1bae2c",
+      "flag": null,
+      "ignored": [
+        "access.risk.undocumented",
+        "settings.hooks.confirm.title"
+      ],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"}}",
+    "name": "de-CH-1996.json",
+    "output": {
+      "code": "de-CH-1996",
+      "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"}}",
+    "name": "nl.json",
+    "output": {
+      "code": "nl",
+      "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "flag": null,
+      "ignored": [],
+      "label": "Langue",
+      "messages": {}
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Langue\"},\"extensions.title\":\"Tout va bien\",\"tray.lastCheck\":\"a\\nb\",\"user_session.slot.secret\":\"a\\nb\",\"hooks.confirm.command\":\"<token>\"}",
+    "name": "nl.json",
+    "output": {
+      "code": "nl",
+      "digest": "764419d990495083139f324e23e07463ed821e927e4232d30d3e727ed6b1381b",
+      "flag": null,
+      "ignored": [
+        "hooks.confirm.command",
+        "user_session.slot.secret"
+      ],
+      "label": "Langue",
+      "messages": {
+        "extensions.title": "Tout va bien",
+        "tray.lastCheck": "a\nb"
+      }
+    }
+  }
+]

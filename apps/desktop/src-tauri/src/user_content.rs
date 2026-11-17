@@ -8,13 +8,18 @@
 //! sorted by name before the cap so the same files always win, and the excess is reported by name. A language
 //! pack loses its protected ids (`cuotai_core::user_pack`) here, before the webview sees it; the built-in and
 //! core texts keep those words.
+//!
+//! PRD 0035 re-validation S-02: a language pack is read fail-closed by `cuotai_core::user_pack::load`. Only its
+//! typed, filtered messages reach the webview (never the file's text, so the webview never parses it again), and
+//! a file the core refuses is reported with the core's reason and sends no message at all.
+use cuotai_core::text::Message;
 use serde::Serialize;
-use std::{fs, path::PathBuf};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 const MAX_FILE_BYTES: u64 = 256 * 1024;
 const MAX_FILES: usize = 64;
 
-#[derive(Serialize)]
+/// A file read from a user folder; its text stays in the shell.
 pub struct UserFile {
     name: String,
     text: String,
@@ -29,6 +34,19 @@ pub struct UserTheme {
     group: String,
     modes: Vec<&'static str>,
     text: String,
+}
+
+/// An accepted language pack, as the core parsed and filtered it. There is no `text` field: the webview receives
+/// the messages, never the file.
+#[derive(Serialize)]
+pub struct UserLocale {
+    name: String,
+    code: String,
+    label: String,
+    flag: Option<String>,
+    digest: String,
+    messages: BTreeMap<String, Message>,
+    ignored: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -56,7 +74,7 @@ impl UserError {
 pub struct UserContent {
     dir: String,
     themes: Vec<UserTheme>,
-    locales: Vec<UserFile>,
+    locales: Vec<UserLocale>,
     errors: Vec<UserError>,
 }
 
@@ -144,21 +162,35 @@ fn parse_themes(files: Vec<UserFile>, errors: &mut Vec<UserError>) -> Vec<UserTh
         .collect()
 }
 
-/// PRD 0050 RF3.3: drop the protected ids of each pack and report them (the pack itself still loads).
-fn strip_locales(files: Vec<UserFile>, errors: &mut Vec<UserError>) -> Vec<UserFile> {
+/// PRD 0050 RF3.3 and PRD 0035 re-validation S-02: load each pack in the core. A refused pack is reported with
+/// the core's reason and sends nothing; an accepted one without its protected ids, whose count is reported (the
+/// pack itself still loads).
+fn parse_locales(files: Vec<UserFile>, errors: &mut Vec<UserError>) -> Vec<UserLocale> {
     files
         .into_iter()
-        .map(
-            |file| match cuotai_core::user_pack::strip_protected(&file.text) {
-                Some((text, removed)) if !removed.is_empty() => {
-                    errors.push(UserError {
-                        count: Some(removed.len()),
-                        ..UserError::new("locale", file.name.clone(), "protected")
-                    });
-                    UserFile { text, ..file }
+        .filter_map(
+            |file| match cuotai_core::user_pack::load(&file.name, &file.text) {
+                Ok(pack) => {
+                    if !pack.ignored.is_empty() {
+                        errors.push(UserError {
+                            count: Some(pack.ignored.len()),
+                            ..UserError::new("locale", file.name.clone(), "protected")
+                        });
+                    }
+                    Some(UserLocale {
+                        name: file.name,
+                        code: pack.code,
+                        label: pack.label,
+                        flag: pack.flag,
+                        digest: pack.digest,
+                        messages: pack.messages,
+                        ignored: pack.ignored,
+                    })
                 }
-                // Not a JSON object: the UI reports it as invalid, as before.
-                _ => file,
+                Err(refusal) => {
+                    errors.push(UserError::new("locale", file.name, refusal.reason()));
+                    None
+                }
             },
         )
         .collect()
@@ -170,7 +202,7 @@ pub fn load() -> Option<UserContent> {
     let themes = read_dir(base.join("themes"), "css", "theme", &mut errors);
     let themes = parse_themes(themes, &mut errors);
     let locales = read_dir(base.join("locales"), "json", "locale", &mut errors);
-    let locales = strip_locales(locales, &mut errors);
+    let locales = parse_locales(locales, &mut errors);
     Some(UserContent {
         dir: base.display().to_string(),
         themes,
@@ -292,24 +324,95 @@ mod tests {
         let files = vec![
             UserFile {
                 name: "fr.json".into(),
-                text: r#"{"_meta":{"name":"Français"},"tray.ok":"OK","serve.allow_browsers.warning":"Sans risque","dialog.delete.title":"Supprimer"}"#.into(),
+                text: r#"{"_meta":{"name":"Français"},"tray.ok":"OK","serve.allow_browsers.warning":"Sans risque","dialog.delete":"Supprimer"}"#.into(),
             },
             UserFile {
                 name: "de.json".into(),
-                text: r#"{"_meta":{"name":"Deutsch"},"tray.ok":"OK"}"#.into(),
+                text: r#"{"_meta":{"name":"Deutsch","flag":"AT"},"tray.ok":"OK"}"#.into(),
             },
         ];
         let mut errors = Vec::new();
-        let files = strip_locales(files, &mut errors);
-        assert!(!files[0].text.contains("serve.allow_browsers"));
-        assert!(!files[0].text.contains("dialog.delete"));
-        assert!(files[0].text.contains("tray.ok"));
+        let locales = parse_locales(files, &mut errors);
+        assert_eq!(locales.len(), 2);
+        assert_eq!(locales[0].messages.keys().collect::<Vec<_>>(), ["tray.ok"]);
         assert_eq!(
-            files[1].text,
-            r#"{"_meta":{"name":"Deutsch"},"tray.ok":"OK"}"#
+            locales[0].ignored,
+            ["dialog.delete", "serve.allow_browsers.warning"]
         );
+        assert_eq!(
+            (locales[1].code.as_str(), locales[1].label.as_str()),
+            ("de", "Deutsch")
+        );
+        assert_eq!(locales[1].flag.as_deref(), Some("AT"));
         assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].name, "fr.json");
         assert_eq!(errors[0].reason, "protected");
         assert_eq!(errors[0].count, Some(2));
+    }
+
+    /// PRD 0035 re-validation S-02: a pack the core cannot read safely is
+    /// refused whole with the core's reason, and what the webview receives
+    /// for a locale never carries the file's text.
+    // security-invariant: SEC-USER-PACK
+    #[test]
+    fn a_refused_pack_sends_no_message_and_no_locale_carries_text() {
+        let deep = format!("{}1{}", "[".repeat(200), "]".repeat(200));
+        let files = vec![
+            UserFile {
+                name: "ja.json".into(),
+                text: r#"{"_meta":{"name":"日本語","n":1e400},"tray.ok":"x","serve.banner":"x"}"#
+                    .into(),
+            },
+            UserFile {
+                name: "ko.json".into(),
+                text: format!(r#"{{"_meta":{{"name":"한국어","p":{deep}}},"tray.ok":"x"}}"#),
+            },
+            UserFile {
+                name: "de.json".into(),
+                text: r#"{"_meta":{"name":"Deutsch\ud800"},"tray.ok":"x"}"#.into(),
+            },
+            UserFile {
+                name: "en-US-US.json".into(),
+                text: r#"{"_meta":{"name":"X"},"tray.ok":"x"}"#.into(),
+            },
+            UserFile {
+                name: "fr.json".into(),
+                text: r#"{"_meta":{"name":"Français"},"tray.ok":"Tout va bien"}"#.into(),
+            },
+        ];
+        let mut errors = Vec::new();
+        let locales = parse_locales(files, &mut errors);
+        assert_eq!(
+            errors
+                .iter()
+                .map(|e| (e.kind, e.name.as_str(), e.reason))
+                .collect::<Vec<_>>(),
+            [
+                ("locale", "ja.json", "invalidJson"),
+                ("locale", "ko.json", "invalidMeta"),
+                ("locale", "de.json", "invalidJson"),
+                ("locale", "en-US-US.json", "invalidCode"),
+            ]
+        );
+        assert_eq!(locales.len(), 1);
+        let content = UserContent {
+            dir: String::new(),
+            themes: vec![],
+            locales,
+            errors,
+        };
+        let sent = serde_json::to_value(&content).unwrap();
+        let locale = &sent["locales"][0];
+        assert!(locale.get("text").is_none());
+        assert_eq!(locale["name"], "fr.json");
+        assert_eq!(locale["code"], "fr");
+        assert_eq!(locale["label"], "Français");
+        assert_eq!(locale["messages"]["tray.ok"], "Tout va bien");
+        assert_eq!(locale["ignored"], serde_json::json!([]));
+        assert!(locale["flag"].is_null());
+        assert_eq!(locale["digest"].as_str().map(str::len), Some(64));
+        for locale in sent["locales"].as_array().unwrap() {
+            assert!(locale.get("text").is_none());
+        }
     }
 }
