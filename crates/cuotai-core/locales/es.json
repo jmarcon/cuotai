@@ -36,7 +36,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -958,6 +961,8 @@
   "note.budget.partial": "{budget}: parte del uso de este periodo no se registró, así que se usó al menos esta cantidad.",
   "note.budget.negative": "{budget}: la métrica muestra un crédito neto en este periodo, así que este presupuesto no puede contarla.",
   "note.budget.unit_mismatch_named": "{budget}: la métrica se informa en {metric_unit} y este presupuesto está en {budget_unit}, así que no puede contar.",
+  "note.budget.ignored": "{problem} Este presupuesto o mínimo queda fuera hasta que se corrija.",
+  "note.budget.floor_missing": "{field}: ningún saldo ni crédito de esta lectura coincide con este mínimo, así que no avisa de nada.",
   "note.claude_code.answered_by_api": "Respondido por la consulta de Claude: no hay lectura reciente de Claude Code.",
   "note.claude_code.answered_by_feed": "Respondido por la propia línea de estado de Claude Code (sin solicitud de red).",
   "note.claude_code.fed": "Alimentado por la línea de estado documentada de Claude Code: sin solicitud de red ni reutilización de tokens.",
@@ -2662,6 +2667,7 @@
   "budget.error.duplicate_label": "{field}: otro presupuesto de esta cuenta ya tiene esta etiqueta.",
   "budget.error.unit_mismatch": "{field}: la métrica se informa en {metric_unit} y este presupuesto está en {budget_unit}; defínelo en {metric_unit}.",
   "budget.error.amount_ambiguous": "{field}: {text} puede ser {whole} o {decimal}. Escribe {whole} o {decimal} en su lugar.",
+  "budget.error.characters": "{field}: quita los caracteres invisibles o de control; solo se permite texto visible.",
   "budget.period_since": "desde {day}",
   "budget.field.kind": "Métrica",
   "budget.field.amount": "Importe",

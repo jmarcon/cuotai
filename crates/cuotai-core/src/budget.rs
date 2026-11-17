@@ -307,6 +307,10 @@ pub enum BudgetRule {
     /// Only the editors find it ([`editor::check_rows`]); the TOML holds
     /// plain numbers.
     AmountAmbiguous,
+    /// PRD 0041 re-validation F-14: a label, filter or unit with control
+    /// or bidi characters ([`crate::text::is_disguising`]), the rule of
+    /// account names.
+    Characters,
 }
 
 impl BudgetRule {
@@ -377,6 +381,10 @@ impl BudgetRule {
             Self::AmountAmbiguous => (
                 "budget.error.amount",
                 "{field}: the amount must be greater than 0 and at most 1,000,000,000.",
+            ),
+            Self::Characters => (
+                "budget.error.characters",
+                "{field}: remove the invisible or control characters; only visible text is allowed.",
             ),
         };
         Localized::with_param(id, "field", field, fallback)
@@ -475,6 +483,15 @@ pub fn problems(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> Vec
     if floors.len() > MAX_FLOORS {
         push("floors".into(), BudgetRule::TooMany);
     }
+    // F-15: an oversized list is refused before any per-row work, so a
+    // hand-made list of thousands of rows costs nothing.
+    if budgets.len() > MAX_BUDGETS || floors.len() > MAX_FLOORS {
+        return out;
+    }
+    let disguised = |text: &Option<String>| {
+        text.as_deref()
+            .is_some_and(|text| text.chars().any(crate::text::is_disguising))
+    };
     for (i, budget) in budgets.iter().enumerate() {
         let at = |key: &str| format!("budgets[{i}].{key}");
         let kind = match (budget.kind, budget.scope) {
@@ -493,17 +510,23 @@ pub fn problems(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> Vec
         if !valid_amount(budget.amount) {
             push(at("amount"), BudgetRule::Amount);
         }
-        if budget.unit.as_deref().is_some_and(|unit| !valid_unit(unit)) {
+        if disguised(&budget.unit) {
+            push(at("unit"), BudgetRule::Characters);
+        } else if budget.unit.as_deref().is_some_and(|unit| !valid_unit(unit)) {
             push(at("unit"), BudgetRule::Unit);
         }
-        if budget
+        if disguised(&budget.label_contains) {
+            push(at("label_contains"), BudgetRule::Characters);
+        } else if budget
             .label_contains
             .as_deref()
             .is_some_and(|text| text.trim().is_empty() || text.chars().count() > FILTER_MAX)
         {
             push(at("label_contains"), BudgetRule::Selector);
         }
-        if budget
+        if disguised(&budget.label) {
+            push(at("label"), BudgetRule::Characters);
+        } else if budget
             .label
             .as_deref()
             .is_some_and(|label| label.trim().is_empty() || label.chars().count() > LABEL_MAX)
@@ -554,10 +577,14 @@ pub fn problems(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> Vec
         if !valid_amount(floor.amount) {
             push(at("amount"), BudgetRule::Amount);
         }
-        if floor.unit.as_deref().is_some_and(|unit| !valid_unit(unit)) {
+        if disguised(&floor.unit) {
+            push(at("unit"), BudgetRule::Characters);
+        } else if floor.unit.as_deref().is_some_and(|unit| !valid_unit(unit)) {
             push(at("unit"), BudgetRule::Unit);
         }
-        if floor
+        if disguised(&floor.label_contains) {
+            push(at("label_contains"), BudgetRule::Characters);
+        } else if floor
             .label_contains
             .as_deref()
             .is_some_and(|text| text.trim().is_empty() || text.chars().count() > FILTER_MAX)
@@ -625,6 +652,104 @@ pub fn floor_key(floor: &Floor) -> String {
             folded(floor.unit.as_deref()),
             floor.amount,
         ),
+    )
+}
+
+/// PRD 0041 re-validation F-15: which budgets and floors of an account are
+/// applied. An entry with a problem is left out (with
+/// `note.budget.ignored` on the account's reading) and the others keep
+/// working; the TOML keeps it as written. The strict check
+/// ([`crate::Config::validate_strict`], `--check-config`) still refuses it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ValidEntries {
+    budgets: Vec<Option<BudgetError>>,
+    floors: Vec<Option<BudgetError>>,
+}
+
+impl ValidEntries {
+    /// Whether the budget at `index` is applied.
+    pub fn budget(&self, index: usize) -> bool {
+        matches!(self.budgets.get(index), Some(None))
+    }
+
+    /// Whether the floor at `index` is applied.
+    pub fn floor(&self, index: usize) -> bool {
+        matches!(self.floors.get(index), Some(None))
+    }
+
+    /// The first problem of each entry left out, budgets then floors, with
+    /// paths relative to the account (`budgets[1].amount`).
+    pub fn problems(&self) -> impl Iterator<Item = &BudgetError> {
+        self.budgets.iter().chain(&self.floors).flatten()
+    }
+}
+
+/// [`ValidEntries`] of `account`, computed once per reading. Entries past
+/// [`MAX_BUDGETS`] or [`MAX_FLOORS`] are left out as `TooMany`; the first
+/// ones are checked by [`problems`].
+pub fn valid_indices(account: &Account) -> ValidEntries {
+    valid_entries(account.provider, &account.budgets, &account.floors)
+}
+
+/// [`valid_indices`] for the lists of an account of `provider`.
+pub fn valid_entries(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> ValidEntries {
+    let kept_budgets = &budgets[..budgets.len().min(MAX_BUDGETS)];
+    let kept_floors = &floors[..floors.len().min(MAX_FLOORS)];
+    let too_many = |list: &str, len: usize, max: usize| {
+        (0..len)
+            .map(|i| {
+                (i >= max).then(|| BudgetError {
+                    field: format!("{list}[{i}]"),
+                    rule: BudgetRule::TooMany,
+                })
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut out = ValidEntries {
+        budgets: too_many("budgets", budgets.len(), MAX_BUDGETS),
+        floors: too_many("floors", floors.len(), MAX_FLOORS),
+    };
+    for problem in problems(provider, kept_budgets, kept_floors) {
+        let Some((list, index)) = entry_of(&problem.field) else {
+            continue;
+        };
+        let slot = match list {
+            "budgets" => out.budgets.get_mut(index),
+            _ => out.floors.get_mut(index),
+        };
+        if let Some(slot) = slot.filter(|slot| slot.is_none()) {
+            *slot = Some(problem);
+        }
+    }
+    out
+}
+
+/// The list and position a problem's path names (`budgets[1].amount` →
+/// `("budgets", 1)`).
+fn entry_of(field: &str) -> Option<(&str, usize)> {
+    let (list, rest) = field.split_once('[')?;
+    let (index, _) = rest.split_once(']')?;
+    matches!(list, "budgets" | "floors").then_some(())?;
+    Some((list, index.parse().ok()?))
+}
+
+/// F-15: the account note for an entry left out.
+fn ignored_note(problem: &BudgetError) -> Localized {
+    Localized::with_param(
+        "note.budget.ignored",
+        "problem",
+        ParamValue::l10n(problem.note()),
+        "{problem} This budget or floor is left out until it is fixed.",
+    )
+}
+
+/// F-19: the account note for a valid floor with nothing to watch.
+fn floor_missing_note(index: usize) -> Localized {
+    Localized::with_param(
+        "note.budget.floor_missing",
+        "field",
+        format!("floors[{index}]"),
+        "{field}: no balance or credits in this reading matches this floor, so it warns about nothing.",
     )
 }
 
@@ -1100,6 +1225,14 @@ fn push_note(report: &mut Report, note: Localized) {
     report.notes_l10n.push(note);
 }
 
+/// [`push_note`] unless the report already carries it (a reused reading
+/// goes through [`apply`] again).
+fn push_note_once(report: &mut Report, note: Localized) {
+    if !report.notes_l10n.contains(&note) {
+        push_note(report, note);
+    }
+}
+
 /// RF2.1: the budget metrics of `account` added to `report` (after the
 /// adapter, before classification). Earlier derived metrics are dropped
 /// first, so applying twice changes nothing. A report that is not `Ready`
@@ -1115,13 +1248,27 @@ pub fn apply<Tz: TimeZone>(
     report
         .metrics
         .retain(|metric| metric.derived_from.is_none());
-    if account.budgets.is_empty() || report.status != crate::Status::Ready {
+    let valid = valid_indices(account);
+    // F-15: an invalid entry is left out with a note; the others work.
+    for problem in valid.problems() {
+        push_note_once(report, ignored_note(problem));
+    }
+    if report.status != crate::Status::Ready {
+        return;
+    }
+    // F-19: a floor with no balance or credits to watch says so.
+    for (index, floor) in account.floors.iter().enumerate() {
+        if valid.floor(index) && floor_target(floor, &report.metrics).is_none() {
+            push_note_once(report, floor_missing_note(index));
+        }
+    }
+    if account.budgets.is_empty() {
         return;
     }
     let mut added = Vec::new();
     let mut notes = Vec::new();
     for (index, budget) in account.budgets.iter().enumerate() {
-        if budget.row.is_none() {
+        if budget.row.is_none() && valid.budget(index) {
             added.push(derive(
                 index,
                 budget,
@@ -1165,8 +1312,9 @@ pub fn apply_rows<Tz: TimeZone>(
         return;
     }
     let mut missing = Vec::new();
+    let valid = valid_indices(account);
     for (index, budget) in account.budgets.iter().enumerate() {
-        let Some(wanted) = &budget.row else {
+        let Some(wanted) = budget.row.as_ref().filter(|_| valid.budget(index)) else {
             continue;
         };
         let Some(row) = report.breakdown.iter_mut().find(|row| wanted.matches(row)) else {
@@ -1557,10 +1705,13 @@ pub fn floor_statuses(account: &Account, report: &Report) -> Vec<FloorStatus> {
     if report.status != crate::Status::Ready {
         return Vec::new();
     }
+    let valid = valid_indices(account);
     account
         .floors
         .iter()
-        .filter_map(|floor| {
+        .enumerate()
+        .filter(|(index, _)| valid.floor(*index))
+        .filter_map(|(_, floor)| {
             let metric = floor_target(floor, &report.metrics)?;
             let left = balance_left(metric)?;
             let role = if left <= floor.amount * 0.25 {
@@ -1736,3 +1887,7 @@ mod identity_tests;
 #[cfg(test)]
 #[path = "budget_l10n_tests.rs"]
 mod l10n_tests;
+
+#[cfg(test)]
+#[path = "budget_entries_tests.rs"]
+mod entries_tests;

@@ -1075,7 +1075,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -2449,6 +2452,8 @@
   "note.budget.partial": "{budget} : une partie de la consommation de cette période n’a pas été enregistrée, donc au moins ce montant a été consommé.",
   "note.budget.negative": "{budget} : la métrique affiche un crédit net sur cette période ; ce budget ne peut donc pas la compter.",
   "note.budget.unit_mismatch_named": "{budget} : la métrique est fournie en {metric_unit} et ce budget est en {budget_unit}, il ne peut donc pas compter.",
+  "note.budget.ignored": "{problem} Ce budget ou ce plancher est laissé de côté jusqu’à ce qu’il soit corrigé.",
+  "note.budget.floor_missing": "{field} : aucun solde ni crédit de cette lecture ne correspond à ce plancher, il ne signale donc rien.",
   "note.claude_code.answered_by_api": "Réponse de la requête Claude : aucune mesure récente de Claude Code.",
   "note.claude_code.answered_by_feed": "Réponse de la ligne d’état de Claude Code (aucune requête réseau).",
   "note.claude_code.fed": "Alimenté par la ligne d’état documentée de Claude Code : aucune requête réseau, aucun jeton réutilisé.",
@@ -3701,6 +3706,7 @@
   "budget.error.duplicate_label": "{field} : un autre budget de ce compte porte déjà ce libellé.",
   "budget.error.unit_mismatch": "{field} : la métrique est fournie en {metric_unit} et ce budget est en {budget_unit}. Indiquez-le en {metric_unit}.",
   "budget.error.amount_ambiguous": "{field} : {text} peut valoir {whole} ou {decimal}. Saisissez plutôt {whole} ou {decimal}.",
+  "budget.error.characters": "{field} : retirez les caractères invisibles ou de contrôle ; seul le texte visible est accepté.",
   "budget.period_since": "depuis {day}",
   "budget.field.kind": "Métrique",
   "budget.field.amount": "Montant",

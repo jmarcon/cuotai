@@ -181,7 +181,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -1555,6 +1558,8 @@
   "note.budget.partial": "{budget}: Ein Teil des Verbrauchs in diesem Zeitraum wurde nicht erfasst, daher wurde mindestens so viel verbraucht.",
   "note.budget.negative": "{budget}: Die Metrik zeigt in diesem Zeitraum eine Nettogutschrift, daher kann dieses Budget sie nicht zählen.",
   "note.budget.unit_mismatch_named": "{budget}: Die Metrik wird in {metric_unit} gemeldet und dieses Budget ist in {budget_unit}, daher kann es nicht zählen.",
+  "note.budget.ignored": "{problem} Dieses Budget bzw. diese Untergrenze bleibt außen vor, bis es behoben ist.",
+  "note.budget.floor_missing": "{field}: Kein Guthaben und keine Credits in dieser Messung passen zu dieser Untergrenze, sie warnt also vor nichts.",
   "note.claude_code.answered_by_api": "Beantwortet durch die Claude-Abfrage: kein aktueller Messwert von Claude Code.",
   "note.claude_code.answered_by_feed": "Beantwortet durch die eigene Statuszeile von Claude Code (keine Netzwerkanfrage).",
   "note.claude_code.fed": "Gespeist von der dokumentierten Statuszeile von Claude Code: keine Netzwerkanfrage, keine Token-Wiederverwendung.",
@@ -2807,6 +2812,7 @@
   "budget.error.duplicate_label": "{field}: Ein anderes Budget dieses Kontos trägt bereits diese Bezeichnung.",
   "budget.error.unit_mismatch": "{field}: Die Metrik wird in {metric_unit} gemeldet und dieses Budget ist in {budget_unit}; setze es in {metric_unit}.",
   "budget.error.amount_ambiguous": "{field}: {text} kann {whole} oder {decimal} bedeuten. Gib stattdessen {whole} oder {decimal} ein.",
+  "budget.error.characters": "{field}: Entferne die unsichtbaren oder Steuerzeichen; nur sichtbarer Text ist erlaubt.",
   "budget.period_since": "seit {day}",
   "budget.field.kind": "Metrik",
   "budget.field.amount": "Betrag",
