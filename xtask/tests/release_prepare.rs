@@ -736,3 +736,24 @@ A summary of the internal builds.
     release::check_release(&repo, "HEAD").unwrap();
     xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
 }
+
+#[test]
+fn one_commit_can_put_its_entries_in_two_categories() {
+    let (_d, repo) = repo();
+    let sha = commit(
+        &repo,
+        "fix(core): token and button\n\nChangelog: [Security] A token no longer leaks to the log.\nChangelog: The refresh button works again.",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let outcome = prepare_branch(&repo);
+    assert_eq!(outcome.version.to_string(), "0.79.1");
+    let s = short(&repo, &sha);
+    let changelog = read(&repo, "CHANGELOG.md");
+    let expected = format!(
+        "## [0.79.1] - {DATE}\n\n### Fixed\n\n- The refresh button works again ({s}).\n\n### Security\n\n- A token no longer leaks to the log ({s}).\n\n## [0.79.0]"
+    );
+    assert!(changelog.contains(&expected), "{changelog}");
+    release::check_release(&repo, "HEAD").unwrap();
+    xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
+}

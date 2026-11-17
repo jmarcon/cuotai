@@ -518,3 +518,30 @@ fn identities_must_be_noreply_and_are_masked() {
     );
     gate(&repo, "HEAD~1").unwrap();
 }
+
+#[test]
+fn a_category_trailer_over_several_sentences_fails_with_both_forms() {
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "fix(core): two things\n\nChangelog: A token no longer leaks to the log.\nChangelog: The refresh button works again.\nChangelog-Category: Security",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("rule 2b: 'Changelog-Category: Security' would apply to all 2 sentences"),
+        "{error}"
+    );
+    assert!(
+        error.contains("Changelog: [Security] A token no longer leaks to the log."),
+        "{error}"
+    );
+    commit(
+        &repo,
+        "fix(core): two things again\n\nChangelog: [Security] A token no longer leaks to the log.\nChangelog: The refresh button works again.",
+        "crates/cuotai-core/src/lib.rs",
+        "// v3\n",
+    );
+    gate(&repo, "HEAD~1").unwrap();
+}
