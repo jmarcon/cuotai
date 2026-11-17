@@ -452,6 +452,9 @@ jobs:
   # `shard` rows to be exactly 1/n to n/n, and each part runs check.mjs
   # `--shard-selftest`. A failed part fails `ui-checks`, which `CI result`
   # waits for. `cargo xtask preflight` runs the same scripts unsharded.
+  # Two parts reached the 20-minute limit once the PRD 0040 agent-feed pages
+  # were added (run 44141727621: 19 and 20 minutes), so the overflow check
+  # now runs in three.
   ui-checks:
     name: ui checks (${{ matrix.part }})
     needs: changes
@@ -462,12 +465,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - part: overflow 1/2
+          - part: overflow 1/3
             group: overflow
-            shard: 1/2
-          - part: overflow 2/2
+            shard: 1/3
+          - part: overflow 2/3
             group: overflow
-            shard: 2/2
+            shard: 2/3
+          - part: overflow 3/3
+            group: overflow
+            shard: 3/3
           - part: locales, keyboard, CSP
             group: locales
           - part: zoom, accessibility, timing

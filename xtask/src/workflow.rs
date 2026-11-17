@@ -1614,15 +1614,15 @@ mod tests {
     #[test]
     fn ui_checks_parts_cover_every_shard_and_group() {
         let missing_shard = CI_WORKFLOW.replacen(
-            "          - part: overflow 2/2\n            group: overflow\n            shard: 2/2\n",
+            "          - part: overflow 3/3\n            group: overflow\n            shard: 3/3\n",
             "",
             1,
         );
         assert!(check_text(Path::new("ci.yml"), &missing_shard)
             .unwrap_err()
             .to_string()
-            .contains("1/1"));
-        let wrong_count = CI_WORKFLOW.replacen("shard: 2/2", "shard: 2/3", 1);
+            .contains("1/2"));
+        let wrong_count = CI_WORKFLOW.replacen("shard: 3/3", "shard: 3/4", 1);
         assert!(check_text(Path::new("ci.yml"), &wrong_count).is_err());
         let orphan_group = CI_WORKFLOW.replacen(
             "          - part: locales, keyboard, CSP\n            group: locales\n",
