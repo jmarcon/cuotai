@@ -122,7 +122,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2038,10 +2039,11 @@
   "query.open_router.key_expired": "Der OpenRouter-Schlüssel ist abgelaufen; erstellen Sie unter openrouter.ai/settings/keys einen neuen.",
   "query.open_router.management_key_required": "Dieser Vorgang erfordert einen Verwaltungsschlüssel; erstellen Sie einen unter openrouter.ai/settings/management-keys oder nutzen Sie die Standardansicht des Schlüssels.",
   "query.open_router.params": "Ungültige Parameter: params.product muss key oder account sein und params.breakdown (nur mit account) off, provider oder model.",
-  "query.open_router.rate_limited": "OpenRouter hat die Abfragen begrenzt; die nächste Aktualisierung versucht es erneut.",
+  "query.open_router.rate_limited": "OpenRouter hat die Abfragen begrenzt.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) gewährt keinen Zugriff auf das Abrechnungsguthaben des Kontos. Der Schlüssel autorisiert nur Inferenz über /api/v1/services/aigc/...; das Alibaba-Cloud-Guthaben erfordert QueryAccountBalance (Financial Management API), authentifiziert mit AccessKey ID/Secret des Hauptkontos. Primärquellen: {dashscope_docs} und {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code OAuth: Sitzung authentifiziert, aber es ist kein Kontingent-Endpunkt bestätigt. Der kostenlose OAuth-Tarif wurde vom Anbieter am 15.04.2026 eingestellt; mit diesem Token fragen wir DashScope nicht ab.",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type '{type}' ist ungültig; verwenden Sie auto, pat oder bearer.",
+  "query.retry_after_until": "{provider} hat Cuotai gebeten zu warten; nächste Abfrage dieses Kontos: {time}.",
   "query.router_accounts.invalid_qoder_region": "params.region '{region}' ist ungültig; verwenden Sie intl oder cn.",
   "query.router_accounts.provider_not_supported": "Anbieter ohne Abfrage in diesem Adapter.",
   "query.router_existing.missing_gemini_project": "Die Gemini CLI hat kein Code-Assist-Projekt zurückgegeben; konfigurieren Sie params.project_id.",
@@ -2587,7 +2589,7 @@
   "models.unsupported.reason.admin_key": "das Konto speichert einen Admin-, Verwaltungs- oder Analyseschlüssel, für den der Anbieter das Auflisten von Modellen nicht dokumentiert; legen Sie diesen Schlüssel in einen eigenen Parameter und einen Inferenzschlüssel als Zugangsdaten des Kontos fest.",
   "models.unsupported.reason.admin_key_only": "das Konto speichert nur einen Admin-Schlüssel, für den der Anbieter das Auflisten von Modellen nicht dokumentiert.",
   "query.jetbrains_ai.missing_secret": "Fehlende Anmeldedaten: {env} (das Client Secret des Dienstkontos).",
-  "note.jetbrains_ai.rate_limited": "JetBrains hat die Abfragen begrenzt; das Intervall wird automatisch verlängert.",
+  "note.jetbrains_ai.rate_limited": "JetBrains hat die Abfragen begrenzt.",
   "note.jetbrains_ai.client_rejected": "JetBrains hat die Client ID oder das Client Secret des Dienstkontos abgelehnt; prüfen Sie beide Variablen oder erneuern Sie das Secret in der JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "Die Analytics API hat das Token des Dienstkontos abgelehnt; prüfen Sie das Dienstkonto in der JetBrains Central Console.",
   "note.jetbrains_ai.forbidden": "Das Dienstkonto darf AI analytics nicht lesen: Geben Sie ihm eine Rolle mit der Berechtigung View AI analytics (Plan Business oder Enterprise).",

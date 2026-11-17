@@ -99,7 +99,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2015,10 +2016,11 @@
   "query.open_router.key_expired": "OpenRouter anahtarının süresi doldu; openrouter.ai/settings/keys adresinde yenisini oluşturun.",
   "query.open_router.management_key_required": "Bu işlem bir yönetim anahtarı gerektirir; openrouter.ai/settings/management-keys adresinde oluşturun veya varsayılan anahtar görünümünü kullanın.",
   "query.open_router.params": "Geçersiz parametreler: params.product key veya account, params.breakdown (yalnızca account ile) off, provider veya model olmalıdır.",
-  "query.open_router.rate_limited": "OpenRouter sorguları hız sınırına aldı; sonraki yenileme yeniden dener.",
+  "query.open_router.rate_limited": "OpenRouter sorguları hız sınırına aldı.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) hesabın faturalama bakiyesine erişim vermez. Anahtar yalnızca /api/v1/services/aigc/... üzerinden çıkarımı yetkilendirir; Alibaba Cloud bakiyesi, ana hesabın AccessKey ID/Secret değerleriyle doğrulanan QueryAccountBalance'ı (Financial Management API) gerektirir. Birincil kaynaklar: {dashscope_docs} ve {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code OAuth: oturum doğrulandı, ancak doğrulanmış bir kota uç noktası yok. Ücretsiz OAuth planı sağlayıcı tarafından 15/04/2026'da kaldırıldı; bu jetonla DashScope'u sorgulamıyoruz.",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type '{type}' geçersiz; auto, pat veya bearer kullanın.",
+  "query.retry_after_until": "{provider}, Cuotai'den beklemesini istedi; bu hesabın sonraki sorgusu: {time}.",
   "query.router_accounts.invalid_qoder_region": "params.region '{region}' geçersiz; intl veya cn kullanın.",
   "query.router_accounts.provider_not_supported": "Sağlayıcının bu bağdaştırıcıda sorgusu yok.",
   "query.router_existing.missing_gemini_project": "Gemini CLI bir Code Assist projesi döndürmedi; params.project_id değerini ayarlayın.",
@@ -2564,7 +2566,7 @@
   "models.unsupported.reason.admin_key": "hesap bir yönetici, yönetim veya analiz anahtarı saklıyor ve sağlayıcı bu anahtarla model listelemeyi belgelemiyor; bu anahtarı kendi parametresine, bir çıkarım anahtarını da hesabın kimlik bilgisi olarak koyun.",
   "models.unsupported.reason.admin_key_only": "hesap yalnızca bir yönetici anahtarı saklıyor ve sağlayıcı bu anahtarla model listelemeyi belgelemiyor.",
   "query.jetbrains_ai.missing_secret": "Eksik kimlik bilgisi: {env} (hizmet hesabının client secret'ı).",
-  "note.jetbrains_ai.rate_limited": "JetBrains sorguları sınırladı; aralık otomatik olarak artırılacak.",
+  "note.jetbrains_ai.rate_limited": "JetBrains sorguları sınırladı.",
   "note.jetbrains_ai.client_rejected": "JetBrains hizmet hesabının client ID'sini veya client secret'ını reddetti; iki değişkeni de kontrol edin veya JetBrains Central Console'da secret'ı yenileyin.",
   "note.jetbrains_ai.token_rejected": "Analytics API hizmet hesabının token'ını reddetti; JetBrains Central Console'da hizmet hesabını kontrol edin.",
   "note.jetbrains_ai.forbidden": "Hizmet hesabı AI analytics okuyamıyor: ona View AI analytics izni olan bir rol verin (Business veya Enterprise planı).",

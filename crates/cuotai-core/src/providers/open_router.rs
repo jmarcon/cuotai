@@ -137,12 +137,12 @@ async fn open_router_at(
     match product {
         Product::Key => {
             let url = format!("{base}{KEY_PATH}");
-            let value = get(ctx, &url, key, product, BODY_LIMIT).await?;
+            let value = get(ctx, &url, key, product, BODY_LIMIT, now).await?;
             parse_key(&value, now, KEY_SOURCE)
         }
         Product::Account => {
             let url = format!("{base}{CREDITS_PATH}");
-            let value = get(ctx, &url, key, product, BODY_LIMIT).await?;
+            let value = get(ctx, &url, key, product, BODY_LIMIT, now).await?;
             let mut data = parse_credits(&value, CREDITS_SOURCE)?;
             let threshold = account
                 .params
@@ -208,7 +208,7 @@ async fn key_rows(
     let mut first_len = None;
     for page in 0..crate::breakdown::MAX_PAGES {
         let url = format!("{base}{KEYS_PATH}?include_disabled=true&offset={offset}");
-        let value = get(ctx, &url, key, Product::Account, BODY_LIMIT * 4).await?;
+        let value = get(ctx, &url, key, Product::Account, BODY_LIMIT * 4, now).await?;
         let items = value
             .get("data")
             .and_then(Value::as_array)
@@ -398,7 +398,7 @@ fn classify_http(code: u16, product: Product, expired: bool) -> QueryError {
         429 => failure(
             Status::RateLimited,
             "query.open_router.rate_limited",
-            "OpenRouter rate-limited the queries; the next refresh tries again.",
+            "OpenRouter rate-limited the queries.",
         ),
         _ => super::http_failure(code),
     }
@@ -410,6 +410,7 @@ async fn get(
     key: &str,
     product: Product,
     limit: usize,
+    now: DateTime<Utc>,
 ) -> Result<Value, QueryError> {
     let response = send(
         ctx.http
@@ -427,7 +428,7 @@ async fn get(
     if !status.is_success() {
         let code = status.as_u16();
         let retry_after = (code == 429)
-            .then(|| super::retry_after_seconds(response.headers()))
+            .then(|| super::retry_after_seconds_at(response.headers(), now))
             .flatten();
         let expired = code == 401 && says_expired(response).await;
         return Err(classify_http(code, product, expired).with_retry_after(retry_after));
@@ -879,7 +880,7 @@ async fn activity(
         }
     }
     let url = format!("{base}{ACTIVITY_PATH}");
-    let outcome = match get(ctx, &url, key, Product::Account, ACTIVITY_BODY_LIMIT).await {
+    let outcome = match get(ctx, &url, key, Product::Account, ACTIVITY_BODY_LIMIT, now).await {
         Ok(value) => parse_activity(&value, breakdown).ok(),
         Err(_) => None,
     };
@@ -992,7 +993,7 @@ pub(crate) async fn models(
         let url = format!(
             "{base}/api/v1/models?offset={offset}&limit={MODEL_PAGE_SIZE}&output_modalities=all"
         );
-        let value = get(ctx, &url, key, Product::Key, BODY_LIMIT * 8).await?;
+        let value = get(ctx, &url, key, Product::Key, BODY_LIMIT * 8, Utc::now()).await?;
         let page = value
             .get("data")
             .and_then(Value::as_array)
@@ -1858,6 +1859,62 @@ mod tests {
             error.note.params.get(crate::Report::RETRY_AFTER_PARAM),
             Some(&ParamValue::from(3600u64))
         );
+    }
+
+    /// PRD 0038 re-validation (R-02, F-05): a 429 with `Retry-After` in
+    /// seconds or as an HTTP date (measured from the adapter's clock)
+    /// carries the wait, and the report says when the account is queried
+    /// again.
+    #[tokio::test]
+    async fn a_429_with_retry_after_seconds_or_date_carries_the_wait() {
+        let date = (clock() + Duration::minutes(30))
+            .format("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string();
+        for (header, seconds) in [("120", 120u64), (date.as_str(), 1800)] {
+            let error =
+                key_err(ResponseTemplate::new(429).insert_header("Retry-After", header)).await;
+            assert_eq!(error.status, Status::RateLimited, "{header}");
+            assert_eq!(
+                error.note.params.get(crate::Report::RETRY_AFTER_PARAM),
+                Some(&ParamValue::from(seconds)),
+                "{header}"
+            );
+            let report = crate::Report {
+                account: "Work".into(),
+                account_id: None,
+                provider: Provider::OpenRouter,
+                checked_at: clock(),
+                status: error.status,
+                metrics: Vec::new(),
+                notes: vec![error.note.fallback.to_string()],
+                notes_l10n: vec![error.note],
+                source: String::new(),
+                session_expires_at: None,
+                diagnostic: None,
+                sub_reports: Vec::new(),
+                as_of: None,
+                overage_hint: None,
+                breakdown: Vec::new(),
+            };
+            let at = clock() + Duration::seconds(seconds as i64);
+            assert_eq!(report.retry_not_before(), Some(at));
+            let note = report
+                .retry_wait_note(clock(), |at| {
+                    ParamValue::from(at.format("%H:%M").to_string())
+                })
+                .expect("a wait note");
+            assert_eq!(&*note.id, "query.retry_after_until");
+            assert_eq!(
+                note.fallback,
+                format!(
+                    "OpenRouter asked Cuotai to wait; this account is queried again at {}.",
+                    at.format("%H:%M")
+                )
+            );
+            assert!(report
+                .retry_wait_note(at, |_| ParamValue::from("x"))
+                .is_none());
+        }
     }
 
     // F21

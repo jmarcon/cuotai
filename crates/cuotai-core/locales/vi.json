@@ -101,7 +101,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1992,10 +1993,11 @@
   "query.open_router.key_expired": "Khóa OpenRouter đã hết hạn; hãy tạo khóa mới tại openrouter.ai/settings/keys.",
   "query.open_router.management_key_required": "Thao tác này cần khóa quản lý; hãy tạo tại openrouter.ai/settings/management-keys hoặc dùng chế độ xem khóa mặc định.",
   "query.open_router.params": "Tham số không hợp lệ: params.product phải là key hoặc account và params.breakdown (chỉ với account) là off, provider hoặc model.",
-  "query.open_router.rate_limited": "OpenRouter đã giới hạn tốc độ truy vấn; lần làm mới tiếp theo sẽ thử lại.",
+  "query.open_router.rate_limited": "OpenRouter đã giới hạn tốc độ truy vấn.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) không cấp quyền truy cập số dư thanh toán của tài khoản. Khóa chỉ cho phép suy luận qua /api/v1/services/aigc/...; số dư Alibaba Cloud cần QueryAccountBalance (Financial Management API), xác thực bằng AccessKey ID/Secret của tài khoản chính. Nguồn chính: {dashscope_docs} và {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code OAuth: phiên đã xác thực, nhưng chưa có endpoint hạn mức nào được xác nhận. Gói OAuth miễn phí đã bị nhà cung cấp ngừng vào 15/04/2026; chúng tôi không truy vấn DashScope bằng token này.",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type '{type}' không hợp lệ; hãy dùng auto, pat hoặc bearer.",
+  "query.retry_after_until": "{provider} đã yêu cầu Cuotai chờ; lần truy vấn tiếp theo của tài khoản này: {time}.",
   "query.router_accounts.invalid_qoder_region": "params.region '{region}' không hợp lệ; hãy dùng intl hoặc cn.",
   "query.router_accounts.provider_not_supported": "Nhà cung cấp không có truy vấn nào trong bộ điều hợp này.",
   "query.router_existing.missing_gemini_project": "Gemini CLI không trả về dự án Code Assist; hãy đặt params.project_id.",
@@ -2518,7 +2520,7 @@
   "models.unsupported.reason.admin_key": "tài khoản lưu khóa quản trị, quản lý hoặc phân tích, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình; hãy để khóa đó trong tham số riêng và một khóa suy luận làm thông tin xác thực của tài khoản.",
   "models.unsupported.reason.admin_key_only": "tài khoản chỉ lưu khóa quản trị, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình.",
   "query.jetbrains_ai.missing_secret": "Thiếu thông tin xác thực: {env} (client secret của tài khoản dịch vụ).",
-  "note.jetbrains_ai.rate_limited": "JetBrains đã giới hạn truy vấn; khoảng thời gian sẽ được tự động tăng.",
+  "note.jetbrains_ai.rate_limited": "JetBrains đã giới hạn truy vấn.",
   "note.jetbrains_ai.client_rejected": "JetBrains đã từ chối client ID hoặc client secret của tài khoản dịch vụ; hãy kiểm tra cả hai biến hoặc đổi secret trong JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "Analytics API đã từ chối token của tài khoản dịch vụ; hãy kiểm tra tài khoản dịch vụ trong JetBrains Central Console.",
   "note.jetbrains_ai.forbidden": "Tài khoản dịch vụ không được đọc AI analytics: hãy gán cho nó một vai trò có quyền View AI analytics (gói Business hoặc Enterprise).",

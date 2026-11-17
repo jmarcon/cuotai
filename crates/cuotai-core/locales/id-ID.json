@@ -99,7 +99,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1990,10 +1991,11 @@
   "query.open_router.key_expired": "Kunci OpenRouter kedaluwarsa; buat yang baru di openrouter.ai/settings/keys.",
   "query.open_router.management_key_required": "Operasi ini memerlukan kunci manajemen; buat di openrouter.ai/settings/management-keys atau gunakan tampilan kunci bawaan.",
   "query.open_router.params": "Parameter tidak valid: params.product harus key atau account dan params.breakdown (hanya dengan account) off, provider, atau model.",
-  "query.open_router.rate_limited": "OpenRouter membatasi laju kueri; penyegaran berikutnya mencoba lagi.",
+  "query.open_router.rate_limited": "OpenRouter membatasi laju kueri.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) tidak memberi akses ke saldo penagihan akun. Kunci hanya mengotorisasi inferensi lewat /api/v1/services/aigc/...; saldo Alibaba Cloud memerlukan QueryAccountBalance (Financial Management API), diautentikasi dengan AccessKey ID/Secret akun utama. Sumber utama: {dashscope_docs} dan {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code OAuth: sesi terautentikasi, tetapi tidak ada endpoint kuota yang terkonfirmasi. Paket OAuth gratis dihentikan oleh penyedia pada 15/04/2026; kami tidak mengueri DashScope dengan token ini.",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type '{type}' tidak valid; gunakan auto, pat, atau bearer.",
+  "query.retry_after_until": "{provider} meminta Cuotai menunggu; kueri berikutnya untuk akun ini: {time}.",
   "query.router_accounts.invalid_qoder_region": "params.region '{region}' tidak valid; gunakan intl atau cn.",
   "query.router_accounts.provider_not_supported": "Penyedia tidak memiliki kueri di adaptor ini.",
   "query.router_existing.missing_gemini_project": "Gemini CLI tidak mengembalikan proyek Code Assist; atur params.project_id.",
@@ -2516,7 +2518,7 @@
   "models.unsupported.reason.admin_key": "akun menyimpan kunci admin, manajemen, atau analitik, yang tidak didokumentasikan penyedia untuk mencantumkan model; simpan kunci itu di parameternya sendiri dan kunci inferensi sebagai kredensial akun.",
   "models.unsupported.reason.admin_key_only": "akun hanya menyimpan kunci admin, yang tidak didokumentasikan penyedia untuk mencantumkan model.",
   "query.jetbrains_ai.missing_secret": "Kredensial tidak ada: {env} (client secret akun layanan).",
-  "note.jetbrains_ai.rate_limited": "JetBrains membatasi kueri; interval akan diperpanjang otomatis.",
+  "note.jetbrains_ai.rate_limited": "JetBrains membatasi kueri.",
   "note.jetbrains_ai.client_rejected": "JetBrains menolak client ID atau client secret akun layanan; periksa kedua variabel atau ganti secret di JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "Analytics API menolak token akun layanan; periksa akun layanan di JetBrains Central Console.",
   "note.jetbrains_ai.forbidden": "Akun layanan tidak boleh membaca AI analytics: beri peran dengan izin View AI analytics (paket Business atau Enterprise).",

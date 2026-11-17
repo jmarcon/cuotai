@@ -118,7 +118,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2009,10 +2010,11 @@
   "query.open_router.key_expired": "OpenRouter 키가 만료되었습니다. openrouter.ai/settings/keys에서 새 키를 만드세요.",
   "query.open_router.management_key_required": "이 작업에는 관리 키가 필요합니다. openrouter.ai/settings/management-keys에서 만들거나 기본 키 보기를 사용하세요.",
   "query.open_router.params": "매개변수가 올바르지 않습니다. params.product는 key 또는 account여야 하고 params.breakdown(account에서만)은 off, provider 또는 model이어야 합니다.",
-  "query.open_router.rate_limited": "OpenRouter가 조회를 제한했습니다. 다음 새로 고침에서 다시 시도합니다.",
+  "query.open_router.rate_limited": "OpenRouter가 조회를 제한했습니다.",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio(QWEN_API_KEY)는 계정의 청구 잔액에 접근할 수 없습니다. 이 키는 /api/v1/services/aigc/...를 통한 추론만 허용합니다. Alibaba Cloud 잔액은 마스터 계정의 AccessKey ID/Secret으로 인증하는 QueryAccountBalance(Financial Management API)가 필요합니다. 1차 출처: {dashscope_docs} 및 {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code OAuth: 인증된 세션이지만 확인된 할당량 엔드포인트가 없습니다. 무료 OAuth 요금제는 제공업체가 2026년 4월 15일에 종료했으며 이 토큰으로 DashScope를 조회하지 않습니다.",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type '{type}'이(가) 올바르지 않습니다. auto, pat 또는 bearer를 사용하세요.",
+  "query.retry_after_until": "{provider}에서 대기를 요청했습니다. 이 계정의 다음 조회: {time}.",
   "query.router_accounts.invalid_qoder_region": "params.region '{region}'이(가) 올바르지 않습니다. intl 또는 cn을 사용하세요.",
   "query.router_accounts.provider_not_supported": "이 어댑터에서 조회할 수 없는 제공업체입니다.",
   "query.router_existing.missing_gemini_project": "Gemini CLI가 Code Assist 프로젝트를 반환하지 않았습니다. params.project_id를 설정하세요.",
@@ -2535,7 +2537,7 @@
   "models.unsupported.reason.admin_key": "계정에 관리자·관리·분석 키가 저장되어 있으며, 제공업체는 이 키로 모델을 나열하는 방법을 문서화하지 않았습니다. 이 키는 전용 매개변수에, 추론 키는 계정 자격 증명으로 넣으세요.",
   "models.unsupported.reason.admin_key_only": "계정에 관리자 키만 저장되어 있으며, 제공업체는 이 키로 모델을 나열하는 방법을 문서화하지 않았습니다.",
   "query.jetbrains_ai.missing_secret": "자격 증명 없음: {env}(서비스 계정의 client secret).",
-  "note.jetbrains_ai.rate_limited": "JetBrains가 조회를 제한했습니다. 간격이 자동으로 늘어납니다.",
+  "note.jetbrains_ai.rate_limited": "JetBrains가 조회를 제한했습니다.",
   "note.jetbrains_ai.client_rejected": "JetBrains가 서비스 계정의 client ID 또는 client secret을 거부했습니다. 두 변수를 확인하거나 JetBrains Central Console에서 secret을 교체하세요.",
   "note.jetbrains_ai.token_rejected": "Analytics API가 서비스 계정 토큰을 거부했습니다. JetBrains Central Console에서 서비스 계정을 확인하세요.",
   "note.jetbrains_ai.forbidden": "서비스 계정이 AI analytics를 읽을 수 없습니다. View AI analytics 권한이 있는 역할을 부여하세요(Business 또는 Enterprise 플랜).",

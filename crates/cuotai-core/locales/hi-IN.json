@@ -117,7 +117,8 @@
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
-      "note.eleven_labs.overage_currency_unknown"
+      "note.eleven_labs.overage_currency_unknown",
+      "query.retry_after_until"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2033,10 +2034,11 @@
   "query.open_router.key_expired": "OpenRouter की कुंजी समाप्त हो गई; openrouter.ai/settings/keys पर नई कुंजी बनाएँ।",
   "query.open_router.management_key_required": "इस कार्रवाई के लिए मैनेजमेंट कुंजी चाहिए; openrouter.ai/settings/management-keys पर एक बनाएँ या कुंजी का डिफ़ॉल्ट व्यू इस्तेमाल करें।",
   "query.open_router.params": "पैरामीटर अमान्य हैं: params.product key या account होना चाहिए और params.breakdown (केवल account के साथ) off, provider या model।",
-  "query.open_router.rate_limited": "OpenRouter ने जाँचें सीमित कर दीं; अगला अपडेट फिर कोशिश करेगा।",
+  "query.open_router.rate_limited": "OpenRouter ने जाँचें सीमित कर दीं।",
   "query.qwen.billing_balance_unsupported": "Qwen / Alibaba DashScope Model Studio (QWEN_API_KEY) खाते के बिलिंग बैलेंस तक पहुँच नहीं देता। कुंजी केवल /api/v1/services/aigc/... से इन्फ़रेंस को अधिकृत करती है; Alibaba Cloud के बैलेंस के लिए QueryAccountBalance (Financial Management API) चाहिए, जो मास्टर खाते की AccessKey ID/Secret से प्रमाणित होती है। प्राथमिक स्रोत: {dashscope_docs} और {billing_docs}",
   "query.qwen_oauth_unsupported": "Qwen Code OAuth: सत्र प्रमाणित है, पर कोई पुष्ट कोटा एंडपॉइंट नहीं है। मुफ़्त OAuth प्लान प्रदाता ने 15/04/2026 को बंद कर दिया; हम इस टोकन से DashScope की जाँच नहीं करते।",
   "query.router_accounts.invalid_qoder_credential_type": "params.credential_type '{type}' अमान्य है; auto, pat या bearer इस्तेमाल करें।",
+  "query.retry_after_until": "{provider} ने Cuotai से रुकने को कहा; इस खाते की अगली जाँच: {time}।",
   "query.router_accounts.invalid_qoder_region": "params.region '{region}' अमान्य है; intl या cn इस्तेमाल करें।",
   "query.router_accounts.provider_not_supported": "इस एडेप्टर में प्रदाता की जाँच नहीं है।",
   "query.router_existing.missing_gemini_project": "Gemini CLI ने Code Assist प्रोजेक्ट नहीं लौटाया; params.project_id कॉन्फ़िगर करें।",
@@ -2582,7 +2584,7 @@
   "models.unsupported.reason.admin_key": "खाता एडमिन, मैनेजमेंट या एनालिटिक्स कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है; उस कुंजी को उसके अपने पैरामीटर में और इन्फ़रेंस कुंजी को खाते के क्रेडेंशियल के रूप में रखें।",
   "models.unsupported.reason.admin_key_only": "खाता केवल एडमिन कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है।",
   "query.jetbrains_ai.missing_secret": "क्रेडेंशियल नहीं मिला: {env} (सेवा खाते का client secret)।",
-  "note.jetbrains_ai.rate_limited": "JetBrains ने क्वेरी सीमित कर दीं; अंतराल अपने आप बढ़ा दिया जाएगा।",
+  "note.jetbrains_ai.rate_limited": "JetBrains ने क्वेरी सीमित कर दीं।",
   "note.jetbrains_ai.client_rejected": "JetBrains ने सेवा खाते का client ID या client secret अस्वीकार कर दिया; दोनों वेरिएबल जाँचें या JetBrains Central Console में secret बदलें।",
   "note.jetbrains_ai.token_rejected": "Analytics API ने सेवा खाते का टोकन अस्वीकार कर दिया; JetBrains Central Console में सेवा खाता जाँचें।",
   "note.jetbrains_ai.forbidden": "सेवा खाता AI analytics नहीं पढ़ सकता: उसे View AI analytics अनुमति वाली भूमिका दें (Business या Enterprise प्लान)।",

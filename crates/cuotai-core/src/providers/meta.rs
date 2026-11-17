@@ -131,7 +131,7 @@ async fn key_check(
                 "Meta Model API returned HTTP {code}.",
             ),
         }
-        .with_retry_after(retry_after(response.headers())));
+        .with_retry_after(super::retry_after_seconds(response.headers())));
     }
     let headers = response.headers().clone();
     let bytes = response
@@ -619,16 +619,6 @@ fn header_number(headers: &reqwest::header::HeaderMap, name: &str) -> Option<f64
         .filter(|v| v.is_finite() && *v >= 0.0)
 }
 
-fn retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
-    headers
-        .get(reqwest::header::RETRY_AFTER)?
-        .to_str()
-        .ok()?
-        .trim()
-        .parse()
-        .ok()
-}
-
 /// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
 /// records: every month-to-date series the console reports.
 #[cfg(test)]
@@ -776,6 +766,25 @@ mod tests {
             .await
             .expect_err("429");
         assert_eq!(err.status, Status::RateLimited);
+    }
+
+    /// PRD 0038 re-validation (R-06): Meta reads `Retry-After` with the
+    /// shared parser, so the HTTP-date form is honored too.
+    #[tokio::test]
+    async fn retry_after_in_the_date_form_is_honored() {
+        let at = chrono::Utc::now() + chrono::Duration::hours(1);
+        let date = at.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let err = run(ResponseTemplate::new(429).insert_header("retry-after", date.as_str()))
+            .await
+            .expect_err("429");
+        assert_eq!(err.status, Status::RateLimited);
+        let Some(crate::text::ParamValue::Text(seconds)) =
+            err.note.params.get(crate::Report::RETRY_AFTER_PARAM)
+        else {
+            panic!("the wait is kept");
+        };
+        let seconds: u64 = seconds.parse().unwrap();
+        assert!((3500..=3600).contains(&seconds), "{seconds}");
     }
 
     #[tokio::test]

@@ -2009,6 +2009,13 @@ fn report_text(
             .unwrap_or_else(|| fallback_text.clone());
         out += &format!("  {}\n", ui::safe(&text));
     }
+    // PRD 0038 re-validation (F-05): when a `Retry-After` lets the account
+    // be queried again, in the local clock.
+    if let Some(note) = report.retry_wait_note(now, |instant| {
+        cuotai_core::text::ParamValue::from(at(instant))
+    }) {
+        out += &format!("  {}\n", ui::safe(&note.resolve(locale)));
+    }
     if !report.source.is_empty() {
         out += &l10n::trf_in(
             locale,
@@ -2915,6 +2922,51 @@ mod tests {
             summary_lines(&snapshot, "pt-BR", at).lines().next(),
             Some("Claude  bloqueada até 14:30 pela janela semanal")
         );
+    }
+
+    /// PRD 0038 re-validation (F-05): a provider's `Retry-After` is printed
+    /// as the time the account is queried again, in the local clock (a
+    /// weekday and time when it is not today), and not once it passed.
+    #[test]
+    fn once_text_says_when_a_retry_after_lets_the_account_be_queried() {
+        let mut limited = report("Work", Status::RateLimited, Vec::new());
+        limited.provider = Provider::OpenRouter;
+        let wait = |seconds: u64| {
+            let mut note = cuotai_core::text::Localized::fixed(
+                "query.open_router.rate_limited",
+                "OpenRouter rate-limited the queries.",
+            );
+            note.params.insert(
+                Report::RETRY_AFTER_PARAM.into(),
+                cuotai_core::text::ParamValue::from(seconds),
+            );
+            note
+        };
+        limited.notes_l10n = vec![wait(120)];
+        limited.notes = vec![limited.notes_l10n[0].fallback.to_string()];
+        let now = limited.checked_at + chrono::Duration::seconds(30);
+        let at = |t: DateTime<Utc>| cuotai_core::text::clock(t, now, &Utc).resolve("en-US");
+        let text = report_text(&limited, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(
+            text.contains(
+                "  OpenRouter asked Cuotai to wait; this account is queried again at 12:02"
+            ),
+            "{text}"
+        );
+        let at = |t: DateTime<Utc>| cuotai_core::text::clock(t, now, &Utc).resolve("de");
+        let de = report_text(&limited, &[], None, FIVE_MIN, now, "de", at);
+        assert!(de.contains("nächste Abfrage dieses Kontos: 00:02."), "{de}");
+        limited.notes_l10n = vec![wait(86_400)];
+        let at = |t: DateTime<Utc>| cuotai_core::text::clock(t, now, &Utc).resolve("en-US");
+        let tomorrow = report_text(&limited, &[], None, FIVE_MIN, now, "en-US", at);
+        let line = tomorrow
+            .lines()
+            .find(|line| line.contains("queried again at"))
+            .expect("the wait line");
+        assert!(!line.ends_with("at 00:00."), "not today: {line}");
+        let later = limited.checked_at + chrono::Duration::days(2);
+        let gone = report_text(&limited, &[], None, FIVE_MIN, later, "en-US", at);
+        assert!(!gone.contains("queried again"), "{gone}");
     }
 
     #[test]
