@@ -127,6 +127,11 @@ pub struct Incident {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderStatus {
     pub provider: Provider,
+    /// Status source of this reading: the sub-page slug of a multi-page
+    /// source (`"eu"`, `"united-states"`, ...), `None` for a single-page
+    /// one. A provider has one status per source, never a merged one.
+    #[serde(default)]
+    pub source: Option<String>,
     pub state: IncidentState,
     pub incident: Option<Incident>,
     /// Public status page of the source.
@@ -139,24 +144,6 @@ pub struct ProviderStatus {
     /// The retained reading is older than [`READING_MAX_AGE`], so `state` is
     /// `Unknown` and `incident` is absent even when that reading had one.
     pub expired: bool,
-}
-
-impl ProviderStatus {
-    /// Fold another sub-page's status of the same provider into this one,
-    /// keeping the more severe state and its incident.
-    pub(crate) fn merge(&mut self, other: Self) {
-        let worse = other.state.rank() > self.state.rank();
-        self.stale |= other.stale;
-        self.expired |= other.expired;
-        self.read_at = match (self.read_at, other.read_at) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            _ => None,
-        };
-        if worse {
-            self.state = other.state;
-            self.incident = other.incident;
-        }
-    }
 }
 
 /// Opt-in status preference and per-source cache. Cloning shares both, so
@@ -354,6 +341,7 @@ impl IncidentMonitor {
         };
         ProviderStatus {
             provider,
+            source: source.subpage.map(str::to_owned),
             state,
             incident,
             page_url: page_url(source),
@@ -412,8 +400,10 @@ async fn fetch(
         .unwrap_or(Err(parse::Invalid))
 }
 
-fn page_url(source: StatusSource) -> String {
-    format!("https://{}/", source.host())
+/// The public status page of `source`, from the registry (never from a
+/// response): the host root, or the sub-page of a multi-page source.
+pub(crate) fn page_url(source: StatusSource) -> String {
+    format!("https://{}/{}", source.host(), source.subpage.unwrap_or(""))
 }
 
 /// Keep a provider link only when it is a plain `https` URL on the source
@@ -478,15 +468,26 @@ pub(crate) fn evaluate(
                 .map(|(_, page)| page)
         });
         return page.map_or((IncidentState::Unknown, None), |page| {
-            evaluate(
+            evaluate_page(
                 page,
                 StatusSource {
                     subpage: None,
                     ..source
                 },
+                page_url(source),
             )
         });
     }
+    evaluate_page(reading, source, page_url(source))
+}
+
+/// [`evaluate`] for one page; `page` is the link an incident without its
+/// own page gets (the source's status page).
+fn evaluate_page(
+    reading: &Reading,
+    source: StatusSource,
+    page: String,
+) -> (IncidentState, Option<Incident>) {
     let mut state = match reading.baseline {
         Baseline::Operational => IncidentState::Operational,
         Baseline::Unknown => IncidentState::Unknown,
@@ -518,7 +519,7 @@ pub(crate) fn evaluate(
             .link
             .as_deref()
             .and_then(|link| public_link(link, source))
-            .unwrap_or_else(|| page_url(source)),
+            .unwrap_or_else(|| page.clone()),
     });
     (state, incident)
 }

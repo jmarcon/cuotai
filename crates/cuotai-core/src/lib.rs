@@ -1044,18 +1044,14 @@ impl Monitor {
         )
     }
 
-    /// One status per provider: accounts of a regional provider in several
-    /// regions report the worst of their sub-pages.
+    /// One status per distinct `(provider, source)` pair: accounts of a
+    /// regional provider in several regions each keep their own sub-page's
+    /// status (PRD 0037 RF8); [`incidents::status_for`] finds an account's.
     fn provider_statuses(&self) -> Vec<incidents::ProviderStatus> {
-        let mut merged: Vec<incidents::ProviderStatus> = Vec::new();
-        for (provider, source) in self.status_sources() {
-            let status = self.incidents.status(provider, source);
-            match merged.iter_mut().find(|known| known.provider == provider) {
-                Some(known) => known.merge(status),
-                None => merged.push(status),
-            }
-        }
-        merged
+        self.status_sources()
+            .into_iter()
+            .map(|(provider, source)| self.incidents.status(provider, source))
+            .collect()
     }
 
     /// PRD 0028 RF4.5: for each configured provider with a Statuspage source,

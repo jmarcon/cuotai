@@ -395,7 +395,7 @@ pub fn drafts(
                     report,
                     // A canary run is a one-shot query.
                     last_good: support::LastGood::one_shot(report, None, report.checked_at),
-                    incident_active: crate::incidents::incident_active(statuses, account.provider),
+                    incident_active: crate::incidents::incident_active(statuses, account),
                 },
                 app,
                 drift.category,
@@ -922,6 +922,7 @@ mod tests {
         use crate::incidents::{incident_active, IncidentState, ProviderStatus};
         let status = |provider, state| ProviderStatus {
             provider,
+            source: None,
             state,
             incident: None,
             page_url: "https://status.example.com".into(),
@@ -933,13 +934,16 @@ mod tests {
             status(Provider::OpenAiApi, IncidentState::PartialOutage),
             status(Provider::Claude, IncidentState::Unknown),
         ];
-        assert_eq!(incident_active(&statuses, Provider::OpenAiApi), Some(true));
-        assert_eq!(incident_active(&statuses, Provider::Claude), None);
-        assert_eq!(incident_active(&statuses, Provider::Groq), None);
+        assert_eq!(
+            incident_active(&statuses, &account(Provider::OpenAiApi)),
+            Some(true)
+        );
+        assert_eq!(incident_active(&statuses, &account(Provider::Claude)), None);
+        assert_eq!(incident_active(&statuses, &account(Provider::Groq)), None);
         assert_eq!(
             incident_active(
                 &[status(Provider::OpenAiApi, IncidentState::Operational)],
-                Provider::OpenAiApi
+                &account(Provider::OpenAiApi)
             ),
             Some(false)
         );

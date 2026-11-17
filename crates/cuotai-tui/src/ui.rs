@@ -1190,7 +1190,7 @@ pub async fn run(
                                 ),
                                 cuotai_core::incidents::incident_active(
                                     &state.incidents,
-                                    account.provider,
+                                    account,
                                 ),
                                 cuotai_core::support::Interface::Tui,
                                 Some(file.path.clone()),

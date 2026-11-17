@@ -258,7 +258,7 @@ pub struct Event {
     /// that is not about an account (PRD 0013 re-validation V-05).
     pub provider: Option<Provider>,
     /// `provider_incident` only (PRD 0031 RF8.1): the keys of every
-    /// account that reads the same provider status, in configuration
+    /// account that reads the same provider status source, in configuration
     /// order, the first being `account_key`. Absent for other events.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub accounts: Vec<String>,
@@ -1235,10 +1235,13 @@ impl EventState {
             return;
         };
         let state = incident.state;
-        // One status per provider (a regional provider reports the worst
-        // of its sub-pages, whose page URL may change with it): the track
-        // is keyed by the provider alone, so a region flip is no new source.
-        let source = out.next.provider.slug().to_owned();
+        // One status per provider and status source (PRD 0037 RF8): an
+        // incident on one region's sub-page is tracked, and reported, apart
+        // from the provider's other regions (`eleven_labs/eu`).
+        let source = match incident.source.as_deref() {
+            Some(subpage) => format!("{}/{subpage}", out.next.provider.slug()),
+            None => out.next.provider.slug().to_owned(),
+        };
         let Some(track) = self.incidents.get_mut(&source) else {
             self.incidents.insert(
                 source,

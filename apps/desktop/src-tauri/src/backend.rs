@@ -1105,15 +1105,29 @@ pub struct StatusView {
     outage: bool,
 }
 
-/// The status shown on an account of `provider`, if any.
-fn incident_view(statuses: &[ProviderStatus], provider: Provider) -> Option<IncidentView> {
-    statuses
-        .iter()
-        .find(|status| status.provider == provider)
-        .map(|status| IncidentView {
-            label: status.state.label(),
-            status: status.clone(),
-        })
+/// The status shown on `account` (card, details, tray rows): its own
+/// status source's (PRD 0037 RF8: the sub-page its region selects), if any.
+fn incident_view(
+    statuses: &[ProviderStatus],
+    account: &cuotai_core::Account,
+) -> Option<IncidentView> {
+    cuotai_core::incidents::status_for(statuses, account).map(view_of_status)
+}
+
+/// The status shown on a connection mapped to `provider` (PRD 0036): the
+/// provider's default status source, if any.
+fn connection_incident_view(
+    statuses: &[ProviderStatus],
+    provider: Provider,
+) -> Option<IncidentView> {
+    cuotai_core::incidents::status_for_provider(statuses, provider).map(view_of_status)
+}
+
+fn view_of_status(status: &ProviderStatus) -> IncidentView {
+    IncidentView {
+        label: status.state.label(),
+        status: status.clone(),
+    }
 }
 
 fn status_view(
@@ -2105,7 +2119,7 @@ impl Inner {
                 view.last_good = last_good.map(|report| last_good_view(report, now_utc));
                 view.notify = self.notices.account_on(&view.account_key);
                 view.monogram = desk.monogram_of(&view.account_id);
-                view.incident = incident_view(&statuses, view.provider);
+                view.incident = incident_view(&statuses, &l.file.config.accounts[i]);
                 if let Some(store) = &history {
                     view.limit_notes = limit_notes(store, &l.file.config.accounts[i], clock);
                 }
@@ -2135,7 +2149,8 @@ impl Inner {
                     );
                     for connection in &mut connections {
                         connection.notify = self.notices.account_on(&connection.account_key);
-                        connection.incident = incident_view(&statuses, connection.provider);
+                        connection.incident =
+                            connection_incident_view(&statuses, connection.provider);
                         if connection
                             .connection
                             .as_ref()
@@ -6290,7 +6305,7 @@ impl Backend {
                         last_good,
                         incident_active: cuotai_core::incidents::incident_active(
                             &l.monitor.incident_statuses(),
-                            account.provider,
+                            account,
                         ),
                     },
                     &app,
@@ -8511,6 +8526,7 @@ mod tests {
     ) -> ProviderStatus {
         ProviderStatus {
             provider,
+            source: None,
             state,
             incident: state
                 .is_incident()
@@ -8536,8 +8552,13 @@ mod tests {
             provider_status(Provider::Claude, PartialOutage),
             provider_status(Provider::Groq, Degraded),
         ];
+        let account = |provider| cuotai_core::Account {
+            provider,
+            ..cuotai_core::Account::default()
+        };
         let claude =
-            serde_json::to_value(incident_view(&statuses, Provider::Claude).unwrap()).unwrap();
+            serde_json::to_value(incident_view(&statuses, &account(Provider::Claude)).unwrap())
+                .unwrap();
         assert_eq!(claude["provider"], "claude");
         assert_eq!(claude["state"], "partial_outage");
         assert_eq!(claude["label"]["id"], "incident.state.partial_outage");
@@ -8547,7 +8568,7 @@ mod tests {
         );
         assert_eq!(claude["stale"], false);
         assert_eq!(claude["expired"], false);
-        assert!(incident_view(&statuses, Provider::Kiro).is_none());
+        assert!(incident_view(&statuses, &account(Provider::Kiro)).is_none());
 
         assert!(status_view(true, vec![], &statuses).outage);
         let mut stale = provider_status(Provider::Claude, PartialOutage);
@@ -8561,6 +8582,49 @@ mod tests {
             assert!(!status_view(true, vec![], &only).outage, "{calm:?}");
         }
         assert!(!status_view(false, vec![], &[]).outage);
+    }
+
+    /// PRD 0037 RF8: accounts of one provider in two regions each show their
+    /// own sub-page's status: an EU incident is on the EU account only (card,
+    /// details and tray rows read this view), and a connection reads the
+    /// provider's default sub-page.
+    #[test]
+    fn each_account_shows_its_own_status_source() {
+        use cuotai_core::incidents::IncidentState::*;
+        let voice = |region: Option<&str>| {
+            let mut account = cuotai_core::Account {
+                provider: Provider::ElevenLabs,
+                ..cuotai_core::Account::default()
+            };
+            if let Some(region) = region {
+                account.params.insert("region".into(), region.into());
+            }
+            account
+        };
+        let status = |source: &str, state| ProviderStatus {
+            source: Some(source.into()),
+            page_url: format!("https://status.elevenlabs.io/{source}"),
+            ..provider_status(Provider::ElevenLabs, state)
+        };
+        let statuses = [
+            status("united-states", Operational),
+            status("eu", PartialOutage),
+        ];
+        let eu =
+            serde_json::to_value(incident_view(&statuses, &voice(Some("eu"))).unwrap()).unwrap();
+        assert_eq!(eu["state"], "partial_outage");
+        assert_eq!(eu["source"], "eu");
+        assert_eq!(eu["page_url"], "https://status.elevenlabs.io/eu");
+        let us = serde_json::to_value(incident_view(&statuses, &voice(None)).unwrap()).unwrap();
+        assert_eq!(us["state"], "operational");
+        assert_eq!(us["page_url"], "https://status.elevenlabs.io/united-states");
+        assert!(us["incident"].is_null());
+        assert!(incident_view(&statuses, &voice(Some("sg"))).is_none());
+        let connection = serde_json::to_value(
+            connection_incident_view(&statuses, Provider::ElevenLabs).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(connection["source"], "united-states");
     }
 
     /// PRD 0011 RF4.3: off by default with the domains already listed, and

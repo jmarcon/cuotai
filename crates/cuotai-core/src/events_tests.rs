@@ -171,6 +171,7 @@ impl Watch {
     fn status(&mut self, state: IncidentState, stale: bool) {
         self.statuses = vec![ProviderStatus {
             provider: Provider::Claude,
+            source: None,
             state,
             incident: state.is_incident().then(|| Incident {
                 title: "Elevated errors on Claude Code".into(),
@@ -903,6 +904,7 @@ fn accounts_of_one_provider_share_one_incident_event() {
         [Provider::Claude, Provider::Kimi]
             .into_iter()
             .map(|provider| ProviderStatus {
+                source: None,
                 provider,
                 state: if provider == Provider::Claude {
                     state
@@ -937,6 +939,68 @@ fn accounts_of_one_provider_share_one_incident_event() {
     assert!(observe(&mut watcher, IncidentState::MajorOutage, 2).is_empty());
     let resolved = observe(&mut watcher, IncidentState::Operational, 3);
     assert_eq!(transitions(&resolved), [ProviderIncident]);
+}
+
+/// PRD 0037 RF8: an incident on one region's status sub-page is one
+/// `provider_incident` that lists only that region's accounts.
+#[test]
+fn an_incident_on_one_region_names_only_that_regions_accounts() {
+    let account = |name: &str, region: Option<&str>| {
+        let mut account = Account {
+            name: name.into(),
+            provider: Provider::ElevenLabs,
+            ..Account::default()
+        };
+        if let Some(region) = region {
+            account.params.insert("region".into(), region.into());
+        }
+        account
+    };
+    let config = Config {
+        accounts: vec![
+            account("US", None),
+            account("EU", Some("eu")),
+            account("EU 2", Some("eu")),
+        ],
+        ..Config::default()
+    };
+    let cycle = RefreshCycle::new(&config, Instant::now());
+    let identity = ConfigIdentity::Explicit("events".into());
+    let status = |eu: IncidentState| {
+        [("united-states", IncidentState::Operational), ("eu", eu)]
+            .into_iter()
+            .map(|(source, state)| ProviderStatus {
+                provider: Provider::ElevenLabs,
+                source: Some(source.into()),
+                state,
+                incident: None,
+                page_url: format!("https://status.example.com/{source}"),
+                read_at: Some(t0()),
+                stale: false,
+                expired: false,
+            })
+            .collect::<Vec<_>>()
+    };
+    let observe = |watcher: &mut crate::watch::Watcher, state, minute| {
+        let export = Export::from_cycle(
+            &config,
+            &identity,
+            &cycle,
+            &status(state),
+            at(minute),
+            Options::default(),
+        );
+        watcher.observe(&export, at(minute))
+    };
+    let mut watcher = crate::watch::Watcher::new(EventState::default(), None);
+    assert!(observe(&mut watcher, IncidentState::Operational, 0).is_empty());
+    let events = observe(&mut watcher, IncidentState::PartialOutage, 1);
+    assert_eq!(transitions(&events), [ProviderIncident]);
+    assert_eq!(events[0].account_key, "eleven_labs:EU");
+    assert_eq!(events[0].accounts, ["eleven_labs:EU", "eleven_labs:EU 2"]);
+    let resolved = observe(&mut watcher, IncidentState::Operational, 2);
+    assert_eq!(transitions(&resolved), [ProviderIncident]);
+    assert_eq!(resolved[0].accounts, ["eleven_labs:EU", "eleven_labs:EU 2"]);
 }
 
 /// PRD 0024 RF5: `quota_exhaustion_projected` on the RF2 edge, only with

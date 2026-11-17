@@ -376,7 +376,7 @@ fn incident_accounts(export: &Export, of: &AccountExport) -> Vec<String> {
             .incident
             .as_ref()
             .filter(|incident| !incident.stale)
-            .map(|incident| (account.provider.slug(), incident.page_url.clone()))
+            .map(|incident| (account.provider.slug(), incident.source.clone()))
     };
     let wanted = source(of);
     export
