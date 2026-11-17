@@ -15,7 +15,8 @@
       "models.unsupported.reason.nine_router",
       "text.duration.compact.days",
       "text.duration.compact.hours",
-      "text.duration.compact.minutes"
+      "text.duration.compact.minutes",
+      "note.meta.several_teams"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1509,7 +1510,10 @@
   "note.meta.sign_in_for_usage": "Meta ne documente aucune API d'utilisation, de dépense ou de solde ; connectez-vous à dev.meta.ai depuis le compte pour lire l'utilisation de la console.",
   "note.meta.console_undocumented": "Utilisation lue dans l'interface interne de la console dev.meta.ai ; peut changer sans préavis.",
   "note.meta.teams_unavailable": "La console dev.meta.ai n'a pas listé les équipes ; indiquez \"ID de l'équipe\" d'après l'adresse de la page d'utilisation.",
-  "note.meta.several_teams": "La session appartient à {count} équipes ; indiquez \"ID de l'équipe\" d'après l'adresse de la page d'utilisation pour en choisir une.",
+  "note.meta.several_teams": {
+    "one": "La session appartient à {count} équipe ; indiquez \"ID de l'équipe\" d'après l'adresse de la page d'utilisation pour en choisir une.",
+    "other": "La session appartient à {count} équipes ; indiquez \"ID de l'équipe\" d'après l'adresse de la page d'utilisation pour en choisir une."
+  },
   "note.meta.usage_unavailable": "La console dev.meta.ai n'a pas renvoyé l'utilisation ; la carte n'affiche que la vérification de la clé.",
   "note.meta.usage_empty": "La console dev.meta.ai n'a renvoyé aucune série d'utilisation pour ce mois ; l'utilisation est inconnue, pas nulle.",
   "note.router_keys.kimi_internal_route": "Route interne de Kimi observée dans 9router ; susceptible de changer et d’être restreinte par le fournisseur.",

@@ -9,7 +9,8 @@
       "models.unsupported.reason.eleven_labs",
       "models.unsupported.reason.jetbrains_ai",
       "models.unsupported.reason.litellm",
-      "models.unsupported.reason.nine_router"
+      "models.unsupported.reason.nine_router",
+      "note.meta.several_teams"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -1013,7 +1014,10 @@
   "note.meta.sign_in_for_usage": "Meta no documenta una API de uso, gasto ni saldo; inicie sesión en dev.meta.ai desde la cuenta para leer el uso de la consola.",
   "note.meta.console_undocumented": "Uso leído en la interfaz interna de la consola dev.meta.ai; puede cambiar sin aviso.",
   "note.meta.teams_unavailable": "La consola dev.meta.ai no listó los equipos; indique \"ID del equipo\" a partir de la dirección de la página de uso.",
-  "note.meta.several_teams": "La sesión pertenece a {count} equipos; indique \"ID del equipo\" a partir de la dirección de la página de uso para elegir uno.",
+  "note.meta.several_teams": {
+    "one": "La sesión pertenece a {count} equipo; indique \"ID del equipo\" a partir de la dirección de la página de uso para elegir uno.",
+    "other": "La sesión pertenece a {count} equipos; indique \"ID del equipo\" a partir de la dirección de la página de uso para elegir uno."
+  },
   "note.meta.usage_unavailable": "La consola dev.meta.ai no devolvió el uso; la tarjeta muestra solo la verificación de la clave.",
   "note.meta.usage_empty": "La consola de dev.meta.ai no devolvió ninguna serie de uso para este mes; el uso es desconocido, no cero.",
   "note.router_keys.kimi_internal_route": "Ruta interna de Kimi observada en 9router; sujeta a cambios y restricciones del proveedor.",
