@@ -168,6 +168,21 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["details-cost-plans", `index.html?${COST_PLANS}`, 1200, 820, {}, '.card[data-card="claude::work@example.com"] [data-details]'],
   ["details-cost-unplanned", `index.html?${COST_PLANS}`, 520, 600, {}, '.card[data-card="claude::side@example.com"] [data-details]'],
   ["settings-cost-plans", `settings.html?page=cost&sub=cost-plans&${COST_PLANS}`, 640, 460, {}],
+  // PRD 0036 re-validation (V-12): the 9router and LiteLLM add forms (address, filters, TLS, vault password or pasted
+  // session, Test connection) and a failed Test connection with a long result (`?aggtest=locked`).
+  ["dialog-add-9router", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]']],
+  ["dialog-add-litellm", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="litellm"]']],
+  ["dialog-add-9router-warn", "index.html?aggtest=locked", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]', "#aggregator-test"]],
+  // Aggregator instances of every size (`?agg=`): none, 12 (a duplicate and one off), 40 (long labels), an exhausted
+  // pool and a LiteLLM proxy; the 12-connection instance expanded in the popover, its details and a connection's.
+  ["main-agg-0", "index.html?agg=0,1", 1200, 820, {}],
+  ["main-agg-12", "index.html?agg=12", 1200, 820, {}],
+  ["main-agg-40", "index.html?agg=40", 1200, 820, {}],
+  ["main-agg-exhausted", "index.html?agg=exhausted", 1200, 820, {}],
+  ["main-agg-litellm", "index.html?agg=litellm", 1200, 820, {}],
+  ["tray-agg-expanded", "tray.html?agg=12", 380, 600, {}, '[data-agg-toggle="nine_router::lab"]'],
+  ["details-agg-instance", "index.html?agg=12", 1200, 820, {}, '.agg-section[data-card="nine_router::lab"] .agg-head [data-details]'],
+  ["details-agg-connection", "index.html?agg=12", 1200, 820, {}, '.agg-section[data-card="nine_router::lab"] .card [data-details]'],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [
@@ -323,6 +338,9 @@ const PAGE_JS = `(() => {
     if (ph.visibility === "hidden" || /^rgba\\(.*,\\s*0\\)$|^transparent$/.test(ph.color)) continue;
     pen.font = ph.font || cs.font;
     const need = pen.measureText(e.placeholder).width, room = e.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    // A textarea wraps its placeholder: it fits when its lines fit the content height (PRD 0036 re-validation V-12).
+    const lines = Math.ceil((need * 1.1) / Math.max(room, 1)), line = parseFloat(ph.lineHeight) || parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
+    if (e.tagName === "TEXTAREA" && room > 0 && lines * line <= e.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) + 1) continue;
     if (room > 0 && need > room + 1) out.push({ kind: "placeholder-clipped", ok: false, sel: sel(e) + (e.id ? "#" + e.id : ""), text: Math.round(need) + " > " + Math.round(room) + " " + e.placeholder.slice(0, 40) });
   }
   // PRD 0034 re-validation V-10 (DS-A11Y-7): a figure never wraps away from its unit. A number and the unit after it

@@ -1540,6 +1540,7 @@ const DEMO_RAW_LABELS = {
   "session (5h)": ["Sessão (5 horas) (%)", demoPercentOf("metric.label.session_5h", "Session (5 hours)")],
   "weekly (7d)": ["Semana (7 dias) (%)", demoPercentOf("metric.label.week_7d", "Week (7 days)")],
   credit: ["Crédito", demoText("metric.label.credit", "Credit")],
+  "budget (30d)": ["Orçamento do provedor (30d)", demoText("metric.label.provider_budget_period", "Provider budget (30d)", { period: "30d" })],
 };
 const DEMO_RAW_UNITS = {
   requests: ["solicitações", demoText("metric.unit.requests", "requests")],
@@ -1634,9 +1635,10 @@ const demoReports = [
 // off in 9router; an unmapped GLM one whose query failed). `?aggregator=off` leaves it out.
 // PRD 0036 RF8.5 demo: the `hidden` and `show_both` lists of the 9router account (sub ids).
 const demoConnFlags = { hidden: new Set(), show_both: new Set() };
-const demoConnection = (id, label, upstream, mapped, metrics, extra = {}) => ({
-  ...dr(`home/${id}`, mapped ?? "nine_router", metrics), account: label, demo_id: id,
-  connection: { label, upstream, mapped, enabled_upstream: true, duplicate_of: null, plan: null, via: `open-sse/services/usage/${upstream}.js`, sub: id, show_both: false }, ...extra,
+const demoConnection = (id, label, upstream, mapped, metrics, extra = {}, instance = "home", parent = "nine_router") => ({
+  ...dr(`${instance}/${id}`, mapped ?? parent, metrics), account: label, demo_id: id,
+  connection: { label, upstream, mapped, enabled_upstream: true, duplicate_of: null, plan: null,
+    via: parent === "litellm" ? "docs.litellm.ai/docs/proxy/provider_budget_routing" : `open-sse/services/usage/${upstream}.js`, sub: id, show_both: false }, ...extra,
 });
 if (new URLSearchParams(location.search).get("aggregator") !== "off") {
   const conns = [
@@ -1661,6 +1663,76 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
           summary: { id: "pool.unmeasured", params: { upstream: "glm", count: "1" }, fallback: "glm · 1 connection with unknown usage" } },
       ],
       alert_each: false, dashboard: true } });
+}
+// PRD 0036 re-validation (V-12): `?agg=0,1,12,40,exhausted,litellm` adds more aggregator instances after "home", each
+// shaped like the backend's view: a 9router with no connection, with one, with 12 (one of them a duplicate of the
+// direct "Account 2"), with 40 (long labels), one whose only pool is exhausted, and a LiteLLM proxy with per-provider
+// budgets. Pools and their sentences follow the core's rule (`aggregators::pools`, `Pool::summary`).
+// The core's names of the providers used below (`DEMO_CORE_LABELS` is declared later in the module).
+const DEMO_AGG_NAMES = { claude: "Claude", chat_gpt: "ChatGPT / Codex", copilot: "GitHub Copilot", gemini_ai: "Gemini CLI", kimi: "Kimi",
+  open_ai_api: "OpenAI API", anthropic_api: "Anthropic API", azure_open_ai: "Azure OpenAI", nine_router: "9router", litellm: "LiteLLM proxy" };
+const DEMO_UPSTREAMS = [["claude", "claude"], ["codex", "chat_gpt"], ["github", "copilot"], ["gemini-cli", "gemini_ai"], ["kimi", "kimi"], ["glm", null]];
+const demoPools = (conns) => {
+  const pools = [];
+  for (const c of conns) {
+    const k = c.connection;
+    if (k.enabled_upstream === false || k.duplicate_of) continue;
+    let p = pools.find((x) => x.upstream === k.upstream);
+    if (!p) pools.push(p = { upstream: k.upstream, provider: k.mapped, available: 0, exhausted: 0, total: 0, returns_at: null });
+    p.total += 1;
+    if (c.class === "exhausted") p.exhausted += 1; else if (c.class !== "unmeasured" && c.metrics.length) p.available += 1;
+  }
+  return pools.map((p) => {
+    const upstream = p.provider ? DEMO_AGG_NAMES[p.provider] : p.upstream;
+    const summary = p.total && p.exhausted === p.total ? coreNote("pool.exhausted", `${upstream} · all exhausted`, { upstream })
+      : !p.available ? coreNote("pool.unmeasured", `${upstream} · ${p.total} connections with unknown usage`, { upstream, total: String(p.total) })
+        : coreNote("pool.available", `${upstream} · ${p.available} of ${p.total} available`, { upstream, available: String(p.available), total: String(p.total) });
+    return { ...p, summary };
+  });
+};
+const demoInstance = (provider, name, conns, { version = null, host, notes = [], dashboard = true } = {}) => {
+  const pools = demoPools(conns);
+  return { ...dr(name, provider, []), ...coreNotes(notes), class: pools.some((p) => p.available) ? "available" : conns.length ? "exhausted" : "unmeasured", connections: conns,
+    aggregator: { kind: DEMO_AGG_NAMES[provider], version, host, available: pools.reduce((n, p) => n + p.available, 0), total: pools.reduce((n, p) => n + p.total, 0),
+      connections: conns.length, pools, alert_each: false, dashboard } };
+};
+/** One 9router connection of instance `name` (the `n`-th): an upstream from the list above and a 5-hour window. */
+const demoRouterConn = (name, n, label, used, extra = {}) => {
+  const [upstream, mapped] = DEMO_UPSTREAMS[n % DEMO_UPSTREAMS.length];
+  const id = `${name.slice(0, 3)}${String(n).padStart(3, "0")}`;
+  const metrics = mapped ? [dm("session (5h)", used, 100, 1 + (n % 5), "quota", "window_5h", "%")] : [];
+  return { ...demoConnection(id, label, upstream, mapped, metrics, {}, name), ...(used >= 100 ? { class: "exhausted" } : mapped ? {} : { class: "unmeasured" }), ...extra };
+};
+const demoRouterNotes = (conns, version) => [
+  coreNote("note.nine_router.summary", `${conns.filter((c) => c.metrics.length).length} of ${conns.length} 9router connections with usage.`,
+    { ready: String(conns.filter((c) => c.metrics.length).length), total: String(conns.length) }),
+  coreNote("note.nine_router.version", `9router ${version}.`, { version }),
+];
+for (const size of (new URLSearchParams(location.search).get("agg") ?? "").split(",").filter(Boolean)) {
+  if (size === "litellm") {
+    const budget = (used, limit) => [dm("budget (30d)", used, limit, 240, "spend", "monthly", "USD")];
+    const conns = [["openai", "open_ai_api", 42.5, 100], ["anthropic", "anthropic_api", 180, 200], ["azure", "azure_open_ai", 12, 50], ["deepinfra", null, 3.2, 20]]
+      .map(([upstream, mapped, used, limit], n) => demoConnection(`lit${n}`, upstream, upstream, mapped, budget(used, limit), {}, "gateway", "litellm"));
+    demoReports.push(demoInstance("litellm", "gateway", conns, { host: "127.0.0.1:4000",
+      notes: [coreNote("note.litellm.summary", `${conns.length} providers with a budget in LiteLLM.`, { total: String(conns.length) })] }));
+    continue;
+  }
+  if (size === "exhausted") {
+    const conns = ["day", "night", "weekend"].map((label, n) => ({ ...demoRouterConn("night", n * DEMO_UPSTREAMS.length, label, 100) }));
+    demoReports.push(demoInstance("nine_router", "night", conns, { version: "0.5.109", host: "127.0.0.1:20129", notes: demoRouterNotes(conns, "0.5.109") }));
+    continue;
+  }
+  const count = Number(size);
+  if (!Number.isInteger(count) || count < 0) continue;
+  const name = { 0: "empty", 1: "solo", 12: "lab" }[count] ?? `fleet${count}`;
+  const conns = Array.from({ length: count }, (_, n) => demoRouterConn(name, n,
+    count >= 40 && n % 7 === 3 ? `Very long connection label for the shared subscription number ${n}` : `conn ${n + 1}`, (n * 17) % 101));
+  // The 12-connection instance has a duplicate of the direct "Account 2" and a connection that is off in 9router.
+  if (count === 12) {
+    conns[0].connection = { ...conns[0].connection, duplicate_of: "claude:Account 2" };
+    conns[1].connection = { ...conns[1].connection, enabled_upstream: false };
+  }
+  demoReports.push(demoInstance("nine_router", name, conns, { version: "0.5.109", host: "192.0.2.10:20128", notes: demoRouterNotes(conns, "0.5.109") }));
 }
 // PRD 0029 re-validation (V-01, V-03): `?unnamed` leaves a plain account (Groq, the only one of its provider) and the
 // 9router instance without a name, as a configuration may; the core then shows them by their provider.
@@ -1977,7 +2049,7 @@ const demoView = () => {
         duplicate_of: demoConnFlags.show_both.has(c.demo_id) ? null : c.connection.duplicate_of } }))
       .map((c) => ({ ...c, index, binding: demoConnectionBinding(c), binding_rank: 0, pace_index: null,
       metrics: c.metrics.map((m) => ({ ...m, pace: null, alert: null })), next_refresh_at_ms: Date.now() + 90e3, access: demoAccess(r),
-      account_key: `nine_router:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
+      account_key: `${r.provider}:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
     // PRD 0029 RF3.4: the backend's `named` and `display_name`.
     const named = Boolean((r.account ?? "").trim());
     return { ...r, account: demoName(r.account), named, display_name: named ? demoName(r.account).trim() : providerName(r.provider), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
@@ -2833,6 +2905,41 @@ const demoBedrockSchema = () => {
       help: dl("field.aws_bedrock.cli_path.help", "Empty = Cuotai looks for aws in PATH and in the usual install folders. Set the full path of the aws program only when it is installed elsewhere."),
       required: false, options: null }] };
 };
+// PRD 0036 re-validation (V-12): the 9router and LiteLLM forms as the backend's `form_schema` builds them (captured from
+// `form_schema(Provider::NineRouter | LiteLlm)`): `aggregator: true` (Test connection before the first save), the
+// address, filter and TLS fields with the core's ids, and the vault password / pasted session or the proxy key.
+const DEMO_AGG_FIELDS = {
+  nine_router: [["base_url", "9router address", "Default http://127.0.0.1:20128. Use http(s)://host[:port][/prefix], without user, query or fragment. Outside this machine HTTPS is required."], ["allow_private_http", "Unencrypted connection on the private network", "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). No = HTTPS is required outside this machine.", [["false", "No (default)"], ["true", "Yes, on my private network"]]], ["include", "Only these providers (optional)", "Comma-separated 9router providers (for example claude,codex,github). Empty shows all."], ["exclude", "Hide providers (optional)", "Comma-separated 9router providers to hide."], ["hidden", "Hidden connections (optional)", "Comma-separated ids of the connections to hide (the id is in the connection details). A hidden connection is not queried."], ["dedup", "Connections that repeat a direct account", "A connection with the same provider and e-mail as a direct account is the same account: the direct account wins and the connection stays only in the 9router section.", [["auto", "Show only the direct account (default)"], ["off", "Show both"]]], ["show_both", "Show in both places (optional)", "Comma-separated ids of the repeated connections that still appear outside the 9router section."], ["tls_ca_file", "CA file (optional, HTTPS)", "Path to a PEM with the CA that signed the instance's certificate. The system's certificates still apply."], ["tls_pin_sha256", "Pinned certificate (optional, HTTPS)", "SHA-256 fingerprint of the instance's certificate, for a self-signed certificate. The connection test shows it for you to confirm; do not use it with a CA file."]],
+  litellm: [["base_url", "LiteLLM address", "Default http://127.0.0.1:4000. Use http(s)://host[:port][/prefix], without user, query or fragment. Outside this machine HTTPS is required."], ["allow_private_http", "Unencrypted connection on the private network", "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). No = HTTPS is required outside this machine.", [["false", "No (default)"], ["true", "Yes, on my private network"]]], ["hidden", "Hidden providers (optional)", "Comma-separated ids of the providers to hide (the id is in the details)."], ["dedup", "Providers that repeat a direct account", "LiteLLM reports no e-mails, so no provider is taken for a direct account; the option keeps the same rule as the other gateways.", [["auto", "Show only the direct account (default)"], ["off", "Show both"]]], ["show_both", "Show in both places (optional)", "Comma-separated ids that still appear outside the LiteLLM section."]],
+};
+const demoAggregatorSchema = (provider) => {
+  const slug = provider, site = provider === "litellm" ? "LiteLLM" : "9router";
+  const field = ([key, label, help, options]) => ({ id: `field.${slug}.${key}`, key, label: dl(`field.${slug}.${key}.label`, label), help: dl(`field.${slug}.${key}.help`, help),
+    required: false, options: options ? options.map(([value, text], index) => ({ id: `field.${slug}.${key}.option.${value}`, index, value, label: dl(`field.${slug}.${key}.option.${value}`, text) })) : null });
+  const password = provider === "litellm"
+    ? { slot: "credential_env", label: dl("user_session.slot.litellm.credential_env", "LiteLLM master or virtual key (kept in the system vault)"), secret: true }
+    : { slot: "credential_env", label: dl("user_session.slot.nine_router.credential_env", "9router dashboard password (kept in the system vault)"), secret: true };
+  const sso = { slot: "auth_session_env", label: dl("user_session.slot.nine_router.auth_session_env", "9router dashboard session (auth_token cookie, for SSO-only instances)"), secret: false };
+  const slots = provider === "litellm" ? [password] : [password, sso];
+  const instructions = (s) => s.secret
+    ? { id: "user_session.instructions.secret", params: { site }, fallback: `Paste the ${site} value. It stays only in the system vault and is sent only to this account's address; the TOML keeps just the reference.` }
+    : { id: "user_session.instructions", params: { site }, fallback: `Sign in to ${site} in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to ${site} and copy its Cookie header or use "Copy as cURL"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded.` };
+  return { credential_kind: "env", default_env: provider === "litellm" ? "LITELLM_API_KEY" : "NINEROUTER_PASSWORD", aggregator: true,
+    credential_help: dl(`credential_help.${slug}`, ""),
+    login: { modes: [], unsupported_reason: null },
+    sessions: slots.map((s) => ({ slot: s.slot, label: s.label, instructions: instructions(s), hosts: [], open_url: null, region_open_urls: [], secret: s.secret, capture: false, capture_shared: null })),
+    session_notice: { level: dl("access.credential.user_session", "User session"), warning: dl("user_session.warning", "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service.") },
+    secret_inputs: slots.map((s) => ({ slot: s.slot, label: s.label,
+      help: s.secret ? dl("secret_input.help", "Paste the value. Cuotai keeps it in the system vault and sends it only to this provider; the configuration file keeps just a reference.") : instructions(s),
+      required: provider === "litellm", cookie: !s.secret, field: null, default_env: s.secret ? (provider === "litellm" ? "LITELLM_API_KEY" : "NINEROUTER_PASSWORD") : "", key_page: null })),
+    terminal_only_fields: [], preselect: [], interval: { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
+    fields: DEMO_AGG_FIELDS[provider].map(field) };
+};
+/** The Test connection results `?aggtest=` selects, as the core words them (`nine_router::test_message`). */
+const DEMO_AGG_TESTS = {
+  locked: () => ({ ok: false, message: coreNote("query.nine_router.locked", "Too many 9router login attempts; wait {seconds} s before trying again.".replace("{seconds}", "300"), { seconds: 300 }) }),
+  insecure: () => ({ ok: false, message: coreNote("query.nine_router.base_url_insecure", "Outside this machine 9router requires HTTPS (HTTP only on a private network, with the explicit option). Nothing was sent.") }),
+};
 // PRD 0033 re-validation V-06: when the demo's metered account last made a billed query (per account name), and the
 // core's `note.metered.refused` with its two clocks as nested core texts (`at.time`).
 const demoMeteredAt = new Map();
@@ -2913,7 +3020,7 @@ const demo = {
     };
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
-  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : ({ credential_kind: "env",
+  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : DEMO_AGG_FIELDS[provider] ? demoAggregatorSchema(provider) : ({ credential_kind: "env",
     interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 } : { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
     secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
       help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
@@ -2925,7 +3032,7 @@ const demo = {
              { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
-    : provider === "aws_bedrock" ? ["cli_path"] : ["project_id", "mode"],
+    : provider === "aws_bedrock" ? ["cli_path"] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
   field_choices: async ({ provider, choices, authMode }) => {
     const schema = provider === "kiro" ? demoKiroSchema() : await demo.form_schema({ provider });
     return schema.fields.filter((field) => field.options).map((field) => {
@@ -3032,10 +3139,14 @@ const demo = {
   open_aggregator_dashboard: async () => {},
   // PRD 0036 RF2.2: the demo instance answers like a local 9router with three connections.
   test_aggregator: async ({ input }) => {
+    // PRD 0036 re-validation (V-12): `?aggtest=<outcome>` answers with one of the core's other results (`DEMO_AGG_TESTS`).
+    const forced = DEMO_AGG_TESTS[new URLSearchParams(location.search).get("aggtest")];
+    if (forced) return forced(input);
     const base = (input.fields ?? []).find((f) => f.key === "base_url")?.text ?? "";
     if (base && !/^https?:\/\//.test(base)) {
       return { ok: false, message: { id: "test.nine_router.unreachable", params: {}, fallback: "The address could not be reached." } };
     }
+    if (input.provider === "litellm") return { ok: true, message: { id: "test.litellm.connected", params: { count: "4" }, fallback: "LiteLLM: 4 providers with a budget found." } };
     return { ok: true, message: { id: "test.nine_router.connected", params: { count: "3", version: "0.5.109" }, fallback: "9router 0.5.109: 3 connections with usage found." } };
   },
   test_session: async ({ input }) => {
