@@ -808,3 +808,25 @@ fn near_duplicate_entries_are_a_warning_only() {
         "{changelog}"
     );
 }
+
+#[test]
+fn the_release_commit_lists_every_skipped_commit_with_its_reason() {
+    let (_d, repo) = repo();
+    let (_feat, _fix) = feature_and_fix(&repo);
+    let skipped = commit(
+        &repo,
+        "refactor(core): split a module\n\nChangelog: skip internal refactor, no behaviour change",
+        "crates/cuotai-core/src/lib.rs",
+        "// v9\n",
+    );
+    prepare_branch(&repo);
+    let s = short(&repo, &skipped);
+    let message = git(&repo, &["log", "-1", "--format=%B"]);
+    assert!(
+        message.contains(&format!(
+            "Skipped with a reason (no entry):\n- {s} refactor(core): split a module: internal refactor, no behaviour change\n"
+        )),
+        "{message}"
+    );
+    xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
+}

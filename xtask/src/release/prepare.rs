@@ -296,8 +296,15 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         push(&path, text, new);
     }
 
+    let skipped: Vec<String> = commits
+        .iter()
+        .filter_map(|(commit, short)| {
+            let reason = commit.trailers.skip.as_ref()?;
+            Some(format!("{short} {}: {reason}", commit.subject))
+        })
+        .collect();
     let message = message(
-        &base, &version, bump, &rationale, &section, refreshing, overridden,
+        &base, &version, bump, &rationale, &skipped, &section, refreshing, overridden,
     );
     let mut outcome = Outcome {
         base,
@@ -446,11 +453,13 @@ fn near_duplicates(commits: &[(commits::Commit, String)]) -> Vec<String> {
 
 /// The release commit message (RF4.5), with every skip-CI marker
 /// neutralized.
+#[allow(clippy::too_many_arguments)]
 fn message(
     base: &Base,
     version: &Version,
     bump: Bump,
     rationale: &[String],
+    skipped: &[String],
     section: &str,
     refresh: bool,
     overridden: bool,
@@ -465,6 +474,15 @@ fn message(
     if !rationale.is_empty() {
         out.push_str("Bump rationale:\n");
         for line in rationale {
+            out.push_str(&format!("- {line}\n"));
+        }
+        out.push('\n');
+    }
+    if !skipped.is_empty() {
+        // F-12: what ships without an entry, and why, is visible in the
+        // release PR.
+        out.push_str("Skipped with a reason (no entry):\n");
+        for line in skipped {
             out.push_str(&format!("- {line}\n"));
         }
         out.push('\n');

@@ -574,6 +574,16 @@ impl Commit {
             || !self.trailers.sentences.is_empty()
     }
 
+    /// Rule 2 since F-12: the commits that must say `Changelog:` or
+    /// `Changelog: skip <reason>` when they touch product paths. Besides the
+    /// user-visible ones, a `refactor` or `chore` can change what users see
+    /// too, so it must say so, or say why not. `test`, `style` and `docs`
+    /// stay free: test-only changes under `crates/` are common.
+    pub fn needs_entry(&self, touches_product: bool) -> bool {
+        touches_product
+            && (self.is_user_visible() || matches!(self.kind(), Some("refactor" | "chore")))
+    }
+
     /// `chore(release): X.Y.Z` or `chore(release): X.Y.Z (refresh)`.
     pub fn release_version(&self) -> Option<Version> {
         release_version(&self.subject)
@@ -1265,6 +1275,17 @@ mod tests {
         );
         assert_eq!(release_version("chore(release): next"), None);
         assert_eq!(release_version("chore(release-flow): 0.80.0"), None);
+    }
+
+    #[test]
+    fn refactor_and_chore_on_product_paths_need_an_entry() {
+        assert!(commit("refactor(desktop): a", "").needs_entry(true));
+        assert!(commit("chore(core): a", "").needs_entry(true));
+        assert!(commit("feat: a", "").needs_entry(true));
+        assert!(!commit("refactor: a", "").needs_entry(false));
+        assert!(!commit("test(core): a", "").needs_entry(true));
+        assert!(!commit("style: a", "").needs_entry(true));
+        assert!(!commit("docs: a", "").needs_entry(true));
     }
 
     #[test]

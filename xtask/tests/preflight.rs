@@ -58,7 +58,7 @@ fn a_user_visible_commit_of_staged_product_files_needs_its_trailer() {
     .unwrap();
     check(
         &repo,
-        "feat(core): add a thing\n\nChangelog: skip internal only\n",
+        "feat(core): add a thing\n\nChangelog: skip internal only, no visible effect\n",
     )
     .unwrap();
 }
