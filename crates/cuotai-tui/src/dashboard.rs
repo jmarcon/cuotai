@@ -24,7 +24,7 @@ use cuotai_core::overage;
 use cuotai_core::pace::{self, Pace, PaceTone, Point};
 #[cfg(test)]
 use cuotai_core::Snapshot;
-use cuotai_core::{Account, Metric, Provider, Report, Status};
+use cuotai_core::{Account, Metric, Report, Status};
 use ratatui::{
     layout::{Constraint, Layout, Position, Rect},
     style::{Color, Modifier, Style},
@@ -995,11 +995,10 @@ fn render_sub_card(
     }
 }
 
-/// PRD 0011 RF5: the status shown on the accounts of `provider`, if any.
-fn incident_of<'a>(view: &View<'a>, provider: Provider) -> Option<&'a ProviderStatus> {
-    view.incidents
-        .iter()
-        .find(|status| status.provider == provider)
+/// PRD 0011 RF5: the status shown on `account`: its own status source's
+/// (PRD 0037 RF8: the sub-page its region selects), if any.
+fn incident_of<'a>(view: &View<'a>, account: &Account) -> Option<&'a ProviderStatus> {
+    cuotai_core::incidents::status_for(view.incidents, account)
 }
 
 /// Clickable action exposed by the footer hint line. Values mirror the
@@ -1932,7 +1931,7 @@ fn render_card(
     };
     // PRD 0011 RF5: the provider's incident badge on the top border, to the
     // right of the name and never over it.
-    let badge = incident_of(view, account.provider)
+    let badge = incident_of(view, account)
         .and_then(|status| incident_badge(status, tui_locale(), view.now))
         .and_then(|badge| {
             let room = usize::from(area.width.saturating_sub(3))
@@ -3253,7 +3252,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             ),
         ]));
     }
-    if let Some(status) = incident_of(view, account.provider) {
+    if let Some(status) = incident_of(view, account) {
         lines.extend(incident_lines(status, now));
     }
     // PRD 0024 RF7.5: the best account of the group, or what it has left.
@@ -7302,6 +7301,7 @@ mod tests {
     /// operational and gamma's page unreadable since the start.
     fn statuses() -> Vec<ProviderStatus> {
         let status = |provider, state, stale: bool| ProviderStatus {
+            source: None,
             provider,
             state,
             incident: None,

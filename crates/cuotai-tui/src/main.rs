@@ -1857,7 +1857,7 @@ fn print_snapshot(
     let feed = cuotai_core::feed::FeedStore::in_data_dir();
     for (index, report) in snapshot.reports.iter().enumerate() {
         let recent = recent.get(index).map_or(&[][..], Vec::as_slice);
-        let status = incidents.iter().find(|s| s.provider == report.provider);
+        let status = once_status(config, index, incidents);
         // The snapshot keeps the configuration's account order.
         let interval = config.accounts.get(index).map_or(
             Duration::from_secs(config.refresh_seconds),
@@ -1922,6 +1922,20 @@ fn floors_text(account: &Account, report: &Report, locale: &str) -> String {
 /// each metric when there are enough, at the reading's `checked_at` and only
 /// while it is fresh for the account's `interval`, PRD 0024 FIX-11), notes
 /// and source.
+/// The status `--once` prints for the account at `index`: its own status
+/// source's (PRD 0037 RF8: the sub-page its region selects), never another
+/// region's.
+fn once_status<'a>(
+    config: &Config,
+    index: usize,
+    incidents: &'a [ProviderStatus],
+) -> Option<&'a ProviderStatus> {
+    config
+        .accounts
+        .get(index)
+        .and_then(|account| cuotai_core::incidents::status_for(incidents, account))
+}
+
 fn report_text(
     report: &Report,
     recent: &[Vec<Point>],
@@ -3428,6 +3442,7 @@ mod tests {
             failed.notes_l10n.push(note);
         }
         let outage = ProviderStatus {
+            source: None,
             provider: Provider::Claude,
             state: IncidentState::MajorOutage,
             incident: Some(Incident {
@@ -3490,6 +3505,54 @@ mod tests {
                     .contains("Status do provedor")
             );
         }
+    }
+
+    /// PRD 0037 RF8: with accounts in two regions, `--once` prints the EU
+    /// incident under the EU account only, with the EU page.
+    #[test]
+    fn once_prints_each_accounts_own_status_source() {
+        use cuotai_core::incidents::IncidentState;
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let config = Config::from_toml(
+            "[[accounts]]\nname = \"US\"\nprovider = \"eleven_labs\"\n\
+             credential_env = \"VOICE_US\"\n\
+             [[accounts]]\nname = \"EU\"\nprovider = \"eleven_labs\"\n\
+             credential_env = \"VOICE_EU\"\nparams = { region = \"eu\" }\n",
+        )
+        .unwrap();
+        let status = |source: &str, state| ProviderStatus {
+            provider: Provider::ElevenLabs,
+            source: Some(source.into()),
+            state,
+            incident: None,
+            page_url: format!("https://status.elevenlabs.io/{source}"),
+            read_at: Some(now),
+            stale: false,
+            expired: false,
+        };
+        let statuses = [
+            status("united-states", IncidentState::Operational),
+            status("eu", IncidentState::PartialOutage),
+        ];
+        let text = |index: usize, name: &str| {
+            let mut ready = report(name, Status::Ready, Vec::new());
+            ready.provider = Provider::ElevenLabs;
+            report_text(
+                &ready,
+                &[],
+                once_status(&config, index, &statuses),
+                FIVE_MIN,
+                now,
+                "en-US",
+                at,
+            )
+        };
+        assert!(!text(0, "US").contains("Provider status"));
+        let eu = text(1, "EU");
+        assert!(eu.contains("Provider status: Partial outage"), "{eu}");
+        assert!(eu.contains("https://status.elevenlabs.io/eu\n"), "{eu}");
+        assert!(once_status(&config, 2, &statuses).is_none());
     }
 
     #[test]

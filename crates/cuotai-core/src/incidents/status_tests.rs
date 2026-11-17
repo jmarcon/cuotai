@@ -940,9 +940,21 @@ async fn eleven_labs_quiet_summary_is_operational_per_region() {
         let statuses = eleven_labs_monitor(&[region], &server)
             .refresh_incidents()
             .await;
-        let status = status_of(&statuses, Provider::ElevenLabs);
+        let account = eleven_labs_account(region);
+        let status = super::super::status_for(&statuses, &account).unwrap();
         assert_eq!(status.state, IncidentState::Operational, "{region:?}");
-        assert_eq!(status.page_url, "https://status.elevenlabs.io/");
+        let subpage = match region {
+            None => "united-states",
+            Some("eu") => "eu",
+            Some("in") => "india",
+            _ => "singapore",
+        };
+        assert_eq!(status.source.as_deref(), Some(subpage));
+        assert_eq!(
+            status.page_url,
+            format!("https://status.elevenlabs.io/{subpage}")
+        );
+        assert!(super::super::is_status_link(&status.page_url));
         assert_eq!(requests(&server).await, 1);
     }
 }
@@ -982,12 +994,85 @@ async fn eleven_labs_incident_applies_to_its_region_only() {
         us.incident_state(&eleven_labs_account(None)).await,
         Some(IncidentState::Operational)
     );
-    // Accounts in two regions: one request, the worst state wins.
+    assert_eq!(requests(&server).await, 2, "one request per monitor");
+}
+
+/// PRD 0037 RF8: accounts in two regions keep one status per sub-page from
+/// one request. The EU incident shows only on the EU account, with the EU
+/// page; the US account stays operational with its own page.
+#[tokio::test]
+async fn eleven_labs_accounts_in_two_regions_keep_their_own_status() {
+    let server = MockServer::start().await;
+    serve(
+        &server,
+        Provider::ElevenLabs,
+        body(&eleven_labs_summary(
+            &eleven_labs_incident(ELEVEN_LABS_OTHER_APIS, "partial_outage"),
+            ELEVEN_LABS_QUIET,
+        )),
+    )
+    .await;
     let both = eleven_labs_monitor(&[None, Some("eu")], &server);
     let statuses = both.refresh_incidents().await;
-    assert_eq!(statuses.len(), 1);
-    assert_eq!(statuses[0].state, IncidentState::PartialOutage);
-    assert_eq!(requests(&server).await, 3, "one request per monitor");
+    assert_eq!(statuses.len(), 2, "one status per source, never merged");
+    assert_eq!(requests(&server).await, 1, "one request for both regions");
+
+    let eu = super::super::status_for(&statuses, &eleven_labs_account(Some("eu"))).unwrap();
+    assert_eq!(eu.source.as_deref(), Some("eu"));
+    assert_eq!(eu.state, IncidentState::PartialOutage);
+    assert_eq!(eu.page_url, "https://status.elevenlabs.io/eu");
+    assert_eq!(
+        eu.incident.as_ref().unwrap().url,
+        "https://status.elevenlabs.io/incidents/01EL"
+    );
+
+    let us = super::super::status_for(&statuses, &eleven_labs_account(None)).unwrap();
+    assert_eq!(us.source.as_deref(), Some("united-states"));
+    assert_eq!(us.state, IncidentState::Operational);
+    assert!(us.incident.is_none());
+    assert_eq!(us.page_url, "https://status.elevenlabs.io/united-states");
+    let us_explicit = super::super::status_for(&statuses, &eleven_labs_account(Some("us")));
+    assert_eq!(us_explicit, Some(us), "`us` reads the default sub-page");
+
+    // A region with no configured account has no status, never another's.
+    assert!(super::super::status_for(&statuses, &eleven_labs_account(Some("sg"))).is_none());
+    // A view without a region (a connection) reads the default sub-page.
+    assert_eq!(
+        super::super::status_for_provider(&statuses, Provider::ElevenLabs),
+        Some(us)
+    );
+    assert_eq!(
+        super::super::incident_active(&statuses, &eleven_labs_account(Some("eu"))),
+        Some(true)
+    );
+    assert_eq!(
+        super::super::incident_active(&statuses, &eleven_labs_account(None)),
+        Some(false)
+    );
+}
+
+/// An incident without its own page links the sub-page, not the host root.
+#[tokio::test]
+async fn eleven_labs_incident_without_a_link_points_to_its_sub_page() {
+    let server = MockServer::start().await;
+    let incident = eleven_labs_incident(ELEVEN_LABS_OTHER_APIS, "partial_outage").replace(
+        r#""url": "https://status.elevenlabs.io/incidents/01EL","#,
+        "",
+    );
+    serve(
+        &server,
+        Provider::ElevenLabs,
+        body(&eleven_labs_summary(&incident, ELEVEN_LABS_QUIET)),
+    )
+    .await;
+    let statuses = eleven_labs_monitor(&[Some("eu")], &server)
+        .refresh_incidents()
+        .await;
+    let eu = super::super::status_for(&statuses, &eleven_labs_account(Some("eu"))).unwrap();
+    assert_eq!(
+        eu.incident.as_ref().unwrap().url,
+        "https://status.elevenlabs.io/eu"
+    );
 }
 
 /// A Text to Speech incident does not make the account query unhealthy.

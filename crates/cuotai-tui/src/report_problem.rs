@@ -167,7 +167,7 @@ pub async fn run(
         // elsewhere; the helper then reports "unknown".
         cuotai_core::incidents::incident_active(
             &monitor.incident_statuses(),
-            config.accounts[index].provider,
+            &config.accounts[index],
         ),
         Interface::Cli,
         Some(config_path.to_path_buf()),

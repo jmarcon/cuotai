@@ -401,7 +401,10 @@ pub struct IncidentExport {
     pub label: Localized,
     /// The most severe active event in the provider's scope, if any.
     pub event: Option<Incident>,
-    /// Public status page of the source.
+    /// The status source: the sub-page slug of a multi-page source (an
+    /// account's region selects it), `null` for a single-page one. Additive.
+    pub source: Option<String>,
+    /// Public status page of the source (the sub-page when there is one).
     pub page_url: String,
     /// When the reading shown was obtained; `null` before the first one.
     pub read_at: Option<DateTime<Utc>>,
@@ -419,6 +422,7 @@ impl From<&ProviderStatus> for IncidentExport {
             state: status.state,
             label: status.state.label(),
             event: status.incident.clone(),
+            source: status.source.clone(),
             page_url: status.page_url.clone(),
             read_at: status.read_at,
             stale: status.stale,
@@ -513,10 +517,8 @@ impl Export {
                     &points,
                 );
                 export.group = config.group_of(account).map(str::to_owned);
-                export.incident = incidents
-                    .iter()
-                    .find(|status| status.provider == account.provider)
-                    .map(IncidentExport::from);
+                export.incident =
+                    crate::incidents::status_for(incidents, account).map(IncidentExport::from);
                 if account.provider.is_aggregator() {
                     let report = cycle.account_report(index);
                     let last_good = cycle.last_good_report(index);
@@ -531,9 +533,7 @@ impl Export {
                         scope.exports(report, last_good, |id| cycle.last_good_sub(index, id));
                     for sub in &mut export.sub_accounts {
                         sub.incident = sub.provider.and_then(|provider| {
-                            incidents
-                                .iter()
-                                .find(|status| status.provider == provider)
+                            crate::incidents::status_for_provider(incidents, provider)
                                 .map(IncidentExport::from)
                         });
                     }
@@ -1738,6 +1738,7 @@ mod tests {
     fn statuses() -> Vec<ProviderStatus> {
         vec![
             ProviderStatus {
+                source: None,
                 provider: Provider::Claude,
                 state: IncidentState::PartialOutage,
                 incident: Some(Incident {
@@ -1751,6 +1752,7 @@ mod tests {
                 expired: false,
             },
             ProviderStatus {
+                source: None,
                 provider: Provider::Groq,
                 state: IncidentState::Unknown,
                 incident: None,
@@ -2094,6 +2096,7 @@ mod tests {
             )
         };
         let operational = |provider| ProviderStatus {
+            source: None,
             provider,
             state: IncidentState::Operational,
             incident: None,
@@ -2316,6 +2319,69 @@ mod tests {
         for entry in off.unwrap()["accounts"].as_array().unwrap() {
             assert!(entry["incident"].is_null(), "{entry}");
         }
+    }
+
+    /// PRD 0037 RF8: one provider with accounts in two regions; each account
+    /// carries its own source's status, so an EU incident is only on the EU
+    /// account, and each page is its own sub-page.
+    #[test]
+    fn incident_is_the_accounts_own_status_source() {
+        let account = |name: &str, region: Option<&str>| {
+            let mut account = Account {
+                name: name.into(),
+                provider: Provider::ElevenLabs,
+                ..Account::default()
+            };
+            if let Some(region) = region {
+                account.params.insert("region".into(), region.into());
+            }
+            account
+        };
+        let config = Config {
+            accounts: vec![account("Voice US", None), account("Voice EU", Some("eu"))],
+            ..Config::default()
+        };
+        let cycle = RefreshCycle::new(&config, Instant::now());
+        let status = |source: &str, state| ProviderStatus {
+            provider: Provider::ElevenLabs,
+            source: Some(source.into()),
+            state,
+            incident: (state == IncidentState::PartialOutage).then(|| Incident {
+                title: "Elevated API errors".into(),
+                started_at: None,
+                url: "https://status.elevenlabs.io/incidents/01EL".into(),
+            }),
+            page_url: format!("https://status.elevenlabs.io/{source}"),
+            read_at: Some(now()),
+            stale: false,
+            expired: false,
+        };
+        let statuses = [
+            status("united-states", IncidentState::Operational),
+            status("eu", IncidentState::PartialOutage),
+        ];
+        let json = serde_json::to_value(build_with(&config, &cycle, &statuses, Options::default()))
+            .unwrap();
+        let accounts = json["accounts"].as_array().unwrap();
+        let us = &accounts[0]["incident"];
+        assert_eq!(us["state"], "operational");
+        assert_eq!(us["source"], "united-states");
+        assert_eq!(us["page_url"], "https://status.elevenlabs.io/united-states");
+        assert!(us["event"].is_null());
+        let eu = &accounts[1]["incident"];
+        assert_eq!(eu["state"], "partial_outage");
+        assert_eq!(eu["source"], "eu");
+        assert_eq!(eu["page_url"], "https://status.elevenlabs.io/eu");
+        assert_eq!(eu["event"]["title"], "Elevated API errors");
+        let limits = serde_json::to_value(Limits::from_export(&build_with(
+            &config,
+            &cycle,
+            &statuses,
+            Options::default(),
+        )))
+        .unwrap();
+        assert_eq!(limits["accounts"][0]["incident"]["state"], "operational");
+        assert_eq!(limits["accounts"][1]["incident"]["state"], "partial_outage");
     }
 
     /// RF1.4: unknown values are `null`, never `0`, including non-finite

@@ -18,14 +18,48 @@ pub use status::{
     REQUEST_TIMEOUT,
 };
 
-use crate::Provider;
+use crate::{Account, Provider};
 
-/// PRD 0028 RF2.2: whether a provider incident is active for `provider`,
-/// from the statuses a frontend already holds (no network). `None` when the
-/// provider has no reading (status queries off, no verified source) or the
-/// reading is `Unknown`, so a draft never claims "no" without evidence.
-pub fn incident_active(statuses: &[ProviderStatus], provider: Provider) -> Option<bool> {
-    let status = statuses.iter().find(|status| status.provider == provider)?;
+/// The status of `account`'s own status source (PRD 0037 RF8): the provider
+/// and the sub-page its region selects. `None` without a reading for that
+/// source; another region's status never stands in for it.
+pub fn status_for<'a>(
+    statuses: &'a [ProviderStatus],
+    account: &Account,
+) -> Option<&'a ProviderStatus> {
+    let source = source_for(
+        account.provider,
+        account.params.get("region").map(String::as_str),
+    )?;
+    find(statuses, account.provider, source)
+}
+
+/// The status of `provider`'s default source, for a view with no account of
+/// its own (an aggregator connection mapped to a provider, PRD 0036).
+pub fn status_for_provider(
+    statuses: &[ProviderStatus],
+    provider: Provider,
+) -> Option<&ProviderStatus> {
+    find(statuses, provider, source(provider)?)
+}
+
+fn find(
+    statuses: &[ProviderStatus],
+    provider: Provider,
+    source: StatusSource,
+) -> Option<&ProviderStatus> {
+    statuses
+        .iter()
+        .find(|status| status.provider == provider && status.source.as_deref() == source.subpage)
+}
+
+/// PRD 0028 RF2.2: whether a provider incident is active for `account`'s
+/// status source, from the statuses a frontend already holds (no network).
+/// `None` when that source has no reading (status queries off, no verified
+/// source) or the reading is `Unknown`, so a draft never claims "no"
+/// without evidence.
+pub fn incident_active(statuses: &[ProviderStatus], account: &Account) -> Option<bool> {
+    let status = status_for(statuses, account)?;
     match status.state {
         IncidentState::Unknown => None,
         state => Some(state.is_incident()),

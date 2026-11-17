@@ -218,7 +218,8 @@ pub fn generation_of(
         seen(cycle.last_good_report(index)).hash(&mut hasher);
     }
     for status in incidents {
-        (status.provider.slug(), status.state, status.read_at).hash(&mut hasher);
+        (status.provider.slug(), status.source.as_deref()).hash(&mut hasher);
+        (status.state, status.read_at).hash(&mut hasher);
         (status.stale, status.expired).hash(&mut hasher);
     }
     hasher.finish()
