@@ -2147,6 +2147,67 @@ if (DEMO_QUERY.has("eleven")) {
     if (windows) DEMO_WINDOWS.set(r, windows);
   }
 }
+// PRD 0038 re-validation: `?openrouter` swaps the demo accounts for an OpenRouter set shaped like the adapter's reports
+// (`providers::open_router`: raw labels and units with the core's text ids, its note ids). The key view: a key with a
+// monthly limit, spend by day, week and month and the free-model counter; a key without a limit. The account view
+// (management key): a positive credit balance with spend by upstream provider over completed UTC days (the period
+// line), a negative balance under the low-balance threshold, and a key rate-limited with the instant `Retry-After`
+// allows (`retry_note`, the core's wait line). Management-key amounts are in credits (no `$`, PRD 0038 RF5.3 and O2); the key view
+// is in USD. example.com identities only.
+if (DEMO_QUERY.has("openrouter")) {
+  const metric = (label, labelText, unit, unitText, fields) => {
+    const { used = null, limit = null, remaining = null } = fields;
+    const cap = limit > 0 ? limit : null;
+    const state = used == null && remaining == null ? { state: "unmeasured" }
+      : remaining != null && remaining <= 0 ? { state: "exhausted", no_cap: cap == null }
+        : cap != null && used >= cap ? { state: "exhausted", no_cap: false }
+          : cap != null ? { state: "available", ratio: Math.min(1, Math.max(0, (cap - used) / cap)), uncapped: false }
+            : { state: "available", ratio: 0, uncapped: true };
+    return { label, label_text: labelText, unit, ...(unitText ? { unit_text: unitText } : {}), used, limit, remaining,
+      window: null, period: null, resets_at: null, billing: "included", scope: null, derived_from: null, unlimited: false, no_cap: false, ...fields, ...state };
+  };
+  const CREDITS = demoText("metric.unit.credits", "credits");
+  const REQUESTS = demoText("metric.unit.requisitions", "requests");
+  const keyLimit = (used, limit) => metric("Limite da chave", demoText("metric.label.key_limit", "Key limit"), "USD", null,
+    { used, limit, remaining: Math.max(0, limit - used), kind: "quota", window: "monthly", resets_at: h(300) });
+  const spend = (label, id, english, used, window, resetH) => metric(label, demoText(id, english), "USD", null,
+    { used, kind: "spend", window, resets_at: resetH == null ? null : h(resetH) });
+  const keySpend = (today, week, month) => [spend("Gasto hoje", "metric.label.today_spend", "Spending today", today, "daily", 9),
+    spend("Gasto na semana", "metric.label.week_spend", "Spending in the week", week, "weekly", 81),
+    spend("Gasto no mês", "metric.label.month_spend", "Spending in the month", month, "monthly", 300)];
+  const freeToday = (used, limit) => metric("Modelos gratuitos (:free): requisições hoje", demoText("metric.label.free_models_today", "Free models (:free): requests today"),
+    "requisições", REQUESTS, { used, limit, remaining: Math.max(0, limit - used), kind: "quota", window: "daily", resets_at: h(9) });
+  const balance = (value) => metric("Saldo de créditos", demoText("metric.label.credit_balance", "Credit balance"), "créditos", CREDITS,
+    { remaining: value, kind: "balance" });
+  const creditsUsed = (value) => metric("Créditos usados (total)", demoText("metric.label.credits_used_total", "Credits used (total)"), "créditos", CREDITS,
+    { used: value, kind: "spend" });
+  // Spend by upstream provider: completed UTC days, so the metric carries the adapter's period and no reset.
+  const PERIOD = { period: "30 dias concluídos (UTC)", period_text: demoText("metric.period.last_30_days_utc", "30 completed days (UTC)") };
+  const byProvider = (name, used) => metric(`Gasto 30 dias — ${name}`, demoText("metric.label.spend_30d", `30-day spending — ${name}`, { name }), "créditos", CREDITS,
+    { used, kind: "spend", window: "other", ...PERIOD });
+  const others = (used) => metric("Gasto 30 dias — Outros", demoText("metric.label.spend_30d_other", "30-day spending — Other"), "créditos", CREDITS,
+    { used, kind: "spend", window: "other", ...PERIOD });
+  const KEY_SCOPE = coreNote("note.open_router.key_scope", "These numbers describe this key, not the account balance; use the account product for the balance.");
+  const FREE_TIER = coreNote("note.open_router.free_tier", "Free models allow 50 or 1000 requests per day depending on credits ever purchased (the tier follows the purchased total, not is_free_tier) and 20 per minute, which the API does not report.");
+  const UNIT = coreNote("note.open_router.credits_unit", "Balance = total_credits - total_usage as OpenRouter reports it; the endpoint documents only \"credits\", so no currency is assumed.");
+  const WINDOW = coreNote("note.open_router.activity_window", "Spend by origin covers completed UTC days only and updates after midnight UTC.");
+  const LOW = coreNote("note.open_router.low_balance", "The credit balance is at or below the low-balance threshold of 5.", { threshold: "5" });
+  const report = (account, metrics, notes, extra = {}) => ({ ...dr(account, "open_router", metrics), ...coreNotes(notes), ...extra });
+  const RATE = coreNote("query.open_router.rate_limited", "OpenRouter rate-limited the queries.");
+  const RETRY = coreNote("query.retry_after_until", "OpenRouter asked Cuotai to wait; this account is queried again at 14:30.", { provider: "OpenRouter", time: "14:30" });
+  const openrouter = [
+    [report("key@example.com", [keyLimit(12.4, 50), ...keySpend(0.8, 4.1, 12.4), freeToday(12, 50)], [KEY_SCOPE, FREE_TIER]), [0, 0], [0, 4]],
+    [report("nolimit@example.com", [...keySpend(0, 2.35, 9.1), freeToday(50, 50)], [KEY_SCOPE, FREE_TIER], { class: "exhausted" }), [3, 1], [3]],
+    [report("balance@example.com", [balance(37.25), creditsUsed(162.75), byProvider("OpenAI", 80.1), byProvider("Anthropic", 52.4), others(12)], [UNIT, WINDOW]), [null, 2], null],
+    [report("negative@example.com", [balance(-3.4), creditsUsed(103.4)], [UNIT, LOW], { class: "exhausted" }), [null, 3], null],
+    [{ ...dr("limited@example.com", "open_router", [], [RATE.fallback], "rate_limited"), notes_l10n: [RATE], class: "unmeasured", retry_note: RETRY }, [null, 4], null],
+  ];
+  demoReports.splice(0, demoReports.length, ...openrouter.map(([r]) => r));
+  for (const [r, binding, windows] of openrouter) {
+    DEMO_BINDINGS.set(r, binding);
+    if (windows) DEMO_WINDOWS.set(r, windows);
+  }
+}
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
 // `?paste-session`: the core offers the MiMo account a new paste, so the card and the details show Paste session.
 if (DEMO_QUERY.has("paste-session")) for (const r of demoReports) if (r.provider === "xiaomi_mimo") r.paste_session = true;

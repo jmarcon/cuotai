@@ -96,7 +96,7 @@ assert.ok(el.reports.filter((r) => r !== byAccount.eu).every((r) => r.incident.s
 // Every text the set shows is a core id the shipped catalogs carry (the labels, units and notes the adapter writes).
 const { readFileSync } = await import("node:fs");
 const core = JSON.parse(readFileSync(new URL("../crates/cuotai-core/locales/de.json", import.meta.url), "utf8"));
-const ids = new Set(el.reports.flatMap((r) => [...(r.notes_l10n ?? []).map((n) => n.id), ...r.metrics.flatMap((m) => [m.label_text?.id, m.unit_text?.id])]).filter(Boolean));
+const ids = new Set(el.reports.flatMap((r) => [...(r.notes_l10n ?? []).map((n) => n.id), r.retry_note?.id, ...r.metrics.flatMap((m) => [m.label_text?.id, m.unit_text?.id])]).filter(Boolean));
 for (const id of ids) assert.ok(id in core, `core catalog id ${id}`);
 const elSchema = await elLib.formSchema("eleven_labs");
 assert.deepEqual([elSchema.credential_kind, elSchema.default_env, elSchema.secret_inputs[0].key_page], ["env", "ELEVENLABS_API_KEY", "https://elevenlabs.io/app/api/api-keys"]);
@@ -104,5 +104,34 @@ assert.deepEqual(elSchema.fields.map((f) => [f.id, f.label.id]), [["field.eleven
 assert.deepEqual(elSchema.fields[0].options.map((o) => o.id), ["default", "us", "eu", "in", "sg"].map((v) => `field.eleven_labs.region.option.${v}`));
 for (const o of elSchema.fields[0].options) assert.ok(o.label.id in core, `core catalog id ${o.label.id}`);
 assert.deepEqual(await elLib.visibleFields("eleven_labs", {}, "credential"), ["region"]);
-console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form");
+
+// PRD 0038 re-validation: `?openrouter` swaps the accounts for the OpenRouter set, with the adapter's shapes and ids.
+globalThis.location = { search: "?openrouter" };
+const orLib = await import("../apps/desktop/ui/js/lib.js?openrouter");
+const or = await orLib.getView();
+const orBy = Object.fromEntries(or.reports.map((r) => [r.account.split("@")[0], r]));
+assert.deepEqual(or.reports.map((r) => r.account), ["key", "nolimit", "balance", "negative", "limited"].map((name) => `${name}@example.com`),
+  "the OpenRouter set, example.com identities only");
+assert.ok(or.reports.every((r) => r.provider === "open_router"), "OpenRouter accounts only");
+const keyLimit = orBy.key.metrics[0];
+assert.deepEqual([keyLimit.label_text.id, keyLimit.unit, keyLimit.limit, keyLimit.window], ["metric.label.key_limit", "USD", 50, "monthly"], "the key view is in USD");
+assert.ok(orBy.key.metrics.some((m) => m.label_text.id === "metric.label.free_models_today" && m.unit_text.id === "metric.unit.requisitions"));
+assert.equal(orBy.key.binding.index, 0, "a key with a limit binds on it");
+assert.ok(!orBy.nolimit.metrics.some((m) => m.label_text.id === "metric.label.key_limit"), "a key without a limit has no limit metric");
+const balanceOf = (r) => r.metrics.find((m) => m.kind === "balance");
+assert.deepEqual([balanceOf(orBy.balance).remaining, balanceOf(orBy.negative).remaining], [37.25, -3.4], "a positive and a negative balance");
+for (const r of [orBy.balance, orBy.negative]) {
+  assert.equal(r.binding, null, "a balance has no gauge, so no binding");
+  assert.ok(r.metrics.every((m) => m.unit === "créditos" && m.unit_text.id === "metric.unit.credits"), "management-key amounts are credits, no `$`");
+  assert.ok(r.notes_l10n.some((n) => n.id === "note.open_router.credits_unit"));
+}
+assert.ok(orBy.negative.notes_l10n.some((n) => n.id === "note.open_router.low_balance" && n.params.threshold === "5"));
+const byOrigin = orBy.balance.metrics.filter((m) => m.label_text.id.startsWith("metric.label.spend_30d"));
+assert.equal(byOrigin.length, 3, "spend by provider, with Others");
+assert.ok(byOrigin.every((m) => m.period_text.id === "metric.period.last_30_days_utc" && m.resets_at == null), "the period line, no reset");
+assert.deepEqual([orBy.limited.status, orBy.limited.notes_l10n[0].id], ["rate_limited", "query.open_router.rate_limited"]);
+assert.equal(orBy.limited.retry_note?.id, "query.retry_after_until", "the core's wait line");
+const orIds = new Set(or.reports.flatMap((r) => [...(r.notes_l10n ?? []).map((n) => n.id), r.retry_note?.id, ...r.metrics.flatMap((m) => [m.label_text?.id, m.unit_text?.id, m.period_text?.id])]).filter(Boolean));
+for (const id of orIds) assert.ok(id in core, `core catalog id ${id}`);
+console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set");
 process.exit(0); // the shared modules keep a BroadcastChannel open
