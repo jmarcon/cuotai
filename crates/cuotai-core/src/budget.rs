@@ -41,10 +41,20 @@ pub const LABEL_MAX: usize = 32;
 pub const FILTER_MAX: usize = 64;
 /// RF3.1: a floor re-arms once the balance rises above `amount × 1.1`.
 pub const FLOOR_REARM: f64 = 1.1;
-/// The raw label of a budget without its own label: rendered through
-/// [`crate::metric_text::metric_text`] as "Budget · {label}". Like every
-/// adapter text it stays in pt-BR, so it is stable in the history.
+/// The raw label a budget without its own label had before the PRD 0041
+/// re-validation (D2): rendered through [`crate::metric_text::metric_text`]
+/// as "Budget · {label}". Kept to recognize restored readings, legacy
+/// alert marks and history series; new budgets name their period
+/// ([`metric_label`]).
 pub const DEFAULT_LABEL_PREFIX: &str = "Orçamento · ";
+/// The raw prefixes of the default budget labels that name the period
+/// ([`metric_label`]), each followed by the target's label. Like every
+/// adapter text they stay in pt-BR, so they are stable in the history.
+const DAILY_PREFIX: &str = "Orçamento diário · ";
+const WEEKLY_PREFIX: &str = "Orçamento semanal · ";
+const MONTHLY_PREFIX: &str = "Orçamento mensal · ";
+const MONTHLY_FROM_PREFIX: &str = "Orçamento mensal desde o dia ";
+const CYCLE_PREFIX: &str = "Orçamento do ciclo · ";
 /// How far a provider's own reset may be from the budget boundary and
 /// still count as the same period.
 const SAME_BOUNDARY: TimeDelta = TimeDelta::hours(1);
@@ -269,7 +279,8 @@ pub enum BudgetRule {
     Amount,
     /// More than [`MAX_BUDGETS`] budgets or [`MAX_FLOORS`] floors.
     TooMany,
-    /// Two budgets with the same selector and period.
+    /// Two budgets with the same identity ([`budget_key`]): the same
+    /// selector, filter, row and period, whatever their unit.
     Duplicate,
     /// `starts` does not fit the period.
     Start,
@@ -280,6 +291,12 @@ pub enum BudgetRule {
     /// PRD 0045 RF5.2: a row target with `scope = "account"`, a `model`
     /// scope, an empty or too long id, or on a provider without breakdowns.
     Row,
+    /// Two floors on the same balance at the same amount
+    /// ([`floor_key`]).
+    DuplicateFloor,
+    /// Two budgets of one account with the same own label (ignoring
+    /// case).
+    DuplicateLabel,
 }
 
 impl BudgetRule {
@@ -325,6 +342,14 @@ impl BudgetRule {
             Self::Row => (
                 "budget.error.row",
                 "{field}: a budget on a breakdown row needs a kind, the row's scope (key, virtual_key, project, workspace or team) and its id, on a provider that offers breakdowns.",
+            ),
+            Self::DuplicateFloor => (
+                "budget.error.duplicate_floor",
+                "{field}: another floor already watches the same balance at the same amount.",
+            ),
+            Self::DuplicateLabel => (
+                "budget.error.duplicate_label",
+                "{field}: another budget of this account already has this label.",
             ),
         };
         Localized::with_param(id, "field", field, fallback)
@@ -404,6 +429,9 @@ pub fn validate(index: usize, account: &Account) -> Result<(), BudgetError> {
 /// (`budgets[1].amount`), so an editor can show each one inline.
 pub fn problems(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> Vec<BudgetError> {
     let mut out = Vec::new();
+    let mut keys = std::collections::HashSet::new();
+    let mut labels = std::collections::HashSet::new();
+    let mut floor_keys = std::collections::HashSet::new();
     let mut push = |field: String, rule| out.push(BudgetError { field, rule });
     if budgets.len() > MAX_BUDGETS {
         push("budgets".into(), BudgetRule::TooMany);
@@ -471,8 +499,13 @@ pub fn problems(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> Vec
                 push(at("row"), BudgetRule::Row);
             }
         }
-        if budgets[..i].iter().any(|other| same_target(other, budget)) {
+        if !keys.insert(budget_key(budget)) {
             push(at("period"), BudgetRule::Duplicate);
+        }
+        if let Some(label) = budget.label.as_deref().map(str::trim) {
+            if !label.is_empty() && !labels.insert(label.to_lowercase()) {
+                push(at("label"), BudgetRule::DuplicateLabel);
+            }
         }
     }
     for (i, floor) in floors.iter().enumerate() {
@@ -495,18 +528,68 @@ pub fn problems(provider: Provider, budgets: &[Budget], floors: &[Floor]) -> Vec
         {
             push(at("label_contains"), BudgetRule::Selector);
         }
+        if !floor_keys.insert(floor_key(floor)) {
+            push(at("amount"), BudgetRule::DuplicateFloor);
+        }
     }
     out
 }
 
-fn same_target(a: &Budget, b: &Budget) -> bool {
-    let folded = |text: &Option<String>| text.as_deref().map(str::to_lowercase);
-    a.kind == b.kind
-        && a.scope == b.scope
-        && folded(&a.label_contains) == folded(&b.label_contains)
-        && folded(&a.unit) == folded(&b.unit)
-        && a.period == b.period
-        && a.row == b.row
+/// `prefix` + the first 12 hex digits of the digest of `identity`.
+fn short_key(prefix: char, identity: &impl Serialize) -> String {
+    let bytes = serde_json::to_vec(identity).expect("a budget identity serializes");
+    let mut key = crate::models::digest(&bytes);
+    key.truncate(12);
+    key.insert(0, prefix);
+    key
+}
+
+fn folded(text: Option<&str>) -> Option<String> {
+    text.map(|text| text.trim().to_lowercase())
+}
+
+/// PRD 0041 re-validation (D2): the stable identity of `budget`, derived
+/// from what it follows and its period (never written to the TOML): its
+/// kind or scope, its `label_contains` filter (ignoring case), its row and
+/// its period. The amount, label, unit and `starts` take no part, so
+/// editing them keeps the budget's alerts and history series; following
+/// another metric or period makes a new budget. Two budgets of one account
+/// never share it ([`BudgetRule::Duplicate`]).
+pub fn budget_key(budget: &Budget) -> String {
+    let selector = match (budget.kind, budget.scope) {
+        (Some(kind), None) => kind.slug(),
+        (None, Some(BudgetScope::Account)) => "scope:account",
+        (Some(_), Some(_)) => "both",
+        (None, None) => "none",
+    };
+    let row = budget
+        .row
+        .as_ref()
+        .map(|row| (serde_json::to_value(row.scope).ok(), row.id.as_str()));
+    short_key(
+        'b',
+        &(
+            selector,
+            folded(budget.label_contains.as_deref()),
+            budget.period.slug(),
+            row,
+        ),
+    )
+}
+
+/// PRD 0041 re-validation (D2): the stable identity of `floor`: its kind,
+/// filter and unit (ignoring case) and its amount. A changed amount makes
+/// a new floor, which warns once if the balance is already below it.
+pub fn floor_key(floor: &Floor) -> String {
+    short_key(
+        'f',
+        &(
+            floor.kind.map(FloorKind::slug),
+            folded(floor.label_contains.as_deref()),
+            folded(floor.unit.as_deref()),
+            floor.amount,
+        ),
+    )
 }
 
 fn label_matches(metric: &Metric, filter: Option<&str>) -> bool {
@@ -567,23 +650,66 @@ pub fn balance_left(metric: &Metric) -> Option<f64> {
     finite(metric.remaining).or_else(|| Some(finite(metric.limit)? - finite(metric.used)?))
 }
 
-/// The raw label of the budget metric for `budget` on `target`.
+/// The raw label of the budget metric for `budget` on `target`: its own
+/// label, else a default that names the period ("Monthly budget · {label}",
+/// PRD 0041 re-validation D2), so two budgets on one metric read apart.
 pub fn metric_label(budget: &Budget, target_label: &str) -> String {
     match budget.label.as_deref().map(str::trim) {
         Some(label) if !label.is_empty() => label.to_owned(),
-        _ => format!("{DEFAULT_LABEL_PREFIX}{target_label}"),
+        _ => default_label(budget.period, budget.starts, target_label),
     }
 }
 
-/// Whether `label` names a budget metric of `account` (a default budget
-/// label, or one of its budgets' own labels): a series of the person's
-/// numbers, not of the provider.
-pub fn is_budget_label(account: &Account, label: &str) -> bool {
-    label.starts_with(DEFAULT_LABEL_PREFIX)
-        || account
-            .budgets
-            .iter()
-            .any(|budget| budget.label.as_deref().map(str::trim) == Some(label))
+/// The default label of a budget over `period` (starting `starts`) on the
+/// metric labelled `target_label`.
+fn default_label(period: BudgetPeriod, starts: Option<BudgetStart>, target_label: &str) -> String {
+    match (period, starts) {
+        (BudgetPeriod::Daily, _) => format!("{DAILY_PREFIX}{target_label}"),
+        (BudgetPeriod::Weekly, _) => format!("{WEEKLY_PREFIX}{target_label}"),
+        (BudgetPeriod::Monthly, Some(BudgetStart::Day(day))) if (2..=28).contains(&day) => {
+            format!("{MONTHLY_FROM_PREFIX}{day} · {target_label}")
+        }
+        (BudgetPeriod::Monthly, _) => format!("{MONTHLY_PREFIX}{target_label}"),
+        (BudgetPeriod::Window, _) => format!("{CYCLE_PREFIX}{target_label}"),
+    }
+}
+
+/// The target label inside a default budget label (any period, or the
+/// legacy "Orçamento · {label}"); `None` for any other label.
+fn default_label_target(label: &str) -> Option<&str> {
+    [
+        DEFAULT_LABEL_PREFIX,
+        DAILY_PREFIX,
+        WEEKLY_PREFIX,
+        MONTHLY_PREFIX,
+        CYCLE_PREFIX,
+    ]
+    .iter()
+    .find_map(|prefix| label.strip_prefix(prefix))
+    .or_else(|| {
+        let rest = label.strip_prefix(MONTHLY_FROM_PREFIX)?;
+        let (day, target) = rest.split_once(" · ")?;
+        day.parse::<u8>().ok()?;
+        Some(target)
+    })
+    .filter(|target| !target.is_empty())
+}
+
+/// Whether `label` is a default budget label (of any period, or the
+/// legacy form): a series or reading of the person's numbers, never of a
+/// provider, whose labels are never written this way.
+pub fn is_default_label(label: &str) -> bool {
+    default_label_target(label).is_some()
+}
+
+/// The label a budget metric had before the PRD 0041 re-validation (D2):
+/// its own label, or "Orçamento · {target}" for a default label. The alert
+/// marks and history series written under it move to the budget's key.
+pub fn legacy_label(metric: &Metric) -> String {
+    match default_label_target(&metric.label) {
+        Some(target) => format!("{DEFAULT_LABEL_PREFIX}{target}"),
+        None => metric.label.clone(),
+    }
 }
 
 /// Local midnight of `date` in `tz` as UTC. A midnight skipped by a DST
@@ -1071,6 +1197,7 @@ fn derive<Tz: TimeZone>(
             label: target_label,
             budget: index,
             partial: false,
+            key: budget_key(budget),
         }),
         unlimited: false,
     };
@@ -1174,47 +1301,63 @@ fn derive<Tz: TimeZone>(
 
 /// A report restored from the history (PRD 0010 RF2.3) carries the budget
 /// metrics as plain quotas: mark the ones whose label is one of the
-/// account's budgets again, so every surface still labels them as the
-/// person's budget.
+/// account's budgets again (the label the budget gives now, or the one it
+/// gave before the PRD 0041 re-validation), so every surface still labels
+/// them as the person's budget. A quota with a default budget label that
+/// no budget claims (the budget was removed) is dropped: a removed budget
+/// never reads as a provider limit (F-26).
 pub fn mark_restored(account: &Account, report: &mut Report) {
-    if account.budgets.is_empty() {
-        return;
-    }
     let originals: Vec<Metric> = report
         .metrics
         .iter()
-        .filter(|metric| metric.derived_from.is_none())
+        .filter(|metric| metric.derived_from.is_none() && metric.kind != MetricKind::Quota)
         .cloned()
         .collect();
-    for metric in &mut report.metrics {
-        if metric.derived_from.is_some() || metric.kind != MetricKind::Quota {
-            continue;
-        }
-        for (index, budget) in account
-            .budgets
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| b.row.is_none())
-        {
+    let candidates: Vec<(usize, &Budget, Option<&Metric>, String)> = account
+        .budgets
+        .iter()
+        .enumerate()
+        .filter(|(_, budget)| budget.row.is_none())
+        .map(|(index, budget)| {
             let target = target(budget, &originals);
             let label = target.map_or_else(
                 || budget.label.clone().unwrap_or_default(),
                 |target| metric_label(budget, &target.label),
             );
-            if !label.is_empty() && metric.label == label {
-                metric.derived_from = Some(DerivedFrom {
-                    kind: target
-                        .map(|t| t.kind)
-                        .or_else(|| budget.kind.map(BudgetKind::metric_kind))
-                        .unwrap_or(MetricKind::Spend),
-                    label: target.map_or_else(String::new, |t| t.label.clone()),
-                    budget: index,
-                    partial: false,
-                });
-                break;
-            }
+            (index, budget, target, label)
+        })
+        .collect();
+    let mut claimed = vec![false; account.budgets.len()];
+    report.metrics.retain_mut(|metric| {
+        if metric.derived_from.is_some() || metric.kind != MetricKind::Quota {
+            return true;
         }
-    }
+        let legacy = legacy_label(metric);
+        let found = candidates.iter().find(|(index, budget, target, label)| {
+            !claimed[*index]
+                && !label.is_empty()
+                && (metric.label == *label
+                    || target.is_some_and(|target| {
+                        budget.label.is_none()
+                            && legacy == format!("{DEFAULT_LABEL_PREFIX}{}", target.label)
+                    }))
+        });
+        let Some((index, budget, target, _)) = found else {
+            return !is_default_label(&metric.label);
+        };
+        claimed[*index] = true;
+        metric.derived_from = Some(DerivedFrom {
+            kind: target
+                .map(|t| t.kind)
+                .or_else(|| budget.kind.map(BudgetKind::metric_kind))
+                .unwrap_or(MetricKind::Spend),
+            label: target.map_or_else(String::new, |t| t.label.clone()),
+            budget: *index,
+            partial: false,
+            key: budget_key(budget),
+        });
+        true
+    });
 }
 
 fn amount_text(amount: f64, unit: &str) -> ParamValue {
@@ -1493,3 +1636,7 @@ mod tests;
 #[cfg(test)]
 #[path = "budget_reset_tests.rs"]
 mod reset_tests;
+
+#[cfg(test)]
+#[path = "budget_identity_tests.rs"]
+mod identity_tests;

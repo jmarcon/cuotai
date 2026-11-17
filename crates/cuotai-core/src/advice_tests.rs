@@ -410,6 +410,7 @@ fn a_notice_carries_the_advice_as_its_second_line() {
         }),
         limit_change: None,
         row: None,
+        mark_key: None,
     };
     let reading = |index: usize| reports.get(index);
     let line = |events: &[crate::alerts::AlertEvent], private| {

@@ -416,7 +416,8 @@
             "kind": { "anyOf": [{ "enum": ["quota", "rate_limit", "balance", "credits", "spend", "usage"] }, { "type": "string" }] },
             "label": { "type": "string", "description": "The target metric's label; empty when it is missing from the reading." },
             "budget": { "type": "integer", "minimum": 0, "description": "Position of the budget in the account's [[accounts.budgets]]." },
-            "partial": { "const": true, "description": "PRD 0041 D1 (additive): present (true) when part of the period's use was not recorded; used is then a lower bound and remaining is null." }
+            "partial": { "const": true, "description": "PRD 0041 D1 (additive): present (true) when part of the period's use was not recorded; used is then a lower bound and remaining is null." },
+            "key": { "type": "string", "description": "PRD 0041 re-validation (additive): the budget's stable identity, derived from what it follows and its period; unchanged by edits of its amount, label, unit or start day." }
           }
         }
       }

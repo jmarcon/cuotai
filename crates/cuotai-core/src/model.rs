@@ -1133,6 +1133,11 @@ pub struct DerivedFrom {
     /// `used` is a lower bound and `remaining` is unknown.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub partial: bool,
+    /// PRD 0041 re-validation (D2): the budget's stable identity
+    /// ([`crate::budget::budget_key`]), which keys its alert marks and its
+    /// history series; empty only on a value read from an older export.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub key: String,
 }
 
 /// PRD 0034 RF2: `label`, `unit` and `period` stay the adapters' raw
@@ -1863,6 +1868,7 @@ mod tests {
                 label: FORGED.into(),
                 budget: 0,
                 partial: false,
+                key: String::new(),
             });
             metric
         };
@@ -1958,6 +1964,7 @@ mod tests {
                 label,
                 budget: _,
                 partial: _,
+                key: _,
             }) = derived_from
             else {
                 panic!("derived_from kept");

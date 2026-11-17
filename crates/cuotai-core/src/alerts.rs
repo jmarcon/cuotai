@@ -20,6 +20,7 @@ use crate::resets::{key_digest, Notice, DRIFT_TOLERANCE, LEDGER_KEEP};
 use crate::text::{params, provider_l10n, Localized, ParamValue};
 use chrono::{DateTime, Datelike, TimeDelta, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::ops::RangeInclusive;
@@ -345,6 +346,10 @@ pub struct MissedCrossing {
     pub threshold: u8,
     /// The window instance it belongs to.
     pub resets_at: Option<DateTime<Utc>>,
+    /// PRD 0041 re-validation (D2): the alert identity of a budget metric
+    /// (its marks' key); `None` for a provider metric. Never serialized.
+    #[serde(skip)]
+    pub mark_key: Option<String>,
 }
 
 impl MissedCrossing {
@@ -388,6 +393,12 @@ pub struct AlertEvent {
     /// the account's own metrics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub row: Option<crate::breakdown::RowRef>,
+    /// PRD 0041 re-validation (D2): the identity the marks of a budget or
+    /// floor event are kept under (`"\0budget:<key>"`, `"\0floor:<key>"`;
+    /// [`alert_key`]); `None` for every other event, whose marks follow
+    /// its label. Internal: never serialized.
+    #[serde(skip)]
+    pub mark_key: Option<String>,
 }
 
 /// PRD 0043 RF2: what a `LimitChanged` alert changed.
@@ -630,7 +641,7 @@ pub fn evaluate_with(
         let Some(consumption) = consumption(metric) else {
             continue;
         };
-        let digest = key_digest(&account_key, &metric.label);
+        let digest = state.metric_digest(&account_key, metric, next);
         // A first reading has no levels in `state`: what `prev` already
         // reached was crossed before it, not within the grace.
         let known = first
@@ -638,7 +649,7 @@ pub fn evaluate_with(
                 prev.metrics
                     .iter()
                     .filter(|before| {
-                        before.label == metric.label
+                        alert_key(before) == alert_key(metric)
                             && same_instance(metric.window, before.resets_at, metric.resets_at)
                     })
                     .filter_map(|before| level(self::consumption(before)?, prefs))
@@ -660,6 +671,7 @@ pub fn evaluate_with(
             overage: None,
             limit_change: None,
             row: None,
+            mark_key: budget_mark_key(metric),
         };
         if let (Some(input), Some(lead)) = (pace, prefs.projected) {
             if let Some(projection) = projected(prev, next, metric, input, lead, state, now) {
@@ -738,6 +750,7 @@ pub fn evaluate_with(
                     unit: change.unit,
                 }),
                 row: None,
+                mark_key: None,
             }),
     );
     events.retain(|event| prefs.wants(event));
@@ -749,12 +762,91 @@ pub fn evaluate_with(
 /// Mark of paid extra usage in [`AlertState`]: never a metric label.
 const OVERAGE_MARK: &str = "\u{0}overage";
 
-/// Prefix of a floor's mark in [`AlertState`] (followed by the balance
-/// metric's label): never a metric label itself.
+/// Prefix of a floor's mark in [`AlertState`], followed by the floor's
+/// key ([`crate::budget::floor_key`]); before the PRD 0041 re-validation it
+/// was followed by the balance metric's label (one mark per balance). Never
+/// a metric label itself.
 const FLOOR_MARK: &str = "\u{0}floor:";
 
-fn floor_mark(label: &str) -> String {
+/// Prefix of a budget metric's marks in [`AlertState`], followed by the
+/// budget's key ([`crate::budget::budget_key`]).
+const BUDGET_MARK: &str = "\u{0}budget:";
+
+/// The mark of the floor whose key is `key`.
+fn floor_mark(key: &str) -> String {
+    format!("{FLOOR_MARK}{key}")
+}
+
+/// The mark one balance's floors shared before the PRD 0041
+/// re-validation; read once to migrate it ([`AlertState::update_with`]).
+fn legacy_floor_mark(label: &str) -> String {
     format!("{FLOOR_MARK}{label}")
+}
+
+/// PRD 0041 re-validation (D2): the identity the marks of `metric` are
+/// kept under: `"\0budget:<key>"` for a budget metric, so two budgets on
+/// one metric never share marks and renaming a budget keeps them; the
+/// label for every other metric.
+fn alert_key(metric: &Metric) -> Cow<'_, str> {
+    match metric
+        .derived_from
+        .as_ref()
+        .filter(|from| !from.key.is_empty())
+    {
+        Some(from) => Cow::Owned(format!("{BUDGET_MARK}{}", from.key)),
+        None => Cow::Borrowed(&metric.label),
+    }
+}
+
+/// [`AlertEvent::mark_key`] of an event about `metric`.
+pub(crate) fn budget_mark_key(metric: &Metric) -> Option<String> {
+    metric
+        .derived_from
+        .as_ref()
+        .filter(|from| !from.key.is_empty())
+        .map(|from| format!("{BUDGET_MARK}{}", from.key))
+}
+
+/// The identity the marks of `event` are kept under.
+fn event_key(event: &AlertEvent) -> Cow<'_, str> {
+    match (&event.mark_key, event.kind) {
+        (Some(key), _) => Cow::Borrowed(key),
+        (None, AlertKind::OverageStarted | AlertKind::OverageCapReached) => {
+            Cow::Borrowed(OVERAGE_MARK)
+        }
+        (None, AlertKind::SessionExpiring) => Cow::Borrowed(SESSION_MARK),
+        (None, AlertKind::BalanceBelowFloor) => Cow::Owned(legacy_floor_mark(&event.label)),
+        (None, _) => Cow::Borrowed(&event.label),
+    }
+}
+
+/// Whether `event` is about `metric` (its budget identity, else its label).
+fn same_subject(event: &AlertEvent, metric: &Metric) -> bool {
+    match &event.mark_key {
+        Some(key) => *key == alert_key(metric),
+        None => event.label == metric.label,
+    }
+}
+
+/// The digest a budget metric's marks had before the PRD 0041
+/// re-validation (keyed by its legacy label), when exactly one budget
+/// metric of `report` had that label and no provider metric has it; `None`
+/// otherwise (an ambiguous legacy mark is dropped, not adopted).
+fn legacy_budget_digest(account_key: &str, metric: &Metric, report: &Report) -> Option<String> {
+    budget_mark_key(metric)?;
+    let legacy = crate::budget::legacy_label(metric);
+    let sharing = report
+        .metrics
+        .iter()
+        .filter(|other| {
+            other.derived_from.is_some() && crate::budget::legacy_label(other) == legacy
+        })
+        .count();
+    let provider = report
+        .metrics
+        .iter()
+        .any(|other| other.derived_from.is_none() && other.label == legacy);
+    (sharing == 1 && !provider).then(|| key_digest(account_key, &legacy))
 }
 
 /// PRD 0041 RF3.1: each floor of `next`'s account with its balance metric
@@ -775,6 +867,39 @@ fn floor_readings<'r>(
         })
 }
 
+/// One balance watched by floors: its metric, the amount left and its
+/// floors as `(floor_key, amount)`, in floor order.
+struct FloorGroup<'r> {
+    metric: &'r Metric,
+    value: f64,
+    floors: Vec<(String, f64)>,
+}
+
+/// [`floor_readings`] grouped by balance metric (PRD 0041 re-validation:
+/// several floors on one balance are tiers of one balance).
+fn floor_groups<'r>(report: &'r Report, prefs: &'r AlertPrefs) -> Vec<FloorGroup<'r>> {
+    let mut groups: Vec<FloorGroup<'r>> = Vec::new();
+    for (floor, metric, value) in floor_readings(report, prefs) {
+        let key = crate::budget::floor_key(floor);
+        match groups
+            .iter_mut()
+            .find(|group| group.metric.label == metric.label)
+        {
+            Some(group) => {
+                if !group.floors.iter().any(|(other, _)| *other == key) {
+                    group.floors.push((key, floor.amount));
+                }
+            }
+            None => groups.push(FloorGroup {
+                metric,
+                value,
+                floors: vec![(key, floor.amount)],
+            }),
+        }
+    }
+    groups
+}
+
 /// Whether a balance at `value` (previously `before`) re-arms a floor of
 /// `amount`: above `amount × 1.1`, or a top-up that lands above the floor.
 fn floor_rearmed(value: f64, before: Option<f64>, amount: f64) -> bool {
@@ -785,10 +910,15 @@ fn floor_rearmed(value: f64, before: Option<f64>, amount: f64) -> bool {
         || (value >= amount && before.is_some_and(|before| value - before > band))
 }
 
-/// PRD 0041 RF3.1: `BalanceBelowFloor` when a balance crosses below its
-/// floor between `prev` and `next` (once per crossing: the mark holds it
-/// until the balance re-arms), `BalanceRecovered` when a notified crossing
-/// re-arms.
+/// PRD 0041 RF3.1 with its re-validation (F-03, F-04): each floor has its
+/// own mark and hysteresis. A floor with no mark and the balance below it
+/// is a crossing, whatever the previous reading said, so a floor set (or
+/// changed) above the current balance warns once. One reading gives at
+/// most one `BalanceBelowFloor` per balance, naming the lowest floor
+/// crossed, and at most one `BalanceRecovered`, when every marked floor of
+/// the balance re-armed (the highest last) and one of them was notified.
+/// A mark written before the re-validation (one per balance) counts as the
+/// mark of every floor above the current value.
 fn floor_events(
     prev: &Report,
     next: &Report,
@@ -797,18 +927,26 @@ fn floor_events(
 ) -> Vec<AlertEvent> {
     let account_key = next.state_key();
     let mut events = Vec::new();
-    for (floor, metric, value) in floor_readings(next, prefs) {
-        let digest = key_digest(&account_key, &floor_mark(&metric.label));
-        let mark = state
-            .marks
-            .iter()
-            .find(|mark| mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor);
+    for FloorGroup {
+        metric,
+        value,
+        floors,
+    } in floor_groups(next, prefs)
+    {
+        let find = |label: &str| {
+            let digest = key_digest(&account_key, label);
+            state
+                .marks
+                .iter()
+                .find(|mark| mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor)
+        };
+        let legacy = find(&legacy_floor_mark(&metric.label));
         let before = prev
             .metrics
             .iter()
             .find(|old| old.label == metric.label)
             .and_then(crate::budget::balance_left);
-        let event = |kind, consumed| AlertEvent {
+        let event = |kind, consumed, key: &str| AlertEvent {
             account_key: account_key.clone(),
             label: metric.label.clone(),
             window: metric.window,
@@ -820,16 +958,41 @@ fn floor_events(
             overage: None,
             limit_change: None,
             row: None,
+            mark_key: Some(floor_mark(key)),
         };
-        match mark {
-            None if value < floor.amount && before.is_none_or(|before| before >= floor.amount) => {
-                let below = (1.0 - value / floor.amount).clamp(0.0, 1.0);
-                events.push(event(AlertKind::BalanceBelowFloor, below));
+        let marks: Vec<(&String, f64, Option<&Mark>)> = floors
+            .iter()
+            .map(|(key, amount)| (key, *amount, find(&floor_mark(key))))
+            .collect();
+        let crossed = marks
+            .iter()
+            .filter(|(_, amount, mark)| {
+                mark.is_none() && value < *amount && !(legacy.is_some() && *amount > value)
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1));
+        if let Some((key, amount, _)) = crossed {
+            let below = (1.0 - value / amount).clamp(0.0, 1.0);
+            events.push(event(AlertKind::BalanceBelowFloor, below, key));
+        }
+        // The floors that hold a mark: their own, or every floor under a
+        // legacy mark.
+        let marked: Vec<&(&String, f64, Option<&Mark>)> = marks
+            .iter()
+            .filter(|(_, _, mark)| mark.is_some() || legacy.is_some())
+            .collect();
+        let notified = marks
+            .iter()
+            .filter_map(|(_, _, mark)| *mark)
+            .chain(legacy)
+            .any(|mark| mark.notified);
+        if notified
+            && marked
+                .iter()
+                .all(|(_, amount, _)| floor_rearmed(value, before, *amount))
+        {
+            if let Some((key, _, _)) = marked.iter().max_by(|a, b| a.1.total_cmp(&b.1)) {
+                events.push(event(AlertKind::BalanceRecovered, 0.0, key));
             }
-            Some(mark) if mark.notified && floor_rearmed(value, before, floor.amount) => {
-                events.push(event(AlertKind::BalanceRecovered, 0.0));
-            }
-            _ => {}
         }
     }
     events
@@ -896,6 +1059,7 @@ fn overage_events(prev: &Report, next: &Report, state: &AlertState) -> Vec<Alert
         overage: Some(OverageExport::from(&now_state)),
         limit_change: None,
         row: None,
+        mark_key: None,
     }]
 }
 
@@ -931,7 +1095,7 @@ fn projected(
     state: &AlertState,
     now: DateTime<Utc>,
 ) -> Option<Projection> {
-    let digest = key_digest(&next.state_key(), &metric.label);
+    let digest = state.metric_digest(&next.state_key(), metric, next);
     if state.has_projection(&digest, metric.window, metric.resets_at) {
         return None;
     }
@@ -952,7 +1116,7 @@ fn projected(
     let before = prev
         .metrics
         .iter()
-        .find(|before| before.label == metric.label)
+        .find(|before| alert_key(before) == alert_key(metric))
         .filter(|before| same_instance(metric.window, before.resets_at, metric.resets_at))?;
     forecast(
         before,
@@ -1078,6 +1242,7 @@ pub fn evaluate_units(
                     overage: None,
                     limit_change: None,
                     row: None,
+                    mark_key: None,
                 };
                 if prefs.wants(&event) {
                     events.push(event);
@@ -1212,6 +1377,7 @@ fn session_expiring(next: &Report, state: &AlertState, now: DateTime<Utc>) -> Op
         overage: None,
         limit_change: None,
         row: None,
+        mark_key: None,
     })
 }
 
@@ -1332,61 +1498,94 @@ impl AlertState {
             }
             changed |= self.marks.len() != before;
         }
-        // PRD 0041 RF3.1: a balance below its floor is marked (notified or
-        // not) so the crossing is told once; the mark goes when it re-arms.
-        let floors: Vec<(String, f64, f64)> = floor_readings(next, prefs)
-            .map(|(floor, metric, value)| (metric.label.clone(), floor.amount, value))
-            .collect();
-        for (label, amount, value) in floors {
-            let digest = key_digest(&account_key, &floor_mark(&label));
-            let marked = self
-                .marks
-                .iter()
-                .any(|mark| mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor);
+        // PRD 0041 RF3.1: a balance below a floor is marked per floor
+        // (notified or not) so each crossing is told once; the mark goes
+        // when that floor re-arms. Every floor one notice covered (the
+        // lowest crossed names them all) is marked notified.
+        for FloorGroup {
+            metric,
+            value,
+            floors,
+        } in floor_groups(next, prefs)
+        {
+            let label = &metric.label;
             let delivered = |kind| {
                 events.iter().any(|event| {
-                    event.account_key == account_key && event.label == label && event.kind == kind
+                    event.account_key == account_key && event.label == *label && event.kind == kind
                 })
             };
-            if marked
-                && (floor_rearmed(value, None, amount) || delivered(AlertKind::BalanceRecovered))
-            {
+            let held = deferred
+                .iter()
+                .find(|(event, _)| {
+                    event.account_key == account_key
+                        && event.label == *label
+                        && event.kind == AlertKind::BalanceBelowFloor
+                })
+                .map(|(_, until)| *until);
+            // A mark written before the re-validation, one per balance:
+            // it becomes the mark of each floor still above the balance.
+            let legacy_digest = key_digest(&account_key, &legacy_floor_mark(label));
+            let legacy = self
+                .marks
+                .iter()
+                .find(|mark| {
+                    mark.metric == legacy_digest && mark.kind == AlertKind::BalanceBelowFloor
+                })
+                .cloned();
+            if legacy.is_some() {
                 self.marks.retain(|mark| {
-                    !(mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor)
-                });
-                changed = true;
-            } else if !marked && value < amount {
-                let notified = delivered(AlertKind::BalanceBelowFloor);
-                let deferred_until = deferred
-                    .iter()
-                    .find(|(event, _)| {
-                        event.account_key == account_key
-                            && event.label == label
-                            && event.kind == AlertKind::BalanceBelowFloor
-                    })
-                    .map(|(_, until)| *until)
-                    .filter(|_| !notified);
-                self.marks.push(Mark {
-                    account: account.clone(),
-                    metric: digest,
-                    kind: AlertKind::BalanceBelowFloor,
-                    threshold: 0,
-                    resets_at: None,
-                    notified,
-                    at: now,
-                    lapsed: false,
-                    deferred_until,
-                    acknowledged: false,
-                    projection: None,
+                    !(mark.metric == legacy_digest && mark.kind == AlertKind::BalanceBelowFloor)
                 });
                 changed = true;
             }
+            for (key, amount) in floors {
+                let digest = key_digest(&account_key, &floor_mark(&key));
+                let mut marked = self
+                    .marks
+                    .iter()
+                    .any(|mark| mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor);
+                if let Some(legacy) = legacy.as_ref().filter(|_| !marked && amount > value) {
+                    self.marks.push(Mark {
+                        metric: digest.clone(),
+                        ..legacy.clone()
+                    });
+                    marked = true;
+                }
+                if marked
+                    && (floor_rearmed(value, None, amount)
+                        || (value >= amount && delivered(AlertKind::BalanceRecovered)))
+                {
+                    self.marks.retain(|mark| {
+                        !(mark.metric == digest && mark.kind == AlertKind::BalanceBelowFloor)
+                    });
+                    changed = true;
+                } else if !marked && value < amount {
+                    let notified = delivered(AlertKind::BalanceBelowFloor);
+                    self.marks.push(Mark {
+                        account: account.clone(),
+                        metric: digest,
+                        kind: AlertKind::BalanceBelowFloor,
+                        threshold: 0,
+                        resets_at: None,
+                        notified,
+                        at: now,
+                        lapsed: false,
+                        deferred_until: held.filter(|_| !notified),
+                        acknowledged: false,
+                        projection: None,
+                    });
+                    changed = true;
+                }
+            }
         }
+        // PRD 0041 re-validation (D2): the marks a budget metric had under
+        // its legacy label move to its budget key.
+        changed |= self.adopt_budget_marks(&account_key, next);
         for metric in &next.metrics {
             let Some(consumption) = consumption(metric) else {
                 continue;
             };
-            let digest = key_digest(&account_key, &metric.label);
+            let digest = key_digest(&account_key, &alert_key(metric));
             let at = metric.resets_at;
             // PRD 0008 re-validation (S-03): an exhaustion silenced by its
             // cooldown was told less than half a window ago: it counts as
@@ -1401,7 +1600,7 @@ impl AlertState {
                     || (kind == AlertKind::Recovered && cooling_recovered)
                     || events.iter().any(|event| {
                         event.account_key == account_key
-                            && event.label == metric.label
+                            && same_subject(event, metric)
                             && event.kind == kind
                             && event.threshold == threshold
                     })
@@ -1411,7 +1610,7 @@ impl AlertState {
                     .iter()
                     .find(|(event, _)| {
                         event.account_key == account_key
-                            && event.label == metric.label
+                            && same_subject(event, metric)
                             && event.kind == kind
                             && event.threshold == threshold
                     })
@@ -1475,7 +1674,7 @@ impl AlertState {
                 .iter()
                 .find(|(event, _)| {
                     event.account_key == account_key
-                        && event.label == metric.label
+                        && same_subject(event, metric)
                         && event.kind == AlertKind::ProjectedExhaustion
                 })
                 .and_then(|(event, _)| event.projection);
@@ -1520,6 +1719,66 @@ impl AlertState {
             }
         }
         changed |= self.cap_marks();
+        changed
+    }
+
+    /// PRD 0041 re-validation (D2): the digest the marks of `metric` (of
+    /// `report`) are found under: its alert key, or for a budget metric
+    /// with no mark there yet, the legacy label digest when exactly one
+    /// budget metric of the reading had that label and marks wait under it
+    /// (before [`Self::update_with`] moves them).
+    fn metric_digest(&self, account_key: &str, metric: &Metric, report: &Report) -> String {
+        let digest = key_digest(account_key, &alert_key(metric));
+        if budget_mark_key(metric).is_none() || self.marks.iter().any(|m| m.metric == digest) {
+            return digest;
+        }
+        legacy_budget_digest(account_key, metric, report)
+            .filter(|legacy| self.marks.iter().any(|mark| mark.metric == *legacy))
+            .unwrap_or(digest)
+    }
+
+    /// PRD 0041 re-validation (D2): move the marks (and cooldown) each
+    /// budget metric of `next` had under its legacy label to its budget
+    /// key, when that metric alone had the label and nothing is marked
+    /// under its key yet. A legacy budget label several budget metrics
+    /// shared is dropped: at worst one level is told again once. `true`
+    /// when a mark changed.
+    fn adopt_budget_marks(&mut self, account_key: &str, next: &Report) -> bool {
+        let mut changed = false;
+        for metric in &next.metrics {
+            if budget_mark_key(metric).is_none() {
+                continue;
+            }
+            let legacy = key_digest(account_key, &crate::budget::legacy_label(metric));
+            if !self.marks.iter().any(|mark| mark.metric == legacy)
+                && !self.cooldowns.contains_key(&legacy)
+            {
+                continue;
+            }
+            let provider = next.metrics.iter().any(|other| {
+                other.derived_from.is_none() && key_digest(account_key, &other.label) == legacy
+            });
+            if provider {
+                continue;
+            }
+            let digest = key_digest(account_key, &alert_key(metric));
+            let adopt = legacy_budget_digest(account_key, metric, next).is_some()
+                && !self.marks.iter().any(|mark| mark.metric == digest);
+            if adopt {
+                for mark in &mut self.marks {
+                    if mark.metric == legacy {
+                        mark.metric = digest.clone();
+                    }
+                }
+                if let Some(cooldown) = self.cooldowns.remove(&legacy) {
+                    self.cooldowns.entry(digest).or_insert(cooldown);
+                }
+            } else {
+                self.marks.retain(|mark| mark.metric != legacy);
+                self.cooldowns.remove(&legacy);
+            }
+            changed = true;
+        }
         changed
     }
 
@@ -1647,8 +1906,9 @@ impl AlertState {
                     projection: None,
                     limit_change: None,
                     row: None,
+                    mark_key: None,
                 });
-                let digest = key_digest(&account_key, &metric.label);
+                let digest = self.metric_digest(&account_key, metric, next);
                 let handled = self.marks.iter().any(|mark| {
                     mark.metric == digest
                         && mark.kind.is_level()
@@ -1661,6 +1921,7 @@ impl AlertState {
                     window: metric.window,
                     threshold,
                     resets_at: metric.resets_at,
+                    mark_key: budget_mark_key(metric),
                 })
             })
             .collect()
@@ -1672,7 +1933,10 @@ impl AlertState {
     pub fn acknowledge(&mut self, account_key: &str, crossings: &[MissedCrossing]) -> bool {
         let mut changed = false;
         for crossing in crossings {
-            let digest = key_digest(account_key, &crossing.label);
+            let digest = key_digest(
+                account_key,
+                crossing.mark_key.as_deref().unwrap_or(&crossing.label),
+            );
             for mark in &mut self.marks {
                 if mark.metric == digest
                     && mark.kind.is_level()
@@ -1718,19 +1982,19 @@ impl AlertState {
                     && mark.notified
             }),
             AlertKind::ProjectedExhaustion => self.marks.iter().any(|mark| {
-                mark.metric == key_digest(&event.account_key, &event.label)
+                mark.metric == key_digest(&event.account_key, &event_key(event))
                     && mark.kind == AlertKind::ProjectedExhaustion
                     && mark.notified
                     && same_instance(event.window, mark.resets_at, event.resets_at)
             }),
             AlertKind::Recovered => self.marks.iter().any(|mark| {
-                mark.metric == key_digest(&event.account_key, &event.label)
+                mark.metric == key_digest(&event.account_key, &event_key(event))
                     && mark.kind == AlertKind::Recovered
                     && mark.notified
                     && same_instance(event.window, mark.resets_at, event.resets_at)
             }),
             AlertKind::Threshold | AlertKind::Exhausted => self.marks.iter().any(|mark| {
-                mark.metric == key_digest(&event.account_key, &event.label)
+                mark.metric == key_digest(&event.account_key, &event_key(event))
                     && mark.kind.is_level()
                     && !mark.lapsed
                     && mark.threshold >= event.threshold
@@ -1753,7 +2017,7 @@ impl AlertState {
             AlertKind::PoolExhausted | AlertKind::PoolRecovered => false,
             // PRD 0041 RF3.1: once per crossing, marked per balance metric.
             AlertKind::BalanceBelowFloor => self.marks.iter().any(|mark| {
-                mark.metric == key_digest(&event.account_key, &floor_mark(&event.label))
+                mark.metric == key_digest(&event.account_key, &event_key(event))
                     && mark.kind == AlertKind::BalanceBelowFloor
                     && mark.notified
             }),
@@ -1764,18 +2028,10 @@ impl AlertState {
     /// PRD 0032 RF4.2: whether a crossing like `event` already waits for the
     /// digest (another process deferred it).
     pub fn deferred(&self, event: &AlertEvent) -> bool {
-        let floor;
-        let label = match event.kind {
-            AlertKind::OverageStarted | AlertKind::OverageCapReached => OVERAGE_MARK,
-            AlertKind::BalanceBelowFloor => {
-                floor = floor_mark(&event.label);
-                floor.as_str()
-            }
-            _ => event.label.as_str(),
-        };
+        let digest = key_digest(&event.account_key, &event_key(event));
         self.marks.iter().any(|mark| {
             mark.deferred_until.is_some()
-                && mark.metric == key_digest(&event.account_key, label)
+                && mark.metric == digest
                 && mark.kind == event.kind
                 && mark.threshold == event.threshold
                 && same_instance(event.window, mark.resets_at, event.resets_at)
@@ -1861,6 +2117,7 @@ impl AlertState {
                         projection: None,
                         limit_change: None,
                         row: None,
+                        mark_key: None,
                     }),
                 // PRD 0032 RF3: the overage still bills (or is still at
                 // its cap) in the same billing cycle.
@@ -1894,6 +2151,7 @@ impl AlertState {
                         overage: Some(OverageExport::from(&overage)),
                         limit_change: None,
                         row: None,
+                        mark_key: None,
                     }),
                 // PRD 0032 RF3.3: a held projection still projects before
                 // the reset of the same window instance.
@@ -1902,7 +2160,9 @@ impl AlertState {
                     report
                         .metrics
                         .iter()
-                        .filter(|metric| key_digest(&account_key, &metric.label) == mark.metric)
+                        .filter(|metric| {
+                            key_digest(&account_key, &alert_key(metric)) == mark.metric
+                        })
                         .filter(|metric| {
                             same_instance(metric.window, mark.resets_at, metric.resets_at)
                         })
@@ -1929,16 +2189,24 @@ impl AlertState {
                                 }),
                                 limit_change: None,
                                 row: None,
+                                mark_key: budget_mark_key(metric),
                             })
                         })
                 }
                 // PRD 0041 RF3: the balance is still below its floor.
                 AlertKind::BalanceBelowFloor => floor_readings(report, prefs)
-                    .find(|(floor, metric, value)| {
-                        key_digest(&account_key, &floor_mark(&metric.label)) == mark.metric
-                            && *value < floor.amount
+                    .map(|(floor, metric, value)| {
+                        (
+                            floor_mark(&crate::budget::floor_key(floor)),
+                            floor,
+                            metric,
+                            value,
+                        )
                     })
-                    .map(|(floor, metric, value)| AlertEvent {
+                    .find(|(key, floor, _, value)| {
+                        key_digest(&account_key, key) == mark.metric && *value < floor.amount
+                    })
+                    .map(|(key, floor, metric, value)| AlertEvent {
                         overage: None,
                         account_key: account_key.clone(),
                         label: metric.label.clone(),
@@ -1950,11 +2218,12 @@ impl AlertState {
                         projection: None,
                         limit_change: None,
                         row: None,
+                        mark_key: Some(key),
                     }),
                 kind => report
                     .metrics
                     .iter()
-                    .filter(|metric| key_digest(&account_key, &metric.label) == mark.metric)
+                    .filter(|metric| key_digest(&account_key, &alert_key(metric)) == mark.metric)
                     .filter(|metric| same_instance(metric.window, mark.resets_at, metric.resets_at))
                     .filter(|metric| {
                         kind != AlertKind::Threshold
@@ -1983,6 +2252,7 @@ impl AlertState {
                             projection: None,
                             limit_change: None,
                             row: None,
+                            mark_key: budget_mark_key(metric),
                         })
                     }),
             };
@@ -2062,12 +2332,14 @@ impl AlertState {
                 continue;
             }
             let (old_account, new_account) = (account_digest(&legacy), account_digest(&id));
-            let labels = report
+            let labels: Vec<Cow<'_, str>> = report
                 .metrics
                 .iter()
-                .map(|metric| metric.label.as_str())
-                .chain([SESSION_MARK]);
+                .map(alert_key)
+                .chain([Cow::Borrowed(SESSION_MARK)])
+                .collect();
             let digests: BTreeMap<String, String> = labels
+                .iter()
                 .map(|label| (key_digest(&legacy, label), key_digest(&id, label)))
                 .collect();
             for mark in &mut self.marks {
@@ -2165,7 +2437,7 @@ impl AlertState {
         }
         let entry = self
             .cooldowns
-            .entry(key_digest(&event.account_key, &event.label))
+            .entry(key_digest(&event.account_key, &event_key(event)))
             .or_default();
         let told = Some(Told {
             at: now,
@@ -2196,7 +2468,7 @@ impl AlertState {
                 if event.kind == AlertKind::Exhausted
                     && self
                         .cooldowns
-                        .get(&key_digest(&event.account_key, &event.label))
+                        .get(&key_digest(&event.account_key, &event_key(event)))
                         .is_some_and(|cooldown| cooldown.quiet_until == Some(window.ends_at)) =>
             {
                 crate::quiet::Decision::Defer(window.ends_at)
@@ -2219,17 +2491,7 @@ impl AlertState {
         if self.notified(event) {
             return false;
         }
-        let floor;
-        let label = match event.kind {
-            AlertKind::OverageStarted | AlertKind::OverageCapReached => OVERAGE_MARK,
-            AlertKind::BalanceBelowFloor => {
-                floor = floor_mark(&event.label);
-                floor.as_str()
-            }
-            AlertKind::SessionExpiring => SESSION_MARK,
-            _ => event.label.as_str(),
-        };
-        let digest = key_digest(&event.account_key, label);
+        let digest = key_digest(&event.account_key, &event_key(event));
         let mut found = false;
         for mark in &mut self.marks {
             let same = match event.kind {
@@ -2276,7 +2538,7 @@ impl AlertState {
     pub fn active<'r>(&'r self, report: &'r Report) -> impl Iterator<Item = &'r Metric> + 'r {
         let account_key = report.state_key();
         report.metrics.iter().filter(move |metric| {
-            let digest = key_digest(&account_key, &metric.label);
+            let digest = key_digest(&account_key, &alert_key(metric));
             self.marks.iter().any(|mark| {
                 mark.notified
                     && mark.metric == digest
@@ -4005,6 +4267,7 @@ mod tests {
             overage: None,
             limit_change: None,
             row: None,
+            mark_key: None,
         };
         let mut state = AlertState::default();
         use crate::quiet::Decision;
@@ -4323,6 +4586,7 @@ mod tests {
                 overage: None,
                 limit_change: None,
                 row: None,
+                mark_key: None,
             }]
         );
     }
@@ -4609,6 +4873,7 @@ mod tests {
             overage: None,
             limit_change: None,
             row: None,
+            mark_key: None,
         };
         let ninety = event(
             "claude:Work",
@@ -4776,3 +5041,7 @@ mod projected_tests;
 #[cfg(test)]
 #[path = "alerts_policy_tests.rs"]
 mod policy_tests;
+
+#[cfg(test)]
+#[path = "alerts_budget_tests.rs"]
+mod budget_tests;

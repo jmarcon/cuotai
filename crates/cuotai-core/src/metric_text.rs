@@ -758,7 +758,34 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.free_trial_of",
         "{label} (free trial)",
     ),
-    // PRD 0041 RF2.1: the default label of a budget metric.
+    // PRD 0041 RF2.1 and its re-validation (D2): the default label of a
+    // budget metric names its period; the plain form stays for restored
+    // readings and older history.
+    (
+        "Orçamento diário · {label}",
+        "metric.label.budget_daily",
+        "Daily budget · {label}",
+    ),
+    (
+        "Orçamento semanal · {label}",
+        "metric.label.budget_weekly",
+        "Weekly budget · {label}",
+    ),
+    (
+        "Orçamento mensal desde o dia {day} · {label}",
+        "metric.label.budget_monthly_from",
+        "Monthly budget from day {day} · {label}",
+    ),
+    (
+        "Orçamento mensal · {label}",
+        "metric.label.budget_monthly",
+        "Monthly budget · {label}",
+    ),
+    (
+        "Orçamento do ciclo · {label}",
+        "metric.label.budget_cycle",
+        "Cycle budget · {label}",
+    ),
     (
         "Orçamento · {label}",
         "metric.label.budget_of",

@@ -142,6 +142,7 @@ fn off_by_default_and_recommended_at_60_minutes() {
         projection: None,
         limit_change: None,
         row: None,
+        mark_key: None,
     };
     assert!(on.wants(&event));
     on.muted_metrics
@@ -393,6 +394,7 @@ fn pending(resets_at: DateTime<Utc>) -> AlertEvent {
         projection: None,
         limit_change: None,
         row: None,
+        mark_key: None,
     }
 }
 

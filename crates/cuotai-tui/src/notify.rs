@@ -1117,6 +1117,7 @@ mod tests {
             }),
             limit_change: None,
             row: None,
+            mark_key: None,
         });
         let reading = report(&config.accounts[0], 10.0, start() + TimeDelta::hours(3));
         let out = notices.tick(&config, &[Some(&reading)], start() + mins(2), "en-US");

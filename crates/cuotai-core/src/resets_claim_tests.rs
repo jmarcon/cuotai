@@ -65,6 +65,7 @@ fn event_of(report: &Report, kind: AlertKind, threshold: u8) -> AlertEvent {
         projection: None,
         limit_change: None,
         row: None,
+        mark_key: None,
     }
 }
 

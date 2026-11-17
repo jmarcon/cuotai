@@ -1425,6 +1425,7 @@ impl Track {
                 overage: None,
                 limit_change: None,
                 row: None,
+                mark_key: crate::alerts::budget_mark_key(metric),
             })
             .collect();
         alerts.update(report, prefs, &exhausted, now);

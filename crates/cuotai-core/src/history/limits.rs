@@ -26,10 +26,18 @@ impl HistoryStore {
         let (start, end) = span(range);
         let account_digest = series_digest(&db, &self.config_key, account)?;
         let mut series_query = db.prepare(
-            "SELECT id, label, unit, kind, \"window\" FROM series
+            "SELECT id, label, unit, kind, \"window\", metric_key FROM series
              WHERE config_key = ?1 AND account_digest = ?2",
         )?;
-        let series: Vec<(i64, String, String, MetricKind, Option<MetricWindow>)> = series_query
+        type Series = (
+            i64,
+            String,
+            String,
+            MetricKind,
+            Option<MetricWindow>,
+            String,
+        );
+        let series: Vec<Series> = series_query
             .query_map(rusqlite::params![self.config_key, account_digest], |row| {
                 Ok((
                     row.get(0)?,
@@ -39,9 +47,18 @@ impl HistoryStore {
                     row.get::<_, Option<String>>(4)?
                         .map(untag::<MetricWindow>)
                         .transpose()?,
+                    row.get(5)?,
                 ))
             })?
             .collect::<rusqlite::Result<_>>()?;
+        // PRD 0041 re-validation (D2): the person's budget series, by the
+        // budget's identity, so a budget whose own label equals a provider
+        // label never hides that provider's changes.
+        let budgets: Vec<String> = account
+            .budgets
+            .iter()
+            .map(|budget| super::budget_series_key(&crate::budget::budget_key(budget)))
+            .collect();
         // The sample just before the range, then the ones in it.
         let mut samples = db.prepare(
             "SELECT taken_at, \"limit\" FROM samples
@@ -52,8 +69,11 @@ impl HistoryStore {
              ORDER BY taken_at",
         )?;
         let mut changes = Vec::new();
-        for (id, label, unit, kind, window) in series {
-            if kind == MetricKind::RateLimit || crate::budget::is_budget_label(account, &label) {
+        for (id, label, unit, kind, window, key) in series {
+            if kind == MetricKind::RateLimit
+                || budgets.contains(&key)
+                || crate::budget::is_default_label(&label)
+            {
                 continue;
             }
             let points: Vec<(DateTime<Utc>, f64)> = samples

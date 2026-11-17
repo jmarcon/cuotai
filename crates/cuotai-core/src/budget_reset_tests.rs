@@ -241,7 +241,7 @@ fn a_gap_across_the_reset_gives_a_lower_bound() {
     assert_eq!(note_ids(&reading), ["note.budget.partial"]);
     assert_eq!(
         reading.notes_l10n[0].fallback,
-        "Budget · Spending in the month: part of this period's use was not recorded, so at least this much was used."
+        "Weekly budget · Spending in the month: part of this period's use was not recorded, so at least this much was used."
     );
     assert!(crate::pace::allowance(metric, now, None).is_none());
     // A lower bound that crossed a threshold has truly crossed it.

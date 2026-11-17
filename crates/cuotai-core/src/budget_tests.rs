@@ -180,10 +180,10 @@ fn a_provider_metric_of_the_same_period_gives_its_own_used() {
     assert_eq!(metric.kind, MetricKind::Quota);
     assert_eq!(metric.window, Some(MetricWindow::Monthly));
     assert_eq!(metric.resets_at, Some(at(2026, 11, 1, 0, 0)));
-    assert_eq!(metric.label, "Orçamento · Gasto no mês");
+    assert_eq!(metric.label, "Orçamento mensal · Gasto no mês");
     assert_eq!(
         crate::metric_text::metric_text(&metric.label).fallback,
-        "Budget · Spending in the month"
+        "Monthly budget · Spending in the month"
     );
     assert!(note_ids(&reading).is_empty(), "{:?}", note_ids(&reading));
     // Applying again changes nothing.
@@ -423,7 +423,7 @@ fn a_monthly_budget_at_ninety_percent_alerts_and_paces() {
     assert_eq!(events.len(), 1, "{events:?}");
     assert_eq!(events[0].kind, crate::alerts::AlertKind::Threshold);
     assert_eq!(events[0].threshold, 90);
-    assert_eq!(events[0].label, "Orçamento · Gasto no mês");
+    assert_eq!(events[0].label, "Orçamento mensal · Gasto no mês");
 
     // 45 of 50 in 19.5 of 31 days runs out before the 1st (≈ the 22nd).
     let pace = crate::pace::assess(derived(&next), now, None).expect("a pace");
@@ -791,6 +791,7 @@ fn floor_notices_follow_the_private_mode() {
         overage: None,
         limit_change: None,
         row: None,
+        mark_key: None,
     };
     let now = at(2026, 10, 21, 12, 0);
     let private = notice(&[(&account, vec![event.clone()])], now, &Utc, true).unwrap();
