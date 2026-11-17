@@ -230,7 +230,7 @@ try {
     row.querySelector('[data-q-from]').dispatchEvent(new Event("change", { bubbles: true })); })()`);
   await until(`${second}.getAttribute('aria-invalid') === "true"`, "the duplicate's field is marked invalid");
   await eq(`${second}.getAttribute('aria-describedby').split(' ')`, ["quiet-mon-msg", "q-readout-mon-1"], "the field is described by the row's error, then its read-out");
-  await eq(`${monMsg}`, "Already set: 10:00 PM–7:00 AM (Monday).", "the message names the repeated interval in the language's clock");
+  await eq(`${monMsg}.replace(/\\u00a0/g, " ")`, "Already set: 10:00 PM–7:00 AM (Monday).", "the message names the repeated interval in the language's clock");
   await eq(`document.querySelector('#quiet-mon-msg').getAttribute('role')`, "alert", "the error line is announced");
   await eq(`import("./js/lib.js").then((m) => m.getSettings()).then((s) => s.quiet.days.mon[1])`, { from: "12:00", to: "13:00" }, "nothing is saved");
   await expectFocus("[data-q-from]@mon#1", "a refused time keeps the focus");
