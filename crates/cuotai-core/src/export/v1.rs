@@ -311,7 +311,8 @@ pub struct PoolExport {
     pub total: usize,
     /// When every connection is exhausted: the earliest return.
     pub returns_at: Option<DateTime<Utc>>,
-    /// "Claude · 2 of 3 available".
+    /// "Claude · 2 of 3 available"; a return time reads in the producer's
+    /// local clock at `generated_at`.
     pub summary: Localized,
 }
 
@@ -532,7 +533,7 @@ impl Export {
                                 .map(IncidentExport::from)
                         });
                     }
-                    export.aggregator = Some(aggregator_export(report, last_good));
+                    export.aggregator = Some(aggregator_export(report, last_good, now));
                 }
                 export
             })
@@ -688,7 +689,14 @@ impl SubScope<'_> {
     }
 }
 
-fn aggregator_export(report: Option<&Report>, last_good: Option<&Report>) -> AggregatorExport {
+/// The aggregator block; each pool's `summary` words its return time in the
+/// producer's local clock at `now` (PRD 0036 re-validation V-01), while
+/// `returns_at` keeps the instant.
+fn aggregator_export(
+    report: Option<&Report>,
+    last_good: Option<&Report>,
+    now: DateTime<Utc>,
+) -> AggregatorExport {
     let source = report
         .filter(|report| report.status == Status::Ready)
         .or(last_good);
@@ -703,7 +711,7 @@ fn aggregator_export(report: Option<&Report>, last_good: Option<&Report>) -> Agg
             aggregators::pools(report)
                 .into_iter()
                 .map(|pool| PoolExport {
-                    summary: pool.summary(),
+                    summary: pool.summary_at(now, &chrono::Local),
                     upstream: pool.upstream,
                     provider: pool.provider,
                     available: pool.available,

@@ -1540,7 +1540,7 @@ fn aggregator_views(
         pools: pools
             .into_iter()
             .map(|pool| PoolView {
-                summary: pool.summary(),
+                summary: pool.summary_at(chrono::Utc::now(), &chrono::Local),
                 upstream: pool.upstream,
                 provider: pool.provider,
                 available: pool.available,

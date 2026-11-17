@@ -767,7 +767,7 @@ pub(crate) fn sub_cards_of<'r>(
 
 /// PRD 0036 RF9.1: the line an aggregator card shows instead of metrics:
 /// "5/7 available · 9router 0.5.109 · Claude · 2 of 3 available; …".
-fn aggregator_summary(report: &Report) -> Option<String> {
+fn aggregator_summary(report: &Report, now: DateTime<Utc>) -> Option<String> {
     use cuotai_core::aggregators::{instance_version, pools};
     if report.status != Status::Ready {
         return None;
@@ -784,7 +784,11 @@ fn aggregator_summary(report: &Report) -> Option<String> {
         let kind = cuotai_core::aggregators::shape(report.provider).map_or("9router", |s| s.kind());
         parts.push(format!("{kind} {version}"));
     }
-    parts.extend(pools.iter().map(|pool| resolve_l10n(&pool.summary())));
+    parts.extend(
+        pools
+            .iter()
+            .map(|pool| resolve_l10n(&pool.summary_at(now, &Local))),
+    );
     Some(parts.join(" · "))
 }
 
@@ -1778,7 +1782,7 @@ fn render_card(
     let first_note = if rows.is_empty() {
         explanation
             .clone()
-            .or_else(|| report.and_then(aggregator_summary))
+            .or_else(|| report.and_then(|report| aggregator_summary(report, now)))
             .or_else(|| report.and_then(first_note_text))
     } else {
         None

@@ -9,7 +9,8 @@
 use crate::metrics::{classify_parts, AccountClass};
 use crate::model::{Account, Config, Metric, Provider, Report, Snapshot, Status, SubReport};
 use crate::text::{params, Localized, ParamValue};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
+use std::fmt::Display;
 
 pub use crate::providers::nine_router::TestOutcome;
 
@@ -502,8 +503,18 @@ impl Pool {
         self.total > 0 && self.exhausted == self.total
     }
 
-    /// "Claude · 2 of 3 available", "Claude · all exhausted · returns …".
-    pub fn summary(&self) -> Localized {
+    /// "Claude · 2 of 3 available", "Claude · all exhausted · returns 3:37 PM".
+    ///
+    /// The return time is the reader's local clock in `tz` at `now`, as
+    /// [`crate::text::clock`] words it (DS-MSG-8, PRD 0036 re-validation
+    /// V-01): the time in the reader's hour cycle, with the weekday or a
+    /// short date when not today, never an ISO date. The typed instant
+    /// stays in [`Pool::returns_at`].
+    pub fn summary_at<Tz>(&self, now: DateTime<Utc>, tz: &Tz) -> Localized
+    where
+        Tz: TimeZone,
+        Tz::Offset: Display,
+    {
         let name = self.name();
         if self.is_exhausted() {
             return match self.returns_at {
@@ -511,7 +522,7 @@ impl Pool {
                     "pool.exhausted_returns",
                     params([
                         ("upstream", ParamValue::from(name.clone())),
-                        ("at", ParamValue::from(at.to_rfc3339())),
+                        ("at", crate::text::clock(at, now, tz).into()),
                     ]),
                     "{upstream} · all exhausted · returns {at}",
                 ),
@@ -1208,8 +1219,11 @@ mod tests {
         assert_eq!(pools.len(), 2);
         assert_eq!(pools[0].upstream, "claude");
         assert_eq!((pools[0].available, pools[0].total), (2, 3));
-        assert_eq!(pools[0].summary().id, "pool.available");
-        assert_eq!(pools[0].summary().fallback, "Claude · 2 of 3 available");
+        assert_eq!(pools[0].summary_at(at(12), &Utc).id, "pool.available");
+        assert_eq!(
+            pools[0].summary_at(at(12), &Utc).fallback,
+            "Claude · 2 of 3 available"
+        );
         // An upstream Cuotai does not know keeps the verbatim slug.
         assert_eq!(pools[1].name(), "glm");
     }
@@ -1226,7 +1240,7 @@ mod tests {
         let pool = &pools(&router)[0];
         assert!(pool.is_exhausted());
         assert_eq!(pool.returns_at, Some(at(18)));
-        assert_eq!(pool.summary().id, "pool.exhausted_returns");
+        assert_eq!(pool.summary_at(at(12), &Utc).id, "pool.exhausted_returns");
 
         // One connection without a reset time: still the known earliest.
         let router = report(
@@ -1245,7 +1259,48 @@ mod tests {
         );
         let pool = &pools(&router)[0];
         assert_eq!(pool.returns_at, None);
-        assert_eq!(pool.summary().id, "pool.exhausted");
+        assert_eq!(pool.summary_at(at(12), &Utc).id, "pool.exhausted");
+    }
+
+    /// PRD 0036 re-validation V-01: the return time is the reader's local
+    /// clock in their hour cycle, never the RFC 3339 UTC instant.
+    #[test]
+    fn an_exhausted_pool_returns_at_the_local_clock_of_the_reader() {
+        let router = report(
+            Status::Ready,
+            vec![sub(
+                "a",
+                "claude",
+                Status::Ready,
+                vec![quota(0.0, Some(at(18)))],
+            )],
+        );
+        let pool = &pools(&router)[0];
+        let now = at(12);
+        let west = chrono::FixedOffset::west_opt(3 * 3600).unwrap();
+        let east = chrono::FixedOffset::east_opt(9 * 3600).unwrap();
+        let cases = [
+            (
+                &west,
+                "en-US",
+                "Claude · all exhausted · returns 3:00\u{a0}PM",
+            ),
+            (&west, "ja", "Claude · すべて上限到達 · 15:00 に回復"),
+            (
+                &east,
+                "en-US",
+                "Claude · all exhausted · returns Monday 3:00\u{a0}AM",
+            ),
+            (&east, "ja", "Claude · すべて上限到達 · 月曜日 03:00 に回復"),
+        ];
+        for (tz, locale, expected) in cases {
+            let text = pool.summary_at(now, tz).resolve(locale);
+            assert_eq!(text, expected, "{locale} {tz}");
+            assert!(!text.contains("2026-10-25"), "{locale} {tz}");
+            assert!(!text.contains("+00:00"), "{locale} {tz}");
+        }
+        // The typed instant stays the data field.
+        assert_eq!(pool.returns_at, Some(at(18)));
     }
 
     #[test]
@@ -1257,7 +1312,7 @@ mod tests {
         let pool = &pools(&router)[0];
         assert_eq!((pool.available, pool.exhausted, pool.total), (0, 0, 1));
         assert!(!pool.is_exhausted());
-        assert_eq!(pool.summary().id, "pool.unmeasured");
+        assert_eq!(pool.summary_at(at(12), &Utc).id, "pool.unmeasured");
     }
 
     #[test]

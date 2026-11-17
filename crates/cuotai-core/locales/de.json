@@ -1787,7 +1787,7 @@
   "aggregators.chip.private_http": "Passwort oder Schlüssel unverschlüsselt",
   "pool.available": "{upstream} · {available} von {total} verfügbar",
   "pool.exhausted": "{upstream} · alle erschöpft",
-  "pool.exhausted_returns": "{upstream} · alle erschöpft · zurück in {at}",
+  "pool.exhausted_returns": "{upstream} · alle erschöpft · zurück {at}",
   "pool.unmeasured": {
     "one": "{upstream} · {count} Verbindung ohne bekannte Nutzung",
     "other": "{upstream} · {count} Verbindungen ohne bekannte Nutzung"

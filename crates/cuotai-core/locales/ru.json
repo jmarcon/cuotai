@@ -1863,7 +1863,7 @@
   "aggregators.chip.private_http": "Пароль или ключ без шифрования",
   "pool.available": "{upstream} · доступно {available} из {total}",
   "pool.exhausted": "{upstream} · все исчерпаны",
-  "pool.exhausted_returns": "{upstream} · все исчерпаны · вернётся через {at}",
+  "pool.exhausted_returns": "{upstream} · все исчерпаны · вернётся {at}",
   "pool.unmeasured": {
     "one": "{upstream} · {count} подключение без известного использования",
     "few": "{upstream} · {count} подключения без известного использования",
