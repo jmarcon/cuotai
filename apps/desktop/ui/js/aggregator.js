@@ -3,10 +3,16 @@
 // its own `account_key`, with `index` pointing at the aggregator so every action acts on it). Nothing here classifies
 // or counts on its own: figures and pool sentences come from the core.
 import { t, te, tl } from "./i18n.js";
-import { accountTitle, accountFullLabel, bindingPct, brand, esc, icon, level, listText, logo, refreshAccount, setConnectionFlag } from "./lib.js";
+import { accountTitle, accountFullLabel, bindingPct, brand, esc, fmtAge, fmtPercent, icon, level, listText, logo, refreshAccount, setConnectionFlag } from "./lib.js";
 
 export const isAggregator = (r) => !!r?.aggregator;
 export const isConnection = (r) => !!r?.connection;
+
+/** PRD 0036 re-validation (V-06): the `{aggregator}` param of the aggregator texts, the backend's display name of the
+ *  instance ("9router", "LiteLLM proxy") for an aggregator report or a connection, never a hard-coded one. */
+export const aggregatorName = (r) => ({ aggregator: r?.aggregator?.kind ?? r?.connection?.aggregator ?? brand(r?.provider).label });
+/** The aggregator's provider id of an aggregator report or a connection, for texts whose meaning differs per kind. */
+const aggregatorKind = (r) => (r?.aggregator ? r.provider : r?.connection?.aggregator_provider);
 
 /** A connection as the cards draw it: an upstream Cuotai does not know keeps the aggregator's slug as its name and
  *  a neutral tile (its own slug, which has no brand), never another provider's look. */
@@ -43,7 +49,7 @@ export const poolFigure = (r) => `${r.aggregator.available}/${r.aggregator.total
 
 /** "7 connections · 9router 0.5.109". */
 export const instanceHint = (r) => [t("agg.connections", { count: r.aggregator.connections }),
-  r.aggregator.version ? t("agg.version", { version: r.aggregator.version }) : ""].filter(Boolean).join(" · ");
+  r.aggregator.version ? t("agg.version", { ...aggregatorName(r), version: r.aggregator.version }) : ""].filter(Boolean).join(" · ");
 
 /** The first pool whose every connection is exhausted, if any (its core sentence carries the return time). */
 export const exhaustedPool = (r) => r.aggregator?.pools.find((p) => p.total > 0 && p.exhausted === p.total) ?? null;
@@ -64,7 +70,7 @@ export function statusLine(r) {
   const out = exhaustedPool(r);
   if (out) return { tone: "bad", text: tl(out.summary) };
   const tight = tightest(r);
-  if (tight) return { tone: level(tight.pct), text: t("agg.tightest", { name: `${upstreamName(tight.c)} · ${tight.c.connection.label}`, pct: Math.round(tight.pct) }) };
+  if (tight) return { tone: level(tight.pct), text: t("agg.tightest", { name: `${upstreamName(tight.c)} · ${tight.c.connection.label}`, pct: fmtPercent(tight.pct) }) };
   return { tone: "unknown", text: t("agg.none") };
 }
 
@@ -72,14 +78,25 @@ export function statusLine(r) {
 export const accessibleName = (r) => listText([accountFullLabel(r, ", "), t("agg.connections", { count: r.aggregator.connections }),
   ...r.aggregator.pools.map((p) => tl(p.summary))]);
 
-/** Chips of a connection (text and icon, never color alone): off in the aggregator, also monitored directly. */
-export function connectionChips(c, { via = false } = {}) {
+/** Chips of a connection (text and icon, never color alone): off in the aggregator, also monitored directly and, with
+ *  `via`, the aggregator it comes through. With `link` (never inside another button) the duplicate chip is a button
+ *  that shows the direct account the backend found (RF5.3). */
+export function connectionChips(c, { via = false, link = false } = {}) {
   const chips = [];
-  if (c.connection.enabled_upstream === false) chips.push(`<span class="mini muted" data-conn-off>${icon("ban")}<span class="mini-t">${te("agg.off")}</span></span>`);
-  if (c.connection.duplicate_of) chips.push(`<span class="mini muted" data-conn-duplicate>${icon("copy")}<span class="mini-t">${te("agg.duplicate")}</span></span>`);
-  if (via) chips.push(`<span class="mini" data-conn-via>${te("agg.via")}</span>`);
+  const name = aggregatorName(c);
+  if (c.connection.enabled_upstream === false) chips.push(`<span class="mini muted" data-conn-off>${icon("ban")}<span class="mini-t">${te("agg.off", name)}</span></span>`);
+  if (c.connection.duplicate_of) {
+    const inner = `${icon("copy")}<span class="mini-t">${te("agg.duplicate")}</span>`;
+    chips.push(link && c.connection.duplicate_index != null
+      ? `<button type="button" class="mini muted" data-conn-duplicate data-show-account="${c.connection.duplicate_index}" title="${te("agg.openDirect")}" aria-label="${te("agg.duplicate")}: ${te("agg.openDirect")}">${inner}</button>`
+      : `<span class="mini muted" data-conn-duplicate>${inner}</span>`);
+  }
+  if (via) chips.push(`<span class="mini" data-conn-via>${te("agg.via", name)}</span>`);
   return chips.join("");
 }
+
+/** PRD 0036 re-validation (V-17): a connection card's accessible name, "work, Claude, via 9router". */
+export const cardName = (c) => t("agg.cardName", { label: c.connection.label || upstreamName(c), provider: upstreamName(c), ...aggregatorName(c) });
 
 /** PRD 0036 RF2.3/RF2.4: the aggregator's standing warnings (no password on a non-loopback instance, unencrypted
  *  private-network HTTP) as persistent chips, most severe first. The texts are the core's; text and icon, never
@@ -102,16 +119,19 @@ export const poolLineHtml = (p) => {
  *  the duplicate state. Recovery is limited to the aggregator's own dashboard. */
 export function connectionInfoHtml(c, parentIndex) {
   const k = c.connection;
+  const name = aggregatorName(c);
   const rows = [
-    [te("agg.upstream"), esc(k.upstream)],
+    [te("agg.upstream", name), esc(k.upstream)],
     [te("agg.mapped"), k.mapped ? esc(brand(k.mapped).label) : "—"],
     ...(k.plan ? [[te("agg.plan"), `<code>${esc(k.plan)}</code>`]] : []),
-    [te("agg.source"), te("agg.via")],
+    [te("agg.source"), te("agg.via", name)],
+    // RF5.3: the direct account this connection repeats, one click away.
+    ...(k.duplicate_of && k.duplicate_index != null ? [[te("agg.duplicate"), `<button type="button" class="link" data-show-account="${k.duplicate_index}">${icon("copy")}<span>${te("agg.openDirect")}</span></button>`]] : []),
   ];
   return `<div class="agg-info" data-connection-info>
     <dl>${rows.map(([dt, dd]) => `<dt>${dt}</dt><dd>${dd}</dd>`).join("")}</dl>
     ${connectionChips(c) ? `<p class="agg-chips">${connectionChips(c)}</p>` : ""}
-    <p class="hint">${te("agg.caveat")}</p>
+    <p class="hint">${te(aggregatorKind(c) === "litellm" ? "agg.caveat.litellm" : "agg.caveat", name)}</p>
     <div class="dlg-actions left conn-actions">${connectionActionsHtml(c, parentIndex)}<button type="button" class="link" data-agg-dashboard="${parentIndex}">${icon("window")}<span>${te("agg.openDashboard")}</span></button></div>
   </div>`;
 }
@@ -126,7 +146,7 @@ export function connectionActionsHtml(c, parentIndex) {
   const both = k.duplicate_of || k.show_both
     ? `<button type="button" class="link" data-conn-flag="show_both" data-on="${!k.show_both}" ${at} aria-pressed="${!!k.show_both}" title="${te("agg.showBothTitle")}">${icon("copy")}<span>${te(k.show_both ? "agg.showBothOn" : "agg.showBoth")}</span></button>` : "";
   return `<button type="button" class="link" data-conn-refresh ${at}>${icon("refresh")}<span>${te("agg.refreshConnection")}</span></button>
-    <button type="button" class="link" data-conn-flag="hidden" data-on="true" ${at} title="${te("agg.hideConnectionTitle")}">${icon("eyeOff")}<span>${te("agg.hideConnection")}</span></button>${both}`;
+    <button type="button" class="link" data-conn-flag="hidden" data-on="true" ${at} title="${te("agg.hideConnectionTitle", aggregatorName(c))}">${icon("eyeOff")}<span>${te("agg.hideConnection")}</span></button>${both}`;
 }
 
 /** Runs a connection action of `connectionActionsHtml` under `el`; `after` re-reads the view (the browser demo has
@@ -143,12 +163,19 @@ export function handleConnectionAction(el, after = () => {}, onError = () => {})
   return true;
 }
 
-/** PRD 0036 RF8.5: the instance's details: address (host only), version, connections, pools and the alert mode. */
+const AUTH_TEXT = { none: "agg.auth.none", password: "agg.auth.password", session: "agg.auth.session", key: "agg.auth.key" };
+const TLS_TEXT = { off: "agg.tls.off", platform: "agg.tls.platform", ca_file: "agg.tls.caFile", pinned: "agg.tls.pinned" };
+
+/** PRD 0036 RF8.5: the instance's details: address (host only), version, how Cuotai signs in, how the address is
+ *  protected, when the connections were last read, the connections, pools and the alert mode. */
 export function instanceInfoHtml(r) {
   const a = r.aggregator;
   const rows = [
     ...(a.host ? [[te("agg.host"), `<code>${esc(a.host)}</code>`]] : []),
     ...(a.version ? [[te("agg.versionLabel"), `<code>${esc(a.version)}</code>`]] : []),
+    ...(AUTH_TEXT[a.auth] ? [[te("agg.authMode"), te(AUTH_TEXT[a.auth])]] : []),
+    ...(TLS_TEXT[a.tls] ? [[te("agg.tlsMode"), te(TLS_TEXT[a.tls])]] : []),
+    [te("agg.lastDiscovery"), a.discovered_at ? esc(fmtAge(a.discovered_at)) : "—"],
     [te("agg.connectionsLabel"), esc(String(a.connections))],
   ];
   return `<div class="agg-info" data-instance-info>

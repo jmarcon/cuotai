@@ -10,11 +10,11 @@ const i18n = await import("../apps/desktop/ui/js/i18n.js");
 const { durationText } = await import("../apps/desktop/ui/js/lib.js");
 await i18n.initI18n();
 
-// A catalog template (`agg.tightest` in the UI's en-US catalog: "Tightest: {name} · {pct}% left").
+// A catalog template (`agg.tightest` in the UI's en-US catalog: "Tightest: {name} · {pct} left", `pct` already formatted).
 {
-  const note = { id: "agg.tightest", params: { name: "Team {pct}", pct: "40" }, fallback: "Tightest: Team {pct} · 40% left" };
+  const note = { id: "agg.tightest", params: { name: "Team {pct}", pct: "40%" }, fallback: "Tightest: Team {pct} · 40% left" };
   assert.equal(i18n.tl(note), "Tightest: Team {pct} · 40% left");
-  assert.equal(i18n.t("agg.tightest", { name: "Team {pct}", pct: "40" }), "Tightest: Team {pct} · 40% left");
+  assert.equal(i18n.t("agg.tightest", { name: "Team {pct}", pct: "40%" }), "Tightest: Team {pct} · 40% left");
 }
 console.log("PASS: a catalog template substitutes its params once");
 
