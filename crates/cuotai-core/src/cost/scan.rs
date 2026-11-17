@@ -11,7 +11,7 @@
 //! competes with the user's work. A directory that cannot be read becomes
 //! a "no access" state; nothing tries to get around it.
 
-use super::index::{Chunk, CostIndex, FileRow};
+use super::index::{Chunk, CostIndex, FileRow, Still};
 use super::source::{anonymous, Entry, FileState, Line, ProjectKey};
 use super::{CostError, DayZone, Env, SettingsStore, SourceId};
 use crate::models::digest;
@@ -483,7 +483,7 @@ impl Scanner {
                     read_at: window.now.timestamp_millis(),
                     started: from,
                 },
-                || self.still_on(source),
+                || self.still(source, &window.key),
             )?;
             let Some(committed) = committed else {
                 // Turned off meanwhile: nothing more is read or reported.
@@ -508,12 +508,24 @@ impl Scanner {
         Ok(scan)
     }
 
-    /// The preference as it is on disk now (another front end may have
-    /// turned the source off); unreadable counts as off.
-    fn still_on(&self, source: SourceId) -> bool {
-        self.settings
-            .load()
-            .is_ok_and(|settings| settings.enabled(source, &self.env))
+    /// The preferences as they are on disk now (another front end may have
+    /// turned the source or its folder-name hint off, or a restore adopted
+    /// another fingerprint key); unreadable counts as off.
+    fn still(&self, source: SourceId, key: &ProjectKey) -> Still {
+        let (on, keep_folders) = self.settings.load().map_or((false, false), |settings| {
+            (
+                settings.enabled(source, &self.env),
+                settings.folder_hint(source),
+            )
+        });
+        Still {
+            on,
+            keep_folders,
+            same_key: self
+                .index
+                .stored_key()
+                .is_ok_and(|stored| stored.as_ref() == Some(key)),
+        }
     }
 
     /// Collect the logs of `source` under `root` into `candidates`, depth

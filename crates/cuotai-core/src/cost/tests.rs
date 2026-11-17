@@ -495,7 +495,15 @@ fn a_commit_after_the_source_was_turned_off_writes_nothing() {
         read_at: 0,
         started: None,
     };
-    assert_eq!(CostIndex::commit(&mut db, chunk, || false).unwrap(), None);
+    assert_eq!(
+        CostIndex::commit(&mut db, chunk, || index::Still {
+            on: false,
+            keep_folders: false,
+            same_key: true,
+        })
+        .unwrap(),
+        None
+    );
     assert_eq!(f.rows("usage") + f.rows("files"), 0);
 }
 
@@ -1647,7 +1655,13 @@ fn an_erase_during_a_read_does_not_skip_the_lines_before_it() {
         read_at: 0,
         started,
     };
-    let committed = CostIndex::commit(&mut db, chunk, || true).unwrap().unwrap();
+    let committed = CostIndex::commit(&mut db, chunk, || index::Still {
+        on: true,
+        keep_folders: false,
+        same_key: true,
+    })
+    .unwrap()
+    .unwrap();
     assert!(committed.dropped);
     drop(db);
     assert_eq!(f.rows("usage") + f.rows("files"), 0, "nothing written");
@@ -1874,3 +1888,6 @@ fn a_one_day_span_reads_singular() {
     assert_eq!(seven.resolve("pt-BR"), "Últimos 7 dias");
     assert_eq!(seven.resolve("ru"), "Последние 7 дней");
 }
+
+#[path = "hint_tests.rs"]
+mod hint_tests;

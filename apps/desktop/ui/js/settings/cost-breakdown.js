@@ -91,11 +91,13 @@ function blocksHtml(page) {
 }
 
 function projectsHtml(page) {
+  // S-01b: the folder names come apart from the page, by fingerprint (only this Settings tab receives them).
+  const hints = page.hints ?? {};
   const rows = page.projects.map((p) => {
     // PRD 0020 re-validation R-06: plain text here, escaped once where it is written.
     const name = tl(p.name);
     const hide = p.project ? `<button type="button" class="btn sm" aria-pressed="${p.hidden}" data-cost-hide="${esc(p.project)}">${te(p.hidden ? "settings.costBy.show" : "settings.costBy.hide")}</button>` : "";
-    const cell = p.project ? labelField("project", p.project, p.label, p.folder_hint ?? name) : esc(name);
+    const cell = p.project ? labelField("project", p.project, p.label, hints[p.project] ?? name) : esc(name);
     return `<tr class="${p.hidden ? "lc-hidden" : ""}"><th scope="row">${cell}${p.hidden ? ` <span class="badge">${te("settings.costBy.hidden")}</span>` : ""}</th>
       <td>${p.sessions}</td><td>${esc(fmtTokens(sum(p.estimate.tokens)))}</td><td>${esc(approxText(p.estimate))}</td><td>${hide}</td></tr>`;
   });

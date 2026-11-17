@@ -610,7 +610,7 @@
   },
   "cost.label.saved": "{short} etiketi yerel maliyet dizinine kaydedildi.",
   "cost.label.removed": "{short} etiketi kaldırıldı.",
-  "cost.folder_hint.on": "{source}: her projenin son klasör adı, etiketini önceden doldurmak için bu bilgisayarda saklanır.",
+  "cost.folder_hint.on": "{source}: her projenin son klasör adı, etiketini önceden doldurmak için bu bilgisayarda saklanır; aracın yazacağı sonraki satırlardan itibaren geçerlidir, zaten okunmuş projeler günlükleri büyüdüğünde adını alır.",
   "cost.folder_hint.off": {
     "one": "{source}: klasör adları artık saklanmıyor; {count} ad silindi.",
     "other": "{source}: klasör adları artık saklanmıyor; {count} ad silindi."

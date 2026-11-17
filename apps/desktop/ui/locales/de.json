@@ -1135,7 +1135,7 @@
   "settings.costBy.blockHours": "Blocklänge von {source} in Stunden",
   "settings.costBy.hoursUnit": "Std.",
   "settings.costBy.hint": "Letzten Ordnernamen jedes Projekts behalten",
-  "settings.costBy.hintHelp": "Standardmäßig aus. Eingeschaltet wird der letzte Ordnername jedes Projekts auf diesem Computer gespeichert, um seine Bezeichnung vorzuschlagen; er wird nie exportiert. Ausschalten löscht die gespeicherten Namen.",
+  "settings.costBy.hintHelp": "Standardmäßig aus. Eingeschaltet wird der letzte Ordnername jedes Projekts auf diesem Computer gespeichert, um seine Bezeichnung vorzuschlagen, ab den nächsten Zeilen, die das Tool schreibt; bereits gelesene Projekte erhalten ihn, sobald ihre Logs wachsen. Er wird nie exportiert. Das Ausschalten dieser Option oder der Quelle löscht die gespeicherten Namen.",
   "hooks.banner.unconfirmed": "Hooks sind an, aber ihre Regeln haben sich seit Ihrer Bestätigung geändert: Nichts läuft, bis Sie sie prüfen.",
   "hooks.banner.invalid": "Hooks sind an, aber hooks.toml ist nicht verwendbar.",
   "extensions.title": "Erweiterungen",

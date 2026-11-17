@@ -480,7 +480,8 @@ impl SettingsStore {
         })
     }
 
-    /// Turn `source` off, keeping its chosen directories. Use
+    /// Turn `source` off, keeping its chosen directories (its folder-name
+    /// hint turns off). Use
     /// [`super::turn_off`] to also erase what was derived from it.
     pub fn disable(&self, source: SourceId) -> Result<CostSettings, CostError> {
         self.update(|settings| {
@@ -488,6 +489,9 @@ impl SettingsStore {
                 entry.consent = None;
                 entry.consented_at = None;
             }
+            // S-02: the folder-name hint starts off again on the next
+            // turn-on.
+            settings.folder_hints.remove(&source);
             Ok(())
         })
     }

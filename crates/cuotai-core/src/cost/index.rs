@@ -13,8 +13,11 @@
 //! PRD 0042 RF1 (schema 2): `requests` keeps one row per request (time,
 //! model, session digest, project fingerprint, token counts) for the
 //! session, block and project views; `projects` holds per fingerprint the
-//! person's label, the opt-in folder-name hint and whether it is hidden;
-//! `session_labels` the person's session labels. The migration re-reads
+//! person's label and whether it is hidden; `session_labels` the person's
+//! session labels. Since schema 6 the opt-in folder names live per source
+//! in `project_hints`, only while that source's switch is on, and a
+//! project's first and last request are computed from `requests`, so they
+//! follow the retention, a turn-off and an erase. The migration re-reads
 //! every followed file once from its start: lines already counted only add
 //! their request rows (`files.backfill`), so the day totals do not change.
 
@@ -36,7 +39,7 @@ pub const BACKUP_KEEP: chrono::TimeDelta = chrono::TimeDelta::days(7);
 
 pub(crate) const SCHEMA_REVISION: i64 = MIGRATIONS.len() as i64;
 
-pub(crate) const MIGRATIONS: [&str; 5] = [
+pub(crate) const MIGRATIONS: [&str; 6] = [
     "CREATE TABLE usage (
     source TEXT NOT NULL,
     day TEXT NOT NULL,
@@ -157,14 +160,44 @@ UPDATE requests SET cache_write_1h = 9223372036854775807 WHERE typeof(cache_writ
 UPDATE projects SET project = cuotai_fingerprint(project);
 UPDATE files SET state = json_set(state, '$.project', cuotai_fingerprint(json_extract(state, '$.project')))
     WHERE json_extract(state, '$.project') IS NOT NULL;",
+    PROJECT_HINTS_MIGRATION,
 ];
+
+/// PRD 0042 S-01/S-02/S-03 (schema 6): folder names per `(project,
+/// source)`, so turning one source off or its hint off removes only what it
+/// kept; `projects` keeps only the person's label and hidden flag (no
+/// stored times: they are computed from `requests`).
+const PROJECT_HINTS_MIGRATION: &str = "CREATE TABLE project_hints (
+    project TEXT NOT NULL,
+    source TEXT NOT NULL,
+    folder_hint TEXT NOT NULL,
+    PRIMARY KEY (project, source)
+) WITHOUT ROWID;
+INSERT OR IGNORE INTO project_hints (project, source, folder_hint)
+    SELECT project, hint_source, folder_hint FROM projects
+    WHERE folder_hint IS NOT NULL AND hint_source IS NOT NULL;
+CREATE TABLE projects_new (
+    project TEXT NOT NULL PRIMARY KEY,
+    label TEXT,
+    hidden INTEGER NOT NULL DEFAULT 0
+) WITHOUT ROWID;
+INSERT INTO projects_new (project, label, hidden) SELECT project, label, hidden FROM projects;
+DROP TABLE projects;
+ALTER TABLE projects_new RENAME TO projects;
+CREATE INDEX requests_by_project ON requests (project, at);";
 
 /// Tables whose rows all derive from the logs, per source and file.
 const TABLES: [&str; 5] = ["usage", "sessions", "seen", "files", "requests"];
 
-/// PRD 0042: the person's own rows (labels, hidden projects, the opt-in
-/// folder names); kept while a request still refers to them.
-const LABEL_TABLES: [&str; 2] = ["projects", "session_labels"];
+/// PRD 0042: the person's own rows (labels, hidden projects) and the
+/// opt-in folder names; kept while a request still refers to them.
+const LABEL_TABLES: [&str; 3] = ["projects", "project_hints", "session_labels"];
+
+/// S-03: folder names whose source no longer has a request of that
+/// project (retention, erase), deleted with them.
+const ORPHAN_HINTS: &str = "DELETE FROM project_hints WHERE NOT EXISTS
+    (SELECT 1 FROM requests r
+     WHERE r.project = project_hints.project AND r.source = project_hints.source)";
 
 /// The cost index of this computer. Holds only its path; errors surface on
 /// use.
@@ -261,10 +294,13 @@ impl HiddenUsage {
 pub struct ProjectRow {
     pub project: String,
     pub label: Option<String>,
-    /// RF4.3: the last folder name, only while the person keeps them.
+    /// RF4.3: the last folder name, only while the person keeps them (the
+    /// first source's in [`SourceId`] slug order when several kept one).
     pub folder_hint: Option<String>,
-    pub first_seen: DateTime<Utc>,
-    pub last_seen: DateTime<Utc>,
+    /// The first and last request kept (`None`: no request yet, a project
+    /// a restored backup labelled before its logs were read).
+    pub first_seen: Option<DateTime<Utc>>,
+    pub last_seen: Option<DateTime<Utc>>,
     pub hidden: bool,
 }
 
@@ -370,6 +406,21 @@ pub(crate) struct FileRow {
     /// schema 2 and are read again only for their request rows; 0 when
     /// nothing is replayed.
     pub backfill: u64,
+}
+
+/// What [`CostIndex::commit`] checks inside its transaction, from the
+/// preferences as they are on disk then.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Still {
+    /// The source is still on: otherwise nothing is written.
+    pub on: bool,
+    /// S-01: its folder-name hint is still on: otherwise the chunk's folder
+    /// names are dropped.
+    pub keep_folders: bool,
+    /// The fingerprint key is still the one the read used (a restore may
+    /// adopt a backup's key meanwhile): otherwise nothing is written and
+    /// the next scan reads the file again with the new key.
+    pub same_key: bool,
 }
 
 /// One read of one file, written in one transaction.
@@ -481,7 +532,7 @@ impl CostIndex {
         self.stored_key()?.ok_or(CostError::Storage)
     }
 
-    fn stored_key(&self) -> Result<Option<ProjectKey>, CostError> {
+    pub(super) fn stored_key(&self) -> Result<Option<ProjectKey>, CostError> {
         match std::fs::read(self.key_path()) {
             Ok(bytes) => <[u8; 32]>::try_from(bytes.as_slice())
                 .map(|bytes| Some(ProjectKey::new(bytes)))
@@ -522,10 +573,7 @@ impl CostIndex {
     }
 
     /// Whether the index holds any project fingerprint.
-    fn has_fingerprints(&self) -> Result<bool, CostError> {
-        let Some(db) = self.open_existing()? else {
-            return Ok(false);
-        };
+    fn has_fingerprints(db: &Connection) -> Result<bool, CostError> {
         Ok(db.query_row(
             "SELECT EXISTS (SELECT 1 FROM projects)
                  OR EXISTS (SELECT 1 FROM requests WHERE project IS NOT NULL)
@@ -641,17 +689,26 @@ impl CostIndex {
     }
 
     /// Write `chunk` in one `BEGIN IMMEDIATE` transaction, only while
-    /// `still_on` says the source is on (checked inside the transaction,
-    /// so an erasure that follows a turn-off is never undone). `None` when
-    /// the source was off.
+    /// `still` says the source is on (checked inside the transaction, so an
+    /// erasure that follows a turn-off is never undone), and its folder
+    /// names only while its hint is on (S-01: a clear that follows turning
+    /// the hint off waits for this transaction and deletes what it wrote).
+    /// `None` when the source was off.
     pub(crate) fn commit(
         db: &mut Connection,
         chunk: Chunk<'_>,
-        still_on: impl FnOnce() -> bool,
+        still: impl FnOnce() -> Still,
     ) -> Result<Option<Committed>, CostError> {
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if !still_on() {
+        let still = still();
+        if !still.on {
             return Ok(None);
+        }
+        if !still.same_key {
+            return Ok(Some(Committed {
+                dropped: true,
+                ..Committed::default()
+            }));
         }
         // An erase between the read and this commit deleted the file's rows
         // and its control row; writing the advanced position now would skip
@@ -733,12 +790,8 @@ impl CostIndex {
             ))?;
             let mut has_request =
                 tx.prepare_cached("SELECT 1 FROM requests WHERE source = ?1 AND key = ?2 LIMIT 1")?;
-            let mut project = tx.prepare_cached(
-                "INSERT INTO projects (project, first_seen, last_seen) VALUES (?1, ?2, ?2)
-                 ON CONFLICT (project) DO UPDATE SET
-                     first_seen = MIN(first_seen, excluded.first_seen),
-                     last_seen = MAX(last_seen, excluded.last_seen)",
-            )?;
+            let mut project =
+                tx.prepare_cached("INSERT OR IGNORE INTO projects (project) VALUES (?1)")?;
             let add_request = |request: &mut rusqlite::CachedStatement<'_>,
                                day: &str,
                                entry: &Entry,
@@ -764,7 +817,7 @@ impl CostIndex {
             for (position, (day, entry)) in chunk.entries.iter().enumerate() {
                 let day = day_text(*day);
                 if let Some(digest) = &entry.project {
-                    project.execute(params![digest, entry.at.timestamp_millis()])?;
+                    project.execute([digest])?;
                 }
                 if position < chunk.replayed {
                     // Counted before schema 2: only its request row, once,
@@ -913,11 +966,16 @@ impl CostIndex {
                 add_request(&mut request, &day, entry, entry.dedup.as_deref(), t)?;
                 done.requests += 1;
             }
-            let mut hint = tx.prepare_cached(
-                "UPDATE projects SET folder_hint = ?2, hint_source = ?3 WHERE project = ?1",
-            )?;
-            for (digest, folder) in &chunk.folders {
-                hint.execute(params![digest, folder, source])?;
+            if still.keep_folders {
+                let mut hint = tx.prepare_cached(
+                    "INSERT INTO project_hints (project, source, folder_hint)
+                     SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM projects WHERE project = ?1)
+                     ON CONFLICT (project, source) DO UPDATE SET
+                         folder_hint = excluded.folder_hint",
+                )?;
+                for (digest, folder) in &chunk.folders {
+                    hint.execute(params![digest, source, folder])?;
+                }
             }
         }
         let row = &chunk.row;
@@ -1035,6 +1093,16 @@ impl CostIndex {
             removed += tx.execute(&format!("DELETE FROM {table} WHERE day < ?1"), [&first])?;
         }
         removed += tx.execute("DELETE FROM files WHERE read_at < ?1", [read_before])?;
+        // S-03: nothing derived outlives the retention: the folder names
+        // and the projects left without a request go with them, unless the
+        // project carries the person's own label or hidden flag (kept until
+        // erased, as session labels are).
+        removed += tx.execute(ORPHAN_HINTS, [])?;
+        removed += tx.execute(
+            "DELETE FROM projects WHERE label IS NULL AND hidden = 0 AND project NOT IN
+                 (SELECT project FROM requests WHERE project IS NOT NULL)",
+            [],
+        )?;
         tx.commit()?;
         Ok(removed)
     }
@@ -1063,7 +1131,8 @@ impl CostIndex {
         }
         // PRD 0042 RF1.1: labels, hidden flags and folder names go with
         // the last request that refers to them (all of them on Erase the
-        // index).
+        // index); S-02: the folder names a source kept go with it, even
+        // when another source still has requests of the project.
         removed += match source {
             None => {
                 let mut all = 0;
@@ -1072,16 +1141,21 @@ impl CostIndex {
                 }
                 all
             }
-            Some(_) => {
+            Some(source) => {
                 tx.execute(
-                    "DELETE FROM projects WHERE project NOT IN
+                    "DELETE FROM project_hints WHERE source = ?1",
+                    [source.slug()],
+                )? + tx.execute(ORPHAN_HINTS, [])?
+                    + tx.execute(
+                        "DELETE FROM projects WHERE project NOT IN
                          (SELECT project FROM requests WHERE project IS NOT NULL)",
-                    [],
-                )? + tx.execute(
-                    "DELETE FROM session_labels WHERE session NOT IN
+                        [],
+                    )?
+                    + tx.execute(
+                        "DELETE FROM session_labels WHERE session NOT IN
                          (SELECT session FROM requests)",
-                    [],
-                )?
+                        [],
+                    )?
             }
         };
         tx.commit()?;
@@ -1265,22 +1339,29 @@ impl CostIndex {
         Ok(out)
     }
 
-    /// PRD 0042 RF4: every project the index knows. Never creates the file.
+    /// PRD 0042 RF4: every project the index knows, the most recently used
+    /// first; its first and last request come from the requests kept (S-03).
+    /// Never creates the file.
     pub fn projects(&self) -> Result<Vec<ProjectRow>, CostError> {
         let Some(db) = self.open_existing()? else {
             return Ok(Vec::new());
         };
         let mut query = db.prepare(
-            "SELECT project, label, folder_hint, first_seen, last_seen, hidden
-             FROM projects ORDER BY last_seen DESC, project",
+            "SELECT p.project, p.label,
+                 (SELECT h.folder_hint FROM project_hints h
+                  WHERE h.project = p.project ORDER BY h.source LIMIT 1),
+                 (SELECT MIN(r.at) FROM requests r WHERE r.project = p.project),
+                 (SELECT MAX(r.at) FROM requests r WHERE r.project = p.project) AS last,
+                 p.hidden
+             FROM projects p ORDER BY last IS NULL, last DESC, p.project",
         )?;
         let rows = query.query_map([], |row| {
             Ok(ProjectRow {
                 project: row.get(0)?,
                 label: row.get(1)?,
                 folder_hint: row.get(2)?,
-                first_seen: instant_of(row.get(3)?),
-                last_seen: instant_of(row.get(4)?),
+                first_seen: row.get::<_, Option<i64>>(3)?.map(instant_of),
+                last_seen: row.get::<_, Option<i64>>(4)?.map(instant_of),
                 hidden: row.get::<_, i64>(5)? != 0,
             })
         })?;
@@ -1394,20 +1475,21 @@ impl CostIndex {
                 .flatten()
                 .is_none_or(|own| own.bytes() != key)
         });
-        let adopt = match &foreign {
-            Some(_) => !self.has_fingerprints()?,
-            None => false,
-        };
-        if let (true, true, Some(key)) = (adopt, apply, &foreign) {
-            self.install_key(key, true)?;
-        }
-        let db = if adopt && apply {
+        // Applying with a foreign key opens (creating) the index, then
+        // decides and installs the key inside the transaction: a scan's
+        // commit either lands first (its fingerprints block the adoption)
+        // or sees the new key and writes nothing.
+        let db = if foreign.is_some() && apply {
             Some(self.open()?)
         } else {
             self.open_existing()?
         };
         let Some(mut db) = db else {
-            return Ok(if adopt { labels.projects.len() } else { 0 });
+            return Ok(if foreign.is_some() {
+                labels.projects.len()
+            } else {
+                0
+            });
         };
         let digest_ok = |digest: &str| {
             !digest.is_empty()
@@ -1415,6 +1497,10 @@ impl CostIndex {
                 && digest.bytes().all(|b| b.is_ascii_hexdigit())
         };
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let adopt = foreign.is_some() && !Self::has_fingerprints(&tx)?;
+        if let (true, true, Some(key)) = (adopt, apply, &foreign) {
+            self.install_key(key, true)?;
+        }
         let mut taken = 0;
         for project in &labels.projects {
             let label = project.label.as_deref().map(clean_label).transpose();
@@ -1422,11 +1508,9 @@ impl CostIndex {
                 continue;
             };
             taken += if adopt {
-                // Waiting for its first request: the commit's MIN/MAX turn
-                // these placeholder times into the real ones.
+                // Waiting for its first request.
                 tx.execute(
-                    "INSERT INTO projects (project, label, first_seen, last_seen, hidden)
-                     VALUES (?1, ?2, 9223372036854775807, 0, ?3)
+                    "INSERT INTO projects (project, label, hidden) VALUES (?1, ?2, ?3)
                      ON CONFLICT (project) DO UPDATE SET label = excluded.label,
                          hidden = excluded.hidden
                      WHERE label IS NULL AND hidden = 0",
@@ -1473,16 +1557,22 @@ impl CostIndex {
     }
 
     /// PRD 0042 RF4.3: delete the folder names `source` stored (the hint was
-    /// turned off). Returns the rows changed.
+    /// turned off; the setting is written first). S-01: the delete waits
+    /// for a commit already running (`BEGIN IMMEDIATE`), so the names it
+    /// wrote go too; the WAL copies and the pre-upgrade copy, which holds
+    /// every name, are removed as on erase. Returns the names deleted.
     pub fn clear_folder_hints(&self, source: SourceId) -> Result<usize, CostError> {
-        let Some(db) = self.open_existing()? else {
+        let Some(mut db) = self.open_existing()? else {
             return Ok(0);
         };
-        let changed = db.execute(
-            "UPDATE projects SET folder_hint = NULL, hint_source = NULL WHERE hint_source = ?1",
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let changed = tx.execute(
+            "DELETE FROM project_hints WHERE source = ?1",
             [source.slug()],
         )?;
+        tx.commit()?;
         db.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
+        crate::private_fs::remove_backup(&self.path).map_err(|_| CostError::Storage)?;
         Ok(changed)
     }
 

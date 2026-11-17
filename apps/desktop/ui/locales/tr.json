@@ -1081,7 +1081,7 @@
   "settings.costBy.blockHours": "{source} blok uzunluğu, saat",
   "settings.costBy.hoursUnit": "sa",
   "settings.costBy.hint": "Her projenin son klasör adını sakla",
-  "settings.costBy.hintHelp": "Varsayılan olarak kapalı. Açıkken her projenin son klasör adı, etiketini önceden doldurmak için bu bilgisayarda saklanır; asla dışa aktarılmaz. Kapatmak saklanan adları siler.",
+  "settings.costBy.hintHelp": "Varsayılan olarak kapalı. Açıkken her projenin son klasör adı, etiketini önceden doldurmak için bu bilgisayarda saklanır; aracın yazacağı sonraki satırlardan itibaren geçerlidir, zaten okunmuş projeler günlükleri büyüdüğünde adını alır. Asla dışa aktarılmaz. Bunu ya da kaynağı kapatmak saklanan adları siler.",
   "hooks.banner.unconfirmed": "Kancalar açık, ancak kuralları siz onayladıktan sonra değişti: siz gözden geçirene kadar hiçbir şey çalışmaz.",
   "hooks.banner.invalid": "Kancalar açık, ancak hooks.toml kullanılamıyor.",
   "extensions.title": "Uzantılar",

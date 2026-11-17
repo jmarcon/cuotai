@@ -1078,7 +1078,7 @@
   "settings.costBy.blockHours": "Duração do bloco de {source}, em horas",
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Guardar o último nome de pasta de cada projeto",
-  "settings.costBy.hintHelp": "Desativado por padrão. Ativado, o último nome de pasta de cada projeto fica guardado neste computador para preencher o rótulo; nunca é exportado. Desativar apaga os nomes guardados.",
+  "settings.costBy.hintHelp": "Desativado por padrão. Ativado, o último nome de pasta de cada projeto fica guardado neste computador para preencher o rótulo, a partir das próximas linhas que a ferramenta escrever; projetos já lidos recebem o seu quando os logs crescerem. Nunca é exportado. Desativar esta opção, ou a fonte, apaga os nomes guardados.",
   "hooks.banner.unconfirmed": "Os hooks estão ativos, mas as regras mudaram desde a sua confirmação: nada roda até você revisá-las.",
   "hooks.banner.invalid": "Os hooks estão ativos, mas o hooks.toml não pode ser usado.",
   "extensions.title": "Extensões",

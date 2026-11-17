@@ -1526,7 +1526,7 @@
   },
   "cost.label.saved": "Libellé de {short} enregistré dans l’index local des coûts.",
   "cost.label.removed": "Libellé de {short} supprimé.",
-  "cost.folder_hint.on": "{source} : le dernier nom de dossier de chaque projet est conservé sur cet ordinateur pour préremplir son libellé.",
+  "cost.folder_hint.on": "{source} : le dernier nom de dossier de chaque projet est conservé sur cet ordinateur pour préremplir son libellé, à partir des prochaines lignes que l’outil écrit ; les projets déjà lus reçoivent le leur quand leurs journaux s’allongent.",
   "cost.folder_hint.off": {
     "one": "{source} : les noms de dossier ne sont plus conservés ; {count} supprimé.",
     "other": "{source} : les noms de dossier ne sont plus conservés ; {count} supprimés."

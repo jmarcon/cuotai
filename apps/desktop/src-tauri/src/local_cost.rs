@@ -341,9 +341,20 @@ impl LocalCost {
                 value["live"] = json(serde_json::to_value(&live))?;
                 Ok(value)
             }
-            Breakdown::Project => json(serde_json::to_value(
-                scanner.projects(&stores.pricing, span, now).map_err(l10n)?,
-            )),
+            Breakdown::Project => {
+                let page = scanner.projects(&stores.pricing, span, now).map_err(l10n)?;
+                // S-01b: the folder names never travel in the page (its
+                // field is never serialized); only this Settings tab gets
+                // them, by fingerprint, to prefill the label fields.
+                let hints: serde_json::Map<String, serde_json::Value> = page
+                    .projects
+                    .iter()
+                    .filter_map(|p| Some((p.project.clone()?, p.folder_hint.clone()?.into())))
+                    .collect();
+                let mut value = json(serde_json::to_value(&page))?;
+                value["hints"] = serde_json::Value::Object(hints);
+                Ok(value)
+            }
         }
     }
 
@@ -778,6 +789,67 @@ mod tests {
         let value = cost.breakdown(Breakdown::Day, &[]).unwrap();
         assert!(value.get("hidden_note").is_none());
         assert_eq!(input(&value["total"]), 5100);
+    }
+
+    /// PRD 0042 S-01b: with a folder-name hint on, the name reaches only
+    /// the Projects tab's `hints` map, never the cards' summary, the view
+    /// or another tab.
+    #[test]
+    fn folder_names_reach_only_the_projects_hints() {
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        let stores = cost.stores().unwrap();
+        let source = SourceId::ClaudeCode;
+        let disclosure = stores
+            .settings
+            .load()
+            .unwrap()
+            .disclosure(source, &cost.env);
+        stores
+            .settings
+            .enable(
+                source,
+                Vec::new(),
+                &disclosure.digest,
+                &cost.env,
+                chrono::Utc::now(),
+            )
+            .unwrap();
+        cost::set_folder_hint(&stores.settings, &stores.index, source, true).unwrap();
+        let logs = dir.path().join("home/.claude/projects/p");
+        std::fs::create_dir_all(&logs).unwrap();
+        let at = (chrono::Utc::now() - chrono::TimeDelta::minutes(5)).to_rfc3339();
+        std::fs::write(
+            logs.join("a.jsonl"),
+            format!(
+                r#"{{"cwd":"/fake/HINTMARK-folder","sessionId":"s","message":{{"id":"m1","model":"claude-sonnet-4-5-20250929","usage":{{"input_tokens":10,"output_tokens":1}}}},"requestId":"r1","timestamp":"{at}"}}"#
+            ) + "\n",
+        )
+        .unwrap();
+        LocalCost::scanner(stores, &cost.env)
+            .scan(chrono::Utc::now())
+            .unwrap();
+        let projects = cost.breakdown(Breakdown::Project, &[]).unwrap();
+        let digest = projects["projects"][0]["project"].as_str().unwrap();
+        assert_eq!(projects["hints"][digest], "HINTMARK-folder");
+        let mut page = projects.clone();
+        page.as_object_mut().unwrap().remove("hints");
+        let mut outputs = vec![
+            page.to_string(),
+            serde_json::to_string(&cost.usage().unwrap()).unwrap(),
+            serde_json::to_string(&cost.view().unwrap()).unwrap(),
+        ];
+        for by in [
+            Breakdown::Day,
+            Breakdown::Model,
+            Breakdown::Session,
+            Breakdown::Block,
+        ] {
+            outputs.push(cost.breakdown(by, &[]).unwrap().to_string());
+        }
+        for output in outputs {
+            assert!(!output.contains("HINTMARK"), "{output}");
+        }
     }
 
     /// PRD 0030 RF6.1: the rate is validated and saved; USD is refused.

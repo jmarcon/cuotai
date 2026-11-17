@@ -1765,3 +1765,7 @@ mod tests {
         assert!(lines[period + 1].contains("at your rate"), "{text}");
     }
 }
+
+#[cfg(test)]
+#[path = "cost_hint_tests.rs"]
+mod hint_tests;

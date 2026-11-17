@@ -1078,7 +1078,7 @@
   "settings.costBy.blockHours": "Block length of {source}, in hours",
   "settings.costBy.hoursUnit": "h",
   "settings.costBy.hint": "Keep the last folder name of each project",
-  "settings.costBy.hintHelp": "Off by default. When on, the last folder name of each project is kept on this computer to prefill its label; it is never exported. Turning it off deletes the names kept.",
+  "settings.costBy.hintHelp": "Off by default. When on, the last folder name of each project is kept on this computer to prefill its label, starting with the next lines the tool writes; projects already read get theirs when their logs grow. It is never exported. Turning it off, or turning the source off, deletes the names kept.",
   "hooks.banner.unconfirmed": "Hooks are on, but their rules changed since you confirmed them: nothing runs until you review them.",
   "hooks.banner.invalid": "Hooks are on, but hooks.toml cannot be used.",
   "extensions.title": "Extensions",

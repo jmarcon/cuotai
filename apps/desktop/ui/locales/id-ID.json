@@ -1063,7 +1063,7 @@
   "settings.costBy.blockHours": "Panjang blok {source}, dalam jam",
   "settings.costBy.hoursUnit": "j",
   "settings.costBy.hint": "Simpan nama folder terakhir tiap proyek",
-  "settings.costBy.hintHelp": "Mati secara bawaan. Jika aktif, nama folder terakhir tiap proyek disimpan di komputer ini untuk mengisi labelnya lebih dulu; tidak pernah diekspor. Mematikannya menghapus nama yang disimpan.",
+  "settings.costBy.hintHelp": "Mati secara bawaan. Jika aktif, nama folder terakhir tiap proyek disimpan di komputer ini untuk mengisi labelnya lebih dulu, mulai dari baris berikutnya yang ditulis alat itu; proyek yang sudah dibaca mendapatkannya saat log-nya bertambah. Tidak pernah diekspor. Mematikannya, atau mematikan sumbernya, menghapus nama yang disimpan.",
   "hooks.banner.unconfirmed": "Hook aktif, tetapi aturannya berubah sejak Anda mengonfirmasinya: tidak ada yang berjalan sampai Anda meninjaunya.",
   "hooks.banner.invalid": "Hook aktif, tetapi hooks.toml tidak dapat dipakai.",
   "extensions.title": "Ekstensi",

@@ -3141,12 +3141,12 @@ function demoBreakdown(by) {
   }
   const projects = (demoOn().length ? DEMO_PROJECTS : []).map((digest, i) => {
     const rows = demoOn().flatMap((id) => [i, i + 2].flatMap((back) => demoDayRows(id, back)));
-    return { project: digest, short: digest.slice(0, 8), label: label(digest), folder_hint: null, hidden: demoCost.hidden.has(digest),
+    return { project: digest, short: digest.slice(0, 8), label: label(digest), hidden: demoCost.hidden.has(digest),
       name: label(digest) ? demoL10n("cost.project.labelled", { label: label(digest) }, label(digest)) : demoL10n("cost.project.name", { short: digest.slice(0, 8) }, `Project ${digest.slice(0, 8)}`),
       first: new Date(Date.now() - 5 * 86_400_000).toISOString(), last: new Date().toISOString(), sessions: 2 + i, estimate: demoEstimate(rows) };
   });
   const visible = DEMO_PROJECTS.filter((d) => !demoCost.hidden.has(d)).flatMap((_, i) => demoOn().flatMap((id) => [i, i + 2].flatMap((back) => demoDayRows(id, back))));
-  return { ...base, total: demoEstimate(visible), hidden: demoCost.hidden.size, projects };
+  return { ...base, total: demoEstimate(visible), hidden: demoCost.hidden.size, projects, hints: {} };
 }
 // PRD 0030 RF1/RF6 demo: plan prices by account id and one typed rate, kept for the page's life like the core's
 // settings. The value line mirrors `cost::plan_values` (C-05: one account, a single line; several, one combined line
