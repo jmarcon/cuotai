@@ -7,16 +7,24 @@
 use std::collections::BTreeMap;
 
 use crate::changelog::Category;
-use crate::commits::{Commit, Reference};
+use crate::commits::{Commit, EntryEdit, Reference};
 
 /// The canonical entry line (RF4.3):
 /// `- [**Breaking**: ]<sentence>[. Migration: <migration>] (<refs>; <hash>).`
 /// The sentence and the migration lose their final period, which moves to
 /// the end of the line after the references.
 pub fn entry(commit: &Commit, sentence: &str, short: &str) -> String {
+    merged_entry(&[(commit, short)], sentence)
+}
+
+/// [`entry`] for a recorded edit that merges the entries of several
+/// commits (`Changelog-Entry: a#1 b#2 …`): the references of every commit
+/// in order, then every short hash. The first breaking commit gives the
+/// **Breaking** mark and its migration.
+pub fn merged_entry(parts: &[(&Commit, &str)], sentence: &str) -> String {
     let sentence = sentence.trim();
     let mut text = sentence.strip_suffix('.').unwrap_or(sentence).to_string();
-    if commit.is_breaking() {
+    if let Some((commit, _)) = parts.iter().find(|(commit, _)| commit.is_breaking()) {
         text = format!("**Breaking**: {text}");
         if let Some(migration) = &commit.trailers.breaking {
             let migration = migration.trim();
@@ -24,9 +32,19 @@ pub fn entry(commit: &Commit, sentence: &str, short: &str) -> String {
             text.push_str(migration.strip_suffix('.').unwrap_or(migration));
         }
     }
-    let mut parts = references(&commit.trailers.refs);
-    parts.push(short.to_string());
-    format!("- {text} ({}).", parts.join("; "))
+    let refs: Vec<Reference> = parts
+        .iter()
+        .flat_map(|(commit, _)| commit.trailers.refs.iter().cloned())
+        .collect();
+    let mut parts_out = references(&refs);
+    let mut shorts: Vec<String> = Vec::new();
+    for (_, short) in parts {
+        if !shorts.iter().any(|s| s == short) {
+            shorts.push(short.to_string());
+        }
+    }
+    parts_out.extend(shorts);
+    format!("- {text} ({}).", parts_out.join("; "))
 }
 
 /// References grouped by plan in first-appearance order, then issues:
@@ -57,6 +75,118 @@ pub fn references(refs: &[Reference]) -> Vec<String> {
         .map(|(prd, rfs)| format!("PRD {prd} {}", rfs.join(", ")))
         .chain(issues)
         .collect()
+}
+
+/// One entry of a release: its category, its line and the commits it
+/// cites (full hashes, each once).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Item {
+    pub category: Category,
+    pub line: String,
+    pub shas: Vec<String>,
+}
+
+/// The entries of a release's commits (oldest first, one per `Changelog:`
+/// sentence) with the recorded wording edits applied (F-02). An edit
+/// replaces the sentence (and, when it names one, the category) of its
+/// ids; an edit with several ids merges their entries into one, placed
+/// where its first entry would be and citing every commit. Every id must
+/// name an existing sentence of exactly one commit of the release, and no
+/// sentence may be edited twice.
+pub fn items(commits: &[(Commit, String)], edits: &[EntryEdit]) -> Result<Vec<Item>, String> {
+    let mut problems = Vec::new();
+    // (commit index, sentence index) → edit index.
+    let mut owner: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+    // Per edit, its resolved (commit index, sentence index) in id order.
+    let mut resolved: Vec<Vec<(usize, usize)>> = Vec::new();
+    for (e, edit) in edits.iter().enumerate() {
+        let mut targets = Vec::new();
+        for id in &edit.ids {
+            let matches: Vec<usize> = commits
+                .iter()
+                .enumerate()
+                .filter(|(_, (c, _))| c.sha.starts_with(&id.hash))
+                .map(|(index, _)| index)
+                .collect();
+            let ci = match matches.as_slice() {
+                [one] => *one,
+                [] => {
+                    problems.push(format!(
+                        "Changelog-Entry {id}: {} is not a commit of this release",
+                        id.hash
+                    ));
+                    continue;
+                }
+                _ => {
+                    problems.push(format!(
+                        "Changelog-Entry {id}: {} names several commits; write more of the hash",
+                        id.hash
+                    ));
+                    continue;
+                }
+            };
+            let (commit, short) = &commits[ci];
+            let count = commit.trailers.sentences.len();
+            if id.index > count {
+                problems.push(format!(
+                    "Changelog-Entry {id}: {short} {} has {count} Changelog: sentence(s)",
+                    commit.subject
+                ));
+                continue;
+            }
+            let key = (ci, id.index - 1);
+            if let Some(other) = owner.insert(key, e) {
+                if other != e {
+                    problems.push(format!(
+                        "Changelog-Entry {id}: that sentence is edited by two Changelog-Entry trailers"
+                    ));
+                }
+            }
+            targets.push(key);
+        }
+        resolved.push(targets);
+    }
+    if !problems.is_empty() {
+        return Err(problems.join("\n"));
+    }
+    let mut out = Vec::new();
+    let mut emitted = vec![false; edits.len()];
+    for (ci, (commit, short)) in commits.iter().enumerate() {
+        for (si, sentence) in commit.trailers.sentences.iter().enumerate() {
+            let Some(&e) = owner.get(&(ci, si)) else {
+                out.push(Item {
+                    category: commit.entry_category(sentence),
+                    line: entry(commit, &sentence.text, short),
+                    shas: vec![commit.sha.clone()],
+                });
+                continue;
+            };
+            if std::mem::replace(&mut emitted[e], true) {
+                continue;
+            }
+            let edit = &edits[e];
+            let parts: Vec<(&Commit, &str)> = resolved[e]
+                .iter()
+                .map(|(c, _)| (&commits[*c].0, commits[*c].1.as_str()))
+                .collect();
+            let (first_c, first_s) = resolved[e][0];
+            let first = &commits[first_c].0;
+            let mut shas: Vec<String> = Vec::new();
+            for (commit, _) in &parts {
+                if !shas.contains(&commit.sha) {
+                    shas.push(commit.sha.clone());
+                }
+            }
+            out.push(Item {
+                category: edit
+                    .category
+                    .unwrap_or_else(|| first.entry_category(&first.trailers.sentences[first_s])),
+                line: merged_entry(&parts, &edit.text),
+                shas,
+            });
+        }
+    }
+    Ok(out)
 }
 
 /// Entries per category, in the parser's category order.

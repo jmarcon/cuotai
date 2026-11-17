@@ -14,7 +14,10 @@
 //! * `Refs: PRD 0006 RF2, RF3; PRD 0009 RF1` and `Refs: #12` / `issue #12`;
 //! * `BREAKING CHANGE: <migration>` (also `BREAKING-CHANGE:`);
 //! * `Changelog-Edit: <reason>` (a `docs(changelog)` prose correction);
-//! * `Version-Override: X.Y.Z` (release commits only).
+//! * `Version-Override: X.Y.Z` (release commits only);
+//! * `Changelog-Entry: <hash>#<n>[ <hash>#<n>…] [Category] <sentence>`
+//!   (release commits only): a recorded wording edit of the `n`-th
+//!   `Changelog:` sentence of a commit; several ids merge their entries.
 //!
 //! Parsing never fails: every problem is collected in [`Commit::problems`],
 //! so the gate can report all of them together.
@@ -125,6 +128,126 @@ pub fn category_names() -> String {
         .join(", ")
 }
 
+/// One id of a [`EntryEdit`]: the `n`-th (1-based) `Changelog:` sentence
+/// of the commit whose hash starts with `hash`.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EntryId {
+    pub hash: String,
+    pub index: usize,
+}
+
+impl EntryId {
+    /// `<hash>#<n>`: a lowercase hexadecimal abbreviation of 7 to 40
+    /// characters and a sentence number from 1.
+    pub fn parse(text: &str) -> Result<EntryId, String> {
+        let (hash, index) = text.split_once('#').ok_or_else(|| {
+            format!("'{text}' is not an entry id: write <hash>#<n>, e.g. 1a2b3c4#1")
+        })?;
+        let valid_hash = (7..=40).contains(&hash.len())
+            && hash
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+        if !valid_hash {
+            return Err(format!(
+                "'{text}': '{hash}' is not a commit hash (7 to 40 lowercase hexadecimal characters)"
+            ));
+        }
+        match index.parse::<usize>() {
+            Ok(number) if number >= 1 && !index.starts_with('0') => Ok(EntryId {
+                hash: hash.to_string(),
+                index: number,
+            }),
+            _ => Err(format!(
+                "'{text}': '{index}' is not a sentence number (1 for the first 'Changelog:' sentence of the commit)"
+            )),
+        }
+    }
+
+    /// Whether this id names sentence `index` of `sha`.
+    pub fn names(&self, sha: &str, index: usize) -> bool {
+        self.index == index && sha.starts_with(&self.hash)
+    }
+}
+
+impl std::fmt::Display for EntryId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}#{}", self.hash, self.index)
+    }
+}
+
+/// A recorded wording edit of a release commit (`Changelog-Entry:`, PRD
+/// 0039 F-02): the entry of every id becomes one entry with this sentence
+/// (and this category, when given), citing every id's commit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryEdit {
+    pub ids: Vec<EntryId>,
+    pub category: Option<Category>,
+    pub text: String,
+}
+
+impl EntryEdit {
+    /// Parses the value of a `Changelog-Entry:` trailer.
+    pub fn parse(value: &str) -> Result<EntryEdit, String> {
+        let mut rest = value.trim();
+        let mut ids = Vec::new();
+        while let Some(word) = rest.split_whitespace().next() {
+            if !word.contains('#') || word.starts_with('[') {
+                break;
+            }
+            let id = EntryId::parse(word)?;
+            if ids.contains(&id) {
+                return Err(format!("'Changelog-Entry: {value}' names {id} twice"));
+            }
+            ids.push(id);
+            rest = rest[word.len()..].trim_start();
+        }
+        if ids.is_empty() {
+            return Err(format!(
+                "'Changelog-Entry: {value}' names no entry: write 'Changelog-Entry: <hash>#<n> [Category] <sentence>'"
+            ));
+        }
+        let mut category = None;
+        if let Some(inner) = rest.strip_prefix('[') {
+            let Some((name, after)) = inner.split_once(']') else {
+                return Err(format!("'Changelog-Entry: {value}' has an unclosed '['"));
+            };
+            let name = name.trim();
+            category = Some(
+                Category::ALL
+                    .into_iter()
+                    .find(|c| c.title() == name)
+                    .ok_or_else(|| {
+                        format!(
+                            "'Changelog-Entry: … [{name}] …' names an unknown category: use one of {}",
+                            category_names()
+                        )
+                    })?,
+            );
+            rest = after.trim_start();
+        }
+        if rest.is_empty() {
+            return Err(format!("'Changelog-Entry: {value}' has no sentence"));
+        }
+        Ok(EntryEdit {
+            ids,
+            category,
+            text: rest.to_string(),
+        })
+    }
+}
+
+impl std::fmt::Display for EntryEdit {
+    /// The trailer value, the inverse of [`EntryEdit::parse`].
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ids: Vec<String> = self.ids.iter().map(ToString::to_string).collect();
+        write!(f, "{}", ids.join(" "))?;
+        if let Some(category) = self.category {
+            write!(f, " [{}]", category.title())?;
+        }
+        write!(f, " {}", self.text)
+    }
+}
+
 /// The trailers of one message (RF1.2).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Trailers {
@@ -139,6 +262,8 @@ pub struct Trailers {
     pub breaking: Option<String>,
     pub changelog_edit: Option<String>,
     pub version_override: Option<String>,
+    /// The recorded wording edits (`Changelog-Entry:`) of a release commit.
+    pub entry_edits: Vec<EntryEdit>,
     /// Every trailer as `(key, value)`, continuation lines joined.
     pub all: Vec<(String, String)>,
 }
@@ -148,7 +273,7 @@ pub struct Trailers {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrailerProblem {
     /// `Changelog`, `Changelog-Category`, `Refs`, `BREAKING CHANGE`,
-    /// `Changelog-Edit` or `Version-Override`.
+    /// `Changelog-Edit`, `Version-Override` or `Changelog-Entry`.
     pub key: &'static str,
     pub text: String,
 }
@@ -169,7 +294,8 @@ impl std::fmt::Display for TrailerProblem {
 }
 
 /// Keys this module interprets; a different capitalization is a mistake.
-const KNOWN_KEYS: [&str; 7] = [
+const KNOWN_KEYS: [&str; 8] = [
+    "Changelog-Entry",
     "Changelog",
     "Changelog-Category",
     "Refs",
@@ -336,6 +462,10 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<TrailerProblem>) {
                 }
             }
             "Version-Override" => trailers.version_override = Some(value.clone()),
+            "Changelog-Entry" => match EntryEdit::parse(value) {
+                Ok(edit) => trailers.entry_edits.push(edit),
+                Err(problem) => problems.push(TrailerProblem::new("Changelog-Entry", problem)),
+            },
             other => {
                 if let Some(known) = KNOWN_KEYS
                     .iter()
@@ -981,6 +1111,43 @@ pub fn files(repo: &Path, sha: &str) -> Res<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn entry_edits_parse_and_print_back() {
+        let edit =
+            EntryEdit::parse("67e7f8e#2 abcdef12#1 [Fixed] A restore never turns a source on.")
+                .unwrap();
+        assert_eq!(edit.ids.len(), 2);
+        assert_eq!(edit.ids[1].to_string(), "abcdef12#1");
+        assert_eq!(edit.category, Some(Category::Fixed));
+        assert_eq!(edit.text, "A restore never turns a source on.");
+        assert_eq!(EntryEdit::parse(&edit.to_string()).unwrap(), edit);
+        let plain = EntryEdit::parse("67e7f8e#1 Words.").unwrap();
+        assert_eq!(plain.category, None);
+        assert!(plain.ids[0].names("67e7f8e0000", 1));
+        assert!(!plain.ids[0].names("67e7f8e0000", 2));
+
+        for (value, needle) in [
+            ("Words only.", "names no entry"),
+            ("67e7f8e Words.", "names no entry"),
+            ("67E7F8E#1 Words.", "not a commit hash"),
+            ("67e7f8#1 Words.", "not a commit hash"),
+            ("67e7f8e#0 Words.", "not a sentence number"),
+            ("67e7f8e#01 Words.", "not a sentence number"),
+            ("67e7f8e#x Words.", "not a sentence number"),
+            ("67e7f8e#1 67e7f8e#1 Words.", "twice"),
+            ("67e7f8e#1 [Improved] Words.", "unknown category"),
+            ("67e7f8e#1 [Fixed Words.", "unclosed"),
+            ("67e7f8e#1 [Fixed]", "no sentence"),
+        ] {
+            let problem = EntryEdit::parse(value).unwrap_err();
+            assert!(problem.contains(needle), "{value}: {problem}");
+        }
+        let (trailers, problems) =
+            parse_trailers("Changelog-Entry: 67e7f8e#1 [Changed] Words.\nchangelog-entry: x");
+        assert_eq!(trailers.entry_edits.len(), 1);
+        assert!(!problems.is_empty(), "a miscapitalized key is a problem");
+    }
 
     fn commit(subject: &str, body: &str) -> Commit {
         Commit::parse(

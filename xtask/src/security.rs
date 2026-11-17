@@ -1,5 +1,6 @@
 //! `cargo xtask security-baseline` (PRD 0050 RF1.4, RF7.1, RF7.3, RF7.5):
-//! the desktop webview policy, the HTML pages it loads, and the registry of
+//! the desktop webview policy, the release-critical values of
+//! `tauri.conf.json` (PRD 0039 F-02), the HTML pages it loads, and the registry of
 //! security invariants in `docs/security-baseline.md`, each tied to a test,
 //! and the single HTTP client seam of the product code (RF7.2).
 //!
@@ -27,6 +28,61 @@ pub const EXPECTED_CSP: &[(&str, &[&str])] = &[
     ("frame-src", &["'none'"]),
     ("frame-ancestors", &["'none'"]),
 ];
+
+/// The values of `tauri.conf.json` that a release, or any other commit,
+/// must never change silently (PRD 0039 F-02, `SEC-RELEASE-PINS`), as JSON
+/// pointers and their exact values. A change needs a commit that changes
+/// this table too, which is visible and reviewable.
+///
+/// - the updater's minisign public key and its only endpoint decide which
+///   signed artifacts every installed copy accepts as an update;
+/// - `identifier` keys the vault entries, the data folders and the updater
+///   identity, and `productName` the installed application;
+/// - the NSIS installer hooks are code that runs at install;
+/// - `withGlobalTauri` and `macOSPrivateApi` widen the IPC surface.
+pub const RELEASE_PINS: &[(&str, &str)] = &[
+    (
+        "/plugins/updater/pubkey",
+        r#""dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDNjI0RThBNUFGQzQ3OTEKUldTUlIveGFpazVpUEZDN2FnNDR3ZUR0VzJjbTM5cXlsR0txZzVmSmdVZDc1N3dQYmVjQkRFd1kK""#,
+    ),
+    (
+        "/plugins/updater/endpoints",
+        r#"["https://github.com/jmarcon/cuotai/releases/latest/download/latest.json"]"#,
+    ),
+    ("/identifier", r#""dev.cuotai.desktop""#),
+    ("/productName", r#""Cuotai""#),
+    (
+        "/bundle/windows/nsis/installerHooks",
+        r#""windows/hooks.nsh""#,
+    ),
+    ("/app/withGlobalTauri", "true"),
+    ("/app/macOSPrivateApi", "true"),
+];
+
+/// Problems of `tauri.conf.json` against [`RELEASE_PINS`]: a missing or
+/// different value names its pointer, the pinned value and the found one.
+pub fn check_release_pins(text: &str) -> Vec<String> {
+    let config: serde_json::Value = match serde_json::from_str(text) {
+        Ok(config) => config,
+        Err(e) => return vec![format!("tauri.conf.json is not JSON: {e}")],
+    };
+    let mut problems = Vec::new();
+    for (pointer, expected) in RELEASE_PINS {
+        let want: serde_json::Value =
+            serde_json::from_str(expected).expect("a pinned value is JSON");
+        match config.pointer(pointer) {
+            Some(found) if *found == want => {}
+            Some(found) => problems.push(format!(
+                "tauri.conf.json {pointer} is pinned to {expected}, found {found} \
+                 (change RELEASE_PINS in xtask/src/security.rs in the same reviewed commit)"
+            )),
+            None => problems.push(format!(
+                "tauri.conf.json {pointer} is pinned to {expected}, but it is missing"
+            )),
+        }
+    }
+    problems
+}
 
 /// The platforms a registry row may declare.
 const PLATFORMS: &[&str] = &["Linux", "macOS", "Windows"];
@@ -635,7 +691,9 @@ pub fn run(root: &Path) -> Res<usize> {
         std::fs::read_to_string(root.join(relative))
             .map_err(|e| crate::Error::Msg(format!("cannot read {relative}: {e}")))
     };
-    let mut problems = check_tauri_config(&read("apps/desktop/src-tauri/tauri.conf.json")?);
+    let tauri_config = read("apps/desktop/src-tauri/tauri.conf.json")?;
+    let mut problems = check_tauri_config(&tauri_config);
+    problems.extend(check_release_pins(&tauri_config));
     let ui = root.join("apps/desktop/ui");
     let mut pages: Vec<PathBuf> = std::fs::read_dir(&ui)?
         .flatten()

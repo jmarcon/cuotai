@@ -4,7 +4,8 @@
 
 use xtask::security::{
     check_client_builders, check_csp, check_gitignore, check_html, check_registry,
-    check_tauri_config, markers, parse_registry, strip_cfg_test, EXPECTED_CSP,
+    check_release_pins, check_tauri_config, markers, parse_registry, strip_cfg_test, EXPECTED_CSP,
+    RELEASE_PINS,
 };
 
 fn baseline_csp() -> String {
@@ -63,6 +64,62 @@ fn the_csp_fixtures_are_refused() {
     } } })
     .to_string();
     assert!(!check_tauri_config(&unsafe_config).is_empty());
+}
+
+// security-invariant: SEC-RELEASE-PINS
+#[test]
+fn the_release_pins_are_refused_when_changed() {
+    let real = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../apps/desktop/src-tauri/tauri.conf.json"),
+    )
+    .unwrap();
+    assert!(
+        check_release_pins(&real).is_empty(),
+        "{:?}",
+        check_release_pins(&real)
+    );
+    let config: serde_json::Value = serde_json::from_str(&real).unwrap();
+    let changed = |pointer: &str, value: serde_json::Value| {
+        let mut copy = config.clone();
+        *copy.pointer_mut(pointer).unwrap() = value;
+        check_release_pins(&copy.to_string())
+    };
+    let pubkey = changed("/plugins/updater/pubkey", "UldTUi1hdHRhY2tlcg==".into());
+    assert_eq!(pubkey.len(), 1, "{pubkey:?}");
+    assert!(pubkey[0].contains("/plugins/updater/pubkey"), "{pubkey:?}");
+    let endpoints = changed(
+        "/plugins/updater/endpoints",
+        serde_json::json!([
+            "https://github.com/jmarcon/cuotai/releases/latest/download/latest.json",
+            "https://example.com/latest.json"
+        ]),
+    );
+    assert!(endpoints[0].contains("endpoints"), "{endpoints:?}");
+    for (pointer, value) in [
+        ("/identifier", serde_json::json!("dev.example.desktop")),
+        ("/productName", serde_json::json!("Example")),
+        (
+            "/bundle/windows/nsis/installerHooks",
+            serde_json::json!("windows/other.nsh"),
+        ),
+        ("/app/withGlobalTauri", serde_json::json!(false)),
+        ("/app/macOSPrivateApi", serde_json::json!(false)),
+    ] {
+        let problems = changed(pointer, value);
+        assert!(
+            problems.len() == 1 && problems[0].contains(pointer),
+            "{pointer}: {problems:?}"
+        );
+    }
+    let mut missing = config.clone();
+    missing["plugins"]["updater"]
+        .as_object_mut()
+        .unwrap()
+        .remove("pubkey");
+    let problems = check_release_pins(&missing.to_string());
+    assert!(problems[0].contains("missing"), "{problems:?}");
+    assert_eq!(RELEASE_PINS.len(), 7);
 }
 
 #[test]

@@ -115,6 +115,15 @@ SUBCOMMANDS:
     --check                 verify a release commit instead (RF4.7)
     --rev REF               commit checked by --check (default: HEAD)
 
+  release edit        Record a wording fix of the release section (PRD 0039 F-02)
+    <hash>#<n> …            the entries to reword (sentence n of that commit;
+                            several ids merge their entries into one)
+    --text SENTENCE         the new sentence, checked like a Changelog: sentence
+    --category C            move the entry to category C (Added, Changed, …)
+    --repo PATH             repository root (default: .)
+                            amends the release commit at HEAD of release/vX.Y.Z
+                            with a 'Changelog-Entry:' trailer and re-renders it
+
   release tag         Create the local annotated tag of the release commit (RF5.2)
     --repo PATH             repository root (default: .)
     --rc                    tag vX.Y.Z-rc.N instead of vX.Y.Z
@@ -548,8 +557,11 @@ fn anonymize_fixture(args: &[String]) -> Res<()> {
 fn release(args: &[String]) -> Res<()> {
     const FLAGS: [&str; 5] = ["--dry-run", "--branch", "--refresh", "--check", "--rc"];
     let Some(action) = args.first() else {
-        return err("usage: cargo xtask release prepare|tag [OPTIONS]");
+        return err("usage: cargo xtask release prepare|tag|edit [OPTIONS]");
     };
+    if action == "edit" {
+        return release_edit(&args[1..]);
+    }
     let flags: Vec<&str> = args[1..]
         .iter()
         .map(String::as_str)
@@ -571,7 +583,7 @@ fn release(args: &[String]) -> Res<()> {
         "tag" => (&["--rc"], &["repo", "main"]),
         other => {
             return err(format!(
-                "unknown release action '{other}' (expected prepare or tag)"
+                "unknown release action '{other}' (expected prepare, tag or edit)"
             ))
         }
     };
@@ -613,10 +625,18 @@ fn release(args: &[String]) -> Res<()> {
             let rev = opts.get("rev").unwrap_or_else(|| "HEAD".to_string());
             let outcome = xtask::release::check_release(&repo, &rev)?;
             println!(
-                "release check passed: {} covers the {} commit(s) since {}",
+                "release check passed: {} covers the {} commit(s) since {}; line-level: {}",
                 outcome.version,
                 outcome.commits,
-                outcome.base.describe()
+                outcome.base.describe(),
+                if outcome.line_checked {
+                    "ok".to_string()
+                } else {
+                    format!(
+                        "not applied (releases up to {} keep the file-level check)",
+                        xtask::release::LINE_CHECK_AFTER
+                    )
+                }
             );
             Ok(())
         }
@@ -640,6 +660,50 @@ fn release(args: &[String]) -> Res<()> {
     }
 }
 
+/// `release edit <hash>#<n> [<hash>#<n>…] [--category C] --text S`
+/// (F-02): records a wording edit in the release commit at HEAD.
+fn release_edit(args: &[String]) -> Res<()> {
+    let ids: Vec<&String> = args.iter().take_while(|a| !a.starts_with("--")).collect();
+    let opts = Opts::parse(&args[ids.len()..])?;
+    if let Some(bad) = opts
+        .0
+        .keys()
+        .find(|k| !["repo", "category", "text"].contains(&k.as_str()))
+    {
+        return err(format!("release edit does not accept --{bad}"));
+    }
+    if ids.is_empty() {
+        return err(
+            "usage: cargo xtask release edit <hash>#<n> [<hash>#<n>…] [--category C] --text \"<sentence>\"",
+        );
+    }
+    let text = opts.need("text")?;
+    let mut value: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
+    if let Some(category) = opts.get("category") {
+        value.push(format!("[{category}]"));
+    }
+    value.push(text);
+    let edit = xtask::commits::EntryEdit::parse(&value.join(" ")).map_err(Error::Msg)?;
+    let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    let outcome = xtask::release::edit::run(&repo, edit)?;
+    for old in &outcome.replaced {
+        println!("replaced the recorded edit 'Changelog-Entry: {old}'");
+    }
+    println!(
+        "amended the release commit of {} ({}); its recorded wording edits:",
+        outcome.version,
+        &outcome.sha[..7]
+    );
+    for edit in &outcome.edits {
+        println!("  Changelog-Entry: {edit}");
+    }
+    println!(
+        "\n{}\nrelease check passed. Push the release branch again: git push --force-with-lease",
+        outcome.section
+    );
+    Ok(())
+}
+
 fn release_prepare(repo: &Path, opts: &Opts, flag: &dyn Fn(&str) -> bool) -> Res<()> {
     let version = opts
         .get("version")
@@ -655,6 +719,8 @@ fn release_prepare(repo: &Path, opts: &Opts, flag: &dyn Fn(&str) -> bool) -> Res
         branch: flag("--branch"),
         refresh: flag("--refresh"),
         verify_lockfiles: true,
+        edits: None,
+        trailers: Vec::new(),
     };
     if options.dry_run && options.branch {
         return err("--dry-run and --branch exclude each other");
@@ -790,7 +856,7 @@ fn external_rules_check(opts: &Opts) -> Res<()> {
 fn security_baseline(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
     let count = xtask::security::run(&repo)?;
-    println!("security baseline passed: CSP, desktop pages and {count} invariants");
+    println!("security baseline passed: CSP, release pins, desktop pages and {count} invariants");
     Ok(())
 }
 

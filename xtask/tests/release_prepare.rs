@@ -160,11 +160,15 @@ fn nothing_to_release_and_overrides() {
 }
 
 #[test]
-fn refresh_keeps_edited_entries_and_adds_new_commits() {
+fn refresh_replaces_a_hand_edit_and_adds_new_commits() {
+    // A hand edit of the section is not recorded, so a refresh renders the
+    // entry from its trailer again and says so (`release edit` records a
+    // wording change instead; see `release_lines.rs`).
     let (_d, repo) = repo();
     feature_and_fix(&repo);
     prepare_branch(&repo);
-    // The owner rewords the feature entry in the release PR.
+    // Someone rewords the feature entry by hand in the release PR (a
+    // release up to 0.86.7 still passes the file-level check).
     let edited = read(&repo, "CHANGELOG.md").replace(
         "You can sort accounts by name",
         "Accounts can now be sorted by name",
@@ -191,10 +195,18 @@ fn refresh_keeps_edited_entries_and_adds_new_commits() {
         "{changelog}"
     );
     assert!(
-        changelog.contains("Accounts can now be sorted by name"),
+        !changelog.contains("Accounts can now be sorted by name"),
         "{changelog}"
     );
-    assert!(!changelog.contains("You can sort accounts"), "{changelog}");
+    assert!(changelog.contains("You can sort accounts"), "{changelog}");
+    assert!(
+        outcome
+            .warnings
+            .iter()
+            .any(|w| w.contains("Accounts can now be sorted by name") && w.contains("release edit")),
+        "{:?}",
+        outcome.warnings
+    );
     assert_eq!(
         changelog
             .matches("- The order survives a restart (")

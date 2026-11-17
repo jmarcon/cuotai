@@ -17,10 +17,12 @@
 //!    workspace lockfile entry or `CHANGELOG.md` (a `docs(changelog)` commit
 //!    with `Changelog-Edit:` may correct released prose);
 //! 5. a release commit changes only the release file set and passes
-//!    `release prepare --check`;
+//!    `release prepare --check` (above 0.86.7 that is line by line), and
+//!    its `Changelog-Entry:` wording edits are well formed;
 //! 6. the message carries no skip-CI marker anywhere (GitHub honours it in
 //!    the subject and the body too);
-//! 7. each sentence passes a light lint;
+//! 7. each sentence (and each `Changelog-Entry:` sentence) passes a light
+//!    lint;
 //! 8. every `Refs:` reference is well formed and its plan requirement
 //!    exists;
 //! 9. author, committer and every `Co-Authored-By:` use a noreply address
@@ -109,6 +111,7 @@ impl Rule {
             "Refs" => Rule::Refs,
             "BREAKING CHANGE" => Rule::Breaking,
             "Changelog-Edit" | "Version-Override" => Rule::Versions,
+            "Changelog-Entry" => Rule::Release,
             _ => Rule::Entry,
         }
     }
@@ -491,6 +494,17 @@ pub fn check_message(
                 "'Version-Override:' belongs only in a release commit",
             ));
         }
+        if commit
+            .trailers
+            .all
+            .iter()
+            .any(|(key, _)| key == "Changelog-Entry")
+        {
+            out.push(Problem::new(
+                Rule::Versions,
+                "'Changelog-Entry:' belongs only in a release commit (`cargo xtask release edit` writes it)",
+            ));
+        }
     }
     // Rule 6, anywhere in the message.
     if let Some(problem) = crate::preflight::message::skip_marker_problem(commit) {
@@ -509,6 +523,19 @@ pub fn check_message(
             commits::lint_sentence_with(&sentence.text, &applies)
                 .into_iter()
                 .map(|p| Problem::new(Rule::Sentence, p)),
+        );
+    }
+    // A recorded wording edit is a sentence for the user too (F-02).
+    for edit in &commit.trailers.entry_edits {
+        out.extend(
+            commits::lint_sentence_with(&edit.text, &applies)
+                .into_iter()
+                .map(|p| {
+                    Problem::new(
+                        Rule::Sentence,
+                        format!("Changelog-Entry {}: {p}", edit.ids[0]),
+                    )
+                }),
         );
     }
     // Rule 8.
