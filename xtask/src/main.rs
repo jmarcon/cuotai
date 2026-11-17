@@ -13,6 +13,7 @@ Repository automation tasks (PRD 0021).
 
 USAGE:
   cargo xtask <SUBCOMMAND> [OPTIONS]
+  cargo xtask <SUBCOMMAND> --help     that subcommand's options (unknown options fail)
 
 SUBCOMMANDS:
   release-check       Verify versions, lockfiles, changelog and tag (RF1)
@@ -198,6 +199,10 @@ fn run(args: &[String]) -> Res<()> {
         eprint!("{USAGE}");
         return err("missing subcommand");
     };
+    if let Some(help) = help_request(args) {
+        print!("{help}");
+        return Ok(());
+    }
     if sub == "release" {
         return release(&args[1..]);
     }
@@ -207,7 +212,7 @@ fn run(args: &[String]) -> Res<()> {
     if sub == "preflight" {
         return xtask::preflight::run(&args[1..]);
     }
-    let opts = Opts::parse(&args[1..])?;
+    let opts = Opts::parse(&args[1..], sub)?;
     match sub.as_str() {
         "release-check" => release_check(&opts),
         "release-manifest" => release_manifest(&opts),
@@ -586,7 +591,7 @@ fn release(args: &[String]) -> Res<()> {
         .filter(|a| !FLAGS.contains(&a.as_str()))
         .cloned()
         .collect();
-    let opts = Opts::parse(&rest)?;
+    let opts = Opts::parse(&rest, &format!("release {action}"))?;
     // Every flag and option is checked against the action, so a
     // safety-looking flag the action ignores (`tag --dry-run`) is an error.
     let (allowed_flags, allowed_options): (&[&str], &[&str]) = match action.as_str() {
@@ -678,7 +683,7 @@ fn release(args: &[String]) -> Res<()> {
 /// (F-02): records a wording edit in the release commit at HEAD.
 fn release_edit(args: &[String]) -> Res<()> {
     let ids: Vec<&String> = args.iter().take_while(|a| !a.starts_with("--")).collect();
-    let opts = Opts::parse(&args[ids.len()..])?;
+    let opts = Opts::parse(&args[ids.len()..], "release edit")?;
     if let Some(bad) = opts
         .0
         .keys()
@@ -729,7 +734,7 @@ fn release_ci_proof(args: &[String]) -> Res<()> {
         .filter(|a| *a != "--report-only")
         .cloned()
         .collect();
-    let opts = Opts::parse(&rest)?;
+    let opts = Opts::parse(&rest, "release ci-proof")?;
     if let Some(bad) = opts
         .0
         .keys()
@@ -1004,6 +1009,111 @@ fn workflow_check(opts: &Opts) -> Res<()> {
     Ok(())
 }
 
+/// `-h`/`--help` anywhere after a subcommand (F-05): the help block of
+/// that subcommand (of `release <action>`, or every `release` block), or
+/// `None` when no help was asked for. Unknown subcommands fall through to
+/// the usual error.
+fn help_request(args: &[String]) -> Option<String> {
+    let rest = &args[1..];
+    if !rest.iter().any(|a| a == "-h" || a == "--help") {
+        return None;
+    }
+    let sub = args[0].as_str();
+    if sub == "release" {
+        let action = rest.first().filter(|a| !a.starts_with('-'));
+        if let Some(block) = action.and_then(|a| help_block(&format!("release {a}"))) {
+            return Some(block);
+        }
+        let all: Vec<String> = SUBCOMMANDS
+            .iter()
+            .filter(|s| s.starts_with("release "))
+            .filter_map(|s| help_block(s))
+            .collect();
+        return Some(all.join("\n"));
+    }
+    help_block(sub)
+}
+
+/// Every subcommand, as its help block in [`USAGE`] names it. The tests
+/// keep this list, the blocks and the dispatch in agreement.
+const SUBCOMMANDS: &[&str] = &[
+    "release-check",
+    "release-manifest",
+    "signing-state",
+    "release-notes",
+    "updater-manifest",
+    "merge-sbom",
+    "verify-download",
+    "changelog-check",
+    "changelog-gate",
+    "changelog-draft",
+    "access-staleness",
+    "access-verified",
+    "anonymize-fixture",
+    "release prepare",
+    "release edit",
+    "release tag",
+    "release ci-proof",
+    "package-manifests",
+    "compat-check",
+    "check-example-config",
+    "workflow-check",
+    "preflight",
+    "security-baseline",
+    "external-rules-check",
+];
+
+/// Whether a [`USAGE`] line starts a subcommand block (two spaces, then a
+/// lowercase name).
+fn is_header(line: &str) -> bool {
+    line.starts_with("  ") && line.as_bytes().get(2).is_some_and(u8::is_ascii_lowercase)
+}
+
+/// The help block of `command` in [`USAGE`]: its header line up to the next
+/// header, without trailing blank lines.
+fn help_block(command: &str) -> Option<String> {
+    let body = USAGE.split_once("SUBCOMMANDS:\n")?.1;
+    let mut lines = body.lines().skip_while(|line| {
+        !(is_header(line)
+            && line[2..]
+                .strip_prefix(command)
+                .is_some_and(|after| after.is_empty() || after.starts_with(' ')))
+    });
+    let header = lines.next()?;
+    let mut block = vec![header];
+    block.extend(lines.take_while(|line| !is_header(line)));
+    while block.last().is_some_and(|line| line.trim().is_empty()) {
+        block.pop();
+    }
+    Some(format!(
+        "USAGE: cargo xtask {command} [OPTIONS]\n\n{}\n",
+        block.join("\n")
+    ))
+}
+
+/// The options (`--name VALUE`: one space before the placeholder) and the
+/// flags (`--name` followed by the aligned description) a help block
+/// declares.
+fn declared_options(block: &str) -> (Vec<String>, Vec<String>) {
+    let (mut options, mut flags) = (Vec::new(), Vec::new());
+    for line in block.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("--") else {
+            continue;
+        };
+        let name: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .collect();
+        let after = &rest[name.len()..];
+        if after.starts_with(' ') && !after.starts_with("  ") {
+            options.push(name);
+        } else {
+            flags.push(name);
+        }
+    }
+    (options, flags)
+}
+
 fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Res<()> {
     let text = serde_json::to_string_pretty(value)? + "\n";
     std::fs::write(path, text)?;
@@ -1015,7 +1125,12 @@ fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Res<()> {
 struct Opts(BTreeMap<String, Vec<String>>);
 
 impl Opts {
-    fn parse(args: &[String]) -> Res<Opts> {
+    /// Parses the `--key value` options of `command` (a subcommand, or
+    /// `release <action>`). A name its help block does not declare is an
+    /// "unknown option" error (F-05), checked before "needs a value", so a
+    /// misspelt option can never pass silently.
+    fn parse(args: &[String], command: &str) -> Res<Opts> {
+        let declared = help_block(command).map(|block| declared_options(&block));
         let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
         let mut i = 0;
         while i < args.len() {
@@ -1025,6 +1140,13 @@ impl Opts {
                     "unexpected argument '{key}' (options are --key value)"
                 ));
             };
+            if let Some((options, flags)) = &declared {
+                if !options.iter().any(|o| o == name) && !flags.iter().any(|f| f == name) {
+                    return err(format!(
+                        "{command} does not accept {key}: unknown option (see: cargo xtask {command} --help)"
+                    ));
+                }
+            }
             let value = args
                 .get(i + 1)
                 .ok_or_else(|| Error::Msg(format!("option '{key}' needs a value")))?;
@@ -1053,5 +1175,59 @@ impl Opts {
 
     fn path(&self, key: &str) -> Option<PathBuf> {
         self.get(key).map(PathBuf::from)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn strings(args: &[&str]) -> Vec<String> {
+        args.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn every_subcommand_has_one_help_block_and_every_block_is_listed() {
+        for command in SUBCOMMANDS {
+            let block = help_block(command).unwrap_or_else(|| panic!("no help for {command}"));
+            assert!(block.contains(&format!("  {command}")), "{block}");
+        }
+        let body = USAGE.split_once("SUBCOMMANDS:\n").unwrap().1;
+        for line in body.lines().filter(|line| is_header(line)) {
+            assert!(
+                SUBCOMMANDS.iter().any(|c| line[2..].starts_with(c)),
+                "header '{line}' is not in SUBCOMMANDS"
+            );
+        }
+    }
+
+    #[test]
+    fn options_and_flags_are_read_from_the_help_block() {
+        let (options, flags) = declared_options(&help_block("release prepare").unwrap());
+        for option in ["repo", "version", "date", "rev", "trailer"] {
+            assert!(options.iter().any(|o| o == option), "{option}");
+        }
+        for flag in ["dry-run", "branch", "refresh", "check"] {
+            assert!(flags.iter().any(|f| f == flag), "{flag}");
+        }
+        let (options, flags) = declared_options(&help_block("release-check").unwrap());
+        assert!(options.iter().any(|o| o == "tag") && flags.is_empty());
+    }
+
+    #[test]
+    fn a_misspelt_option_is_unknown_not_ignored() {
+        let error = Opts::parse(&strings(&["--tga", "v9.9.9"]), "release-check")
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(
+            error.contains("release-check does not accept --tga: unknown option"),
+            "{error}"
+        );
+        let error = Opts::parse(&strings(&["--bogus"]), "release-check")
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(error.contains("unknown option"), "{error}");
     }
 }
