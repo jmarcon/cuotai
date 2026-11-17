@@ -152,7 +152,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -458,6 +462,7 @@
   "cost.disclosure.directories": "只读取以下目录中的 {pattern} 文件：",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "只提取数字：时间、模型、令牌数（输入、输出、缓存读取和缓存写入）、会话的匿名摘要，以及项目文件夹的单向指纹，方便您为其加标签。",
+  "cost.disclosure.extracted_v3": "只提取数字：时间、模型、令牌数（输入、输出、缓存读取和缓存写入）、会话的匿名摘要，以及项目文件夹的单向指纹，方便您为其加标签；对于由 Codex CLI 提供数据的账户，还会提取其限额窗口和重置时间，在本机最多保留一天。",
   "cost.disclosure.header": "开启读取 {source} 的本地日志。",
   "cost.disclosure.never_v2": "对话内容、提示词、回答、文件名和项目路径从不读入索引、保存或显示；只有在您开启时才会保存项目的最后一级文件夹名。任何内容都不会离开本机。",
   "cost.disclosure.off": "关闭该来源会停止所有读取，并清除由其派生的所有内容。",
@@ -937,6 +942,8 @@
   "feed.banner.codex_cli": "Codex CLI 有限额读数；请添加一个由 Codex CLI 推送的 ChatGPT / Codex 账户。",
   "feed.error.malformed": "状态栏输入不是 JSON 对象。",
   "feed.error.too_large": "状态栏输入超过 64 KiB。",
+  "feed.forget.done": "已清除保存的 {agent} 读数。",
+  "feed.forget.nothing": "没有保存的 {agent} 读数。",
   "feed.health.unreadable": {
     "other": "已忽略 {count} 个无法读取的推送文件。"
   },
@@ -1509,6 +1516,7 @@
   "note.cloud.google_no_quota_series": "未返回额度序列。请检查项目中是否已启用 {service} API，以及令牌是否具有 monitoring.timeSeries.list 权限。",
   "note.cloud.google_scope": "范围：项目 {project}，服务 {service}。限额为当前生效的额度（每天采样一次）；用量为最近 10 分钟 net_usage 的总和（延迟约 4 分钟）。",
   "note.codex_cli.answered_by_api": "由 Codex 查询作答：Codex CLI 日志中没有最近的读数。",
+  "note.codex_cli.answered_by_api_no_consent": "由 Codex 查询作答：读取 Codex CLI 日志需要开启 Codex CLI 本地来源（本地费用）。",
   "note.codex_cli.answered_by_feed": "由 Codex CLI 自己的会话日志作答（不发网络请求）。",
   "note.codex_cli.fed": "从 Codex CLI 的本地会话日志读取（格式无文档）：不发网络请求，不复用令牌。",
   "note.codex_cli.needs_consent": "读取 Codex CLI 日志需要开启 Codex CLI 本地来源（本地费用），其中列出了读取的文件夹。",

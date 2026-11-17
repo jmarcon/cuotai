@@ -17,8 +17,18 @@ use std::path::{Path, PathBuf};
 
 /// Raised whenever the disclosure's wording or meaning changes, so an
 /// earlier consent no longer covers it. 2: PRD 0042 RF1.2 added the project
-/// fingerprint.
-const DISCLOSURE_VERSION: u32 = 2;
+/// fingerprint. 3: PRD 0040 re-validation S-02 added, for Codex CLI only,
+/// its rate-limit windows ([`disclosure_version`]).
+const DISCLOSURE_VERSION: u32 = 3;
+
+/// The disclosure version of `source`: only Codex CLI's wording changed in
+/// version 3, so the other sources are not asked again.
+fn disclosure_version(source: SourceId) -> u32 {
+    match source {
+        SourceId::CodexCli => DISCLOSURE_VERSION,
+        _ => 2,
+    }
+}
 
 /// PRD 0042 RF3.1: the block length bounds, in hours.
 pub const BLOCK_HOURS_MIN: u8 = 1;
@@ -217,7 +227,7 @@ impl CostSettings {
         };
         let current = self.disclosure(source, env);
         consent != current.digest
-            && (1..DISCLOSURE_VERSION).any(|version| {
+            && (1..disclosure_version(source)).any(|version| {
                 consent == identity_digest(version, source, &current.directories, current.pattern)
             })
     }
@@ -309,10 +319,18 @@ impl Disclosure {
                 label,
                 "To estimate, on this computer only, the tokens and the cost at API prices of your {source} usage per day and per model.",
             ),
-            extracted: Localized::fixed(
-                "cost.disclosure.extracted_v2",
-                "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write), an anonymous digest of the session and a one-way fingerprint of the project folder, so you can label it.",
-            ),
+            extracted: match source {
+                // S-02: a ChatGPT / Codex account fed by Codex CLI (PRD 0040
+                // RF4) reads the rate-limit windows from the same logs.
+                SourceId::CodexCli => Localized::fixed(
+                    "cost.disclosure.extracted_v3",
+                    "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write), an anonymous digest of the session and a one-way fingerprint of the project folder, so you can label it; for an account fed by Codex CLI, also its rate-limit windows and reset times, kept on this computer for up to a day.",
+                ),
+                _ => Localized::fixed(
+                    "cost.disclosure.extracted_v2",
+                    "Only numbers are extracted: the time, the model, the token counts (input, output, cache read and cache write), an anonymous digest of the session and a one-way fingerprint of the project folder, so you can label it.",
+                ),
+            },
             never: Localized::fixed(
                 "cost.disclosure.never_v2",
                 "Conversation content, prompts, answers, file names and project paths are never read into the index, stored or shown; the last folder name of a project is kept only if you turn that on. Nothing leaves this computer.",
@@ -321,7 +339,7 @@ impl Disclosure {
                 "cost.disclosure.off",
                 "Turning the source off stops every read and erases everything derived from it.",
             ),
-            digest: identity_digest(DISCLOSURE_VERSION, source, &directories, pattern),
+            digest: identity_digest(disclosure_version(source), source, &directories, pattern),
             directories,
         }
     }

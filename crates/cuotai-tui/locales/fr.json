@@ -231,7 +231,8 @@
       "dashboard.metric.full",
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
-      "once.renewal_due"
+      "once.renewal_due",
+      "feed.forget.failed"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -482,6 +483,7 @@
   "extensions.secret.where": "La valeur reste uniquement dans le coffre du système et n’atteint que l’environnement de l’extension.",
   "extensions.title": " Extensions ",
   "feed.setup.chained": "Pour garder votre propre script de ligne d’état, enchaînez-le plutôt :",
+  "feed.forget.failed": "Impossible d’effacer les mesures enregistrées de Claude Code.",
   "feed.setup.docs": "Détails et déclaration de confidentialité : docs/integrations/claude-code.md",
   "feed.setup.intro": "Ajoutez ceci à ~/.claude/settings.json (Cuotai ne le modifie jamais à votre place) :",
   "feed.write_failed": "Impossible d’enregistrer la mesure de la ligne d’état dans le dossier de données.",

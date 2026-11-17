@@ -60,7 +60,11 @@
       "metric.noCap",
       "metric.full",
       "metric.exhaustedAmount",
-      "metric.resetsUtcMidnight"
+      "metric.resetsUtcMidnight",
+      "settings.claudeCode.forget",
+      "confirm.claudeCode.forgetTitle",
+      "confirm.claudeCode.forgetBody",
+      "confirm.claudeCode.forget"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -177,7 +181,8 @@
   "settings.claudeCode.copied": "已复制",
   "settings.claudeCode.copy": "复制",
   "settings.claudeCode.desc": "无需网络请求、不复用令牌即可为 Claude 账户提供数据。",
-  "settings.claudeCode.privacy": "将这段配置粘贴到 ~/.claude/settings.json。Cuotai 只保留限额窗口、上下文占比、费用估算、模型和会话 id 的摘要；工作文件夹、对话记录路径和提示在写入前即被丢弃。Cuotai 绝不会修改代理的设置。",
+  "settings.claudeCode.forget": "清除 Claude Code 读数",
+  "settings.claudeCode.privacy": "将这段配置粘贴到 ~/.claude/settings.json。Cuotai 只保留限额窗口、上下文占比、费用估算、模型和会话 id 的摘要，最多一天；工作文件夹、对话记录路径和提示在写入前即被丢弃。只有由 Claude Code 提供数据的账户会读取它们。Cuotai 绝不会修改代理的设置：如需停止，请删除这段配置并清除读数。",
   "settings.claudeCode.title": "Claude Code",
   "settings.dataDir.cli": "终端中的 cuotai 不读取此选择：要与其共用一个数据文件夹，请为两者都设置 CUOTAI_DATA_DIR。",
   "settings.dataDir.env": "由 CUOTAI_DATA_DIR 变量设置；此处的选择只有在移除该变量后才会生效。",
@@ -1530,6 +1535,9 @@
   "confirm.certificate.firstBody": "该实例提供的证书不受此电脑信任。信任前，请将下方的 SHA-256 指纹与服务器上的指纹进行比对。Cuotai 只会接受此证书；如果证书变更，账户会停止并再次询问。",
   "confirm.remove": "移除",
   "confirm.close": "关闭",
+  "confirm.claudeCode.forgetTitle": "清除 Claude Code 读数？",
+  "confirm.claudeCode.forget": "清除读数",
+  "confirm.claudeCode.forgetBody": "保存的 Claude Code 读数将从本机删除。由 Claude Code 提供数据的 Claude 账户在 Claude Code 下次提示时写入新读数之前不显示数据。",
   "confirm.back": "返回",
   "confirm.dismiss": "关闭",
   "login.demo.oauth.label": "OAuth 登录（演示）",

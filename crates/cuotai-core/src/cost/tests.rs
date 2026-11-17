@@ -422,7 +422,7 @@ fn turning_a_source_off_and_erasing_remove_everything_derived() {
         1
     );
 
-    let removed = turn_off(f.scanner.settings(), index, SourceId::ClaudeCode).unwrap();
+    let removed = turn_off(f.scanner.settings(), index, SourceId::ClaudeCode, None).unwrap();
     assert!(
         removed >= 4,
         "usage, session, seen and file rows: {removed}"
@@ -787,6 +787,7 @@ fn the_summary_shows_indexed_days_without_content_and_nothing_once_off() {
         f.scanner.settings(),
         f.scanner.index(),
         SourceId::ClaudeCode,
+        None,
     )
     .unwrap();
     let after = f
@@ -810,7 +811,14 @@ fn choosing_other_directories_turns_the_source_off_and_erases_it() {
     f.scan();
     assert_eq!(f.requests(), 1);
 
-    let defaults = choose_paths(settings, index, SourceId::ClaudeCode, Vec::new(), &f.env);
+    let defaults = choose_paths(
+        settings,
+        index,
+        SourceId::ClaudeCode,
+        Vec::new(),
+        &f.env,
+        None,
+    );
     assert_eq!(defaults, Ok(0), "the saved list: nothing changes");
     assert!(settings
         .load()
@@ -823,14 +831,16 @@ fn choosing_other_directories_turns_the_source_off_and_erases_it() {
             index,
             SourceId::ClaudeCode,
             vec![PathBuf::from("logs/claude")],
-            &f.env
+            &f.env,
+            None
         ),
         Err(CostError::RelativePath)
     );
     assert_eq!(f.requests(), 1, "a refused list changes nothing");
 
     let chosen = vec![PathBuf::from("~/elsewhere"), PathBuf::from("~/elsewhere")];
-    let removed = choose_paths(settings, index, SourceId::ClaudeCode, chosen, &f.env).unwrap();
+    let removed =
+        choose_paths(settings, index, SourceId::ClaudeCode, chosen, &f.env, None).unwrap();
     assert!(removed > 0);
     assert_eq!(f.requests(), 0);
     let saved = settings.load().unwrap();
@@ -1280,6 +1290,67 @@ fn schema_two_is_migrated_in_place() {
     assert!(f.scanner.index().erase().is_ok());
 }
 
+/// PRD 0040 re-validation S-01/S-02: turning Codex CLI off erases its
+/// rate-limit readings from the agent feed (Claude Code's stay), and its
+/// disclosure names them, so a consent given under version 2 is asked
+/// again while Claude Code's is not.
+#[test]
+fn turning_codex_off_erases_its_feed_and_version_three_asks_again() {
+    let f = fixture();
+    let feed = crate::feed::FeedStore::at(f.dir.path().join("feed"));
+    for source in ["codex_cli", "claude_code"] {
+        std::fs::create_dir_all(feed.dir().join(source)).unwrap();
+        std::fs::write(feed.dir().join(source).join("x.json"), "{}").unwrap();
+    }
+    f.enable(SourceId::CodexCli);
+    turn_off(
+        f.scanner.settings(),
+        f.scanner.index(),
+        SourceId::CodexCli,
+        Some(&feed),
+    )
+    .unwrap();
+    assert!(!feed.dir().join("codex_cli").exists());
+    assert!(feed.dir().join("claude_code/x.json").exists());
+
+    let store = f.scanner.settings();
+    let settings = store.load().unwrap();
+    let disclosure = settings.disclosure(SourceId::CodexCli, &f.env);
+    assert_eq!(disclosure.extracted.id, "cost.disclosure.extracted_v3");
+    assert_eq!(
+        settings
+            .disclosure(SourceId::ClaudeCode, &f.env)
+            .extracted
+            .id,
+        "cost.disclosure.extracted_v2"
+    );
+    let v2 = |source: SourceId| {
+        let shown = settings.disclosure(source, &f.env);
+        let identity =
+            serde_json::to_vec(&(2u32, source, &shown.directories, shown.pattern)).unwrap();
+        crate::models::digest(&identity)
+    };
+    std::fs::write(
+        store.path(),
+        serde_json::json!({ "sources": {
+            "codex_cli": { "consent": v2(SourceId::CodexCli) },
+            "claude_code": { "consent": v2(SourceId::ClaudeCode) },
+        } })
+        .to_string(),
+    )
+    .unwrap();
+    let saved = store.load().unwrap();
+    assert!(saved.needs_reconsent(SourceId::CodexCli, &f.env));
+    assert!(
+        !saved.enabled(SourceId::CodexCli, &f.env),
+        "nothing is read"
+    );
+    assert!(
+        saved.enabled(SourceId::ClaudeCode, &f.env),
+        "not asked again"
+    );
+}
+
 #[test]
 fn a_source_on_under_the_first_disclosure_is_asked_again() {
     let f = fixture();
@@ -1353,7 +1424,13 @@ fn erasing_the_index_removes_the_pre_upgrade_copy() {
 fn turning_a_source_off_removes_the_pre_upgrade_copy() {
     let f = fixture();
     let bak = migrated_with_backup(&f);
-    turn_off(f.scanner.settings(), f.scanner.index(), SourceId::CodexCli).unwrap();
+    turn_off(
+        f.scanner.settings(),
+        f.scanner.index(),
+        SourceId::CodexCli,
+        None,
+    )
+    .unwrap();
     assert!(
         !bak.exists(),
         "S-01: the .bak survived turning a source off"
@@ -1373,6 +1450,7 @@ fn choosing_other_folders_removes_the_pre_upgrade_copy() {
         SourceId::CodexCli,
         vec![other],
         &f.env,
+        None,
     )
     .unwrap();
     assert!(!bak.exists(), "S-01: the .bak survived a folder change");

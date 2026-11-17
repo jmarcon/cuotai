@@ -36,7 +36,11 @@
       "metric.noCap",
       "metric.full",
       "metric.exhaustedAmount",
-      "metric.resetsUtcMidnight"
+      "metric.resetsUtcMidnight",
+      "settings.claudeCode.forget",
+      "confirm.claudeCode.forgetTitle",
+      "confirm.claudeCode.forgetBody",
+      "confirm.claudeCode.forget"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -153,7 +157,8 @@
   "settings.claudeCode.copied": "Đã sao chép",
   "settings.claudeCode.copy": "Sao chép",
   "settings.claudeCode.desc": "Cấp dữ liệu cho tài khoản Claude mà không cần yêu cầu mạng và không tái sử dụng token.",
-  "settings.claudeCode.privacy": "Dán đoạn mã vào ~/.claude/settings.json. Cuotai chỉ giữ các cửa sổ giới hạn, tỉ lệ ngữ cảnh, ước tính chi phí, mô hình và bản tóm tắt id phiên; thư mục làm việc, đường dẫn bản ghi và lời nhắc bị loại bỏ trước khi ghi. Cuotai không bao giờ sửa cài đặt của tác tử.",
+  "settings.claudeCode.forget": "Quên số liệu Claude Code",
+  "settings.claudeCode.privacy": "Dán đoạn mã vào ~/.claude/settings.json. Cuotai chỉ giữ tối đa một ngày các cửa sổ giới hạn, tỉ lệ ngữ cảnh, ước tính chi phí, mô hình và bản tóm tắt id phiên; thư mục làm việc, đường dẫn bản ghi và lời nhắc bị loại bỏ trước khi ghi. Chỉ tài khoản được Claude Code cung cấp dữ liệu mới đọc chúng. Cuotai không bao giờ sửa cài đặt của tác tử: để dừng, hãy xoá đoạn mã và quên số liệu.",
   "settings.claudeCode.title": "Claude Code",
   "settings.dataDir.cli": "cuotai trong terminal không đọc lựa chọn này: để dùng chung một thư mục dữ liệu, hãy đặt CUOTAI_DATA_DIR cho cả hai.",
   "settings.dataDir.env": "Được đặt bởi biến CUOTAI_DATA_DIR; lựa chọn ở đây chỉ có hiệu lực khi biến đó bị xóa.",
@@ -1506,6 +1511,9 @@
   "confirm.certificate.firstBody": "Phiên bản này đưa ra chứng chỉ mà máy tính này không tin cậy. Hãy so sánh dấu vân tay SHA-256 bên dưới với của máy chủ trước khi tin cậy. Cuotai chỉ chấp nhận chứng chỉ này; nếu nó thay đổi, tài khoản sẽ dừng và hỏi lại.",
   "confirm.remove": "Xóa",
   "confirm.close": "Đóng",
+  "confirm.claudeCode.forgetTitle": "Quên số liệu Claude Code?",
+  "confirm.claudeCode.forget": "Quên số liệu",
+  "confirm.claudeCode.forgetBody": "Các số liệu Claude Code đã lưu sẽ bị xoá khỏi máy tính này. Tài khoản Claude được Claude Code cung cấp dữ liệu sẽ không hiện dữ liệu cho đến khi Claude Code ghi số liệu mới ở lời nhắc tiếp theo.",
   "confirm.back": "Quay lại",
   "confirm.dismiss": "Bỏ qua",
   "login.demo.oauth.label": "Đăng nhập OAuth (demo)",

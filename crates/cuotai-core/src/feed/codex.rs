@@ -14,15 +14,18 @@
 //!
 //! Only the logs modified within the last day are read, newest first and
 //! at most [`MAX_LOGS`], and of each only its first line (the session id,
-//! digested at once) and its last 256 KiB. Messages, instructions, working
-//! directories and tool output are never deserialized into a value, and
-//! symbolic links are never followed, so no file outside the given roots
-//! is opened.
+//! digested at once) and its last 256 KiB. Each line is parsed into a typed
+//! struct that keeps only the fields read here, so messages, instructions,
+//! working directories and tool output are never deserialized into a value;
+//! and symbolic links are never followed, so no file outside the given
+//! roots is opened.
 
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
+use serde::de::{Deserializer, IgnoredAny, MapAccess, SeqAccess, Visitor};
+use serde::Deserialize;
 use serde_json::Value;
 
 use super::{session_digest, FeedReading, FeedSession, FeedSource, FeedWindow, WindowId, SCHEMA};
@@ -155,6 +158,86 @@ fn window(
     }))
 }
 
+/// A string field, kept only when it is a string; any other value is
+/// skipped without being read into memory (S-03).
+#[derive(Debug, Default)]
+struct Text(Option<String>);
+
+impl<'de> Deserialize<'de> for Text {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Skip;
+        impl<'de> Visitor<'de> for Skip {
+            type Value = Text;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("any JSON value")
+            }
+            fn visit_str<E>(self, value: &str) -> Result<Text, E> {
+                Ok(Text(Some(value.to_owned())))
+            }
+            fn visit_bool<E>(self, _: bool) -> Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_i64<E>(self, _: i64) -> Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_u64<E>(self, _: u64) -> Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_f64<E>(self, _: f64) -> Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_unit<E>(self) -> Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Text, A::Error> {
+                while seq.next_element::<IgnoredAny>()?.is_some() {}
+                Ok(Text(None))
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Text, A::Error> {
+                while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+                Ok(Text(None))
+            }
+        }
+        deserializer.deserialize_any(Skip)
+    }
+}
+
+impl Text {
+    fn as_deref(&self) -> Option<&str> {
+        self.0.as_deref()
+    }
+}
+
+/// One log line, typed (L-2/S-03): only `type`, `timestamp` and the four
+/// payload fields this reader uses are kept. Every other field (messages,
+/// instructions, working directories, tool output) is skipped by serde
+/// without being deserialized.
+#[derive(Debug, Deserialize)]
+struct LogLine {
+    #[serde(default, rename = "type")]
+    kind: Text,
+    #[serde(default)]
+    timestamp: Text,
+    #[serde(default)]
+    payload: Option<Payload>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct Payload {
+    #[serde(default, rename = "type")]
+    kind: Text,
+    /// `turn_context`: the model id.
+    #[serde(default)]
+    model: Text,
+    /// `session_meta`: the session id, digested at once.
+    #[serde(default)]
+    id: Text,
+    /// `token_count`: the rate-limit windows (numbers only); its shape is
+    /// checked by [`window`].
+    #[serde(default)]
+    rate_limits: Option<Value>,
+}
+
 /// The newest token-count event with rate limits in one log.
 fn read_log(path: &Path) -> Result<Option<FeedReading>, CodexError> {
     let Some(bytes) = tail(path) else {
@@ -166,30 +249,28 @@ fn read_log(path: &Path) -> Result<Option<FeedReading>, CodexError> {
         if line.is_empty() || line[0] != b'{' {
             continue;
         }
-        let Ok(value) = serde_json::from_slice::<Value>(line) else {
+        let Ok(value) = serde_json::from_slice::<LogLine>(line) else {
             continue;
         };
-        let kind = value.get("type").and_then(Value::as_str);
-        let payload = value.get("payload");
-        match kind {
+        let payload = value.payload.as_ref();
+        match value.kind.as_deref() {
             Some("turn_context") if found.is_some() && model.is_none() => {
                 model = payload
-                    .and_then(|p| p.get("model"))
-                    .and_then(Value::as_str)
+                    .and_then(|p| p.model.as_deref())
                     .filter(|m| super::is_model_text(m))
                     .map(str::to_owned);
             }
             Some("event_msg") if found.is_none() => {
                 let Some(payload) = payload else { continue };
-                if payload.get("type").and_then(Value::as_str) != Some("token_count") {
+                if payload.kind.as_deref() != Some("token_count") {
                     continue;
                 }
-                let Some(limits) = payload.get("rate_limits").filter(|v| !v.is_null()) else {
+                let Some(limits) = payload.rate_limits.as_ref().filter(|v| !v.is_null()) else {
                     continue;
                 };
                 let Some(at) = value
-                    .get("timestamp")
-                    .and_then(Value::as_str)
+                    .timestamp
+                    .as_deref()
                     .and_then(|t| DateTime::parse_from_rfc3339(t).ok())
                     .map(|t| t.with_timezone(&Utc))
                 else {
@@ -223,15 +304,9 @@ fn read_log(path: &Path) -> Result<Option<FeedReading>, CodexError> {
         return Ok(None);
     };
     let session_id = first_line(path)
-        .and_then(|line| serde_json::from_slice::<Value>(&line).ok())
-        .filter(|value| value.get("type").and_then(Value::as_str) == Some("session_meta"))
-        .and_then(|value| {
-            value
-                .get("payload")
-                .and_then(|p| p.get("id"))
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        })
+        .and_then(|line| serde_json::from_slice::<LogLine>(&line).ok())
+        .filter(|value| value.kind.as_deref() == Some("session_meta"))
+        .and_then(|value| value.payload.and_then(|p| p.id.0))
         .unwrap_or_else(|| {
             // Without a session id, the file name stands for the session.
             path.file_name()

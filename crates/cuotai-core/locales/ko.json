@@ -133,7 +133,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -439,6 +443,7 @@
   "cost.disclosure.directories": "다음 디렉터리의 {pattern} 파일만 읽습니다:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "숫자만 추출합니다: 시간, 모델, 토큰 수(입력, 출력, 캐시 읽기, 캐시 쓰기), 세션의 익명 다이제스트, 그리고 레이블을 붙일 수 있도록 프로젝트 폴더의 단방향 지문.",
+  "cost.disclosure.extracted_v3": "숫자만 추출합니다: 시간, 모델, 토큰 수(입력, 출력, 캐시 읽기, 캐시 쓰기), 세션의 익명 다이제스트, 그리고 레이블을 붙일 수 있도록 프로젝트 폴더의 단방향 지문. Codex CLI로 채우는 계정은 한도 창과 재설정 시각도 추출하며, 이 컴퓨터에 최대 하루 보관합니다.",
   "cost.disclosure.header": "{source}의 로컬 로그 읽기를 켭니다.",
   "cost.disclosure.never_v2": "대화 내용, 프롬프트, 답변, 파일 이름, 프로젝트 경로는 색인에 읽히거나 저장되거나 표시되지 않습니다. 프로젝트의 마지막 폴더 이름은 켠 경우에만 보관됩니다. 이 컴퓨터 밖으로 나가는 것은 없습니다.",
   "cost.disclosure.off": "소스를 끄면 모든 읽기가 중단되고 거기서 파생된 모든 데이터가 삭제됩니다.",
@@ -918,6 +923,8 @@
   "feed.banner.codex_cli": "Codex CLI에 한도 측정값이 있습니다. Codex CLI가 공급하는 ChatGPT / Codex 계정을 추가하세요.",
   "feed.error.malformed": "상태 표시줄 입력이 JSON 객체가 아닙니다.",
   "feed.error.too_large": "상태 표시줄 입력이 64KiB보다 큽니다.",
+  "feed.forget.done": "저장된 {agent} 측정값을 지웠습니다.",
+  "feed.forget.nothing": "저장된 {agent} 측정값이 없었습니다.",
   "feed.health.unreadable": {
     "other": "읽을 수 없는 피드 파일 {count}개를 무시했습니다."
   },
@@ -1490,6 +1497,7 @@
   "note.cloud.google_no_quota_series": "할당량 시리즈가 반환되지 않았습니다. 프로젝트에서 {service} API가 활성화되어 있는지, 토큰에 monitoring.timeSeries.list 권한이 있는지 확인하세요.",
   "note.cloud.google_scope": "범위: 프로젝트 {project}, 서비스 {service}. 한도는 현재 유효한 할당량(하루 한 번 샘플링)이며 사용량은 최근 10분간 net_usage의 합계입니다(최대 약 4분 지연).",
   "note.codex_cli.answered_by_api": "Codex 조회로 답했습니다. Codex CLI 로그에 최근 측정값이 없습니다.",
+  "note.codex_cli.answered_by_api_no_consent": "Codex 조회로 답했습니다. Codex CLI 로그를 읽으려면 Codex CLI 로컬 소스(로컬 비용)를 켜야 합니다.",
   "note.codex_cli.answered_by_feed": "Codex CLI 자체 세션 로그로 답했습니다(네트워크 요청 없음).",
   "note.codex_cli.fed": "Codex CLI의 로컬 세션 로그에서 읽었습니다(문서화되지 않은 형식). 네트워크 요청도 토큰 재사용도 없습니다.",
   "note.codex_cli.needs_consent": "Codex CLI 로그를 읽으려면 읽을 폴더를 보여 주는 Codex CLI 로컬 소스(로컬 비용)를 켜야 합니다.",

@@ -20,7 +20,8 @@
       "dashboard.metric.full",
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
-      "once.renewal_due"
+      "once.renewal_due",
+      "feed.forget.failed"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -283,6 +284,7 @@
   "extensions.secret.where": "Значение хранится только в системном хранилище и попадает лишь в окружение расширения.",
   "extensions.title": " Расширения ",
   "feed.setup.chained": "Чтобы сохранить свой скрипт строки состояния, подключите его цепочкой:",
+  "feed.forget.failed": "Не удалось стереть сохранённые показания Claude Code.",
   "feed.setup.docs": "Подробности и заявление о конфиденциальности: docs/integrations/claude-code.md",
   "feed.setup.intro": "Добавьте это в ~/.claude/settings.json (Cuotai никогда не меняет файл за вас):",
   "feed.write_failed": "Не удалось сохранить показания строки состояния в папке данных.",

@@ -278,7 +278,13 @@ pub(crate) fn run(
         }
         CostAction::Disable(name) => {
             let source = source(&name, locale)?;
-            let removed = cost::turn_off(&settings, &index, source).map_err(l10n)?;
+            let removed = cost::turn_off(
+                &settings,
+                &index,
+                source,
+                cuotai_core::feed::FeedStore::in_data_dir().as_ref(),
+            )
+            .map_err(l10n)?;
             writeln!(
                 stdout,
                 "{}",

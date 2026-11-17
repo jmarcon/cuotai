@@ -41,7 +41,8 @@
       "dashboard.metric.full",
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
-      "once.renewal_due"
+      "once.renewal_due",
+      "feed.forget.failed"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -286,6 +287,7 @@
   "extensions.secret.where": "値はシステムの保管庫にのみ保存され、拡張機能の環境にのみ渡されます。",
   "extensions.title": " 拡張機能 ",
   "feed.setup.chained": "自分のステータスラインスクリプトを残すには、代わりに次のように連結します：",
+  "feed.forget.failed": "保存されている Claude Code の測定値を消去できませんでした。",
   "feed.setup.docs": "詳細とプライバシーに関する説明：docs/integrations/claude-code.md",
   "feed.setup.intro": "これを ~/.claude/settings.json に追加してください（Cuotai が代わりに編集することはありません）：",
   "feed.write_failed": "ステータスラインの測定値をデータフォルダーに保存できませんでした。",

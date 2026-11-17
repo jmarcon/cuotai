@@ -31,6 +31,9 @@ struct Stores {
     settings: SettingsStore,
     index: CostIndex,
     pricing: PricingFile,
+    /// PRD 0040 RF4.3: the agent feed, whose Codex CLI readings turning
+    /// that source off erases (`None` in tests).
+    feed: Option<cuotai_core::feed::FeedStore>,
 }
 
 /// The local cost state of the app.
@@ -178,6 +181,7 @@ impl LocalCost {
                 settings: SettingsStore::in_data_dir()?,
                 index: CostIndex::in_data_dir()?,
                 pricing: PricingFile::in_data_dir()?,
+                feed: cuotai_core::feed::FeedStore::in_data_dir(),
             })
         })()
         .ok();
@@ -548,7 +552,13 @@ impl LocalCost {
     /// RF2.4: off, and everything derived from `source` erased.
     pub fn disable(&self, source: SourceId) -> Result<CostView, String> {
         let stores = self.stores()?;
-        cost::turn_off(&stores.settings, &stores.index, source).map_err(l10n)?;
+        cost::turn_off(
+            &stores.settings,
+            &stores.index,
+            source,
+            stores.feed.as_ref(),
+        )
+        .map_err(l10n)?;
         self.wake();
         self.view()
     }
@@ -564,8 +574,15 @@ impl LocalCost {
             .filter(|path| !path.is_empty())
             .map(PathBuf::from)
             .collect();
-        cost::choose_paths(&stores.settings, &stores.index, source, paths, &self.env)
-            .map_err(l10n)?;
+        cost::choose_paths(
+            &stores.settings,
+            &stores.index,
+            source,
+            paths,
+            &self.env,
+            stores.feed.as_ref(),
+        )
+        .map_err(l10n)?;
         self.wake();
         self.view()
     }
@@ -617,6 +634,7 @@ mod tests {
                 settings: SettingsStore::at(dir.join("settings.json")),
                 index: CostIndex::new(dir.join("index.sqlite3")),
                 pricing: PricingFile::at(dir.join("pricing.json")),
+                feed: None,
             }),
             env: Env::new(Some(dir.join("home")), []),
             worker: Mutex::new(None),
@@ -777,6 +795,7 @@ mod tests {
                 SourceId::ClaudeCode,
                 vec![root.join("elsewhere")],
                 &Env::new(Some(root.join("home")), []),
+                None,
             )
             .unwrap();
         });

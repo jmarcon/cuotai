@@ -302,22 +302,119 @@ impl FeedHealth {
     }
 }
 
+/// RF4.3 (PRD 0040 re-validation S-01): whether the readings of `source`
+/// may be read and shown. Claude Code's consent is the person's own act of
+/// installing the status-line command; Codex CLI's readings are derived
+/// from its logs, so they need the `codex_cli` local cost source turned on
+/// (the consent that lists the folders read). Every reader of the store
+/// built by [`FeedStore::in_data_dir`] goes through this check.
+pub fn readable(source: FeedSource) -> bool {
+    match source {
+        FeedSource::ClaudeCode => true,
+        FeedSource::CodexCli => crate::cost::SettingsStore::in_data_dir()
+            .and_then(|store| store.load())
+            .unwrap_or_default()
+            .enabled(crate::cost::SourceId::CodexCli, &crate::cost::Env::system()),
+    }
+}
+
 /// The feed directory: one subdirectory per source.
 #[derive(Debug, Clone)]
 pub struct FeedStore {
     dir: PathBuf,
+    /// Readers check [`readable`] (the store of the data directory); a
+    /// store built with [`FeedStore::at`] reads every source.
+    consent: Consent,
+}
+
+/// How a store decides whether a source may be read.
+#[derive(Debug, Clone)]
+enum Consent {
+    /// Every source (tests and tools).
+    All,
+    /// [`readable`], asked once per store and only for Codex CLI.
+    Checked(std::sync::OnceLock<bool>),
+    /// A fixed answer for Codex CLI (tests).
+    #[cfg(test)]
+    Codex(bool),
 }
 
 impl FeedStore {
     /// The store at `dir` (tests and tools).
     pub fn at(dir: impl Into<PathBuf>) -> Self {
-        Self { dir: dir.into() }
+        Self {
+            dir: dir.into(),
+            consent: Consent::All,
+        }
     }
 
     /// `<data dir>/feed` ([`crate::data_dir::root`], honouring
     /// `CUOTAI_DATA_DIR`); `None` when there is no usable data directory.
+    /// Its readers check the consent of each source ([`readable`]).
     pub fn in_data_dir() -> Option<Self> {
-        crate::data_dir::root().map(|root| Self::at(root.join("feed")))
+        crate::data_dir::root().map(|root| Self {
+            dir: root.join("feed"),
+            consent: Consent::Checked(std::sync::OnceLock::new()),
+        })
+    }
+
+    /// Test seam: the store at `dir` with the Codex CLI consent `granted`.
+    #[cfg(test)]
+    pub(crate) fn with_codex_consent(dir: impl Into<PathBuf>, granted: bool) -> Self {
+        Self {
+            dir: dir.into(),
+            consent: Consent::Codex(granted),
+        }
+    }
+
+    /// Whether this store's readers may read `source` ([`readable`]).
+    pub fn source_readable(&self, source: FeedSource) -> bool {
+        if source != FeedSource::CodexCli {
+            return true;
+        }
+        match &self.consent {
+            Consent::All => true,
+            Consent::Checked(cell) => *cell.get_or_init(|| readable(source)),
+            #[cfg(test)]
+            Consent::Codex(granted) => *granted,
+        }
+    }
+
+    /// RF4.3/RF1.2: erase every reading of `source` (turning the Codex CLI
+    /// source off, `--feed claude-statusline --forget`, Settings' **Forget
+    /// Claude Code readings**). `true` when there was something to erase.
+    pub fn clear_source(&self, source: FeedSource) -> std::io::Result<bool> {
+        match std::fs::remove_dir_all(self.source_dir(source)) {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// RF1.2 (S-01): the newest file of a source is kept past the 24-hour
+    /// retention only while an account of `config` is bound to it (so a
+    /// quiet agent ages on its card instead of disappearing). For a source
+    /// no account reads, readers delete it too once it expires. The writer,
+    /// which reads no configuration, never does.
+    pub fn prune_unbound(&self, config: &crate::Config, now: DateTime<Utc>) {
+        let cutoff: std::time::SystemTime = (now - RETENTION).into();
+        for source in FeedSource::ALL {
+            if config
+                .accounts
+                .iter()
+                .any(|account| bound_source(account) == Some(source))
+            {
+                continue;
+            }
+            for path in json_files(&self.source_dir(source)) {
+                let expired = std::fs::symlink_metadata(&path)
+                    .and_then(|meta| meta.modified())
+                    .is_ok_and(|modified| modified < cutoff);
+                if expired {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+        }
     }
 
     pub fn dir(&self) -> &Path {
@@ -352,6 +449,12 @@ impl FeedStore {
     /// Every valid reading of `source`, newest first, plus the count of
     /// files that failed validation. Expired files are deleted on the way.
     fn scan(&self, source: FeedSource, now: DateTime<Utc>) -> (Vec<FeedReading>, usize) {
+        if !self.source_readable(source) {
+            // S-01: without the consent nothing is read, and what was
+            // derived under an earlier one is erased (best effort).
+            let _ = self.clear_source(source);
+            return (Vec::new(), 0);
+        }
         self.prune(source, now);
         let mut readings = Vec::new();
         let mut unreadable = 0;
@@ -529,6 +632,27 @@ impl AccountReading {
     pub fn newest_window_at(&self) -> Option<DateTime<Utc>> {
         self.window_times.iter().map(|(_, at)| *at).max()
     }
+}
+
+/// RF1.2 (S-01): erase the stored readings of `source` (`cuotai --feed
+/// claude-statusline --forget`, Settings' **Forget Claude Code readings**)
+/// and say what happened. Claude Code writes a new reading at its next
+/// prompt while its status line runs Cuotai.
+pub fn forget(store: &FeedStore, source: FeedSource) -> std::io::Result<Localized> {
+    let agent = || crate::text::params([("agent", ParamValue::from(source.label()))]);
+    Ok(if store.clear_source(source)? {
+        Localized::with_params(
+            "feed.forget.done",
+            agent(),
+            "The stored {agent} readings were erased.",
+        )
+    } else {
+        Localized::with_params(
+            "feed.forget.nothing",
+            agent(),
+            "No {agent} readings were stored.",
+        )
+    })
 }
 
 /// RF3.4 (V-02): the merged reading of `source` from the store (see

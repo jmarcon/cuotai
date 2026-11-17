@@ -389,8 +389,8 @@ static ARTIFACTS: &[Artifact] = &[
     dir(
         "feed.tree",
         "feed",
-        "agent-fed readings: one JSON file per agent session with rate-limit percentages, reset times, the context share, the agent's cost estimate, a model name and a digest of the session id; never a path, prompt or raw id",
-        "24 hours (the newest file of each agent is kept), 64 files per agent",
+        "agent-fed readings: one JSON file per agent session with rate-limit percentages, reset times, the context share, the agent's cost estimate, a model name and a digest of the session id; never a path, prompt or raw id. Codex CLI's are read only with its local cost source on and erased when it is turned off; `--feed claude-statusline --forget` erases Claude Code's",
+        "24 hours (the newest file of an agent an account reads is kept), 64 files per agent",
         "0040",
     ),
     Artifact {

@@ -335,6 +335,8 @@
   "feed.banner.codex_cli": "Codex CLI ha letture dei limiti; aggiungi un account ChatGPT / Codex alimentato da Codex CLI.",
   "feed.error.malformed": "L’input della riga di stato non è un oggetto JSON.",
   "feed.error.too_large": "L’input della riga di stato supera 64 KiB.",
+  "feed.forget.done": "Le letture salvate di {agent} sono state cancellate.",
+  "feed.forget.nothing": "Non c’erano letture di {agent} salvate.",
   "feed.health.unreadable": {
     "one": "{count} file di feed illeggibile ignorato.",
     "other": "{count} file di feed illeggibili ignorati."
@@ -936,6 +938,7 @@
   "note.cloud.google_no_quota_series": "Nessuna serie di quota restituita. Controlla se l'API {service} è abilitata nel progetto e che il token abbia monitoring.timeSeries.list.",
   "note.cloud.google_scope": "Ambito: progetto {project}, servizio {service}. I limiti sono le quote correnti (campionate 1 volta al giorno); l'utilizzo è la somma di net_usage negli ultimi 10 min (~4 min di ritardo).",
   "note.codex_cli.answered_by_api": "Risposta dalla query di Codex: nessuna lettura recente nei log di Codex CLI.",
+  "note.codex_cli.answered_by_api_no_consent": "Risposta dalla query di Codex: per leggere i log di Codex CLI serve attivare la fonte locale Codex CLI (Costo locale).",
   "note.codex_cli.answered_by_feed": "Risposta dai log di sessione di Codex CLI (nessuna richiesta di rete).",
   "note.codex_cli.fed": "Letto dai log di sessione locali di Codex CLI (formato non documentato): nessuna richiesta di rete, nessun token riutilizzato.",
   "note.codex_cli.needs_consent": "Per leggere i log di Codex CLI serve attivare la fonte locale Codex CLI (Costo locale), che elenca le cartelle lette.",
@@ -1591,6 +1594,7 @@
   "cost.disclosure.directories": "Legge solo i file {pattern} di queste directory:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Vengono estratti solo numeri: l’ora, il modello, i conteggi dei token (input, output, lettura e scrittura della cache), un riepilogo anonimo della sessione e un’impronta unidirezionale della cartella del progetto, così puoi etichettarla.",
+  "cost.disclosure.extracted_v3": "Vengono estratti solo numeri: l’ora, il modello, i conteggi dei token (input, output, lettura e scrittura della cache), un riepilogo anonimo della sessione e un’impronta unidirezionale della cartella del progetto, così puoi etichettarla; per un account alimentato da Codex CLI, anche le sue finestre di limite e gli orari di azzeramento, conservati su questo computer fino a un giorno.",
   "cost.disclosure.header": "Attiva la lettura dei log locali di {source}.",
   "cost.disclosure.never_v2": "Il contenuto delle conversazioni, i prompt, le risposte, i nomi dei file e i percorsi dei progetti non vengono mai letti nell’indice, salvati o mostrati; l’ultimo nome di cartella di un progetto viene conservato solo se lo attivi. Nulla lascia questo computer.",
   "cost.disclosure.off": "Disattivare la fonte interrompe ogni lettura e cancella tutto ciò che ne deriva.",

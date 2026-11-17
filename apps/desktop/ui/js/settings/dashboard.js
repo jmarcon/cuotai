@@ -1,9 +1,9 @@
 // Settings › Dashboard (PRD 0020 RF2.5, PRD 0025 RF5.2/RF9): the accounts (add, edit, remove and order; the dialogs
 // stay in the main window, which owns them), the sort, the tray view, the row display, the "Recharging" group,
 // consumption pace and the refresh interval.
-import { t, te } from "../i18n.js";
-import { accountTitle, brand, claudeCodeSnippets, durationText, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
-import { errorText, group, l10nError } from "./common.js";
+import { t, te, tl } from "../i18n.js";
+import { accountTitle, brand, claudeCodeSnippets, durationText, forgetClaudeCodeReadings, esc, getView, logo, moveAccount, requestAccountAction, adviceShown, currentSort, groupingRecharging, icon, liveSessionShown, setAdviceEnabled, setLiveSession, setGroupRecharging, setPaceUnit, setRefreshSeconds, setShowPace, setSort, setTrayView, TRAY_VIEWS, trayViewOf } from "../lib.js";
+import { askDialog, errorText, group, l10nError } from "./common.js";
 import { commitField, disc, num, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { AGG_MODES, aggregatorsInAll, setAggregatorsInAll } from "../aggregator.js";
 import { bind as bindRows, rowsHtml } from "./rowdisplay.js";
@@ -57,11 +57,20 @@ function claudeCodeHtml() {
       control: () => `<button type="button" class="btn sm" data-claude-copy="settings">${icon("copy")} ${te("settings.claudeCode.copy")}</button>`,
       body: `<pre class="snippet" data-claude-snippet></pre>
         <p class="hint">${te("settings.claudeCode.chained")}</p><pre class="snippet" data-claude-chained></pre>
-        <p class="dlg-actions left"><button type="button" class="btn sm" data-claude-copy="chained">${icon("copy")} ${te("settings.claudeCode.copy")}</button></p>` });
+        <p class="dlg-actions left"><button type="button" class="btn sm" data-claude-copy="chained">${icon("copy")} ${te("settings.claudeCode.copy")}</button></p>
+        <p class="dlg-actions left"><button type="button" class="btn sm danger-btn" data-claude-forget>${icon("trash")} ${te("settings.claudeCode.forget")}</button></p>` });
 }
 
 async function bindClaudeCode(root) {
   if (!root) return;
+  // PRD 0040 RF1.2 (S-01): the stored readings can be erased; Claude Code writes a new one at its next prompt.
+  const forget = root.querySelector("[data-claude-forget]");
+  if (forget) forget.onclick = async () => {
+    if (!(await askDialog("claude-code-forget", te("confirm.claudeCode.forgetTitle"), `<p>${te("confirm.claudeCode.forgetBody")}</p>`,
+      te("confirm.claudeCode.forget")))) return;
+    forgetClaudeCodeReadings().then((text) => { rowError(forget, ""); toast(tl(text)); },
+      (x) => { rowError(forget, errorText(x)); forget.focus(); });
+  };
   const snippets = await claudeCodeSnippets().catch(() => null);
   if (!snippets) return;
   const main = root.querySelector("[data-claude-snippet]");

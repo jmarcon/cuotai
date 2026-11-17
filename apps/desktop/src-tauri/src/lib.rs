@@ -1562,6 +1562,16 @@ fn dismiss_feed_banner(source: String) -> Result<(), String> {
     settings::dismiss_feed_banner(&source).map_err(str::to_owned)
 }
 
+/// PRD 0040 RF1.2 (S-01): Settings' **Forget Claude Code readings** erases
+/// the stored Claude Code readings; the answer says whether there were
+/// any. Errors: `unwritable`.
+#[tauri::command]
+fn forget_claude_code_readings() -> Result<cuotai_core::text::Localized, String> {
+    use cuotai_core::feed::{self, FeedSource, FeedStore};
+    let store = FeedStore::in_data_dir().ok_or("unwritable")?;
+    feed::forget(&store, FeedSource::ClaudeCode).map_err(|_| "unwritable".to_owned())
+}
+
 /// PRD 0040 RF2.4: the `~/.claude/settings.json` snippets Settings offers
 /// with **Copy** (Cuotai never edits the agent's settings).
 #[tauri::command]
@@ -3189,6 +3199,7 @@ pub fn run() -> std::process::ExitCode {
             set_live_session,
             dismiss_feed_banner,
             claude_code_snippets,
+            forget_claude_code_readings,
             set_history_days,
             history_export,
             history_erase,

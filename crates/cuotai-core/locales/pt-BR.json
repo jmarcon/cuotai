@@ -319,6 +319,7 @@
   "cost.disclosure.directories": "Lê apenas os arquivos {pattern} destes diretórios:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Só números são extraídos: a hora, o modelo, as contagens de tokens (entrada, saída, leitura e escrita de cache), um resumo anônimo da sessão e uma impressão digital de mão única da pasta do projeto, para você poder rotulá-la.",
+  "cost.disclosure.extracted_v3": "Só números são extraídos: a hora, o modelo, as contagens de tokens (entrada, saída, leitura e escrita de cache), um resumo anônimo da sessão e uma impressão digital de mão única da pasta do projeto, para você poder rotulá-la; para uma conta alimentada pelo Codex CLI, também as janelas de limite e os horários de reinício, guardados neste computador por até um dia.",
   "cost.disclosure.header": "Ligar a leitura dos logs locais do {source}.",
   "cost.disclosure.never_v2": "O conteúdo das conversas, prompts, respostas, nomes de arquivos e caminhos de projeto nunca são lidos no índice, guardados ou exibidos; o último nome de pasta de um projeto só é guardado se você ativar isso. Nada sai deste computador.",
   "cost.disclosure.off": "Desligar a fonte interrompe qualquer leitura e apaga tudo o que foi derivado dela.",
@@ -812,6 +813,8 @@
   "feed.banner.codex_cli": "O Codex CLI tem leituras de limite; adicione uma conta ChatGPT / Codex alimentada pelo Codex CLI.",
   "feed.error.malformed": "A entrada da linha de status não é um objeto JSON.",
   "feed.error.too_large": "A entrada da linha de status passa de 64 KiB.",
+  "feed.forget.done": "As leituras guardadas do {agent} foram apagadas.",
+  "feed.forget.nothing": "Não havia leituras do {agent} guardadas.",
   "feed.health.unreadable": {
     "one": "{count} arquivo de feed ilegível ignorado.",
     "other": "{count} arquivos de feed ilegíveis ignorados."
@@ -1388,6 +1391,7 @@
   "note.cloud.google_no_quota_series": "Nenhuma série de cota retornada. Verifique se a API {service} está habilitada no projeto e se o token possui monitoring.timeSeries.list.",
   "note.cloud.google_scope": "Escopo: projeto {project}, serviço {service}. Limites são cotas vigentes (amostradas 1x/dia); uso é a soma de net_usage dos últimos 10 min (atraso de até ~4 min).",
   "note.codex_cli.answered_by_api": "Respondido pela consulta do Codex: sem leitura recente nos logs do Codex CLI.",
+  "note.codex_cli.answered_by_api_no_consent": "Respondido pela consulta do Codex: ler os logs do Codex CLI exige ativar a fonte local Codex CLI (Custo local).",
   "note.codex_cli.answered_by_feed": "Respondido pelos próprios logs de sessão do Codex CLI (sem requisição de rede).",
   "note.codex_cli.fed": "Lido dos logs de sessão locais do Codex CLI (formato não documentado): sem requisição de rede, sem reutilizar tokens.",
   "note.codex_cli.needs_consent": "Ler os logs do Codex CLI exige ativar a fonte local Codex CLI (Custo local), que lista as pastas lidas.",

@@ -114,7 +114,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -420,6 +424,7 @@
   "cost.disclosure.directories": "Hanya membaca file {pattern} dari direktori ini:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Hanya angka yang diekstrak: waktu, model, jumlah token (input, output, baca cache, dan tulis cache), ringkasan anonim sesi, dan sidik jari satu arah dari folder proyek, agar Anda bisa memberinya label.",
+  "cost.disclosure.extracted_v3": "Hanya angka yang diekstrak: waktu, model, jumlah token (input, output, baca cache, dan tulis cache), ringkasan anonim sesi, dan sidik jari satu arah dari folder proyek, agar Anda bisa memberinya label; untuk akun yang diisi oleh Codex CLI, juga jendela batas laju dan waktu reset-nya, disimpan di komputer ini hingga satu hari.",
   "cost.disclosure.header": "Aktifkan pembacaan log lokal {source}.",
   "cost.disclosure.never_v2": "Isi percakapan, prompt, jawaban, nama file, dan jalur proyek tidak pernah dibaca ke indeks, disimpan, atau ditampilkan; nama folder terakhir sebuah proyek hanya disimpan jika Anda mengaktifkannya. Tidak ada yang keluar dari komputer ini.",
   "cost.disclosure.off": "Menonaktifkan sumber menghentikan setiap pembacaan dan menghapus semua yang diturunkan darinya.",
@@ -899,6 +904,8 @@
   "feed.banner.codex_cli": "Codex CLI memiliki pembacaan batas laju; tambahkan akun ChatGPT / Codex yang diumpan oleh Codex CLI.",
   "feed.error.malformed": "Input baris status bukan objek JSON.",
   "feed.error.too_large": "Input baris status lebih besar dari 64 KiB.",
+  "feed.forget.done": "Pembacaan {agent} yang tersimpan telah dihapus.",
+  "feed.forget.nothing": "Tidak ada pembacaan {agent} yang tersimpan.",
   "feed.health.unreadable": {
     "other": "{count} berkas umpan tak terbaca diabaikan."
   },
@@ -1471,6 +1478,7 @@
   "note.cloud.google_no_quota_series": "Tidak ada seri kuota yang dikembalikan. Periksa apakah API {service} diaktifkan di proyek dan token memiliki monitoring.timeSeries.list.",
   "note.cloud.google_scope": "Cakupan: proyek {project}, layanan {service}. Batas adalah kuota yang berlaku (disampel 1x/hari); penggunaan adalah jumlah net_usage dalam 10 menit terakhir (tertunda hingga ~4 mnt).",
   "note.codex_cli.answered_by_api": "Dijawab oleh kueri Codex: tidak ada pembacaan terbaru di log Codex CLI.",
+  "note.codex_cli.answered_by_api_no_consent": "Dijawab oleh kueri Codex: membaca log Codex CLI memerlukan sumber lokal Codex CLI dinyalakan (Biaya lokal).",
   "note.codex_cli.answered_by_feed": "Dijawab oleh log sesi Codex CLI sendiri (tanpa permintaan jaringan).",
   "note.codex_cli.fed": "Dibaca dari log sesi lokal Codex CLI (format tidak terdokumentasi): tanpa permintaan jaringan, tanpa memakai ulang token.",
   "note.codex_cli.needs_consent": "Membaca log Codex CLI memerlukan sumber lokal Codex CLI dinyalakan (Biaya lokal), yang mencantumkan folder yang dibaca.",

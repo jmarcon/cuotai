@@ -137,7 +137,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -446,6 +450,7 @@
   "cost.disclosure.directories": "Liest nur die {pattern}-Dateien dieser Verzeichnisse:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Es werden nur Zahlen extrahiert: Zeitpunkt, Modell, Token-Zählungen (Eingabe, Ausgabe, Cache-Lesen und -Schreiben), eine anonyme Sitzungskennung und ein Einweg-Fingerabdruck des Projektordners, damit Sie ihn benennen können.",
+  "cost.disclosure.extracted_v3": "Es werden nur Zahlen extrahiert: Zeitpunkt, Modell, Token-Zählungen (Eingabe, Ausgabe, Cache-Lesen und -Schreiben), eine anonyme Sitzungskennung und ein Einweg-Fingerabdruck des Projektordners, damit Sie ihn benennen können; für ein von Codex CLI gespeistes Konto außerdem dessen Ratenlimit-Fenster und Zeitpunkte der Zurücksetzung, die bis zu einen Tag auf diesem Computer bleiben.",
   "cost.disclosure.header": "Das Lesen der lokalen Logs von {source} einschalten.",
   "cost.disclosure.never_v2": "Der Inhalt von Gesprächen, Prompts, Antworten, Dateinamen und Projektpfaden wird nie für den Index gelesen, gespeichert oder angezeigt; der letzte Ordnername eines Projekts wird nur gespeichert, wenn Sie das einschalten. Nichts verlässt den Computer.",
   "cost.disclosure.off": "Das Ausschalten der Quelle beendet jedes Lesen und löscht alles, was daraus abgeleitet wurde.",
@@ -939,6 +944,8 @@
   "feed.banner.codex_cli": "Codex CLI hat Messwerte zu Ratenlimits; füge ein ChatGPT-/Codex-Konto hinzu, das von Codex CLI gespeist wird.",
   "feed.error.malformed": "Die Eingabe der Statuszeile ist kein JSON-Objekt.",
   "feed.error.too_large": "Die Eingabe der Statuszeile ist größer als 64 KiB.",
+  "feed.forget.done": "Die gespeicherten Messwerte von {agent} wurden gelöscht.",
+  "feed.forget.nothing": "Es waren keine Messwerte von {agent} gespeichert.",
   "feed.health.unreadable": {
     "one": "{count} unlesbare Feed-Datei ignoriert.",
     "other": "{count} unlesbare Feed-Dateien ignoriert."
@@ -1515,6 +1522,7 @@
   "note.cloud.google_no_quota_series": "Keine Kontingent-Zeitreihe zurückgegeben. Prüfen Sie, ob die API {service} im Projekt aktiviert ist und das Token monitoring.timeSeries.list besitzt.",
   "note.cloud.google_scope": "Bereich: Projekt {project}, Dienst {service}. Limits sind geltende Kontingente (1× täglich abgetastet); die Nutzung ist die Summe von net_usage der letzten 10 Min. (Verzögerung bis ca. 4 Min.).",
   "note.codex_cli.answered_by_api": "Beantwortet durch die Codex-Abfrage: kein aktueller Messwert in den Protokollen von Codex CLI.",
+  "note.codex_cli.answered_by_api_no_consent": "Beantwortet durch die Codex-Abfrage: Zum Lesen der Protokolle von Codex CLI muss die lokale Quelle Codex CLI eingeschaltet sein (Lokale Kosten).",
   "note.codex_cli.answered_by_feed": "Beantwortet durch die eigenen Sitzungsprotokolle von Codex CLI (keine Netzwerkanfrage).",
   "note.codex_cli.fed": "Aus den lokalen Sitzungsprotokollen von Codex CLI gelesen (undokumentiertes Format): keine Netzwerkanfrage, keine Token-Wiederverwendung.",
   "note.codex_cli.needs_consent": "Zum Lesen der Protokolle von Codex CLI muss die lokale Quelle Codex CLI eingeschaltet sein (Lokale Kosten); dort stehen die gelesenen Ordner.",
