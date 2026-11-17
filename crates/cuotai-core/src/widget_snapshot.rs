@@ -420,7 +420,9 @@ fn project(account: &AccountExport) -> WidgetAccount {
         (None, Some(report)) => Reading {
             state: WidgetState::Ready,
             metrics: Some(&report.metrics),
-            checked_at: Some(report.checked_at),
+            // PRD 0040 re-validation H-1: when the values were measured (an
+            // agent feed's own time), so the widget ages it like the app.
+            checked_at: Some(crate::freshness::reading_time(report)),
             freshness: account.freshness,
             binding: account.binding.clone(),
             pace: &account.pace,
@@ -819,6 +821,30 @@ mod tests {
         assert_eq!(surviving, 1, "only one oversized account fits");
         let (again, ..) = snapshot.fitted_json();
         assert_eq!(json, again, "the same state fits the same way");
+    }
+
+    /// PRD 0040 re-validation H-1: an agent feed read 1 minute ago but
+    /// written 2 hours ago is projected stale at the agent's time.
+    #[test]
+    fn a_fed_reading_carries_the_agents_time_and_reads_stale() {
+        let fed = Account {
+            params: [("query_mode".to_owned(), "claude_code".to_owned())].into(),
+            ..account("Fed", Provider::Claude)
+        };
+        let config = Config {
+            accounts: vec![fed.clone()],
+            ..Config::default()
+        };
+        let mut cycle = RefreshCycle::new(&config, Instant::now());
+        let mut reading = report(&fed, Status::Ready, vec![quota("5h", 23.0, 100.0, 3)], 1);
+        reading.source = "feed:claude_code".into();
+        reading.as_of = Some(now() - chrono::TimeDelta::hours(2));
+        finish(&mut cycle, 0, reading);
+        let export = build(&config, &cycle, Options::default());
+        assert_eq!(export.accounts[0].reading_age_seconds, Some(7_200));
+        let widget = project(&export.accounts[0]);
+        assert_eq!(widget.checked_at, Some(now() - chrono::TimeDelta::hours(2)));
+        assert_eq!(widget.freshness, Some(Freshness::Stale));
     }
 
     #[test]

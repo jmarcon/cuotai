@@ -40,8 +40,37 @@ where
 {
     // PRD 0036 RF5.3 (V-05): the items are the core's units, so an
     // aggregator counts through its active connections.
-    let views = tray::snapshot_views(&config.accounts, &snapshot.reports);
+    let views = tray::snapshot_views(
+        &config.accounts,
+        &snapshot.reports,
+        config.refresh_seconds,
+        now,
+    );
     render_views(&views, style, ids, color, now, tz, locale)
+}
+
+/// PRD 0040 re-validation H-1: whether a selected item of `snapshot` (`ids`
+/// empty: every item) is stale at `now`, a ready but old reading included
+/// (an agent feed written 2 h ago), so `--status-line` exits `2` as it does
+/// with `--from-server`.
+pub(crate) fn stale_selected(
+    config: &Config,
+    snapshot: &Snapshot,
+    ids: &[String],
+    now: DateTime<Utc>,
+) -> bool {
+    let views = tray::snapshot_views(
+        &config.accounts,
+        &snapshot.reports,
+        config.refresh_seconds,
+        now,
+    );
+    let selection = if ids.is_empty() {
+        TraySelection::Auto
+    } else {
+        TraySelection::Custom(ids.to_vec())
+    };
+    selection.pick(&views).iter().any(|view| view.stale)
 }
 
 /// The one line for `views`, already in order (the same rules as

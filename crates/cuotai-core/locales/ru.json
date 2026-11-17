@@ -169,7 +169,11 @@
       "cost.disclosure.extracted_v3",
       "feed.forget.done",
       "feed.forget.nothing",
-      "note.codex_cli.answered_by_api_no_consent"
+      "note.codex_cli.answered_by_api_no_consent",
+      "freshness.presented.queried_ago",
+      "freshness.presented.read_ago",
+      "freshness.state.aging",
+      "freshness.state.stale"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -2421,6 +2425,10 @@
   "login.progress.bailian_profile_model_studio": "Бесплатная квота и использование Model Studio будут читаться с этим профилем через `bl --config <имя>`.",
   "freshness.age.now": "сейчас",
   "freshness.age.seconds": "{n} с назад",
+  "freshness.presented.queried_ago": "запрошено {age}",
+  "freshness.presented.read_ago": "прочитано {age}",
+  "freshness.state.aging": "Стареет",
+  "freshness.state.stale": "Устарело",
   "freshness.age.minutes": "{n} мин назад",
   "freshness.age.hours": "{n} ч назад",
   "freshness.age.days": "{n} дн. назад",

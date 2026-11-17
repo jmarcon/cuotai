@@ -156,7 +156,11 @@
       "cost.disclosure.extracted_v3",
       "feed.forget.done",
       "feed.forget.nothing",
-      "note.codex_cli.answered_by_api_no_consent"
+      "note.codex_cli.answered_by_api_no_consent",
+      "freshness.presented.queried_ago",
+      "freshness.presented.read_ago",
+      "freshness.state.aging",
+      "freshness.state.stale"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2312,6 +2316,10 @@
   "login.progress.bailian_profile_model_studio": "Model Studio 的免费额度和用量将通过 `bl --config <名称>` 使用此配置文件读取。",
   "freshness.age.now": "刚刚",
   "freshness.age.seconds": "{n} 秒前",
+  "freshness.presented.queried_ago": "{age}查询",
+  "freshness.presented.read_ago": "{age}读取",
+  "freshness.state.aging": "较旧",
+  "freshness.state.stale": "过期",
   "freshness.age.minutes": "{n} 分钟前",
   "freshness.age.hours": "{n} 小时前",
   "freshness.age.days": "{n} 天前",

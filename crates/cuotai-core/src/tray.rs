@@ -219,6 +219,11 @@ pub struct AccountView {
     /// connection; a custom selection naming the aggregator picks it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
+    /// PRD 0040 re-validation H-1: when the reading shown was measured
+    /// ([`crate::freshness::reading_time`]: an agent feed's own time, or a
+    /// preserved reading's original one); `None` without a reading.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub measured_at: Option<DateTime<Utc>>,
 }
 
 impl AccountView {
@@ -246,6 +251,7 @@ impl AccountView {
             on_extra: report
                 .and_then(crate::overage::assess)
                 .is_some_and(|overage| overage.state.is_billing()),
+            measured_at: report.map(crate::freshness::reading_time),
             ..Self::default()
         }
     }
@@ -396,15 +402,26 @@ pub(crate) fn listed(account: &Account, key: &str, id: &str) -> bool {
 /// The menu-bar views of a headless refresh (`config`'s accounts with
 /// their `reports`, in order) over [`summary_units`]: what `--status-line`
 /// renders without a server. A failed query keeps its (possibly
-/// preserved) reading, marked stale.
-pub fn snapshot_views(accounts: &[Account], reports: &[Report]) -> Vec<AccountView> {
+/// preserved) reading, marked stale; a ready one is stale when its
+/// measurement time is (PRD 0040 re-validation H-1: an agent feed written
+/// 2 h ago), against each account's effective interval
+/// (`refresh_seconds` is the configuration's global one) at `now`.
+pub fn snapshot_views(
+    accounts: &[Account],
+    reports: &[Report],
+    refresh_seconds: u64,
+    now: DateTime<Utc>,
+) -> Vec<AccountView> {
     let pairs: Vec<(&Account, &Report)> = accounts.iter().zip(reports).collect();
     summary_units(&pairs)
         .into_iter()
         .map(|unit| match unit {
             SummaryUnit::Account((account, report)) => {
                 let freshness = if report.status == Status::Ready {
-                    Freshness::Fresh
+                    let interval = std::time::Duration::from_secs(
+                        account.effective_refresh_seconds(refresh_seconds),
+                    );
+                    crate::freshness::presented(report, interval, now)
                 } else {
                     Freshness::Stale
                 };

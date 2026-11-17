@@ -531,6 +531,10 @@ pub struct ReportView {
     display_name: String,
     provider: Provider,
     checked_at: chrono::DateTime<chrono::Utc>,
+    /// PRD 0040 re-validation H-1: when the values were measured
+    /// (`freshness::reading_time`: an agent feed's own time). The age chip,
+    /// its tooltip and the menu bar count from it, never from `checked_at`.
+    measured_at: chrono::DateTime<chrono::Utc>,
     status: Status,
     metrics: Vec<MetricView>,
     notes: Vec<String>,
@@ -1221,6 +1225,8 @@ fn report_access(account: &cuotai_core::Account, report: &Report) -> ReportAcces
 #[derive(Serialize, Clone)]
 pub struct LastGoodView {
     checked_at: chrono::DateTime<chrono::Utc>,
+    /// PRD 0040 re-validation H-1: the kept reading's measurement time.
+    measured_at: chrono::DateTime<chrono::Utc>,
     /// PRD 0010 RF1.2: the kept reading lies ahead of the clock (set back).
     clock_adjusted: bool,
     metrics: Vec<MetricView>,
@@ -1229,6 +1235,7 @@ pub struct LastGoodView {
 fn last_good_view(report: &Report, now: chrono::DateTime<chrono::Utc>) -> LastGoodView {
     LastGoodView {
         checked_at: report.checked_at,
+        measured_at: cuotai_core::freshness::reading_time(report),
         clock_adjusted: cuotai_core::freshness::clock_adjusted(report.checked_at, now),
         metrics: report
             .metrics
@@ -1409,6 +1416,12 @@ fn tray_account(view: &ReportView, last_good: Option<&Report>) -> tray::AccountV
             .as_ref()
             .is_some_and(|overage| overage.state.state.is_billing()),
         parent: None,
+        // PRD 0040 re-validation H-1: the shown reading's measurement time.
+        measured_at: if preserved {
+            last_good.map(cuotai_core::freshness::reading_time)
+        } else {
+            Some(view.measured_at)
+        },
     }
 }
 
@@ -1498,6 +1511,7 @@ fn report_view(
         display_name: report.display_name().into_owned(),
         provider: report.provider,
         checked_at: report.checked_at,
+        measured_at: reading_at,
         status: report.status,
         metrics,
         notes: report.notes.clone(),

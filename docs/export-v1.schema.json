@@ -32,6 +32,7 @@
         "class": { "anyOf": [{ "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }] },
         "report": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Report" }], "description": "Current report; null until the account has one." },
         "age_seconds": { "type": ["integer", "null"], "minimum": 0, "description": "Age of report.checked_at; null without a report." },
+        "reading_age_seconds": { "type": ["integer", "null"], "minimum": 0, "description": "Additive: age of the reading itself (an agent feed's own time; the preserved reading's while stale); null without either." },
         "data_age_seconds": { "type": "integer", "minimum": 0, "description": "Age of report.as_of; present only when the provider states the time of its data." },
         "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }, { "type": "string" }], "description": "report.checked_at against the account's effective interval; null without a report." },
         "clock_adjusted": { "type": "boolean", "description": "report.checked_at is in the future; the age reads zero." },
@@ -313,6 +314,7 @@
         "class": { "anyOf": [{ "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }] },
         "binding": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Binding" }] },
         "age_seconds": { "type": ["integer", "null"], "minimum": 0 },
+        "reading_age_seconds": { "type": ["integer", "null"], "minimum": 0 },
         "freshness": { "anyOf": [{ "type": "null" }, { "enum": ["fresh", "aging", "stale"] }, { "type": "string" }] },
         "stale": { "type": "boolean" },
         "incident": {

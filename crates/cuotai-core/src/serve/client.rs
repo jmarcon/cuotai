@@ -276,6 +276,12 @@ pub fn accounts_from_limits(limits: &Value) -> Result<Vec<ServerAccount>, Client
         crate::text::strip_disguising(account.get(key).and_then(Value::as_str).unwrap_or_default())
             .into_owned()
     };
+    // The instant the ages are counted from: the body's own `generated_at`.
+    let generated = limits
+        .get("generated_at")
+        .and_then(Value::as_str)
+        .and_then(|t| DateTime::parse_from_rfc3339(t).ok())
+        .map_or_else(Utc::now, |t| t.with_timezone(&Utc));
     Ok(accounts
         .iter()
         .map(|account| ServerAccount {
@@ -291,7 +297,7 @@ pub fn accounts_from_limits(limits: &Value) -> Result<Vec<ServerAccount>, Client
                             |other| text(other, "id"),
                         )
                 }),
-                ..view(account)
+                ..view(account, generated)
             },
             in_summary: account.get("in_summary").and_then(Value::as_bool) != Some(false),
             key: crate::text::strip_disguising(
@@ -305,7 +311,7 @@ pub fn accounts_from_limits(limits: &Value) -> Result<Vec<ServerAccount>, Client
         .collect())
 }
 
-fn view(account: &Value) -> AccountView {
+fn view(account: &Value, generated: DateTime<Utc>) -> AccountView {
     // S-04: the server's text never carries control or direction
     // characters to the terminal.
     let text = |key: &str| {
@@ -355,9 +361,20 @@ fn view(account: &Value) -> AccountView {
         name: text("name"),
         remaining,
         // V-04: a failed account counts as stale, like a failed query in
-        // `cuotai --status-line` without a server (marked, exit 2).
+        // `cuotai --status-line` without a server (marked, exit 2); so does
+        // a ready but old reading (PRD 0040 re-validation H-1).
         stale: account.get("stale").and_then(Value::as_bool) == Some(true)
-            || account.get("failure").is_some_and(Value::is_object),
+            || account.get("failure").is_some_and(Value::is_object)
+            || account.get("freshness").and_then(Value::as_str) == Some("stale"),
+        // H-1: the age of the reading itself (`reading_age_seconds`; a
+        // server that predates it gives `age_seconds`, the query's age).
+        measured_at: account
+            .get("reading_age_seconds")
+            .and_then(Value::as_u64)
+            .or_else(|| account.get("age_seconds").and_then(Value::as_u64))
+            .and_then(|secs| i64::try_from(secs).ok())
+            .and_then(chrono::TimeDelta::try_seconds)
+            .and_then(|age| generated.checked_sub_signed(age)),
         exhausted: text("class") == "exhausted",
         resets_at: time("blocked_until").or_else(|| time("resets_at")),
         incident,

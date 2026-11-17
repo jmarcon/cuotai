@@ -99,6 +99,10 @@ pub struct AccountExport {
     pub report: Option<Report>,
     /// Age of `report.checked_at`; `null` without a report.
     pub age_seconds: Option<u64>,
+    /// PRD 0040 re-validation H-1 (additive): age of the reading itself
+    /// ([`freshness::reading_time`]: an agent feed's own time), of the
+    /// preserved one while `stale`; `null` without either.
+    pub reading_age_seconds: Option<u64>,
     /// PRD 0033 RF3.3: age of `report.as_of`, present only when the
     /// provider states the time of its data.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -357,6 +361,7 @@ impl SubAccountExport {
             class: self.class,
             report: self.report.clone(),
             age_seconds: self.age_seconds,
+            reading_age_seconds: self.age_seconds,
             data_age_seconds: None,
             freshness: self.freshness,
             clock_adjusted: self.clock_adjusted,
@@ -853,6 +858,8 @@ pub struct AccountLimit {
     pub class: AccountClass,
     pub binding: Option<Binding>,
     pub age_seconds: Option<u64>,
+    /// PRD 0040 re-validation H-1 (additive): [`AccountExport::reading_age_seconds`].
+    pub reading_age_seconds: Option<u64>,
     pub freshness: Option<Freshness>,
     pub stale: bool,
     /// PRD 0031 RF4.1: the provider status as in [`AccountExport::incident`],
@@ -1149,6 +1156,7 @@ impl Limits {
                     class: account.class,
                     binding: account.binding,
                     age_seconds: account.age_seconds,
+                    reading_age_seconds: account.reading_age_seconds,
                     freshness: account.freshness,
                     stale: account.stale,
                     incident: account.incident.as_ref().map(|incident| AccountIncident {
@@ -1258,6 +1266,9 @@ fn account_export(
         class: metrics::classify_report(report),
         report: report.map(|report| scrub.report(report)),
         age_seconds: report.map(|report| age(report.checked_at)),
+        reading_age_seconds: last_good
+            .or(report)
+            .map(|reading| age(freshness::reading_time(reading))),
         data_age_seconds: report
             .and_then(|report| freshness::data_age(report, now))
             .map(|age| age.as_secs()),
