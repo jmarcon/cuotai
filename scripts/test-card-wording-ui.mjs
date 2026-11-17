@@ -549,3 +549,29 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   }
   console.log("PASS: details show each metric's period, and a reset at UTC midnight says so outside UTC");
 }
+
+// PRD 0040 RF3.4/RF6.1 (re-validation V-09): a fed card's status line says where its figures came from (the core's
+// `provenance`, in the reader's language), in its text and in its tooltip; a stale fed card says the age once; a hybrid
+// that fell back names its query; the compact tray row keeps it out of its one line.
+{
+  await i18n.setLocale("en-US");
+  const { statusLineHtml } = await import("../apps/desktop/ui/js/components.js");
+  const text = (id, fallback, params = {}) => ({ id, params, fallback });
+  const age = text("freshness.age.minutes", "3 min ago", { n: "3" });
+  const from = text("feed.provenance.claude_code", "From Claude Code · 3 min ago", { age });
+  const metric = { label: "session (5h)", unit: "%", used: 23, limit: 100, remaining: 77, kind: "quota", window: "window_5h", ratio: 0.77, state: "good" };
+  const fed = { account: "fed@example.com", provider: "claude", status: "ready", freshness: "fresh", metrics: [metric], notes: [],
+    binding: { index: 0 }, source: "feed:claude_code", provenance: from, checked_at: new Date().toISOString() };
+  const line = statusLineHtml(fed, undefined, { compact: false });
+  assert.ok(/<span class="det"[^>]* data-provenance>[^<]*From Claude Code · 3 min ago<\/span>/.test(line), line);
+  assert.ok(/class="stl" title="[^"]*From Claude Code · 3 min ago/.test(line), line);
+  assert.ok(!statusLineHtml(fed, undefined, { compact: true }).includes("data-provenance"), "the tray row keeps one short line");
+  const hybrid = { ...fed, source: "https://claude.ai", provenance: text("feed.provenance.api", "From the Claude query: no recent agent reading", { provider: "Claude" }) };
+  assert.ok(statusLineHtml(hybrid, undefined, { compact: false }).includes("From the Claude query: no recent agent reading"));
+  assert.ok(!statusLineHtml({ ...fed, provenance: undefined }, undefined, { compact: false }).includes("From Claude Code"));
+  await i18n.setLocale("pt-BR");
+  const pt = statusLineHtml(fed, undefined, { compact: false });
+  assert.ok(pt.includes("Do Claude Code · há 3"), pt);
+  await i18n.setLocale("en-US");
+  console.log("PASS: a fed card says where its figure came from, in its line and its tooltip");
+}

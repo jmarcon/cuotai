@@ -2092,8 +2092,22 @@ fn render_card(
             )),
             report.map(|report| {
                 let age = resolve_l10n(&shown(report).age_label());
+                // PRD 0040 RF3.4/RF6.1 (re-validation V-09): a fed card says
+                // where its figures came from ("From Claude Code · 3 min
+                // ago", which carries the age), a hybrid that fell back
+                // names its query.
+                let from =
+                    cuotai_core::feed::provenance(report, view.now).map(|text| resolve_l10n(&text));
+                let fed = report
+                    .source
+                    .starts_with(cuotai_core::feed::REPORT_SOURCE_PREFIX);
+                let head = match from {
+                    Some(from) if fed => from,
+                    Some(from) => format!("{age} · {from}"),
+                    None => age.clone(),
+                };
                 let full = format!(
-                    "{age}{}{}",
+                    "{head}{}{}",
                     data_as_of_suffix(report),
                     live_suffix(view, account_index)
                 );
@@ -3633,7 +3647,21 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             lines.extend(local_cost_lines(panel, tool, &account.state_key()));
         }
     }
-    let source = (!report.source.is_empty()).then_some(safe(&report.source));
+    // PRD 0040 re-validation V-09/V-19: an agent-fed reading names its
+    // source in words instead of the raw `feed:…`.
+    let provenance = cuotai_core::feed::provenance(report, view.now);
+    if let Some(text) = &provenance {
+        lines.push(Line::default());
+        lines.push(Line::styled(
+            safe(&resolve_l10n(text)).into_owned(),
+            Style::default().fg(MUTED),
+        ));
+    }
+    let fed = report
+        .source
+        .starts_with(cuotai_core::feed::REPORT_SOURCE_PREFIX);
+    let source = (!report.source.is_empty() && !(fed && provenance.is_some()))
+        .then_some(safe(&report.source));
     let link = source.as_deref().filter(|source| {
         source
             .strip_prefix("https://")
@@ -5372,17 +5400,27 @@ mod tests {
         };
         let accounts = vec![account];
         let reports = vec![Some(report)];
-        for (locale, stale, age, current, just_now) in [
-            ("en-US", "Stale", "2 h ago", "Up to date", "now"),
+        for (locale, stale, age, current, just_now, from) in [
+            (
+                "en-US",
+                "Stale",
+                "2 h ago",
+                "Up to date",
+                "now",
+                "From Claude Code · 2 h ago",
+            ),
             (
                 "pt-BR",
                 "Desatualizada",
                 "há 2\u{a0}h",
                 "Atualizado",
                 "agora",
+                "Do Claude Code · há 2\u{a0}h",
             ),
         ] {
             let card = render_for_test(&accounts, &reports, &[], &[0], now, locale);
+            // Re-validation V-09: the card says where the figure came from.
+            assert!(card.contains(from), "{locale}: {card}");
             assert!(card.contains(stale), "{locale}: {card}");
             assert!(card.contains(age), "{locale}: {card}");
             assert!(!card.contains(current), "{locale}: {card}");
@@ -5444,6 +5482,9 @@ mod tests {
             assert!(status.contains(age), "{locale}: {status}");
             assert!(!status.contains(current), "{locale}: {status}");
             assert!(!status.contains(just_now), "{locale}: {status}");
+            // V-19: the details name the source in words, never `feed:…`.
+            assert!(details.contains(from), "{locale}: {details}");
+            assert!(!details.contains("feed:claude_code"), "{locale}: {details}");
         }
     }
 

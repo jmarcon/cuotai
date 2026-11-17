@@ -276,11 +276,16 @@ export function statusParts(r, st = accountState(r)) {
   // PRD 0033 RF3.2 (re-validation V-03): the provider's data is older than the query ("data as of 6:00 AM"), on a fresh
   // reading too; the backend sends `data_as_of` only when it lags the query by more than 15 minutes.
   const asOf = st.kind !== "stale" && r.status === "ready" && r.data_as_of ? t("freshness.data_as_of", { time: coreClock(r.data_as_of) ?? "—" }) : "";
+  // PRD 0040 RF3.4/RF6.1 (re-validation V-09): where the figures came from, the core's `feed::provenance` ("From Claude
+  // Code · 3 min ago", or the query a hybrid account fell back to). It carries the age of a fed reading, so a stale
+  // fed card says it once: "Stale · From Claude Code · 2 h ago".
+  let provenance = r.provenance ? tl(r.provenance) : "";
+  if (provenance && st.kind === "stale" && String(r.source ?? "").startsWith("feed:")) { detail = provenance; provenance = ""; }
   if (r.binding?.renewal_due) reset = null;
   const at = fmtAt(reset);
   if (at) resetFull = t("stl.resets", { time: at });
-  const full = [label, detail, renewed, asOf, resetFull, cause].filter(Boolean).join(" · ");
-  return { label, role, detail, renewed, asOf, reset: at, resetFull, full, pace, binding, cause };
+  const full = [label, detail, renewed, asOf, provenance, resetFull, cause].filter(Boolean).join(" · ");
+  return { label, role, detail, renewed, asOf, provenance, reset: at, resetFull, full, pace, binding, cause };
 }
 
 // ---------- DS-CMP-TIME: time chips (core texts, TUI shapes) ----------
@@ -321,13 +326,14 @@ export function paceChipsHtml(m, pace) {
  *  its label has no leading separator). */
 export function statusLineHtml(r, st = accountState(r), { glyph = true, compact = true, reset = true, label = true, chips: withChips = true } = {}) {
   const p = statusParts(r, st);
-  if (!p.label && !p.reset && !p.asOf) return "";
+  if (!p.label && !p.reset && !p.asOf && !p.provenance) return "";
   const lbl = label && p.label ? `<span class="lbl ${p.role}">${esc(p.label)}</span>` : "";
   const chips = !withChips || !p.pace ? "" : compact ? timeChipHtml(p.binding?.forecast?.chip, { compact: true }) : paceChipsHtml(p.binding, p.pace);
-  const detail = [(st.kind === "stale" || st.kind === "exhausted") ? p.detail : "", p.asOf].filter(Boolean).join(" · ");
+  // The tray row (`compact`) keeps its one line short: the provenance stays in its tooltip.
+  const detail = [(st.kind === "stale" || st.kind === "exhausted") ? p.detail : "", p.asOf, compact ? "" : p.provenance].filter(Boolean).join(" · ");
   // Without a label before it, the detail starts the line: "Data as of 6:00 AM".
   const lead = lbl ? `· ${detail}` : chips ? detail : detail.charAt(0).toLocaleUpperCase(currentLocale()) + detail.slice(1);
-  const det = detail ? `<span class="det"${p.asOf ? " data-as-of" : ""}>${esc(lead)}</span>` : "";
+  const det = detail ? `<span class="det"${p.asOf ? " data-as-of" : ""}${r.provenance && !compact ? " data-provenance" : ""}>${esc(lead)}</span>` : "";
   const rst = reset && p.reset ? `<span class="rst" title="${esc(p.resetFull)}">${icon("returns")}<span>${esc(p.reset)}</span></span>` : "";
   const g = glyph ? stateGlyph(st) : "";
   if (!g && !lbl && !chips && !det && !rst) return "";

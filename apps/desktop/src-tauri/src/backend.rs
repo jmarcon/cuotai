@@ -535,6 +535,11 @@ pub struct ReportView {
     /// (`freshness::reading_time`: an agent feed's own time). The age chip,
     /// its tooltip and the menu bar count from it, never from `checked_at`.
     measured_at: chrono::DateTime<chrono::Utc>,
+    /// PRD 0040 RF3.4/RF6.1 (re-validation V-09): where the figures came
+    /// from (`feed::provenance`): "From Claude Code · 3 min ago", or the
+    /// query a hybrid account fell back to; absent for every other report.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provenance: Option<cuotai_core::text::Localized>,
     status: Status,
     metrics: Vec<MetricView>,
     notes: Vec<String>,
@@ -1512,6 +1517,7 @@ fn report_view(
         provider: report.provider,
         checked_at: report.checked_at,
         measured_at: reading_at,
+        provenance: cuotai_core::feed::provenance(report, now),
         status: report.status,
         metrics,
         notes: report.notes.clone(),

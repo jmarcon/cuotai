@@ -1741,3 +1741,49 @@ fn old_claude_windows_carry_their_age() {
         compose(None, "ru")
     );
 }
+
+/// RF3.4/RF6.1 (re-validation V-09): a fed report says where its figures
+/// came from and how old they are; a hybrid that fell back names its
+/// query; any other report has no provenance.
+#[tokio::test]
+async fn a_fed_report_states_its_provenance() {
+    let current = Utc::now();
+    let (_dir, store) = self::store();
+    store
+        .write(&reading("a", current - TimeDelta::minutes(3)), current)
+        .unwrap();
+    let report = monitor(FED, store.dir()).refresh().await.reports.remove(0);
+    assert_eq!(report.source, "feed:claude_code");
+    let text = provenance(&report, current).unwrap();
+    assert_eq!(text.id, "feed.provenance.claude_code");
+    assert_eq!(text.resolve("en-US"), "From Claude Code · 3 min ago");
+    assert_eq!(text.resolve("de"), "Von Claude Code · vor 3\u{a0}Min.");
+
+    let mut codex = report.clone();
+    codex.source = "feed:codex_cli".into();
+    assert_eq!(
+        provenance(&codex, current).unwrap().resolve("en-US"),
+        "From Codex CLI's logs · 3 min ago"
+    );
+
+    let mut queried = report.clone();
+    queried.source = "https://claude.ai".into();
+    queried.as_of = None;
+    assert!(provenance(&queried, current).is_none());
+    queried
+        .notes_l10n
+        .push(crate::providers::agent_feed::answered_by_api(
+            FeedSource::ClaudeCode,
+            true,
+        ));
+    let text = provenance(&queried, current).unwrap();
+    assert_eq!(
+        text.resolve("en-US"),
+        "From the Claude query: no recent agent reading"
+    );
+    assert!(
+        text.resolve("fr").contains("Claude\u{a0}:"),
+        "{}",
+        text.resolve("fr")
+    );
+}

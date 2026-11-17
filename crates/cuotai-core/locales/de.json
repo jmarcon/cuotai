@@ -152,7 +152,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -977,6 +980,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "und {n} weitere",
   "feed.live.title": "Live-Sitzung",
+  "feed.provenance.api": "Aus der Abfrage von {provider}: kein aktueller Messwert des Agenten",
+  "feed.provenance.claude_code": "Von Claude Code · {age}",
+  "feed.provenance.codex_cli": "Aus den Protokollen von Codex CLI · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, zum Beispiel 2026-09. Leer fragt nur das Guthaben ab. Die Rechnung fasst alle Produkte des Cloud-Kontos zusammen, nicht nur KI.",
   "field.alibaba_cloud.billing_cycle.label": "Monatsrechnung (optional)",
   "field.alibaba_cloud.region.help": "International oder Festland-China; entspricht dem Alibaba-Abrechnungskonto.",

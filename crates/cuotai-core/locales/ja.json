@@ -174,7 +174,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -981,6 +984,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "ほか {n} 件",
   "feed.live.title": "ライブセッション",
+  "feed.provenance.api": "{provider} の照会から：エージェントの最近の読み取りなし",
+  "feed.provenance.claude_code": "Claude Code から · {age}",
+  "feed.provenance.codex_cli": "Codex CLI のログから · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM、例：2026-09。空欄の場合は残高のみ照会します。請求書は AI だけでなくクラウドの全製品を合計します。",
   "field.alibaba_cloud.billing_cycle.label": "月次請求書（任意）",
   "field.alibaba_cloud.region.help": "国際版または中国本土。Alibaba の請求アカウントに対応します。",

@@ -129,7 +129,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -954,6 +957,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "ve {n} tane daha",
   "feed.live.title": "Canlı oturum",
+  "feed.provenance.api": "{provider} sorgusundan: yakın tarihli ajan okuması yok",
+  "feed.provenance.claude_code": "Claude Code'dan · {age}",
+  "feed.provenance.codex_cli": "Codex CLI günlüklerinden · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, ör. 2026-09. Boş bırakılırsa yalnızca bakiye sorgulanır. Fatura, yalnızca yapay zekâyı değil, bulut hesabının tüm ürünlerini toplar.",
   "field.alibaba_cloud.billing_cycle.label": "Aylık fatura (isteğe bağlı)",
   "field.alibaba_cloud.region.help": "Uluslararası veya Çin anakarası; Alibaba faturalama hesabına karşılık gelir.",

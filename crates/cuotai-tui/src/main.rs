@@ -2037,7 +2037,17 @@ fn report_text(
     }) {
         out += &format!("  {}\n", ui::safe(&note.resolve(locale)));
     }
-    if !report.source.is_empty() {
+    // PRD 0040 RF3.4/RF6.1 (re-validation V-09, V-19): where the figures
+    // came from; it replaces the raw `feed:…` source of an agent-fed
+    // reading.
+    let provenance = cuotai_core::feed::provenance(report, now);
+    if let Some(text) = &provenance {
+        out += &format!("  {}\n", ui::safe(&text.resolve(locale)));
+    }
+    let fed = report
+        .source
+        .starts_with(cuotai_core::feed::REPORT_SOURCE_PREFIX);
+    if !report.source.is_empty() && !(fed && provenance.is_some()) {
         out += &l10n::trf_in(
             locale,
             "once.source",
@@ -3461,6 +3471,9 @@ mod tests {
         assert!(aged.contains("Window5h: 40% / 100"), "{aged}");
         assert!(!aged.contains("Pace:"), "{aged}");
         assert!(!aged.contains("Allowance:"), "{aged}");
+        // Re-validation V-09: the source in words, never `feed:claude_code`.
+        assert!(aged.contains("  From Claude Code · 40 min ago\n"), "{aged}");
+        assert!(!aged.contains("feed:"), "{aged}");
         let recent = report_text(&fed(2), &[], None, FIVE_MIN, now, "en-US", at);
         // At 23:58 the window had 2 h 2 min left of 5 h: 59.3% elapsed.
         assert!(
