@@ -229,6 +229,18 @@ pub struct CostSummary {
     /// and ignored, counted only (absent when there are none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub settings_notes: Vec<Localized>,
+    /// PRD 0042 M-05: the hidden projects with usage in the span; every
+    /// figure here leaves them out (absent when there are none).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub hidden_projects: u64,
+    /// M-05: "1 hidden project is not counted in these figures."; absent
+    /// when no hidden project had usage in the span.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hidden_note: Option<Localized>,
+}
+
+fn is_zero(count: &u64) -> bool {
+    *count == 0
 }
 
 impl CostSummary {
@@ -376,6 +388,8 @@ pub fn summarize(input: &SummaryInput<'_>) -> CostSummary {
         live: Vec::new(),
         projects: Vec::new(),
         settings_notes: Vec::new(),
+        hidden_projects: 0,
+        hidden_note: None,
     }
 }
 
@@ -560,7 +574,11 @@ impl Scanner {
         let Some(first) = super::earliest_cycle(today, &settings.plans, accounts, &enabled) else {
             return Ok(Vec::new());
         };
-        let usage = self.index().usage(None, Some(first), today)?;
+        let mut usage = self.index().usage(None, Some(first), today)?;
+        // M-05: the plan value reads the shown total, as the card does.
+        self.index()
+            .hidden_usage(Some(first), today)?
+            .subtract_from(&mut usage);
         let (prices, _) = Prices::with_user_file(pricing);
         Ok(super::plan_values(&super::PlanInput {
             today,
@@ -592,12 +610,20 @@ impl Scanner {
             .map(|first| first.min(today - Days::days(1)));
         // S-02: an index that cannot be read is reported per source, never
         // as an error every front end would turn into "off".
-        let (usage, unreadable) = if enabled.is_empty() {
-            (Vec::new(), false)
+        let (usage, hidden, unreadable) = if enabled.is_empty() {
+            (Vec::new(), super::HiddenUsage::default(), false)
         } else {
-            match self.index().usage(None, first, today) {
-                Ok(usage) => (usage, false),
-                Err(CostError::Storage) => (Vec::new(), true),
+            let index = self.index();
+            match index
+                .usage(None, first, today)
+                .and_then(|usage| Ok((usage, index.hidden_usage(first, today)?)))
+            {
+                Ok((mut usage, hidden)) => {
+                    // M-05: a hidden project leaves every total.
+                    hidden.subtract_from(&mut usage);
+                    (usage, hidden, false)
+                }
+                Err(CostError::Storage) => (Vec::new(), super::HiddenUsage::default(), true),
                 Err(error) => return Err(error),
             }
         };
@@ -612,6 +638,8 @@ impl Scanner {
             last,
         });
         summary.settings_notes = settings.notes();
+        summary.hidden_projects = hidden.projects_between(span.first_day(today), today);
+        summary.hidden_note = super::hidden_note(summary.hidden_projects);
         for source in &mut summary.sources {
             if settings.needs_reconsent(source.source, self.env()) {
                 source.reconsent = true;

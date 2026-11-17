@@ -1088,7 +1088,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1510,7 +1512,7 @@
   "cost.project.name": "Projet {short}",
   "cost.project.none": "Aucun projet",
   "cost.project.hidden": "masqué",
-  "cost.project.hidden_saved": "Projet {short} masqué : listé, mais exclu des totaux.",
+  "cost.project.hidden_saved": "Projet {short} masqué : listé, mais exclu de tous les totaux.",
   "cost.project.shown_saved": "Le projet {short} compte de nouveau dans les totaux.",
   "cost.block.provider_window": "Fenêtre du fournisseur : {pct} % utilisés, réinitialisation à {at}",
   "cost.block.provider_window_reset": "Fenêtre du fournisseur : réinitialisation à {at}",
@@ -3812,6 +3814,11 @@
   "cost.plan.share_small_rate": "moins de 1 % du prix du forfait, à votre taux de change",
   "cost.plan.share_small_plans": "moins de 1 % du prix des forfaits",
   "cost.plan.share_small_plans_rate": "moins de 1 % du prix des forfaits, à votre taux de change",
+  "cost.hidden.note": {
+    "one": "{count} projet masqué n’est pas compté dans ces chiffres.",
+    "other": "{count} projets masqués ne sont pas comptés dans ces chiffres."
+  },
+  "cost.hidden.unhide": "{command} en compte un de nouveau.",
   "doctor.title.metered": "Registre partagé des requêtes facturées {path}",
   "doctor.metered.unusable": "Ce n'est pas un dossier privé de votre utilisateur, ou il n'est pas inscriptible ; les commandes ponctuelles n'interrogent pas AWS Bedrock tant que ce n'est pas corrigé.",
   "doctor.fix.metered": "Supprimez ce qui se trouve à ce chemin (un fichier, un lien ou le dossier d'un autre utilisateur) ou faites-en un dossier que seul votre utilisateur peut lire et écrire ; Cuotai le recrée.",

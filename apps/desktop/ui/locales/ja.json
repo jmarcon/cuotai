@@ -14,7 +14,6 @@
       "settings.channels.failingBanner",
       "settings.channels.testFailed",
       "settings.channels.testOk",
-      "settings.costBy.hiddenNote",
       "settings.costBy.localEstimate",
       "settings.costBy.providerReset",
       "settings.costBy.providerWindow",
@@ -1122,9 +1121,6 @@
   "settings.costBy.hide": "非表示",
   "settings.costBy.show": "合計に含める",
   "settings.costBy.hidden": "非表示",
-  "settings.costBy.hiddenNote": {
-    "other": "非表示のプロジェクト {count} 件：一覧には残りますが、合計には含まれません。"
-  },
   "settings.costBy.blockDefault": "ブロックの長さ（既定 {hours} 時間）",
   "settings.costBy.blockHours": "{source} のブロックの長さ（時間）",
   "settings.costBy.hoursUnit": "時間",

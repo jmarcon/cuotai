@@ -216,7 +216,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -628,7 +630,7 @@
   "cost.project.name": "プロジェクト {short}",
   "cost.project.none": "プロジェクトなし",
   "cost.project.hidden": "非表示",
-  "cost.project.hidden_saved": "プロジェクト {short} を非表示にしました：一覧には残りますが、合計には含まれません。",
+  "cost.project.hidden_saved": "プロジェクト {short} を非表示にしました：一覧には残りますが、どの合計にも含まれません。",
   "cost.project.shown_saved": "プロジェクト {short} を再び合計に含めます。",
   "cost.block.provider_window": "プロバイダーの枠：{pct}% 使用、{at} にリセット",
   "cost.block.provider_window_reset": "プロバイダーの枠：{at} にリセット",
@@ -2877,6 +2879,10 @@
   "cost.plan.share_small_rate": "設定レートでプラン価格の 1% 未満",
   "cost.plan.share_small_plans": "プラン合計価格の 1% 未満",
   "cost.plan.share_small_plans_rate": "設定レートでプラン合計価格の 1% 未満",
+  "cost.hidden.note": {
+    "other": "非表示のプロジェクト {count} 件は、これらの数値に含まれていません。"
+  },
+  "cost.hidden.unhide": "{command} で再び合計に含めます。",
   "doctor.title.metered": "課金されるクエリの共有記録 {path}",
   "doctor.metered.unusable": "ユーザー専用のフォルダーではないか、書き込めません。修正されるまで、単発のコマンドは AWS Bedrock を照会しません。",
   "doctor.fix.metered": "このパスにあるもの（ファイル、リンク、他のユーザーのフォルダー）を削除するか、現在のユーザーだけが読み書きできるフォルダーにしてください。Cuotai が作り直します。",

@@ -159,7 +159,6 @@
       "settings.cost.state.paused",
       "settings.costBy.blockDefault",
       "settings.costBy.help",
-      "settings.costBy.hiddenNote",
       "settings.costBy.hintHelp",
       "settings.costBy.localEstimate",
       "settings.costBy.providerReset",
@@ -1408,10 +1407,6 @@
   "settings.costBy.hide": "Masquer",
   "settings.costBy.show": "Compter",
   "settings.costBy.hidden": "Masqué",
-  "settings.costBy.hiddenNote": {
-    "one": "{count} projet masqué : listé, mais exclu des totaux.",
-    "other": "{count} projets masqués : listés, mais exclus des totaux."
-  },
   "settings.costBy.blockDefault": "Durée du bloc ; par défaut {hours} h",
   "settings.costBy.blockHours": "Durée du bloc de {source}, en heures",
   "settings.costBy.hoursUnit": "h",

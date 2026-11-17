@@ -1131,10 +1131,6 @@
   "settings.costBy.hide": "Ausblenden",
   "settings.costBy.show": "Mitzählen",
   "settings.costBy.hidden": "Ausgeblendet",
-  "settings.costBy.hiddenNote": {
-    "one": "{count} ausgeblendetes Projekt: aufgeführt, aber nicht in den Summen.",
-    "other": "{count} ausgeblendete Projekte: aufgeführt, aber nicht in den Summen."
-  },
   "settings.costBy.blockDefault": "Blocklänge; Standard {hours} Std.",
   "settings.costBy.blockHours": "Blocklänge von {source} in Stunden",
   "settings.costBy.hoursUnit": "Std.",

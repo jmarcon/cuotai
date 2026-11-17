@@ -208,6 +208,54 @@ pub struct Request {
     pub tokens: Tokens,
 }
 
+/// PRD 0042 M-05: the usage of the hidden projects, to take out of the
+/// per-day totals (the `usage` table has no project column).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HiddenUsage {
+    /// Per source, local day and model: the hidden requests' tokens and
+    /// count, and in `sessions` the sessions with only hidden requests
+    /// there.
+    pub rows: Vec<DailyUsage>,
+    /// Each hidden project with a request on a day.
+    pub projects: std::collections::BTreeSet<(NaiveDate, String)>,
+}
+
+impl HiddenUsage {
+    /// The hidden projects with a request from `first` (`None`: any day)
+    /// to `last`, inclusive.
+    pub fn projects_between(&self, first: Option<NaiveDate>, last: NaiveDate) -> u64 {
+        self.projects
+            .iter()
+            .filter(|(day, _)| first.is_none_or(|first| *day >= first) && *day <= last)
+            .map(|(_, project)| project)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len() as u64
+    }
+
+    /// `usage` without the hidden requests, saturating; a row left with
+    /// no token and no request is dropped. Exact: every request row is
+    /// written in the same transaction as its usage row and both are
+    /// pruned by day.
+    pub fn subtract_from(&self, usage: &mut Vec<DailyUsage>) {
+        if self.rows.is_empty() {
+            return;
+        }
+        let hidden: std::collections::BTreeMap<(SourceId, NaiveDate, &str), &DailyUsage> = self
+            .rows
+            .iter()
+            .map(|row| ((row.source, row.day, row.model.as_str()), row))
+            .collect();
+        for row in usage.iter_mut() {
+            if let Some(gone) = hidden.get(&(row.source, row.day, row.model.as_str())) {
+                row.tokens.saturating_sub(&gone.tokens);
+                row.requests = row.requests.saturating_sub(gone.requests);
+                row.sessions = row.sessions.saturating_sub(gone.sessions);
+            }
+        }
+        usage.retain(|row| row.tokens.total() > 0 || row.requests > 0);
+    }
+}
+
 /// PRD 0042 RF4: what the index holds about one project fingerprint.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectRow {
@@ -1143,6 +1191,75 @@ impl CostIndex {
                     project,
                     tokens,
                 });
+            }
+        }
+        Ok(out)
+    }
+
+    /// PRD 0042 M-05: the requests of hidden projects from `first` (`None`:
+    /// the oldest kept) to `last`, inclusive, per source, day and model
+    /// (see [`HiddenUsage`]). Never creates the file.
+    pub fn hidden_usage(
+        &self,
+        first: Option<NaiveDate>,
+        last: NaiveDate,
+    ) -> Result<HiddenUsage, CostError> {
+        let Some(db) = self.open_existing()? else {
+            return Ok(HiddenUsage::default());
+        };
+        let first = first.map(day_text).unwrap_or_default();
+        // The last column: the session also has a shown request on that
+        // day and model, so it stays counted there.
+        let mut query = db.prepare(
+            "SELECT r.source, r.day, r.model, r.session, r.project, r.input, r.output,
+                 r.cache_read, r.cache_write, r.cache_write_1h,
+                 EXISTS (SELECT 1 FROM requests q LEFT JOIN projects s ON s.project = q.project
+                         WHERE q.day = r.day AND q.source = r.source AND q.model = r.model
+                           AND q.session = r.session AND (s.hidden IS NULL OR s.hidden = 0))
+             FROM requests r JOIN projects p ON p.project = r.project
+             WHERE p.hidden = 1 AND r.day >= ?1 AND r.day <= ?2
+             ORDER BY r.day, r.source, r.model",
+        )?;
+        let rows = query.query_map(params![first, day_text(last)], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                day_of(&row.get::<_, String>(1)?)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                Tokens {
+                    input: tolerant(row, 5)?,
+                    output: tolerant(row, 6)?,
+                    cache_read: tolerant(row, 7)?,
+                    cache_write: tolerant(row, 8)?,
+                    cache_write_1h: tolerant(row, 9)?,
+                },
+                row.get::<_, bool>(10)?,
+            ))
+        })?;
+        let mut out = HiddenUsage::default();
+        let mut sessions = std::collections::BTreeSet::new();
+        for row in rows {
+            let (slug, day, model, session, project, tokens, shown_too) = row?;
+            let Some(source) = SourceId::from_slug(&slug) else {
+                continue;
+            };
+            out.projects.insert((day, project));
+            let lone = !shown_too && sessions.insert((source, day, model.clone(), session));
+            match out.rows.last_mut() {
+                Some(last) if last.source == source && last.day == day && last.model == model => {
+                    last.tokens.add(&tokens);
+                    last.requests = last.requests.saturating_add(1);
+                    last.sessions += u64::from(lone);
+                }
+                _ => out.rows.push(DailyUsage {
+                    source,
+                    day,
+                    model,
+                    tokens,
+                    requests: 1,
+                    sessions: u64::from(lone),
+                }),
             }
         }
         Ok(out)

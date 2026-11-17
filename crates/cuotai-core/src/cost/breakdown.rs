@@ -112,6 +112,34 @@ fn estimate_of<'a>(requests: impl IntoIterator<Item = &'a Request>, prices: &Pri
     estimate(&rows, prices)
 }
 
+/// M-05: `request` belongs to a hidden project.
+fn is_hidden(request: &Request, hidden: &BTreeSet<String>) -> bool {
+    request.project.as_ref().is_some_and(|p| hidden.contains(p))
+}
+
+/// PRD 0042 M-05: "2 hidden projects are not counted in these figures.";
+/// `None` when no hidden project had usage.
+pub fn hidden_note(count: u64) -> Option<Localized> {
+    (count > 0).then(|| {
+        Localized::plural(
+            "cost.hidden.note",
+            params([("count", count.into())]),
+            "{count} hidden project is not counted in these figures.",
+            "{count} hidden projects are not counted in these figures.",
+        )
+    })
+}
+
+/// M-05: under the Projects view's note: how to count one again.
+pub fn hidden_unhide_text() -> Localized {
+    Localized::with_param(
+        "cost.hidden.unhide",
+        "command",
+        "cuotai --cost-unhide PREFIX",
+        "{command} counts one of them again.",
+    )
+}
+
 fn short(digest: &str) -> String {
     digest.chars().take(SHORT).collect()
 }
@@ -299,6 +327,21 @@ pub fn blocks(
     now: DateTime<Utc>,
     prices: &Prices,
 ) -> Vec<BlockSummary> {
+    blocks_shown(requests, &BTreeSet::new(), hours, now, prices)
+}
+
+/// PRD 0042 M-05: [`blocks`] aligned on every request (the provider's
+/// window counts them all; hiding in Cuotai does not move it), with the
+/// figures (`estimate`, `sessions`, `projects`, `last_request`) of the
+/// requests whose project is not in `hidden`. A block with only hidden
+/// requests is left out.
+pub fn blocks_shown(
+    requests: &[Request],
+    hidden: &BTreeSet<String>,
+    hours: &dyn Fn(SourceId) -> u8,
+    now: DateTime<Utc>,
+    prices: &Prices,
+) -> Vec<BlockSummary> {
     let mut out = Vec::new();
     for source in SourceId::ALL {
         let mut rows: Vec<&Request> = requests.iter().filter(|r| r.source == source).collect();
@@ -309,7 +352,8 @@ pub fn blocks(
         let length = Duration::hours(i64::from(hours(source).max(1)));
         let mut current: Vec<&Request> = Vec::new();
         let mut start = DateTime::<Utc>::default();
-        let mut close = |start: DateTime<Utc>, rows: &mut Vec<&Request>| {
+        let mut close = |start: DateTime<Utc>, all: &mut Vec<&Request>| {
+            let rows: Vec<&Request> = all.drain(..).filter(|r| !is_hidden(r, hidden)).collect();
             if rows.is_empty() {
                 return;
             }
@@ -333,7 +377,6 @@ pub fn blocks(
                 estimate: estimate_of(rows.iter().copied(), prices),
                 provider_window: None,
             });
-            rows.clear();
         };
         for row in rows {
             if current.is_empty() || row.at >= start + length {
@@ -648,6 +691,10 @@ pub struct SessionPage {
     pub count: usize,
     pub total: Estimate,
     pub sessions: Vec<SessionSummary>,
+    /// M-05: "1 hidden project is not counted in these figures."; absent
+    /// when no hidden project had usage in the span.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hidden_note: Option<Localized>,
 }
 
 /// RF3/RF5: the blocks of a span.
@@ -655,8 +702,12 @@ pub struct SessionPage {
 pub struct BlockPage {
     pub notice: Localized,
     pub span: SpanView,
+    /// R-02: the sum of the listed blocks.
     pub total: Estimate,
     pub blocks: Vec<BlockSummary>,
+    /// M-05: as [`SessionPage::hidden_note`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hidden_note: Option<Localized>,
 }
 
 /// RF4/RF5: the projects of a span.
@@ -668,18 +719,71 @@ pub struct ProjectPage {
     pub total: Estimate,
     pub hidden: usize,
     pub projects: Vec<ProjectSummary>,
+    /// M-05: as [`SessionPage::hidden_note`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hidden_note: Option<Localized>,
+}
+
+/// The requests of a span: all of them (from `extra` before its first
+/// day) and the hidden projects.
+struct SpanRequests {
+    view: SpanView,
+    /// The span's first instant.
+    from: DateTime<Utc>,
+    all: Vec<Request>,
+    hidden: BTreeSet<String>,
+}
+
+impl SpanRequests {
+    /// M-05: the requests of projects that are not hidden.
+    fn shown(&self) -> Vec<Request> {
+        self.all
+            .iter()
+            .filter(|r| !is_hidden(r, &self.hidden))
+            .cloned()
+            .collect()
+    }
+
+    /// M-05: the hidden projects with a request inside the span.
+    fn hidden_count(&self) -> u64 {
+        hidden_projects(self.all.iter().filter(|r| r.at >= self.from), &self.hidden)
+    }
+}
+
+/// M-05: the distinct hidden projects of `requests`.
+fn hidden_projects<'a>(
+    requests: impl IntoIterator<Item = &'a Request>,
+    hidden: &BTreeSet<String>,
+) -> u64 {
+    requests
+        .into_iter()
+        .filter_map(|r| r.project.as_deref())
+        .filter(|p| hidden.contains(*p))
+        .collect::<BTreeSet<_>>()
+        .len() as u64
 }
 
 impl Scanner {
+    /// M-05: the projects the person hid.
+    fn hidden_set(&self) -> Result<BTreeSet<String>, CostError> {
+        Ok(self
+            .index()
+            .projects()?
+            .into_iter()
+            .filter(|p| p.hidden)
+            .map(|p| p.project)
+            .collect())
+    }
+
     /// The span's bounds at `now` and the requests of the sources that are
-    /// on, from `extra` before its first day.
+    /// on, from `extra` before its first day, with the hidden projects.
     fn span_requests(
         &self,
         source: Option<SourceId>,
         span: Span,
         now: DateTime<Utc>,
         extra: TimeDelta,
-    ) -> Result<(SpanView, Vec<Request>, DateTime<Utc>), CostError> {
+    ) -> Result<SpanRequests, CostError> {
         let settings = self.settings().load()?;
         let today = self.zone().day(now);
         let first = span.first_day(today);
@@ -702,15 +806,25 @@ impl Scanner {
         };
         let enabled = settings.enabled_sources(self.env());
         if enabled.is_empty() || source.is_some_and(|s| !enabled.contains(&s)) {
-            return Ok((view, Vec::new(), from));
+            return Ok(SpanRequests {
+                view,
+                from,
+                all: Vec::new(),
+                hidden: BTreeSet::new(),
+            });
         }
-        let requests = self
+        let all = self
             .index()
             .requests(source, from - extra, now + TimeDelta::seconds(1))?
             .into_iter()
             .filter(|r| enabled.contains(&r.source))
             .collect();
-        Ok((view, requests, from))
+        Ok(SpanRequests {
+            view,
+            from,
+            all,
+            hidden: self.hidden_set()?,
+        })
     }
 
     /// RF2.1: the sessions active in `span`, newest first; `limit` (`None`:
@@ -723,13 +837,13 @@ impl Scanner {
         limit: Option<usize>,
         offset: usize,
     ) -> Result<SessionPage, CostError> {
-        let (view, requests, _) = self.span_requests(None, span, now, TimeDelta::zero())?;
+        let span = self.span_requests(None, span, now, TimeDelta::zero())?;
+        let requests = span.shown();
         let (prices, _) = Prices::with_user_file(pricing);
         let labels = self.index().session_labels()?;
         let all = sessions(&requests, &labels, &prices, self.zone());
         Ok(SessionPage {
             notice: super::estimate_notice(),
-            span: view,
             count: all.len(),
             total: estimate_of(&requests, &prices),
             sessions: all
@@ -737,6 +851,8 @@ impl Scanner {
                 .skip(offset)
                 .take(limit.unwrap_or(usize::MAX))
                 .collect(),
+            hidden_note: hidden_note(span.hidden_count()),
+            span: span.view,
         })
     }
 
@@ -753,17 +869,29 @@ impl Scanner {
     ) -> Result<BlockPage, CostError> {
         let settings = self.settings().load()?;
         let longest = TimeDelta::hours(i64::from(super::BLOCK_HOURS_MAX));
-        let (view, requests, from) = self.span_requests(source, span, now, longest)?;
+        let span = self.span_requests(source, span, now, longest)?;
         let (prices, _) = Prices::with_user_file(pricing);
-        let mut all = blocks(&requests, &|s| settings.block_hours(s), now, &prices);
-        all.retain(|block| block.end > from);
+        let hours = |s| settings.block_hours(s);
+        let mut all = blocks_shown(&span.all, &span.hidden, &hours, now, &prices);
+        all.retain(|block| block.end > span.from);
         attach_windows(&mut all, reports);
-        let total = estimate_of(requests.iter().filter(|r| r.at >= from), &prices);
+        // R-02: the total is the sum of the listed blocks, so it includes
+        // the part of a block that started before the span.
+        let total = estimate_of(
+            span.all.iter().filter(|r| {
+                !is_hidden(r, &span.hidden)
+                    && all
+                        .iter()
+                        .any(|b| b.source == r.source && b.start <= r.at && r.at < b.end)
+            }),
+            &prices,
+        );
         Ok(BlockPage {
             notice: super::estimate_notice(),
-            span: view,
             total,
             blocks: all,
+            hidden_note: hidden_note(span.hidden_count()),
+            span: span.view,
         })
     }
 
@@ -774,27 +902,22 @@ impl Scanner {
         span: Span,
         now: DateTime<Utc>,
     ) -> Result<ProjectPage, CostError> {
-        let (view, requests, _) = self.span_requests(None, span, now, TimeDelta::zero())?;
+        let span = self.span_requests(None, span, now, TimeDelta::zero())?;
         let (prices, _) = Prices::with_user_file(pricing);
         let known = self.index().projects()?;
-        let all = projects(&requests, &known, &prices);
-        let hidden: BTreeSet<&str> = known
-            .iter()
-            .filter(|p| p.hidden)
-            .map(|p| p.project.as_str())
-            .collect();
+        // Hidden projects stay listed, flagged, only here.
+        let all = projects(&span.all, &known, &prices);
         let total = estimate_of(
-            requests
-                .iter()
-                .filter(|r| r.project.as_deref().is_none_or(|p| !hidden.contains(p))),
+            span.all.iter().filter(|r| !is_hidden(r, &span.hidden)),
             &prices,
         );
         Ok(ProjectPage {
             notice: super::estimate_notice(),
-            span: view,
             total,
             hidden: all.iter().filter(|p| p.hidden).count(),
             projects: all,
+            hidden_note: hidden_note(span.hidden_count()),
+            span: span.view,
         })
     }
 
@@ -807,7 +930,23 @@ impl Scanner {
         now: DateTime<Utc>,
         reports: &[Report],
     ) -> Result<Vec<LiveBlock>, CostError> {
+        Ok(self.live_view(pricing, source, now, reports)?.0)
+    }
+
+    /// M-05: [`Scanner::live`] with the note of the hidden projects that
+    /// have requests in an active block. The block stays aligned on every
+    /// request; its figures and burn rate count only the shown ones, and a
+    /// block with only hidden requests gives no line.
+    pub fn live_view(
+        &self,
+        pricing: &PricingFile,
+        source: Option<SourceId>,
+        now: DateTime<Utc>,
+        reports: &[Report],
+    ) -> Result<(Vec<LiveBlock>, Option<Localized>), CostError> {
         let settings = self.settings().load()?;
+        let hidden = self.hidden_set()?;
+        let mut hidden_seen = BTreeSet::new();
         let enabled = settings.enabled_sources(self.env());
         let longest = TimeDelta::hours(i64::from(super::BLOCK_HOURS_MAX));
         let mut out = Vec::new();
@@ -822,13 +961,29 @@ impl Scanner {
                 now - longest * 2,
                 now + TimeDelta::seconds(1),
             )?;
-            let mut found = blocks(&requests, &|s| settings.block_hours(s), now, &prices);
+            let hours = |s| settings.block_hours(s);
+            // The active window on every request, hidden ones included.
+            let aligned = blocks(&requests, &hours, now, &prices);
+            if let Some(active) = aligned.iter().find(|b| b.active) {
+                hidden_seen.extend(
+                    requests
+                        .iter()
+                        .filter(|r| r.at >= active.start && is_hidden(r, &hidden))
+                        .filter_map(|r| r.project.clone()),
+                );
+            }
+            let shown: Vec<Request> = requests
+                .iter()
+                .filter(|r| !is_hidden(r, &hidden))
+                .cloned()
+                .collect();
+            let mut found = blocks_shown(&requests, &hidden, &hours, now, &prices);
             attach_windows(&mut found, reports);
             if let Some(active) = found.iter().find(|b| b.active) {
-                out.push(live(active, &requests, now, &prices, self.zone()));
+                out.push(live(active, &shown, now, &prices, self.zone()));
             }
         }
-        Ok(out)
+        Ok((out, hidden_note(hidden_seen.len() as u64)))
     }
 }
 
@@ -990,7 +1145,7 @@ pub fn hidden_saved_text(digest: &str, hidden: bool) -> Localized {
             "cost.project.hidden_saved",
             "short",
             short.as_str(),
-            "Project {short} hidden: listed, but left out of the totals.",
+            "Project {short} hidden: listed, but left out of every total.",
         )
     } else {
         Localized::with_param(

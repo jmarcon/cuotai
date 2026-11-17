@@ -174,7 +174,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -586,7 +588,7 @@
   "cost.project.name": "Dự án {short}",
   "cost.project.none": "Không có dự án",
   "cost.project.hidden": "đã ẩn",
-  "cost.project.hidden_saved": "Đã ẩn dự án {short}: vẫn được liệt kê nhưng không tính vào tổng.",
+  "cost.project.hidden_saved": "Đã ẩn dự án {short}: vẫn được liệt kê nhưng không tính vào bất kỳ tổng nào.",
   "cost.project.shown_saved": "Dự án {short} lại được tính vào tổng.",
   "cost.block.provider_window": "Cửa sổ của nhà cung cấp: đã dùng {pct}%, đặt lại lúc {at}",
   "cost.block.provider_window_reset": "Cửa sổ của nhà cung cấp: đặt lại lúc {at}",
@@ -2835,6 +2837,10 @@
   "cost.plan.share_small_rate": "dưới 1% giá gói, theo tỷ giá của bạn",
   "cost.plan.share_small_plans": "dưới 1% tổng giá các gói",
   "cost.plan.share_small_plans_rate": "dưới 1% tổng giá các gói, theo tỷ giá của bạn",
+  "cost.hidden.note": {
+    "other": "{count} dự án đã ẩn không được tính trong các số liệu này."
+  },
+  "cost.hidden.unhide": "{command} sẽ tính lại một dự án.",
   "doctor.title.metered": "Bản ghi dùng chung các truy vấn tính phí {path}",
   "doctor.metered.unusable": "Đây không phải thư mục riêng của người dùng của bạn, hoặc không ghi được; các lệnh chạy một lần sẽ không truy vấn AWS Bedrock cho đến khi được sửa.",
   "doctor.fix.metered": "Xóa thứ đang nằm ở đường dẫn này (một tệp, một liên kết hoặc thư mục của người dùng khác) hoặc biến nó thành thư mục chỉ người dùng của bạn đọc và ghi được; Cuotai sẽ tạo lại.",

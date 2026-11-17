@@ -1,7 +1,8 @@
 // PRD 0042 RF6.1: Settings › Advanced › Local cost › Sessions, blocks and projects. A segmented control (DS-CMP-SEG)
 // switches Days · Models · Sessions · Blocks · Projects; each tab has the KPI header (total, requests, tokens;
 // DS-CMP-KPI, "≈" and "estimate", "—" when unknown) and a table. Sessions and projects are labelled inline (the label is
-// the person's own words, stored in the local cost index); a project can be hidden from the totals and stays listed.
+// the person's own words, stored in the local cost index); a project can be hidden from every total and stays listed;
+// every tab says how many hidden projects its figures leave out (the core's `hidden_note`).
 // Blocks shows the active block first with its live figures (the core's `LiveBlock`), read again from the index every
 // 30 s while the tab is shown (no extra scan); the provider window sits beside it with distinct words, never merged.
 // Every figure comes from the core (`cost_breakdown`); nothing is computed here but display formatting.
@@ -30,6 +31,9 @@ function kpisHtml(e) {
     ${kpi(t("settings.costBy.kpi.tokens"), fmtTokens(sum(e.tokens)), t("settings.costBy.kpi.tokensCaption"))}</div>`;
 }
 
+/** PRD 0042 M-05: "1 hidden project is not counted in these figures." (the core's text), on every tab. */
+const hiddenHtml = (data) => (data.hidden_note ? `<p class="hint" data-cost-hidden-note>${esc(tl(data.hidden_note))}</p>` : "");
+
 const table = (cols, rows) => `<div class="cost-price-table lc-by-table"><table><thead><tr>${cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
   <tbody>${rows.join("")}</tbody></table></div>`;
 const empty = () => `<p class="hint" data-cost-by-empty>${te("settings.costBy.empty")}</p>`;
@@ -42,13 +46,13 @@ function daysHtml(summary) {
   const rows = summary.sources.filter((s) => s.usage).flatMap((s) => s.usage.days.filter((d) => sum(d.tokens)).map((d) => ({ ...d, label: s.label })))
     .sort((a, b) => b.day.localeCompare(a.day))
     .map((d) => `<tr><th scope="row">${esc(fmtDate(d.day) ?? d.day)}</th><td>${esc(d.label)}</td><td>${esc(fmtTokens(sum(d.tokens)))}</td><td>${d.requests}</td><td>${esc(approxText(d))}</td></tr>`);
-  return kpisHtml(summary.total) + (rows.length ? table([te("cost.col.day"), te("settings.costBy.col.source"), te("cost.col.tokens"), te("cost.col.requests"), te("cost.col.cost")], rows) : empty());
+  return kpisHtml(summary.total) + hiddenHtml(summary) + (rows.length ? table([te("cost.col.day"), te("settings.costBy.col.source"), te("cost.col.tokens"), te("cost.col.requests"), te("cost.col.cost")], rows) : empty());
 }
 
 function modelsHtml(summary) {
   const rows = summary.total.models.map((m) => `<tr><th scope="row"><code>${esc(m.model)}</code></th><td>${esc(fmtTokens(sum(m.tokens)))}</td><td>${m.requests}</td>
     <td>${esc(m.cost == null ? t("cost.unknown") : approxText({ tokens: m.tokens, unknown_tokens: m.tokens, cost: m.cost }))}</td></tr>`);
-  return kpisHtml(summary.total) + (rows.length ? table([te("cost.col.model"), te("cost.col.tokens"), te("cost.col.requests"), te("cost.col.cost")], rows) : empty());
+  return kpisHtml(summary.total) + hiddenHtml(summary) + (rows.length ? table([te("cost.col.model"), te("cost.col.tokens"), te("cost.col.requests"), te("cost.col.cost")], rows) : empty());
 }
 
 function sessionsHtml(page) {
@@ -56,7 +60,7 @@ function sessionsHtml(page) {
       <span class="sub">${esc(stamp(s.first))}–${esc(time(s.last))}</span></th><td>${esc(SOURCE_LABELS[s.source] ?? s.source)}</td><td>${esc(minutes(s.duration_minutes))}</td>
     <td>${esc(fmtTokens(sum(s.estimate.tokens)))}</td><td>${esc(approxText(s.estimate))}</td></tr>`);
   const more = page.count > page.sessions.length ? `<p class="hint">${te("settings.costBy.moreSessions", { count: page.count - page.sessions.length })}</p>` : "";
-  return kpisHtml(page.total) + (rows.length ? table([te("settings.costBy.col.session"), te("settings.costBy.col.source"), te("settings.costBy.col.duration"), te("cost.col.tokens"), te("cost.col.cost")], rows) + more : empty());
+  return kpisHtml(page.total) + hiddenHtml(page) + (rows.length ? table([te("settings.costBy.col.session"), te("settings.costBy.col.source"), te("settings.costBy.col.duration"), te("cost.col.tokens"), te("cost.col.cost")], rows) + more : empty());
 }
 
 const SOURCE_LABELS = { claude_code: "Claude Code", codex_cli: "Codex CLI", gemini_cli: "Gemini CLI" };
@@ -81,7 +85,7 @@ function liveHtml(live) {
 function blocksHtml(page) {
   const rows = page.blocks.map((b) => `<tr class="${b.active ? "lc-active" : ""}"><th scope="row">${esc(stamp(b.start))}–${esc(time(b.end))}</th><td>${esc(SOURCE_LABELS[b.source] ?? b.source)}</td>
     <td>${te(b.active ? "settings.costBy.active" : "settings.costBy.closed")}</td><td>${b.sessions}</td><td>${esc(fmtTokens(sum(b.estimate.tokens)))}</td><td>${esc(approxText(b.estimate))}</td></tr>`);
-  return kpisHtml(page.total) + liveHtml(page.live ?? []) + (rows.length
+  return kpisHtml(page.total) + hiddenHtml(page) + liveHtml(page.live ?? []) + (rows.length
     ? table([te("settings.costBy.col.block"), te("settings.costBy.col.source"), te("settings.costBy.col.state"), te("settings.costBy.col.sessions"), te("cost.col.tokens"), te("cost.col.cost")], rows)
     : empty());
 }
@@ -95,8 +99,7 @@ function projectsHtml(page) {
     return `<tr class="${p.hidden ? "lc-hidden" : ""}"><th scope="row">${cell}${p.hidden ? ` <span class="badge">${te("settings.costBy.hidden")}</span>` : ""}</th>
       <td>${p.sessions}</td><td>${esc(fmtTokens(sum(p.estimate.tokens)))}</td><td>${esc(approxText(p.estimate))}</td><td>${hide}</td></tr>`;
   });
-  const hidden = page.hidden ? `<p class="hint">${te("settings.costBy.hiddenNote", { count: page.hidden })}</p>` : "";
-  return kpisHtml(page.total) + hidden + (rows.length
+  return kpisHtml(page.total) + hiddenHtml(page) + (rows.length
     ? table([te("settings.costBy.col.project"), te("settings.costBy.col.sessions"), te("cost.col.tokens"), te("cost.col.cost"), `<span class="sr-only">${te("settings.costBy.hide")}</span>`], rows)
     : empty());
 }

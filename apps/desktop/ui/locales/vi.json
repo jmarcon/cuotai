@@ -1103,9 +1103,6 @@
   "settings.costBy.hide": "Ẩn",
   "settings.costBy.show": "Tính",
   "settings.costBy.hidden": "Đã ẩn",
-  "settings.costBy.hiddenNote": {
-    "other": "{count} dự án đã ẩn: vẫn được liệt kê nhưng không tính vào tổng."
-  },
   "settings.costBy.blockDefault": "Độ dài khối; mặc định {hours} giờ",
   "settings.costBy.blockHours": "Độ dài khối của {source}, tính bằng giờ",
   "settings.costBy.hoursUnit": "giờ",

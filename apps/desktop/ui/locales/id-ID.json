@@ -1059,9 +1059,6 @@
   "settings.costBy.hide": "Sembunyikan",
   "settings.costBy.show": "Hitung",
   "settings.costBy.hidden": "Disembunyikan",
-  "settings.costBy.hiddenNote": {
-    "other": "{count} proyek disembunyikan: tetap tercantum, tetapi tidak dihitung dalam total."
-  },
   "settings.costBy.blockDefault": "Panjang blok; bawaan {hours} j",
   "settings.costBy.blockHours": "Panjang blok {source}, dalam jam",
   "settings.costBy.hoursUnit": "j",

@@ -1127,9 +1127,6 @@
   "settings.costBy.hide": "隐藏",
   "settings.costBy.show": "计入",
   "settings.costBy.hidden": "已隐藏",
-  "settings.costBy.hiddenNote": {
-    "other": "{count} 个已隐藏项目：仍会列出，但不计入合计。"
-  },
   "settings.costBy.blockDefault": "时段块长度；默认 {hours} 小时",
   "settings.costBy.blockHours": "{source} 的时段块长度（小时）",
   "settings.costBy.hoursUnit": "小时",

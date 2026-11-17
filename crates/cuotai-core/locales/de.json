@@ -195,7 +195,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -617,7 +619,7 @@
   "cost.project.name": "Projekt {short}",
   "cost.project.none": "Kein Projekt",
   "cost.project.hidden": "ausgeblendet",
-  "cost.project.hidden_saved": "Projekt {short} ausgeblendet: aufgeführt, aber nicht in den Summen.",
+  "cost.project.hidden_saved": "Projekt {short} ausgeblendet: aufgeführt, aber in keiner Summe enthalten.",
   "cost.project.shown_saved": "Projekt {short} zählt wieder in den Summen.",
   "cost.block.provider_window": "Anbieterfenster: {pct} % verbraucht, Zurücksetzung um {at}",
   "cost.block.provider_window_reset": "Anbieterfenster: Zurücksetzung um {at}",
@@ -2919,6 +2921,11 @@
   "cost.plan.share_small_rate": "weniger als 1 % des Tarifpreises, zu Ihrem Kurs",
   "cost.plan.share_small_plans": "weniger als 1 % des Preises der Tarife",
   "cost.plan.share_small_plans_rate": "weniger als 1 % des Preises der Tarife, zu Ihrem Kurs",
+  "cost.hidden.note": {
+    "one": "{count} ausgeblendetes Projekt ist in diesen Zahlen nicht enthalten.",
+    "other": "{count} ausgeblendete Projekte sind in diesen Zahlen nicht enthalten."
+  },
+  "cost.hidden.unhide": "{command} zählt eines davon wieder mit.",
   "doctor.title.metered": "Gemeinsames Protokoll abgerechneter Abfragen {path}",
   "doctor.metered.unusable": "Es ist kein privater Ordner Ihres Benutzers oder nicht beschreibbar; einmalige Befehle fragen AWS Bedrock erst nach der Behebung ab.",
   "doctor.fix.metered": "Entfernen Sie, was unter diesem Pfad liegt (eine Datei, ein Link oder der Ordner eines anderen Benutzers), oder machen Sie daraus einen Ordner, den nur Ihr Benutzer lesen und schreiben kann; Cuotai legt ihn neu an.",

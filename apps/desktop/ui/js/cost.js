@@ -99,6 +99,9 @@ export function costLineHtml(sc, summary) {
   return v ? `<p class="cost-line" data-local-cost="${esc(sc.source)}">${icon("dollar")}<span>${te("cost.line", v)}</span></p>` : "";
 }
 
+/** PRD 0042 M-05: the core's "1 hidden project is not counted in these figures." in a card's or details' muted foot. */
+const hiddenNoteHtml = (summary) => (summary?.hidden_note ? `<br/><span data-cost-hidden-note>${esc(tl(summary.hidden_note))}</span>` : "");
+
 /** PRD 0042 RF6.2: "This block ≈ $4.10 · 38K tok/min" (the core's text, with "+ unknown cost of N tokens" for the
  *  part without a price) under the local usage, the projection in the tooltip; nothing while the active block has no
  *  burn rate. The core formats every amount: the desktop adds no money of its own. */
@@ -122,7 +125,7 @@ export function costCardHtml(sc, summary, accountId = null) {
     <div class="lc-head">${icon("monitor")}<span class="lc-title">${te("cost.card.title", { source: sc.label })}</span>
       <button class="icon" data-cost-details="${esc(sc.source)}" title="${te("cost.card.details")}" aria-label="${te("cost.card.details")}">${icon("search")}</button></div>
     ${noteHtml(sc)}${tilesHtml(sc, summary, accountId)}${liveLineHtml(sc, summary)}
-    <p class="lc-foot">${te("cost.card.estimate")}</p></div>`;
+    <p class="lc-foot">${te("cost.card.estimate")}${hiddenNoteHtml(summary)}</p></div>`;
 }
 
 /** A card of its own for a source that is on while no account of its tool is configured. */
@@ -212,7 +215,7 @@ export function costDetailHtml(sc, summary, accountId = null) {
     ${sc.usage.days.length ? chartHtml(sc, summary) : ""}${modelsHtml(sc, summary)}
     ${summary.pricing_error ? `<p class="lc-note warn">${esc(tl(summary.pricing_error))}</p>` : ""}
     ${sc.usage.unpriced ? `<p class="lc-note warn" data-cost-unpriced>${esc(tl(sc.usage.unpriced))}</p>` : ""}
-    <p class="lc-foot">${esc(tl(summary.notice))}${tables ? `<br/>${tables}` : ""}</p></section>`;
+    <p class="lc-foot">${esc(tl(summary.notice))}${hiddenNoteHtml(summary)}${tables ? `<br/>${tables}` : ""}</p></section>`;
 }
 
 let dlg = null;

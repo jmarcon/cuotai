@@ -1123,9 +1123,6 @@
   "settings.costBy.hide": "숨기기",
   "settings.costBy.show": "합계에 포함",
   "settings.costBy.hidden": "숨김",
-  "settings.costBy.hiddenNote": {
-    "other": "숨긴 프로젝트 {count}개: 목록에는 남지만 합계에서는 빠집니다."
-  },
   "settings.costBy.blockDefault": "블록 길이, 기본 {hours}시간",
   "settings.costBy.blockHours": "{source}의 블록 길이(시간)",
   "settings.costBy.hoursUnit": "시간",

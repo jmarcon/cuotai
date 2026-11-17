@@ -8,6 +8,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+#[path = "hidden_tests.rs"]
+mod hidden;
+
 /// Marks every content field of the synthetic logs; it must never reach
 /// the index, a report, a debug rendering or a text.
 const SECRET: &str = "SENSITIVE-CONTENT-7f3a";

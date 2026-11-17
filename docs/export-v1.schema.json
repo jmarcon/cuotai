@@ -611,7 +611,9 @@
         "blocks": { "type": "array", "items": { "$ref": "#/$defs/CostBlock" }, "description": "PRD 0042 RF7 (additive, absent when empty): the computed 5-hour blocks of the last 7 days, newest first." },
         "live": { "type": "array", "items": { "$ref": "#/$defs/CostLiveBlock" }, "description": "PRD 0042 RF3.3 (additive, absent when empty): the active block of each source with its burn rate and projection." },
         "projects": { "type": "array", "items": { "$ref": "#/$defs/CostProject" }, "description": "PRD 0042 RF7 (additive, absent when empty): the projects of the span that are not hidden; never a folder name." },
-        "settings_notes": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "PRD 0030 (additive, absent when empty): saved plan prices or a second currency that were invalid and ignored, counted only; nothing of the file is repeated." }
+        "settings_notes": { "type": "array", "items": { "$ref": "#/$defs/Localized" }, "description": "PRD 0030 (additive, absent when empty): saved plan prices or a second currency that were invalid and ignored, counted only; nothing of the file is repeated." },
+        "hidden_projects": { "type": "integer", "minimum": 1, "description": "PRD 0042 (additive, absent when 0): the hidden projects with usage in the span. Since vNEXT every figure here (total, sources' usage, blocks, live) excludes them." },
+        "hidden_note": { "$ref": "#/$defs/Localized", "description": "PRD 0042 (additive, absent when no hidden project had usage): the localized 'N hidden projects are not counted in these figures.'." }
       }
     },
     "CostBlock": {
