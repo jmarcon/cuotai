@@ -551,6 +551,8 @@
   "wizard.interval.help": "Vale só para esta conta; vazio = global.",
   "wizard.interval.prompt": "Intervalo individual desta conta em segundos ({min}–{max}); vazio herda o global:",
   "wizard.login.authorized": "Login autorizado.",
+  "wizard.login.choose": "↓ seleciona o login; Tab troca o modo.",
+  "wizard.login.confirm": "Abrir o navegador para fazer login em {provider}? Enter / Esc",
   "wizard.login.finished": "Login concluído.",
   "wizard.models.heading": "Modelos · {provider}",
   "wizard.models.no_account": "Fonte: {source}\nNenhuma conta deste provedor está configurada; grave a conta e abra Modelos para consultá-la.",

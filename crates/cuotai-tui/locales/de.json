@@ -15,7 +15,9 @@
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
       "once.renewal_due",
-      "feed.forget.failed"
+      "feed.forget.failed",
+      "wizard.login.choose",
+      "wizard.login.confirm"
     ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
@@ -561,6 +563,8 @@
   "wizard.interval.help": "Gilt nur für dieses Konto; leer = global.",
   "wizard.interval.prompt": "Eigenes Intervall dieses Kontos in Sekunden ({min}–{max}); leer erbt das globale:",
   "wizard.login.authorized": "Anmeldung autorisiert.",
+  "wizard.login.choose": "↓ wählt die Anmeldung; Tab wechselt den Modus.",
+  "wizard.login.confirm": "Browser öffnen, um sich bei {provider} anzumelden? Enter / Esc",
   "wizard.login.finished": "Anmeldung abgeschlossen.",
   "wizard.models.heading": "Modelle · {provider}",
   "wizard.models.no_account": "Quelle: {source}\nFür diesen Anbieter ist kein Konto konfiguriert; speichern Sie das Konto und öffnen Sie Modelle, um es abzufragen.",

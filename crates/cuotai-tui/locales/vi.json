@@ -15,7 +15,9 @@
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
       "once.renewal_due",
-      "feed.forget.failed"
+      "feed.forget.failed",
+      "wizard.login.choose",
+      "wizard.login.confirm"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -544,6 +546,8 @@
   "wizard.interval.help": "Chỉ áp dụng cho tài khoản này; để trống = chung.",
   "wizard.interval.prompt": "Chu kỳ riêng của tài khoản này, tính bằng giây ({min}–{max}); để trống = kế thừa chu kỳ chung:",
   "wizard.login.authorized": "Đã ủy quyền đăng nhập.",
+  "wizard.login.choose": "↓ chọn đăng nhập; Tab đổi chế độ.",
+  "wizard.login.confirm": "Mở trình duyệt để đăng nhập vào {provider}? Enter / Esc",
   "wizard.login.finished": "Đã đăng nhập xong.",
   "wizard.models.heading": "Mô hình · {provider}",
   "wizard.models.no_account": "Nguồn: {source}\nChưa cấu hình tài khoản nào của nhà cung cấp này; hãy lưu tài khoản rồi mở Mô hình để truy vấn.",

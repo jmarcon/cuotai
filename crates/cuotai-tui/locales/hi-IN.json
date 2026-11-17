@@ -548,6 +548,8 @@
   "wizard.interval.help": "केवल इसी खाते पर लागू; खाली = वैश्विक।",
   "wizard.interval.prompt": "इस खाते का अपना अंतराल सेकंड में ({min}–{max}); खाली छोड़ने पर वैश्विक मान लागू होता है:",
   "wizard.login.authorized": "लॉगिन अधिकृत हुआ।",
+  "wizard.login.choose": "↓ साइन इन चुनता है; Tab मोड बदलता है।",
+  "wizard.login.confirm": "{provider} में साइन इन करने के लिए ब्राउज़र खोलें? Enter / Esc",
   "wizard.login.finished": "लॉगिन पूरा हुआ।",
   "wizard.models.heading": "मॉडल · {provider}",
   "wizard.models.no_account": "स्रोत: {source}\nइस प्रदाता का कोई खाता कॉन्फ़िगर नहीं है; खाता सहेजें और जाँच के लिए मॉडल खोलें।",

@@ -105,6 +105,11 @@ pub struct CredentialFor {
     pub label: crate::text::Localized,
     /// Which key it is and how Cuotai keeps it (never a variable name).
     pub help: crate::text::Localized,
+    /// PRD 0040 RF3.5 (re-validation V-06): whether these choices need a
+    /// credential at all. `false` for an agent-fed mode (Fed by Claude Code,
+    /// Fed by Codex CLI): the terminal wizard skips its Credential step and
+    /// the desktop hides the key and the sign-in.
+    pub needed: bool,
 }
 
 /// OpenRouter's management key: the account product's credential.
@@ -121,6 +126,7 @@ fn open_router_account_product(params: &BTreeMap<String, String>) -> bool {
 pub fn credential_for(provider: Provider, params: &BTreeMap<String, String>) -> CredentialFor {
     use crate::text::Localized;
     use crate::user_session::CREDENTIAL_SLOT;
+    let needed = !feed_only_params(provider, params);
     match provider {
         Provider::OpenRouter if open_router_account_product(params) => CredentialFor {
             default_env: OPEN_ROUTER_MANAGEMENT_ENV,
@@ -137,6 +143,7 @@ pub fn credential_for(provider: Provider, params: &BTreeMap<String, String>) -> 
                 "secret_input.credential.open_router.management.help",
                 "An OpenRouter management key: it reads the account balance and cannot make inference calls. Cuotai keeps it in the system vault and sends it only to OpenRouter.",
             ),
+            needed,
         },
         Provider::OpenRouter => CredentialFor {
             default_env: default_env(provider),
@@ -150,6 +157,7 @@ pub fn credential_for(provider: Provider, params: &BTreeMap<String, String>) -> 
                 "secret_input.credential.open_router.inference.help",
                 "An OpenRouter API key, the kind that makes inference calls: Cuotai reads only this key's limit, spend and free requests. It keeps the key in the system vault and sends it only to OpenRouter.",
             ),
+            needed,
         },
         _ => CredentialFor {
             default_env: default_env(provider),
@@ -157,8 +165,21 @@ pub fn credential_for(provider: Provider, params: &BTreeMap<String, String>) -> 
             key_page: crate::secret_input::key_page(provider, CREDENTIAL_SLOT),
             label: crate::secret_input::main_credential_label(provider),
             help: crate::secret_input::secret_help(),
+            needed,
         },
     }
+}
+
+/// Whether the option values `params` select the feed-only mode of
+/// `provider` ([`feed_only_choice`]), in which no credential is asked.
+fn feed_only_params(provider: Provider, params: &BTreeMap<String, String>) -> bool {
+    feed_only_choice(provider).is_some_and(|(key, index)| {
+        let value = descriptor(provider, key).and_then(|field| match &field.kind {
+            FieldDescriptorKind::Choice(choice) => choice.options.get(index).map(|o| o.value),
+            FieldDescriptorKind::Text => None,
+        });
+        value.is_some() && params.get(key).map(|v| v.trim()) == value
+    })
 }
 
 /// One option of a field marked [`FieldDescriptor::decides_credential`]
@@ -1488,7 +1509,8 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
                 ChoiceOptionDescriptor::new("codex_cli_or_api", "Codex CLI, else the query"),
             ],
             true,
-        ),
+        )
+        .decides_credential(),
         FieldDescriptor::text(
             "account_id",
             "Account ID",
@@ -1517,7 +1539,8 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
                 ChoiceOptionDescriptor::new("claude_code_or_api", "Claude Code, else the query"),
             ],
             true,
-        ),
+        )
+        .decides_credential(),
         FieldDescriptor::choice(
             "feed",
             "Live session",

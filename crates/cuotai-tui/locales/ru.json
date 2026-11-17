@@ -21,7 +21,9 @@
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
       "once.renewal_due",
-      "feed.forget.failed"
+      "feed.forget.failed",
+      "wizard.login.choose",
+      "wizard.login.confirm"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -601,6 +603,8 @@
   "wizard.interval.help": "Только для этой записи; пусто = общий.",
   "wizard.interval.prompt": "Собственный интервал этой записи в секундах ({min}–{max}); пусто = общий:",
   "wizard.login.authorized": "Вход авторизован.",
+  "wizard.login.choose": "↓ выбирает вход; Tab переключает режим.",
+  "wizard.login.confirm": "Открыть браузер для входа в {provider}? Enter / Esc",
   "wizard.login.finished": "Вход завершён.",
   "wizard.models.heading": "Модели · {provider}",
   "wizard.models.no_account": "Источник: {source}\nДля этого провайдера нет настроенных записей; сохраните запись и откройте «Модели», чтобы запросить её.",

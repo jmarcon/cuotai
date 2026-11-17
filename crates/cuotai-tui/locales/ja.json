@@ -42,7 +42,9 @@
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
       "once.renewal_due",
-      "feed.forget.failed"
+      "feed.forget.failed",
+      "wizard.login.choose",
+      "wizard.login.confirm"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -571,6 +573,8 @@
   "wizard.interval.help": "このアカウントにのみ適用されます。空欄 = 全体設定。",
   "wizard.interval.prompt": "このアカウント独自の間隔（秒、{min}–{max}）。空欄で全体設定を継承します：",
   "wizard.login.authorized": "ログインが承認されました。",
+  "wizard.login.choose": "↓ でログインを選択、Tab で方式を切り替え。",
+  "wizard.login.confirm": "ブラウザを開いて {provider} にログインしますか？ Enter / Esc",
   "wizard.login.finished": "ログインが完了しました。",
   "wizard.models.heading": "モデル · {provider}",
   "wizard.models.no_account": "出典：{source}\nこのプロバイダーのアカウントは設定されていません。アカウントを保存してからモデルを開いて照会してください。",

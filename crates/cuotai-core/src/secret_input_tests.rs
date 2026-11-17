@@ -519,6 +519,45 @@ fn open_router_product_decides_the_key_and_its_page() {
     assert!(credential_variants(Provider::Groq).is_empty());
 }
 
+/// PRD 0040 RF3.5 (re-validation V-06): Claude's and ChatGPT's source
+/// decides whether a credential is asked at all; the feed-only modes need
+/// none, the query and the hybrid modes do.
+#[test]
+fn an_agent_fed_source_needs_no_credential() {
+    use crate::account_edit::{credential_for, credential_variants, descriptor};
+    use std::collections::BTreeMap;
+    for (provider, feed) in [
+        (Provider::Claude, "claude_code"),
+        (Provider::ChatGpt, "codex_cli"),
+    ] {
+        assert!(descriptor(provider, "query_mode").is_some_and(|d| d.decides_credential));
+        let needed = |value: &str| {
+            credential_for(
+                provider,
+                &BTreeMap::from([("query_mode".to_string(), value.to_string())]),
+            )
+            .needed
+        };
+        assert!(credential_for(provider, &BTreeMap::new()).needed);
+        assert!(needed("api"));
+        assert!(!needed(feed));
+        assert!(needed(&format!("{feed}_or_api")));
+        let variants = credential_variants(provider);
+        assert_eq!(
+            variants
+                .iter()
+                .map(|v| (v.value.to_string(), v.credential.needed))
+                .collect::<Vec<_>>(),
+            [
+                ("api".to_string(), true),
+                (feed.to_string(), false),
+                (format!("{feed}_or_api"), true)
+            ]
+        );
+    }
+    assert!(credential_for(Provider::OpenRouter, &BTreeMap::new()).needed);
+}
+
 /// PRD 0016 (2026-11 review): an account that reads its usage through a web
 /// session needs no API key, and editing it never writes the default one.
 #[test]
