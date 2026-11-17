@@ -1,0 +1,21 @@
+{
+  "total_count": 1,
+  "check_runs": [
+    {
+      "id": 133915012239,
+      "name": "CI result",
+      "head_sha": "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-11-17T08:28:15Z",
+      "completed_at": "2026-11-17T08:28:19Z",
+      "app": {
+        "id": 15368,
+        "slug": "github-actions"
+      },
+      "check_suite": {
+        "id": 119226891957
+      }
+    }
+  ]
+}

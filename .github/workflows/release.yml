@@ -53,6 +53,14 @@ jobs:
     name: version and tag check
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # PRD 0039 RF5.4 (re-validation F-01/S-01): the CI result proof reads
+    # check runs, workflow runs and the associated pull request with GET
+    # calls only. Nothing else in this job writes or reads beyond contents.
+    permissions:
+      contents: read
+      checks: read
+      actions: read
+      pull-requests: read
     outputs:
       version: ${{ steps.result.outputs.version }}
       channel: ${{ steps.result.outputs.channel }}
@@ -133,6 +141,66 @@ jobs:
               echo "No GitHub Release or package-manager repository will be modified by a dispatch."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      # PRD 0039 RF5.4 (re-validation F-01/S-01): a tag publishes only a
+      # commit that passed `CI result`, so a release built on a red merge
+      # (or one that bypassed the ruleset while CI failed) stops here. The
+      # API responses go to files through read-only GETs; `release ci-proof`
+      # decides offline (strict form: the `CI result` check run of GitHub
+      # Actions, from a ci.yml run on the tagged commit itself) and checks
+      # the noreply identities, the tag message `release tag` writes and the
+      # version order. A dispatch runs the same proof in report mode, so the
+      # permissions and API calls are exercised before a tag depends on them.
+      - name: CI result proof and release identity (RF5.4)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ./target/debug/xtask security-baseline
+          commit="$(git rev-parse HEAD)"
+          dir="$RUNNER_TEMP/ci-proof"
+          mkdir -p "$dir"
+          # A failed call leaves its file absent; the evaluator then names
+          # the missing evidence (and a tag push fails on it).
+          fetch() {
+            if ! gh api --method GET "$2" > "$dir/$1"; then
+              echo "::warning::GET $2 failed; $1 is missing from the evidence"
+              rm -f "$dir/$1"
+            fi
+          }
+          check_runs='check-runs?check_name=CI%20result&filter=latest&per_page=100'
+          fetch check-runs.json "repos/$REPO/commits/$commit/$check_runs"
+          fetch runs.json "repos/$REPO/actions/runs?head_sha=$commit&per_page=100"
+          fetch pulls.json "repos/$REPO/commits/$commit/pulls"
+          head=""
+          if [ -f "$dir/pulls.json" ]; then
+            head="$(jq -r '[.[] | select(.merged_at != null and .base.ref == "main")] | if length == 1 then .[0].head.sha else "" end' "$dir/pulls.json")"
+          fi
+          if [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then
+            fetch head-commit.json "repos/$REPO/git/commits/$head"
+            fetch head-check-runs.json "repos/$REPO/commits/$head/$check_runs"
+            fetch head-runs.json "repos/$REPO/actions/runs?head_sha=$head&per_page=100"
+          fi
+          args=(release ci-proof --commit "$commit" --evidence "$dir")
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            args+=(--report-only)
+          else
+            args+=(--tag "$REF_NAME")
+          fi
+          status=0
+          ./target/debug/xtask "${args[@]}" > "$dir/report.txt" 2>&1 || status=$?
+          cat "$dir/report.txt"
+          {
+            echo "### CI result proof"
+            echo
+            echo '```text'
+            cat "$dir/report.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
   # Each signing build enters the release environment directly after `check`
   # and validates the updater key before doing build work. The separate

@@ -1,0 +1,14 @@
+[
+  {
+    "number": 264,
+    "state": "closed",
+    "merged_at": "2026-11-17T08:04:49Z",
+    "merge_commit_sha": "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6",
+    "base": {
+      "ref": "main"
+    },
+    "head": {
+      "sha": "16de5ada250816f51b5e45ee232ab63e59552efd"
+    }
+  }
+]

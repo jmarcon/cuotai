@@ -707,6 +707,14 @@ fn check_job_permissions(workflow_name: &str, job_name: &str, job: &Mapping) -> 
             ("id-token", "write"),
             ("attestations", "write"),
         ],
+        // PRD 0039 RF5.4: the CI result proof reads check runs, workflow
+        // runs and the commit's pull requests (GET only).
+        ("release.yml", "check") => &[
+            ("contents", "read"),
+            ("checks", "read"),
+            ("actions", "read"),
+            ("pull-requests", "read"),
+        ],
         ("release.yml", "publish") => &[("contents", "write"), ("attestations", "read")],
         ("release.yml", "verify-public") => &[("contents", "read"), ("attestations", "read")],
         ("external-rules.yml", "issue") => &[("issues", "write")],
@@ -847,6 +855,37 @@ fn check_action_pins(job_name: &str, job: &Mapping) -> Res<()> {
     Ok(())
 }
 
+/// PRD 0039 RF5.4: the `check` job proves `CI result` on the tagged commit
+/// with `release ci-proof` and runs `security-baseline`; its API calls are
+/// GETs only, with the job token.
+fn check_release_ci_proof(check: &Mapping) -> Res<()> {
+    let step = steps(check)?
+        .into_iter()
+        .find(|step| scalar(step, "run").is_some_and(|run| run.contains("release ci-proof")))
+        .map_or_else(
+            || err("release check job must run `xtask release ci-proof` (PRD 0039 RF5.4)"),
+            Ok,
+        )?;
+    let run = scalar(step, "run").unwrap_or_default();
+    if !run.contains("xtask security-baseline") {
+        return err("the release ci-proof step must also run `xtask security-baseline`");
+    }
+    let token = step
+        .get(Value::String("env".into()))
+        .and_then(Value::as_mapping)
+        .and_then(|env| scalar(env, "GH_TOKEN"));
+    if token != Some("${{ github.token }}") {
+        return err("the release ci-proof step must set GH_TOKEN to github.token");
+    }
+    let calls = run.matches("gh api").count();
+    if calls == 0 || run.matches("gh api --method GET ").count() != calls {
+        return err(
+            "every `gh api` call of the release ci-proof step must be `gh api --method GET`",
+        );
+    }
+    Ok(())
+}
+
 fn check_release_policy(jobs: &Mapping) -> Res<()> {
     let actual: BTreeSet<&str> = jobs
         .keys()
@@ -856,6 +895,8 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
     if actual != expected {
         return err("release jobs drifted from the bounded RF2/RF5 policy");
     }
+
+    check_release_ci_proof(mapping(need(jobs, "check", "release jobs")?, "job check")?)?;
 
     let homebrew = mapping(
         need(jobs, "channel-homebrew", "release jobs")?,
@@ -1642,6 +1683,44 @@ mod tests {
             1,
         );
         assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    #[test]
+    fn release_check_job_keeps_its_ci_proof_and_exact_permissions() {
+        let cases = [
+            // A broader permission than the proof needs.
+            (
+                "      pull-requests: read\n",
+                "      pull-requests: write\n",
+            ),
+            // A permission the proof does not need.
+            (
+                "      pull-requests: read\n",
+                "      pull-requests: read\n      issues: read\n",
+            ),
+            // The proof step dropped.
+            ("args=(release ci-proof ", "args=(release other "),
+            // security-baseline dropped.
+            ("./target/debug/xtask security-baseline\n", ""),
+            // A token other than the job token.
+            (
+                "GH_TOKEN: ${{ github.token }}\n          REPO:",
+                "GH_TOKEN: ${{ secrets.OTHER }}\n          REPO:",
+            ),
+            // A non-GET API call.
+            (
+                "if ! gh api --method GET \"$2\"",
+                "if ! gh api --method POST \"$2\"",
+            ),
+        ];
+        for (from, to) in cases {
+            assert!(RELEASE_WORKFLOW.contains(from), "{from}");
+            let changed = RELEASE_WORKFLOW.replacen(from, to, 1);
+            assert!(
+                check_text(Path::new("release.yml"), &changed).is_err(),
+                "accepted: {to}"
+            );
+        }
     }
 
     #[test]

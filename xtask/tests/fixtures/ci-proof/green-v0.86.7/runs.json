@@ -1,0 +1,47 @@
+{
+  "total_count": 3,
+  "workflow_runs": [
+    {
+      "id": 44047156067,
+      "name": "Release",
+      "path": ".github/workflows/release.yml",
+      "event": "push",
+      "head_sha": "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6",
+      "head_branch": "v0.86.7",
+      "status": "completed",
+      "conclusion": "success",
+      "check_suite_id": 119236053472,
+      "run_number": 66,
+      "run_attempt": 1,
+      "created_at": "2026-11-17T08:29:24Z"
+    },
+    {
+      "id": 44043685973,
+      "name": "CodeQL",
+      "path": ".github/workflows/codeql.yml",
+      "event": "push",
+      "head_sha": "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "success",
+      "check_suite_id": 119226892234,
+      "run_number": 624,
+      "run_attempt": 1,
+      "created_at": "2026-11-17T08:04:52Z"
+    },
+    {
+      "id": 44043685873,
+      "name": "CI",
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_sha": "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "success",
+      "check_suite_id": 119226891957,
+      "run_number": 820,
+      "run_attempt": 2,
+      "created_at": "2026-11-17T08:04:52Z"
+    }
+  ]
+}
