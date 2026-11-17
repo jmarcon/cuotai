@@ -26,7 +26,11 @@
       "settings.serve.browsersHelp",
       "settings.vault.skipped",
       "stats.rhythm.subtitle",
-      "tray.unavailableLinux"
+      "tray.unavailableLinux",
+      "budget.editor.period.window",
+      "settings.costBy.providerReset",
+      "settings.costBy.providerWindow",
+      "settings.hooks.event.limit_changed"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -1047,8 +1051,8 @@
   "settings.costBy.moreSessions": {
     "other": "另有 {count} 个较早的会话未列出。"
   },
-  "settings.costBy.providerWindow": "服务商窗口：已用 {pct}%，{at} 重置",
-  "settings.costBy.providerReset": "服务商窗口：{at} 重置",
+  "settings.costBy.providerWindow": "提供商窗口：已用 {pct}%，{at} 重置",
+  "settings.costBy.providerReset": "提供商窗口：{at} 重置",
   "settings.costBy.liveTitle": "进行中的时段块 · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · 已过 {elapsed}，剩余 {left}",
   "settings.costBy.noRate": "消耗速度：近期请求还不够。",
@@ -1589,7 +1593,7 @@
   "budget.editor.period.monthly": "每月",
   "budget.editor.period.weekly": "每周",
   "budget.editor.period.daily": "每天",
-  "budget.editor.period.window": "服务商周期",
+  "budget.editor.period.window": "提供商周期",
   "settings.insights.title": "洞察",
   "settings.insights.limitChanges": "上限变化时通知",
   "settings.insights.limitChangesHelp": "例如促销结束或有人修改了上限。无论如何，账户都会以备注显示该变化 48 小时。",
@@ -1627,7 +1631,7 @@
   "stats.rhythm.marks": "备注",
   "settings.hooks.event.balance_below_floor": "余额低于设定的下限",
   "settings.hooks.event.balance_recovered": "余额回到下限以上",
-  "settings.hooks.event.limit_changed": "服务商更改了上限",
+  "settings.hooks.event.limit_changed": "提供商更改了上限",
   "budget.editor.weekday.monday": "周一",
   "budget.editor.weekday.tuesday": "周二",
   "budget.editor.weekday.wednesday": "周三",

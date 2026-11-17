@@ -35,7 +35,10 @@
       "events.summary.balance_recovered",
       "field.chat_gpt.query_mode.help",
       "field.claude.query_mode.help",
-      "user_session.instructions.xiaomi_account"
+      "user_session.instructions.xiaomi_account",
+      "cost.block.provider_window",
+      "cost.block.provider_window_reset",
+      "pace.chip.lasts"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -443,8 +446,8 @@
   "cost.project.hidden": "ausgeblendet",
   "cost.project.hidden_saved": "Projekt {short} ausgeblendet: aufgeführt, aber nicht in den Summen.",
   "cost.project.shown_saved": "Projekt {short} zählt wieder in den Summen.",
-  "cost.block.provider_window": "Anbieterfenster: {pct} % verbraucht, Reset um {at}",
-  "cost.block.provider_window_reset": "Anbieterfenster: Reset um {at}",
+  "cost.block.provider_window": "Anbieterfenster: {pct} % verbraucht, Zurücksetzung um {at}",
+  "cost.block.provider_window_reset": "Anbieterfenster: Zurücksetzung um {at}",
   "cost.block.local_estimate": "Lokale Schätzung",
   "cost.block.active": "aktiv",
   "cost.block.closed": "abgeschlossen",
@@ -1737,7 +1740,7 @@
   "pace.chip.ahead_pct": "{p} % über dem Tempo",
   "pace.chip.approx": "≈{at}",
   "pace.chip.exhausted": "Erschöpft",
-  "pace.chip.lasts": "Reicht bis Reset",
+  "pace.chip.lasts": "Bis Zurücksetzung",
   "pace.chip.on_pace": "Im Tempo",
   "pace.chip.percent": "{p} %",
   "pace.chip.reserve": "{d} Pkt. Reserve",

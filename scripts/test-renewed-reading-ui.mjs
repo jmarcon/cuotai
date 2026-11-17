@@ -64,7 +64,7 @@ const wording = (code, clock) => ({
   "hi-IN": `${clock} पर रीसेट हुआ; अगली रीडिंग का इंतज़ार`,
   "id-ID": `Diperbarui pada ${clock}; menunggu pembacaan berikutnya`,
   tr: `${clock} saatinde yenilendi; sonraki okuma bekleniyor`,
-  vi: `Đã làm mới lúc ${clock}; đang chờ lần đọc tiếp theo`,
+  vi: `Đã đặt lại lúc ${clock}; đang chờ lần đọc tiếp theo`,
   "zh-CN": `已于 ${clock} 重置；等待下一次读数`,
   fr: `Réinitialisé à ${clock} ; en attente du prochain relevé`,
   ja: `${clock} にリセット。次の読み取り待ち`,
