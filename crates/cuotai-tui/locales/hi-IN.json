@@ -125,6 +125,7 @@
   "dashboard.detail.none": "कोई खाता चुना नहीं गया।",
   "dashboard.detail.notes": "  टिप्पणियाँ",
   "dashboard.detail.pace_expected": "   ·   अपेक्षित {percent} उपयोग · रैखिक अनुमान",
+  "dashboard.detail.pools": "  पूल",
   "dashboard.detail.quotas": "  कोटा और उपयोग",
   "dashboard.detail.reading": "  रीडिंग ",
   "dashboard.detail.session": "  सत्र  ",
@@ -186,6 +187,10 @@
   "dashboard.hint.more": {
     "one": "+{count} मीट्रिक • ",
     "other": "+{count} मीट्रिक • "
+  },
+  "dashboard.hint.more_pools": {
+    "one": "+{count} पूल • ",
+    "other": "+{count} पूल • "
   },
   "dashboard.history.empty": "  इतिहास {range}: कोई दर्ज माप नहीं",
   "dashboard.history.no_measured": "  इतिहास {range}: कोई मापा गया मान नहीं",

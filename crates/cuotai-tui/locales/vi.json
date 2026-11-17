@@ -7,7 +7,9 @@
     "pending_review": [
       "dashboard.reset.renews",
       "history.window.renews",
-      "once.renews"
+      "once.renews",
+      "dashboard.detail.pools",
+      "dashboard.hint.more_pools"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -128,6 +130,7 @@
   "dashboard.detail.none": "Chưa chọn tài khoản nào.",
   "dashboard.detail.notes": "  GHI CHÚ",
   "dashboard.detail.pace_expected": "   ·   dự kiến đã dùng {percent} · ước tính tuyến tính",
+  "dashboard.detail.pools": "  NHÓM GỘP",
   "dashboard.detail.quotas": "  HẠN MỨC VÀ MỨC SỬ DỤNG",
   "dashboard.detail.reading": "  LẦN ĐỌC ",
   "dashboard.detail.session": "  PHIÊN  ",
@@ -186,6 +189,9 @@
   },
   "dashboard.hint.more": {
     "other": "+{count} chỉ số • "
+  },
+  "dashboard.hint.more_pools": {
+    "other": "+{count} nhóm gộp • "
   },
   "dashboard.history.empty": "  lịch sử {range}: không có số đo nào được ghi",
   "dashboard.history.no_measured": "  lịch sử {range}: không có giá trị đo",

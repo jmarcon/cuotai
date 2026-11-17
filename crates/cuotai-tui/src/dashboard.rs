@@ -765,31 +765,108 @@ pub(crate) fn sub_cards_of<'r>(
     cards
 }
 
-/// PRD 0036 RF9.1: the line an aggregator card shows instead of metrics:
-/// "5/7 available · 9router 0.5.109 · Claude · 2 of 3 available; …".
-fn aggregator_summary(report: &Report, now: DateTime<Utc>) -> Option<String> {
+/// PRD 0036 RF9.1: what an aggregator card and its details show instead of
+/// metrics: the instance line ("5/7 available · 9router 0.5.109") and one
+/// sentence per pool ("Claude · 2 of 3 available"), never joined into one
+/// line (re-validation V-02).
+struct AggregatorLines {
+    header: String,
+    pools: Vec<(String, Color)>,
+}
+
+fn aggregator_lines(report: &Report, now: DateTime<Utc>) -> Option<AggregatorLines> {
     use cuotai_core::aggregators::{instance_version, pools};
-    if report.status != Status::Ready {
+    if report.status != Status::Ready || !report.provider.is_aggregator() {
         return None;
     }
     let pools = pools(report);
     let available: usize = pools.iter().map(|pool| pool.available).sum();
     let total: usize = pools.iter().map(|pool| pool.total).sum();
-    let mut parts = vec![trf(
+    let mut header = trf(
         "dashboard.aggregator.available",
         "{available}/{total} available",
         &[("available", &available), ("total", &total)],
-    )];
+    );
     if let Some(version) = instance_version(report) {
         let kind = cuotai_core::aggregators::shape(report.provider).map_or("9router", |s| s.kind());
-        parts.push(format!("{kind} {version}"));
+        header = format!("{header} · {kind} {version}");
     }
-    parts.extend(
-        pools
-            .iter()
-            .map(|pool| resolve_l10n(&pool.summary_at(now, &Local))),
+    let pools = pools
+        .iter()
+        .map(|pool| {
+            let color = if pool.is_exhausted() {
+                RED
+            } else if pool.available == 0 {
+                MUTED
+            } else {
+                FG
+            };
+            let text = safe(&resolve_l10n(&pool.summary_at(now, &Local))).into_owned();
+            (text, color)
+        })
+        .collect();
+    Some(AggregatorLines { header, pools })
+}
+
+/// The card rows of `pools` within `width` cells and `free` rows: each pool
+/// starts its own row and wraps (continuation indented) rather than being
+/// cut; the pools that do not fit leave the last row to a "+N pools"
+/// hint (the details list them all). Returns the rows and the hidden count.
+fn fit_pools(
+    pools: &[(String, Color)],
+    width: usize,
+    free: usize,
+) -> (Vec<(String, Color)>, usize) {
+    let wrapped: Vec<Vec<(String, Color)>> = pools
+        .iter()
+        .map(|(text, color)| {
+            textwrap_simple(text, width.saturating_sub(2).max(1))
+                .into_iter()
+                .enumerate()
+                .map(|(index, line)| {
+                    let line = if index == 0 {
+                        line
+                    } else {
+                        format!("  {line}")
+                    };
+                    (line, *color)
+                })
+                .collect()
+        })
+        .collect();
+    let total: usize = wrapped.iter().map(Vec::len).sum();
+    if total <= free {
+        return (wrapped.into_iter().flatten().collect(), 0);
+    }
+    let room = free.saturating_sub(1);
+    let mut rows = Vec::new();
+    let mut shown = 0;
+    for pool in &wrapped {
+        if rows.len() + pool.len() > room {
+            break;
+        }
+        rows.extend(pool.iter().cloned());
+        shown += 1;
+    }
+    (rows, pools.len() - shown)
+}
+
+/// The "+N pools • Enter details" row of a card whose pools do not fit.
+fn pools_hint(hidden: usize) -> Line<'static> {
+    let more = trp(
+        "dashboard.hint.more_pools",
+        "+{count} pool • ",
+        "+{count} pools • ",
+        hidden,
+        &[],
     );
-    Some(parts.join(" · "))
+    Line::from(vec![
+        Span::raw(more),
+        Span::styled(
+            details_hint(),
+            Style::default().fg(CYAN).add_modifier(Modifier::BOLD),
+        ),
+    ])
 }
 
 /// One cell of the card grid: an account (its position in `visible`) or
@@ -1779,10 +1856,15 @@ fn render_card(
     // `UserSession` level on the border and the core's warning in the
     // card's free rows (in full in the details).
     let session_notice = cuotai_core::user_session::notice(account);
+    let aggregator = if rows.is_empty() && explanation.is_none() {
+        report.and_then(|report| aggregator_lines(report, now))
+    } else {
+        None
+    };
     let first_note = if rows.is_empty() {
         explanation
             .clone()
-            .or_else(|| report.and_then(|report| aggregator_summary(report, now)))
+            .or_else(|| aggregator.as_ref().map(|lines| lines.header.clone()))
             .or_else(|| report.and_then(first_note_text))
     } else {
         None
@@ -1905,6 +1987,16 @@ fn render_card(
     for _ in 0..note_rows {
         constraints.push(Constraint::Length(1));
     }
+    // PRD 0036 re-validation V-02: one pool per row under the instance line.
+    let (pool_rows, hidden_pools) = aggregator.as_ref().map_or((Vec::new(), 0), |lines| {
+        let used = needed + extra_rows;
+        let free = usize::from(inner.height).saturating_sub(used);
+        fit_pools(&lines.pools, usize::from(inner.width), free)
+    });
+    let pool_hint_rows = usize::from(hidden_pools > 0);
+    for _ in 0..pool_rows.len() + pool_hint_rows {
+        constraints.push(Constraint::Length(1));
+    }
     for _ in 0..hint_rows {
         constraints.push(Constraint::Length(1));
     }
@@ -2020,6 +2112,20 @@ fn render_card(
             render_note_lines(frame, note_chunks, note);
             chunk_index += note_rows;
         }
+    }
+    for (text, color) in &pool_rows {
+        frame.render_widget(
+            Paragraph::new(Line::styled(text.clone(), Style::default().fg(*color))),
+            chunks[chunk_index],
+        );
+        chunk_index += 1;
+    }
+    if pool_hint_rows > 0 {
+        frame.render_widget(
+            Paragraph::new(pools_hint(hidden_pools)),
+            chunks[chunk_index],
+        );
+        chunk_index += 1;
     }
     if hint_rows > 0 {
         let hint_chunks = &chunks[chunk_index..chunk_index + hint_rows];
@@ -3137,6 +3243,26 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
             ]));
         }
     }
+    // PRD 0036 re-validation V-02: the instance line and every pool, one
+    // per line, which the card may not have room for.
+    let aggregator = aggregator_lines(report, now);
+    if let Some(aggregator) = &aggregator {
+        lines.push(Line::default());
+        lines.push(Line::styled(
+            tr("dashboard.detail.pools", "  POOLS"),
+            Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
+        ));
+        lines.push(Line::styled(
+            format!("  {}", aggregator.header),
+            Style::default().fg(MUTED),
+        ));
+        for (text, color) in &aggregator.pools {
+            lines.push(Line::styled(
+                format!("  {text}"),
+                Style::default().fg(*color),
+            ));
+        }
+    }
     lines.push(Line::default());
     lines.push(Line::styled(
         tr("dashboard.detail.quotas", "  QUOTAS AND USAGE"),
@@ -3178,7 +3304,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     let shown = stale.unwrap_or(report);
     let clock = pace_clock(view, account_index, shown, stale.is_some(), now);
     if shown.metrics.is_empty() {
-        if explanation.is_none() {
+        if explanation.is_none() && aggregator.is_none() {
             lines.push(Line::from(Span::styled(
                 tr(
                     "dashboard.detail.no_metrics",
@@ -4625,6 +4751,18 @@ mod tests {
         width: u16,
         focus: Option<(usize, usize)>,
     ) -> (String, Targets) {
+        draw_aggregator_view(accounts, reports, (collapsed, false), filter, width, focus)
+    }
+
+    /// [`draw_aggregators_of`] with `(collapsed, details)`.
+    fn draw_aggregator_view(
+        accounts: Vec<Account>,
+        reports: Vec<Option<Report>>,
+        (collapsed, details): (bool, bool),
+        filter: &str,
+        width: u16,
+        focus: Option<(usize, usize)>,
+    ) -> (String, Targets) {
         let visible = visible_indices(&accounts, &reports, filter, true);
         let sub_cards: Vec<Vec<SubCard>> = accounts
             .iter()
@@ -4644,7 +4782,7 @@ mod tests {
                         live: &[],
                         visible: &visible,
                         selected: Some(0),
-                        details: false,
+                        details,
                         detail_scroll: 0,
                         show_unmeasured: true,
                         refreshing: false,
@@ -4778,6 +4916,183 @@ mod tests {
         let (narrow, targets) = draw_aggregators(false, "", 60);
         assert_eq!(targets.columns, 1);
         assert!(narrow.find("OpenAI").unwrap() < narrow.find(" home ").unwrap());
+    }
+
+    /// An instance with one connection per entry of `upstreams` (slug,
+    /// remaining quota or `None` for a failed reading); a remaining 0 is
+    /// exhausted and returns at 03:00 UTC.
+    fn pools_fixture(upstreams: &[(&str, Option<f64>)]) -> (Vec<Account>, Vec<Option<Report>>) {
+        let (accounts, mut reports) = aggregator_fixture();
+        let instance = reports[0].as_mut().unwrap();
+        let template = instance.sub_reports[0].clone();
+        let returns = Utc.with_ymd_and_hms(2026, 1, 1, 3, 0, 0).unwrap();
+        instance.sub_reports = upstreams
+            .iter()
+            .enumerate()
+            .map(|(index, (upstream, remaining))| {
+                let mut sub = template.clone();
+                sub.id = format!("c{index}");
+                sub.label = format!("c{index}");
+                sub.upstream = (*upstream).into();
+                sub.provider = None;
+                match remaining {
+                    Some(remaining) => {
+                        let mut quota = metric("weekly", None, Some(100.0), Some(*remaining));
+                        quota.resets_at = Some(returns);
+                        sub.metrics = vec![quota];
+                    }
+                    None => {
+                        sub.status = Status::Error;
+                        sub.metrics = Vec::new();
+                    }
+                }
+                sub
+            })
+            .collect();
+        (accounts, reports)
+    }
+
+    /// The drawn text with the borders dropped and the spaces collapsed, so
+    /// a sentence wrapped over several rows reads as one.
+    fn flat(text: &str) -> String {
+        text.replace(['│', '─', '┌', '┐', '└', '┘'], " ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// The rows of the aggregator card (the first card), border included.
+    fn first_card_rows(text: &str) -> Vec<String> {
+        let rows: Vec<Vec<char>> = text.lines().map(|row| row.chars().collect()).collect();
+        let title: Vec<char> = " home ".chars().collect();
+        let (top, at) = rows
+            .iter()
+            .enumerate()
+            .find_map(|(y, row)| {
+                row.windows(title.len())
+                    .position(|window| window == title.as_slice())
+                    .map(|x| (y, x))
+            })
+            .unwrap();
+        let start = rows[top][..at].iter().rposition(|c| *c == '┌').unwrap();
+        let end = start + rows[top][start..].iter().position(|c| *c == '┐').unwrap();
+        rows[top..]
+            .iter()
+            .map(|row| row[start..=end].iter().collect::<String>())
+            .take_while(|row| !row.starts_with('└'))
+            .collect()
+    }
+
+    /// PRD 0036 re-validation V-02: the instance card shows one pool per
+    /// row, never joined and cut with "…", at a wide and a narrow width.
+    #[test]
+    fn the_instance_card_lists_one_pool_per_row() {
+        crate::l10n::with_locale("en-US", || {
+            let long = "openai-compatible-gateway-long";
+            let upstreams = [("claude", Some(40.0)), ("glm", None), (long, Some(5.0))];
+            // 50 columns: one card per row, and the long pool wraps.
+            for width in [120, 50] {
+                let (accounts, reports) = pools_fixture(&upstreams);
+                let (text, _) =
+                    draw_aggregator_view(accounts, reports, (false, false), "", width, None);
+                let card = first_card_rows(&text);
+                let joined = card.join("\n");
+                assert!(!joined.contains('…'), "{joined}");
+                let flat_card = flat(&joined);
+                for pool in [
+                    "claude · 1 of 1 available",
+                    "glm · 1 connection with unknown usage",
+                    "openai-compatible-gateway-long · 1 of 1 available",
+                ] {
+                    assert!(flat_card.contains(pool), "{width}: {joined}");
+                }
+                // Each pool starts its own row.
+                for slug in ["claude ·", "glm ·", long] {
+                    assert_eq!(
+                        card.iter()
+                            .filter(|row| row.trim_start_matches('│').starts_with(slug))
+                            .count(),
+                        1,
+                        "{width}: {joined}"
+                    );
+                }
+                assert!(flat_card.contains("2/3 available"), "{joined}");
+            }
+        });
+    }
+
+    /// More pools than the card has rows: the card says how many more and
+    /// the details list every pool, an exhausted one with a clock time.
+    #[test]
+    fn pools_beyond_the_card_are_counted_and_listed_in_the_details() {
+        crate::l10n::with_locale("en-US", || {
+            let upstreams = [
+                ("claude", Some(40.0)),
+                ("minimax", Some(0.0)),
+                ("glm", None),
+                ("kimi", Some(5.0)),
+                ("zed", Some(5.0)),
+                ("qwen", Some(5.0)),
+            ];
+            for width in [120, 50] {
+                let (accounts, reports) = pools_fixture(&upstreams);
+                let (text, _) = draw_aggregator_view(
+                    accounts.clone(),
+                    reports.clone(),
+                    (false, false),
+                    "",
+                    width,
+                    None,
+                );
+                let card = first_card_rows(&text).join("\n");
+                assert!(!card.contains('…'), "{card}");
+                assert!(flat(&card).contains("pools • Enter details"), "{card}");
+
+                let (details, _) =
+                    draw_aggregator_view(accounts, reports, (false, true), "", width, None);
+                let flat_details = flat(&details);
+                assert!(flat_details.contains("POOLS"), "{details}");
+                assert!(flat_details.contains("4/6 available"), "{details}");
+                for pool in [
+                    "claude · 1 of 1 available",
+                    "glm · 1 connection with unknown usage",
+                    "kimi · 1 of 1 available",
+                    "zed · 1 of 1 available",
+                    "qwen · 1 of 1 available",
+                    "minimax · all exhausted · returns",
+                ] {
+                    assert!(flat_details.contains(pool), "{width}: {details}");
+                }
+                assert!(!flat_details.contains("+00:00"), "{details}");
+                assert!(!flat_details.contains("2026-01-01T"), "{details}");
+                assert!(
+                    !flat_details.contains("Provider without metrics exposed"),
+                    "{details}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn fit_pools_wraps_each_pool_and_counts_the_rest() {
+        let pools = vec![
+            ("alpha · 1 of 2 available".to_string(), FG),
+            ("beta · all exhausted".to_string(), RED),
+            ("gamma · 3 of 3 available".to_string(), FG),
+        ];
+        // Everything fits: one row each.
+        let (rows, hidden) = fit_pools(&pools, 40, 3);
+        assert_eq!(hidden, 0);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[1], ("beta · all exhausted".to_string(), RED));
+        // Narrow: each pool wraps, continuation indented, nothing cut.
+        let (rows, hidden) = fit_pools(&pools, 14, 6);
+        assert_eq!(hidden, 0);
+        assert_eq!(rows[0].0, "alpha · 1 of");
+        assert_eq!(rows[1].0, "  2 available");
+        // Too few rows: whole pools only, the last row left to the hint.
+        let (rows, hidden) = fit_pools(&pools, 40, 2);
+        assert_eq!((rows.len(), hidden), (1, 2));
     }
 
     #[test]

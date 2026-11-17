@@ -123,6 +123,7 @@
   "dashboard.detail.none": "Tidak ada akun yang dipilih.",
   "dashboard.detail.notes": "  CATATAN",
   "dashboard.detail.pace_expected": "   ·   diharapkan {percent} terpakai · perkiraan linear",
+  "dashboard.detail.pools": "  POOL",
   "dashboard.detail.quotas": "  KUOTA DAN PENGGUNAAN",
   "dashboard.detail.reading": "  PEMBACAAN ",
   "dashboard.detail.session": "  SESI  ",
@@ -181,6 +182,9 @@
   },
   "dashboard.hint.more": {
     "other": "+{count} metrik • "
+  },
+  "dashboard.hint.more_pools": {
+    "other": "+{count} pool • "
   },
   "dashboard.history.empty": "  riwayat {range}: tidak ada pengukuran tercatat",
   "dashboard.history.no_measured": "  riwayat {range}: tidak ada nilai terukur",

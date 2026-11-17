@@ -7,7 +7,9 @@
     "pending_review": [
       "feed.setup.chained",
       "feed.setup.intro",
-      "wizard.budgets.prompt"
+      "wizard.budgets.prompt",
+      "dashboard.detail.pools",
+      "dashboard.hint.more_pools"
     ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
@@ -130,6 +132,7 @@
   "dashboard.detail.none": "Kein Konto ausgewählt.",
   "dashboard.detail.notes": "  HINWEISE",
   "dashboard.detail.pace_expected": "   ·   erwartet {percent} verbraucht · lineare Schätzung",
+  "dashboard.detail.pools": "  POOLS",
   "dashboard.detail.quotas": "  KONTINGENTE UND VERBRAUCH",
   "dashboard.detail.reading": "  MESSWERT  ",
   "dashboard.detail.session": "  SITZUNG  ",
@@ -191,6 +194,10 @@
   "dashboard.hint.more": {
     "one": "+{count} Messwert • ",
     "other": "+{count} Messwerte • "
+  },
+  "dashboard.hint.more_pools": {
+    "one": "+{count} Pool • ",
+    "other": "+{count} Pools • "
   },
   "dashboard.history.empty": "  Verlauf {range}: keine Messungen erfasst",
   "dashboard.history.no_measured": "  Verlauf {range}: keine gemessenen Werte",

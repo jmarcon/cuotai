@@ -2070,84 +2070,114 @@ fn sub_reports_text(
         return String::new();
     }
     let mut out = String::new();
-    for pool in cuotai_core::aggregators::pools(report) {
-        out += &l10n::trf_in(
-            locale,
-            "once.pool",
-            "  Pool: {summary}",
-            &[(
-                "summary",
-                &ui::safe(&pool.summary_at(now, &chrono::Local).resolve(locale)),
-            )],
-        );
-        out += "\n";
-    }
+    let pools = cuotai_core::aggregators::pools(report);
+    // PRD 0036 re-validation V-20: grouped by upstream in order of first
+    // appearance, like the TUI and the desktop, each pool's line heading
+    // its connections (an upstream with no active connection has no pool).
+    let mut upstreams: Vec<&str> = Vec::new();
     for sub in &report.sub_reports {
-        let name = sub
-            .provider
-            .map_or_else(|| sub.upstream.clone(), ui::provider_label);
-        let mut flags = Vec::new();
-        if sub.enabled_upstream == Some(false) {
-            flags.push(l10n::tr_in(locale, "once.sub.disabled", "off in 9router").to_string());
+        if !upstreams.contains(&sub.upstream.as_str()) {
+            upstreams.push(&sub.upstream);
         }
-        if sub.duplicate_of.is_some() {
-            flags.push(
-                l10n::tr_in(locale, "once.sub.duplicate", "also monitored directly").to_string(),
-            );
-        }
-        if let Some(plan) = &sub.plan {
-            flags.push(l10n::trf_in(
+    }
+    for upstream in upstreams {
+        if let Some(pool) = pools.iter().find(|pool| pool.upstream == upstream) {
+            out += &l10n::trf_in(
                 locale,
-                "once.sub.plan",
-                "plan {plan}",
-                &[("plan", &ui::safe(plan))],
-            ));
-        }
-        let flags = if flags.is_empty() {
-            String::new()
-        } else {
-            format!(" [{}]", flags.join("; "))
-        };
-        out += &format!(
-            "  • {} · {} — {}{}\n",
-            ui::safe(&name),
-            ui::safe(&sub.label),
-            ui::status_label(sub.status),
-            flags
-        );
-        // PRD 0007 RF4.2: a connection is paced like the TUI card and
-        // `export::v1` pace it, from its own reading.
-        let reading = cuotai_core::aggregators::sub_as_report(report, sub);
-        let reading_at = cuotai_core::freshness::reading_time(&reading);
-        for metric in &sub.metrics {
-            out += &format!(
-                "      {}: {}\n",
-                ui::safe(&ui::metric_label_text(&metric.label)),
-                ui::metric_text_in(metric, locale)
+                "once.pool",
+                "  Pool: {summary}",
+                &[(
+                    "summary",
+                    &ui::safe(&pool.summary_at(now, &chrono::Local).resolve(locale)),
+                )],
             );
-            if let Some(reset) = metric.resets_at {
-                out += &renews_line(locale, "        ", &at(reset));
-            }
-            if sub.status == cuotai_core::Status::Ready {
-                let lines = pace_lines(metric, reading_at, None, interval, now, locale, at);
-                for line in lines.lines() {
-                    out += &format!("    {line}\n");
-                }
+            out += "\n";
+        }
+        for sub in report
+            .sub_reports
+            .iter()
+            .filter(|sub| sub.upstream == upstream)
+        {
+            out += &connection_text(report, sub, interval, now, locale, at);
+        }
+    }
+    out
+}
+
+/// One connection of `--once`: its line with flags, metrics, renewals and
+/// pace, or the reason it has no reading.
+fn connection_text(
+    report: &Report,
+    sub: &cuotai_core::SubReport,
+    interval: Duration,
+    now: DateTime<Utc>,
+    locale: &str,
+    at: &impl Fn(DateTime<Utc>) -> String,
+) -> String {
+    let mut out = String::new();
+    let name = sub
+        .provider
+        .map_or_else(|| sub.upstream.clone(), ui::provider_label);
+    let mut flags = Vec::new();
+    if sub.enabled_upstream == Some(false) {
+        flags.push(l10n::tr_in(locale, "once.sub.disabled", "off in 9router").to_string());
+    }
+    if sub.duplicate_of.is_some() {
+        flags
+            .push(l10n::tr_in(locale, "once.sub.duplicate", "also monitored directly").to_string());
+    }
+    if let Some(plan) = &sub.plan {
+        flags.push(l10n::trf_in(
+            locale,
+            "once.sub.plan",
+            "plan {plan}",
+            &[("plan", &ui::safe(plan))],
+        ));
+    }
+    let flags = if flags.is_empty() {
+        String::new()
+    } else {
+        format!(" [{}]", flags.join("; "))
+    };
+    out += &format!(
+        "  • {} · {} — {}{}\n",
+        ui::safe(&name),
+        ui::safe(&sub.label),
+        ui::status_label(sub.status),
+        flags
+    );
+    // PRD 0007 RF4.2: a connection is paced like the TUI card and
+    // `export::v1` pace it, from its own reading.
+    let reading = cuotai_core::aggregators::sub_as_report(report, sub);
+    let reading_at = cuotai_core::freshness::reading_time(&reading);
+    for metric in &sub.metrics {
+        out += &format!(
+            "      {}: {}\n",
+            ui::safe(&ui::metric_label_text(&metric.label)),
+            ui::metric_text_in(metric, locale)
+        );
+        if let Some(reset) = metric.resets_at {
+            out += &renews_line(locale, "        ", &at(reset));
+        }
+        if sub.status == cuotai_core::Status::Ready {
+            let lines = pace_lines(metric, reading_at, None, interval, now, locale, at);
+            for line in lines.lines() {
+                out += &format!("    {line}\n");
             }
         }
-        if sub.status != cuotai_core::Status::Ready {
-            // The reason a connection has no reading; the two standing
-            // caveats ("cached", "zero") are shown in the details instead.
-            let reason = |note: &&cuotai_core::text::Localized| {
-                let id = note.id.as_ref();
-                id.starts_with("query.")
-                    || (id.starts_with("note.nine_router.")
-                        && !id.ends_with("cached")
-                        && !id.ends_with("zero_caveat"))
-            };
-            if let Some(note) = sub.notes_l10n.iter().find(reason) {
-                out += &format!("      {}\n", ui::safe(&note.resolve(locale)));
-            }
+    }
+    if sub.status != cuotai_core::Status::Ready {
+        // The reason a connection has no reading; the two standing
+        // caveats ("cached", "zero") are shown in the details instead.
+        let reason = |note: &&cuotai_core::text::Localized| {
+            let id = note.id.as_ref();
+            id.starts_with("query.")
+                || (id.starts_with("note.nine_router.")
+                    && !id.ends_with("cached")
+                    && !id.ends_with("zero_caveat"))
+        };
+        if let Some(note) = sub.notes_l10n.iter().find(reason) {
+            out += &format!("      {}\n", ui::safe(&note.resolve(locale)));
         }
     }
     out
@@ -2955,11 +2985,31 @@ mod tests {
                 vec![quota(MetricWindow::Weekly, 40.0, None)],
             ),
             sub("b", "glm", None, Status::Unsupported, Vec::new()),
+            sub(
+                "c",
+                "claude",
+                Some(Provider::Claude),
+                Status::Ready,
+                vec![quota(MetricWindow::Weekly, 10.0, None)],
+            ),
         ];
         let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
         let text = report_text(&router, &[], None, FIVE_MIN, now, "en-US", at);
+        // PRD 0036 re-validation V-20: grouped by upstream, each pool line
+        // heading its connections, in order of first appearance.
+        let order: Vec<usize> = [
+            "  Pool: Claude",
+            "  • Claude · conn-a",
+            "  • Claude · conn-c",
+            "  Pool: glm",
+            "  • glm · conn-b",
+        ]
+        .iter()
+        .map(|line| text.find(line).unwrap_or_else(|| panic!("{line}: {text}")))
+        .collect();
+        assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{text}");
         assert!(
-            text.contains("  Pool: Claude · 1 of 1 available\n"),
+            text.contains("  Pool: Claude · 2 of 2 available\n"),
             "{text}"
         );
         assert!(

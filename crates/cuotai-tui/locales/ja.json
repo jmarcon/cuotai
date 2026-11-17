@@ -34,7 +34,9 @@
       "vault.remove.confirm",
       "wizard.credential.key_page",
       "wizard.interval.help_metered",
-      "wizard.interval.prompt_metered"
+      "wizard.interval.prompt_metered",
+      "dashboard.detail.pools",
+      "dashboard.hint.more_pools"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -155,6 +157,7 @@
   "dashboard.detail.none": "アカウントが選択されていません。",
   "dashboard.detail.notes": "  メモ",
   "dashboard.detail.pace_expected": "   ·   想定使用率 {percent} · 線形推定",
+  "dashboard.detail.pools": "  プール",
   "dashboard.detail.quotas": "  クォータと使用量",
   "dashboard.detail.reading": "  読み取り ",
   "dashboard.detail.session": "  セッション ",
@@ -213,6 +216,9 @@
   },
   "dashboard.hint.more": {
     "other": "+{count} 指標 • "
+  },
+  "dashboard.hint.more_pools": {
+    "other": "+{count} プール • "
   },
   "dashboard.history.empty": "  履歴 {range}：記録された測定値はありません",
   "dashboard.history.no_measured": "  履歴 {range}：測定値はありません",

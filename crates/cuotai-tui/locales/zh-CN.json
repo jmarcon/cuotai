@@ -8,7 +8,9 @@
       "feed.setup.chained",
       "feed.setup.intro",
       "wizard.budgets.prompt",
-      "wizard.name.help_required"
+      "wizard.name.help_required",
+      "dashboard.detail.pools",
+      "dashboard.hint.more_pools"
     ]
   },
   "about.brazil": "特别感谢：由巴西人创建的项目",
@@ -129,6 +131,7 @@
   "dashboard.detail.none": "未选择账户。",
   "dashboard.detail.notes": "  备注",
   "dashboard.detail.pace_expected": "   ·   预计已用 {percent} · 线性估算",
+  "dashboard.detail.pools": "  池",
   "dashboard.detail.quotas": "  额度与用量",
   "dashboard.detail.reading": "  读数    ",
   "dashboard.detail.session": "  会话     ",
@@ -187,6 +190,9 @@
   },
   "dashboard.hint.more": {
     "other": "+{count} 项指标 • "
+  },
+  "dashboard.hint.more_pools": {
+    "other": "+{count} 个池 • "
   },
   "dashboard.history.empty": "  历史 {range}：没有记录的测量值",
   "dashboard.history.no_measured": "  历史 {range}：无测量值",
