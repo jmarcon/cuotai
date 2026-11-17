@@ -589,3 +589,23 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   await i18n.setLocale("en-US");
   console.log("PASS: a fed card says where its figure came from, in its line and its tooltip");
 }
+
+// PRD 0041 re-validation (F-08): a budget alone in its window keeps the person's own name in the details, and on the
+// main-window card it never takes a provider window's slot: it shows in the tightest-quota column with its own name
+// and the "Your budget" tag.
+{
+  await i18n.setLocale("en-US");
+  const { summaryHtml } = await import("../apps/desktop/ui/js/card-summary.js");
+  const L = (id, fallback, params = {}) => ({ id, params, fallback });
+  const budget = { label: "Team cap", label_text: L("metric.verbatim", "Team cap"), used: 20, limit: 30, remaining: 10, unit: "USD", kind: "quota",
+    window: "weekly", ratio: 1 / 3, state: "available", derived_from: { kind: "spend", label: "Spend", budget: 0 }, budget_badge: L("budget.badge", "Your budget") };
+  const r = { account: "budget@example.com", provider: "open_ai_api", status: "ready", metrics: [budget], notes: [], checked_at: new Date().toISOString() };
+  const h3 = metricCardHtml(r, budget).match(/<h3>([^<]*)/)[1].trim();
+  assert.equal(h3, "Team cap", "the details keep the budget's own name");
+  const provider = { ...budget, label: "Weekly limit", label_text: L("metric.verbatim", "Weekly limit"), derived_from: null, budget_badge: undefined };
+  assert.equal(metricCardHtml({ ...r, metrics: [provider] }, provider).match(/<h3>([^<]*)/)[1].trim(), "Weekly", "a provider limit alone in its window keeps the window name");
+  const card = summaryHtml(r);
+  assert.ok(card.includes('<span class="win-name">Team cap</span>') && card.includes("data-budget-chip") && !card.includes("5-hour"), card);
+  assert.ok(!summaryHtml({ ...r, metrics: [provider] }).includes("data-budget-chip"), "a provider limit carries no budget tag");
+  console.log("PASS: a budget keeps its own name and the budget tag in the details and on the card");
+}

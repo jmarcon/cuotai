@@ -213,3 +213,9 @@
 :root[data-theme="win98"] .topbar .btn.outline:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.25);
 }
+
+/* PRD 0041 re-validation F-21: the budget meter's outline is drawn inside the meter, so it never crosses the bevel of
+   the metric panel (the bar reaches the panel's edges in this theme). */
+:root[data-theme="win98"] .metric.budget .mtr {
+  outline-offset: calc(-1 * var(--border-w));
+}

@@ -255,6 +255,10 @@ struct MetricRow {
     /// has no cap, for the wording of an uncapped or full metric.
     kind: cuotai_core::MetricKind,
     unlimited: bool,
+    /// PRD 0041 RF2 (re-validation F-12): a budget the core derived from
+    /// the person's `[[accounts.budgets]]`, marked "◇" on the card line as
+    /// in the details, so it never reads as a provider limit.
+    budget: bool,
 }
 
 /// The reading a pace is read from (PRD 0024 FIX-11): its measurement time
@@ -310,6 +314,7 @@ fn metric_row(
         resets_at: metric.resets_at,
         kind: metric.kind,
         unlimited: metric.unlimited,
+        budget: metric.derived_from.is_some(),
         renewal_due: cuotai_core::metrics::renewal_due(metric, checked_at),
         pace: clock.and_then(|clock| {
             pace::assess_reading(
@@ -2994,7 +2999,13 @@ fn render_metric_block(
 fn metric_values_line(metric: &MetricRow, width: u16) -> Vec<Span<'static>> {
     let width = usize::from(width);
     // PRD 0007 RF4: a discreet stage icon before the label on the dashboard.
-    let icon: Vec<Span<'static>> = metric.pace.iter().map(pace_icon).collect();
+    let mut icon: Vec<Span<'static>> = metric.pace.iter().map(pace_icon).collect();
+    // PRD 0041 RF2 (re-validation F-12): the person's budget keeps its "◇"
+    // mark before its label, and keeps it like the stage icon when the
+    // label has no room.
+    if metric.budget {
+        icon.push(Span::styled("◇ ", Style::default().fg(PURPLE)));
+    }
     let label_style = Style::default().fg(FG).add_modifier(Modifier::BOLD);
     let label = safe(&metric.label).into_owned();
     let value = Span::raw(safe(&metric.text).into_owned());
@@ -3882,6 +3893,10 @@ fn format_reset_line(reset: DateTime<Utc>, now: DateTime<Utc>) -> String {
         None => format!("{}{}", renews(), reset_text(reset, now)),
     }
 }
+
+#[cfg(test)]
+#[path = "dashboard_budget_tests.rs"]
+mod budget_card_tests;
 
 #[cfg(test)]
 mod tests {
