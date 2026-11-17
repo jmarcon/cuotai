@@ -13,6 +13,40 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.6] - 2026-11-17
+
+### Fixed
+
+- AWS Bedrock never shows the cost of a previous profile or of another configuration's account after a profile edit (PRD 0033 RF5; 161ddba).
+- The desktop app, the terminal and --watch share one record of billed AWS Bedrock queries even when the data folder is moved, and erasing all data removes it (PRD 0033 RF5; b9fdce4).
+- Scripted commands such as --once, --json and --status-line never make a billed AWS Bedrock query when the shared record of billed queries cannot be used, and report why instead (PRD 0033 RF5; 03b6a56).
+- The `--watch --interval` option no longer makes an AWS Bedrock account query more often than its own interval, hourly by default (PRD 0033 RF5; 199042d).
+- The extra query after a quota reset runs at most twice an hour per account, at least five minutes apart (PRD 0033 RF1; d65d283).
+- A card or tray row with a renewed window now says when it renewed instead of showing a dash (PRD 0033 RF2; 60e296b).
+- When the binding limit has no pace, a card shows the pace of its other window, named (PRD 0033 RF4; 92f9276).
+- Refreshing an AWS Bedrock card by hand asks first, makes a billed query at most every 15 minutes, and otherwise says when the next one is possible (PRD 0033 RF5; 4492493).
+- The AWS Bedrock interval field says that a blank interval queries once an hour and that the real minimum is 15 minutes, with the cost warning next to it (PRD 0033 RF5; 3e94f38).
+- The menu bar, the connection rows and the reset timeline no longer show a quota that has renewed since the last reading as exhausted (PRD 0033 RF2; 24ac863).
+- A Claude Code or Codex CLI reading written long ago no longer reads up to date, and every card and the menu bar say "data as of" when the provider's data is older than the query (PRD 0033 RF3; 010a2d1).
+- The terminal dashboard no longer shows "renews now" under a quota that has already renewed (PRD 0033 RF2; 9af182e).
+- Two programs reading the same AWS Bedrock account at the same moment no longer pay for two queries in one interval (PRD 0033 RF5; d0c992b).
+- A name or value that contains text in braces now shows exactly as written in desktop and terminal messages (PRD 0034 RF2, RF7; 34f34b2).
+- The macOS widgets show their texts in all 14 interface languages and follow the language chosen in the app (PRD 0034 RF7; 90f84f0).
+- A language pack whose file name is not a valid language tag is now refused instead of breaking number and date formatting (PRD 0034 RF4, RF6; ae74935).
+- The Azure resource-ID error in German, Spanish, Indonesian, Italian, Russian, Turkish and Vietnamese no longer puts the field name at the end of the example path (PRD 0034 RF4; d2f99e2).
+- Lists of names and "label: value" texts in the desktop app use each language's own punctuation and list words (PRD 0034 RF7; 235b94e).
+- The --fallback-locale help lists every language it accepts (PRD 0034 RF3, RF5; 130c804).
+- Counted texts such as hidden metrics, window lengths and deleted extension secrets use the correct plural form in every language (PRD 0034 RF4, RF2; 18dc3f4).
+- Numbers stay on the same line as their units, and the account filter's hint fits its field in every language (PRD 0034 RF4, RF7; a2890ec).
+- Numbers, percentages and the refresh time in the terminal dashboard, --once output and desktop app follow your language's separators and percent style (PRD 0034 RF2, RF7; 724dc3e).
+- Reset times in the terminal dashboard are never cut in the middle; a narrow card shows a shorter form (PRD 0034 RF2; 007fd39).
+- Metric names and units in the macOS widget, the desktop History panel, desktop amounts and the --watch usage line follow your language instead of showing the provider's internal labels (PRD 0034 RF2, RF7; 2308ac5).
+- Rate-limit labels, extra-usage amounts in credits and percentages follow your language in more places (PRD 0034 RF1, RF7; dd72744).
+
+### Security
+
+- Plan names and other provider texts shown in account notes can no longer carry invisible or text-direction characters that reorder or hide what you read (PRD 0034 RF5; a109679).
+
 ## [0.86.5] - 2026-11-16
 
 ### Fixed
@@ -973,7 +1007,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.5...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.6...HEAD
+[0.86.6]: https://github.com/jmarcon/cuotai/compare/v0.86.5...v0.86.6
 [0.86.5]: https://github.com/jmarcon/cuotai/compare/v0.86.4...v0.86.5
 [0.86.4]: https://github.com/jmarcon/cuotai/compare/v0.86.3...v0.86.4
 [0.86.3]: https://github.com/jmarcon/cuotai/compare/v0.86.2...v0.86.3
