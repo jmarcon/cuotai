@@ -1,6 +1,6 @@
 import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./themes.js";
 import { FALLBACK, LOCALES, PSEUDO, currentLocale, intlTag, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
-import { esc, uiPath } from "./util.js";
+import { esc, fold, uiPath } from "./util.js";
 import { desktopAction } from "./desktop-wording.js";
 import { flagCountry, flagSvg } from "./flags.js";
 import { crossFade } from "./motion.js";
@@ -1213,7 +1213,7 @@ export function themeSwitchHtml({ themeSelect = false, labels = false, selectOnl
   });
   const field = `<div class="theme-select theme-field">
       <button type="button" class="lang-field-btn theme-field-btn" data-theme-toggle aria-haspopup="menu" aria-expanded="${themeOpen}" aria-label="${te("theme.label")}: ${esc(th.label)}"><span class="swatch" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>${esc(th.label)}</span>${icon("chevDown")}</button>
-      <div class="lang-menu theme-menu" role="menu" aria-label="${te("theme.label")}" ${themeOpen ? "" : "hidden"}>${groups.map((g) => `<div class="theme-menu-group" role="presentation">${esc(groupLabel(g))}</div>${THEMES.filter((x) => x.group === g)
+      <div class="lang-menu theme-menu${menuPlaceClass(themeOpen)}" role="menu" aria-label="${te("theme.label")}" ${themeOpen ? menuPlaceStyle() : "hidden"}>${groups.map((g) => `<div class="theme-menu-group" role="presentation">${esc(groupLabel(g))}</div>${THEMES.filter((x) => x.group === g)
         .map((x) => `<button type="button" role="menuitemradio" aria-checked="${x.id === th.id}" class="${x.id === th.id ? "on" : ""}" data-theme-pick="${esc(x.id)}"><span>${esc(x.label)}</span>${x.id === th.id ? icon("tick", "sel-tick") : ""}</button>`).join("")}`).join("")}</div>
     </div>`;
   if (selectOnly) return field;
@@ -1243,12 +1243,126 @@ export function langMenuHtml({ inline = false, field = false } = {}) {
   // every language; it scales to the 14 languages of PRD 0035.
   if (field) return `<div class="lang lang-field">
     <button type="button" class="lang-field-btn" data-lang-toggle aria-haspopup="menu" aria-expanded="${langOpen}" aria-label="${te("lang.label")}: ${esc(cur.name)}">${flagOf(cur)}<span lang="${esc(cur.code)}">${esc(cur.name)}</span>${icon("chevDown")}</button>
-    <div class="lang-menu" role="menu" ${langOpen ? "" : "hidden"}>${items}</div>
+    <div class="lang-menu${menuPlaceClass(langOpen)}" role="menu" ${langOpen ? menuPlaceStyle() : "hidden"}>${items}</div>
   </div>`;
   return `<div class="lang">
     <button class="icon lang-btn" data-lang-toggle title="${te("lang.label")}: ${esc(cur.name)}" aria-label="${te("lang.label")}: ${esc(cur.name)}" aria-haspopup="menu" aria-expanded="${langOpen}">${flagOf(cur)}</button>
-    <div class="lang-menu" role="menu" ${langOpen ? "" : "hidden"}>${items}</div>
+    <div class="lang-menu${menuPlaceClass(langOpen)}" role="menu" ${langOpen ? menuPlaceStyle() : "hidden"}>${items}</div>
   </div>`;
+}
+
+// ---------- menus: language, sort and theme (DS-CMP-SEL-2, PRD 0035 RF3.3) ----------
+// One behavior for the three menu buttons: opening moves focus to the checked item (else the first enabled one) once
+// the window has been drawn again; ArrowUp/ArrowDown move with wrap-around, Home/End go to the ends, typed letters
+// jump to the next item whose label starts with them (folded, 600 ms buffer); Enter/Space choose; Esc and a click
+// outside close and give focus back to the button. Pending items (`aria-disabled`) are skipped. On opening, the list
+// opens upward when it does not fit below and there is more room above, and its height is clamped to the room left.
+const MENU_TOGGLES = ["[data-lang-toggle]", "[data-sort-toggle]", "[data-theme-toggle]"];
+const MENU_GAP = 6, MENU_MARGIN = 8, TYPEAHEAD_MS = 600;
+let menuPlace = { up: false, max: 0 };
+let typeahead = { text: "", at: 0 };
+const anyMenuOpen = () => langOpen || sortOpen || themeOpen;
+const menuPlaceClass = (open) => (open && menuPlace.up ? " up" : "");
+const menuPlaceStyle = () => (menuPlace.max ? `style="max-height:${menuPlace.max}px"` : "");
+const menuItems = (menu) => [...menu.querySelectorAll("[role=menuitemradio]")];
+const menuEnabled = (b) => b.getAttribute("aria-disabled") !== "true" && !b.disabled;
+const menuLabel = (b) => fold((b.querySelector("span")?.textContent ?? b.textContent).trim());
+/** The menu button of an item (the list sits right after its button). */
+const menuToggleOf = (el) => el.closest("[role=menu]")?.previousElementSibling ?? null;
+const openMenuToggle = (root) => [...root.querySelectorAll(MENU_TOGGLES.join(", "))].find((b) => b.getAttribute("aria-expanded") === "true") ?? null;
+/** Where a button sits among its kind, so the same button is found again after the window is drawn anew. */
+function menuToggleRef(root, toggle) {
+  const sel = toggle && MENU_TOGGLES.find((s) => toggle.matches(s));
+  return sel ? { sel, n: [...root.querySelectorAll(sel)].indexOf(toggle) } : null;
+}
+const menuToggleAt = (root, ref) => (ref ? root.querySelectorAll(ref.sel)[Math.max(0, ref.n)] ?? null : null);
+
+/** The part of the window the menu can use: the viewport cut by every scrolling or clipping ancestor. */
+function menuBounds(el) {
+  let top = 0, bottom = innerHeight;
+  for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+    const cs = getComputedStyle(p);
+    if (cs.overflowY === "visible" && cs.overflowX === "visible") continue;
+    const r = p.getBoundingClientRect();
+    top = Math.max(top, r.top); bottom = Math.min(bottom, r.bottom);
+  }
+  return { top, bottom };
+}
+/** Measures the open menu under its button and decides its direction and height (kept for the next draws). */
+function placeMenu(toggle, menu) {
+  menu.classList.remove("up");
+  menu.style.maxHeight = "";
+  const wanted = menu.getBoundingClientRect().height;
+  const r = toggle.getBoundingClientRect(), b = menuBounds(toggle);
+  const below = b.bottom - r.bottom - MENU_GAP - MENU_MARGIN, above = r.top - b.top - MENU_GAP - MENU_MARGIN;
+  const up = wanted > below && above > below;
+  const room = Math.floor(Math.max(0, up ? above : below));
+  menuPlace = { up, max: wanted > room ? room : 0 };
+  menu.classList.toggle("up", up);
+  if (menuPlace.max) menu.style.maxHeight = `${menuPlace.max}px`;
+}
+function focusMenuItem(menu, item) {
+  item?.focus({ preventScroll: true });
+  item?.scrollIntoView?.({ block: "nearest" });
+}
+/** Draws the window again, then settles the menu: placed and focused when it opened, focus back on its button when it
+ *  closed (`onlyIfLost`: a click outside keeps focus where that click put it). */
+async function menuRerender(root, rerender, toggle, opened, { onlyIfLost = false } = {}) {
+  const ref = menuToggleRef(root, toggle);
+  typeahead = { text: "", at: 0 };
+  if (opened) menuPlace = { up: false, max: 0 };
+  await rerender();
+  const tg = menuToggleAt(root, ref);
+  if (!tg) return;
+  if (opened) {
+    const menu = tg.nextElementSibling;
+    if (!menu || menu.hidden) return;
+    tg.scrollIntoView?.({ block: "nearest" }); // measured from where the button is seen
+    placeMenu(tg, menu);
+    const items = menuItems(menu).filter(menuEnabled);
+    focusMenuItem(menu, items.find((b) => b.getAttribute("aria-checked") === "true") ?? items[0]);
+    return;
+  }
+  menuPlace = { up: false, max: 0 };
+  const lost = !document.activeElement || document.activeElement === document.body || !document.activeElement.isConnected;
+  if (!onlyIfLost || lost) tg.focus({ preventScroll: true });
+}
+/** Keys inside an open menu (and ArrowDown/ArrowUp on its button, which open it). */
+function menuKeydown(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const toggle = e.target.closest?.(MENU_TOGGLES.join(", "));
+  if (toggle && (e.key === "ArrowDown" || e.key === "ArrowUp") && toggle.getAttribute("aria-expanded") !== "true") {
+    e.preventDefault();
+    toggle.click();
+    return;
+  }
+  const item = e.target.closest?.("[role=menu] [role=menuitemradio]");
+  const menu = item?.closest("[role=menu]");
+  if (!menu || menu.hidden) return;
+  const items = menuItems(menu).filter(menuEnabled);
+  if (!items.length) return;
+  const at = items.indexOf(item);
+  let next = null;
+  if (e.key === "ArrowDown") next = items[(at + 1) % items.length];
+  else if (e.key === "ArrowUp") next = items[(at - 1 + items.length) % items.length];
+  else if (e.key === "Home") next = items[0];
+  else if (e.key === "End") next = items[items.length - 1];
+  else if (e.key === " " && !(Date.now() - typeahead.at < TYPEAHEAD_MS && typeahead.text)) return; // Space chooses, like Enter (the button's own activation)
+  else if (e.key.length === 1) {
+    const now = Date.now();
+    const text = (now - typeahead.at < TYPEAHEAD_MS ? typeahead.text : "") + fold(e.key);
+    typeahead = { text, at: now };
+    // A new search starts after the current item; a longer one may still match it.
+    const from = text.length === 1 ? at + 1 : Math.max(at, 0);
+    for (let k = 0; k < items.length; k++) {
+      const cand = items[(from + k) % items.length];
+      if (menuLabel(cand).startsWith(text)) { next = cand; break; }
+    }
+    e.preventDefault();
+    if (!next) return;
+  } else return;
+  e.preventDefault();
+  focusMenuItem(menu, next);
 }
 
 /** Selector event delegation; `rerender` is called after the switch (theme and language with cross-fade, RF3.3). */
@@ -1264,21 +1378,42 @@ export function bindThemeSwitch(root, rerender) {
     }
   });
   root.addEventListener("click", async (e) => {
-    if (e.target.closest("[data-sort-toggle]")) { sortOpen = !sortOpen; langOpen = false; return rerender(); }
+    const toggle = e.target.closest("[data-sort-toggle], [data-lang-toggle], [data-theme-toggle]");
+    if (toggle) {
+      const kind = toggle.matches("[data-sort-toggle]") ? "sort" : toggle.matches("[data-lang-toggle]") ? "lang" : "theme";
+      const open = !{ sort: sortOpen, lang: langOpen, theme: themeOpen }[kind];
+      sortOpen = open && kind === "sort"; langOpen = open && kind === "lang"; themeOpen = open && kind === "theme";
+      return menuRerender(root, rerender, toggle, open);
+    }
     const sortItem = e.target.closest("[data-sort]");
-    if (sortItem) { setSort(sortItem.dataset.sort); sortOpen = false; return rerender(); }
-    if (e.target.closest("[data-lang-toggle]")) { langOpen = !langOpen; sortOpen = false; themeOpen = false; return rerender(); }
-    if (e.target.closest("[data-theme-toggle]")) { themeOpen = !themeOpen; langOpen = false; sortOpen = false; return rerender(); }
+    if (sortItem) { const tg = menuToggleOf(sortItem); setSort(sortItem.dataset.sort); sortOpen = false; return menuRerender(root, rerender, tg, false); }
     const pick = e.target.closest("[data-theme-pick]");
     if (pick) {
+      const tg = menuToggleOf(pick);
       themeOpen = false; theme.id = themeById(pick.dataset.themePick).id; setPreference("theme", theme.id).catch(() => {});
-      return crossFade(() => { applyTheme(); return rerender(); });
+      return menuRerender(root, () => crossFade(() => { applyTheme(); return rerender(); }), tg, false);
     }
     const item = e.target.closest("[data-locale]");
-    if (item) { langOpen = false; await setLocale(item.dataset.locale); return crossFade(rerender); } // loads first: the transition does not freeze the screen
-    if ((langOpen || sortOpen || themeOpen) && !e.target.closest(".lang, .theme-field")) { langOpen = false; sortOpen = false; themeOpen = false; rerender(); }
+    if (item) { // loads first: the transition does not freeze the screen
+      const tg = menuToggleOf(item);
+      langOpen = false; await setLocale(item.dataset.locale);
+      return menuRerender(root, () => crossFade(rerender), tg, false);
+    }
+    if (anyMenuOpen() && !e.target.closest(".lang, .theme-field")) {
+      const tg = openMenuToggle(root);
+      langOpen = false; sortOpen = false; themeOpen = false;
+      return menuRerender(root, rerender, tg, false, { onlyIfLost: true });
+    }
   });
-  addEventListener("keydown", (e) => { if (e.key === "Escape" && (langOpen || sortOpen || themeOpen)) { langOpen = false; sortOpen = false; themeOpen = false; rerender(); } });
+  addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !anyMenuOpen() || document.querySelector("dialog[open]")) return;
+    // Taken here, so the Settings window's own Esc (close the window) does not also run.
+    e.preventDefault();
+    const tg = openMenuToggle(root);
+    langOpen = false; sortOpen = false; themeOpen = false;
+    menuRerender(root, rerender, tg, false);
+  });
+  root.addEventListener("keydown", (e) => menuKeydown(e));
   // DS-A11Y-4: the inline language list is one radio group; arrow keys move between languages.
   root.addEventListener("keydown", (e) => {
     const item = e.target.closest?.(".lang-list [role=radio]");
@@ -3703,7 +3838,7 @@ export function sortMenuHtml() {
   const items = SORT_MODES.map((m) => `<button role="menuitemradio" aria-checked="${m === sortMode}" class="${m === sortMode ? "on" : ""}" data-sort="${m}">${text(m)}${m === sortMode ? icon("tick", "sel-tick") : ""}</button>`).join("");
   return `<div class="sortmenu lang">
     <button class="btn outline sort-btn" data-sort-toggle title="${te("sort.label")}: ${esc(label(sortMode))}" aria-label="${te("sort.label")}: ${esc(label(sortMode))}" aria-haspopup="menu" aria-expanded="${sortOpen}">${icon("sort")}${icon("chevDown")}</button>
-    <div class="lang-menu" role="menu" ${sortOpen ? "" : "hidden"}>${items}</div>
+    <div class="lang-menu${menuPlaceClass(sortOpen)}" role="menu" ${sortOpen ? menuPlaceStyle() : "hidden"}>${items}</div>
   </div>`;
 }
 
