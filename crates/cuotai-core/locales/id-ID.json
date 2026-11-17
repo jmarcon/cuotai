@@ -172,7 +172,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -584,7 +586,7 @@
   "cost.project.name": "Proyek {short}",
   "cost.project.none": "Tanpa proyek",
   "cost.project.hidden": "disembunyikan",
-  "cost.project.hidden_saved": "Proyek {short} disembunyikan: tetap tercantum, tetapi tidak dihitung dalam total.",
+  "cost.project.hidden_saved": "Proyek {short} disembunyikan: tetap tercantum, tetapi tidak dihitung dalam total mana pun.",
   "cost.project.shown_saved": "Proyek {short} kembali dihitung dalam total.",
   "cost.block.provider_window": "Jendela penyedia: {pct}% terpakai, direset pukul {at}",
   "cost.block.provider_window_reset": "Jendela penyedia: direset pukul {at}",
@@ -2833,6 +2835,10 @@
   "cost.plan.share_small_rate": "kurang dari 1% harga paket, pada kurs Anda",
   "cost.plan.share_small_plans": "kurang dari 1% total harga paket",
   "cost.plan.share_small_plans_rate": "kurang dari 1% total harga paket, pada kurs Anda",
+  "cost.hidden.note": {
+    "other": "{count} proyek yang disembunyikan tidak dihitung dalam angka ini."
+  },
+  "cost.hidden.unhide": "{command} menghitung salah satunya lagi.",
   "doctor.title.metered": "Catatan bersama kueri berbayar {path}",
   "doctor.metered.unusable": "Ini bukan folder pribadi pengguna Anda, atau tidak dapat ditulisi; perintah sekali jalan tidak mengkueri AWS Bedrock sampai diperbaiki.",
   "doctor.fix.metered": "Hapus apa pun yang ada di jalur ini (file, tautan, atau folder pengguna lain) atau jadikan folder yang hanya dapat dibaca dan ditulis oleh pengguna Anda; Cuotai membuatnya kembali.",

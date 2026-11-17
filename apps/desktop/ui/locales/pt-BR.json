@@ -1074,10 +1074,6 @@
   "settings.costBy.hide": "Ocultar",
   "settings.costBy.show": "Contar",
   "settings.costBy.hidden": "Oculto",
-  "settings.costBy.hiddenNote": {
-    "one": "{count} projeto oculto: listado, mas fora dos totais.",
-    "other": "{count} projetos ocultos: listados, mas fora dos totais."
-  },
   "settings.costBy.blockDefault": "Duração do bloco; padrão {hours} h",
   "settings.costBy.blockHours": "Duração do bloco de {source}, em horas",
   "settings.costBy.hoursUnit": "h",

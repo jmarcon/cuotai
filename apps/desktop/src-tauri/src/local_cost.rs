@@ -723,6 +723,63 @@ mod tests {
             .is_err());
     }
 
+    /// PRD 0042 M-05: a hidden project leaves every tab's figures and the
+    /// local server's `local_cost`, and each says so in the core's words.
+    #[test]
+    fn a_hidden_project_leaves_every_tab_and_the_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let cost = local(dir.path());
+        let stores = cost.stores().unwrap();
+        let now = chrono::Utc::now();
+        let disclosure = stores
+            .settings
+            .load()
+            .unwrap()
+            .disclosure(SourceId::ClaudeCode, &cost.env);
+        stores
+            .settings
+            .enable(
+                SourceId::ClaudeCode,
+                Vec::new(),
+                &disclosure.digest,
+                &cost.env,
+                now,
+            )
+            .unwrap();
+        let logs = dir.path().join("home/.claude/projects/p");
+        std::fs::create_dir_all(&logs).unwrap();
+        let line = |n: u32, cwd: &str, input: u64, minutes_ago: i64| {
+            let at = (now - chrono::TimeDelta::minutes(minutes_ago)).to_rfc3339();
+            format!(
+                r#"{{"cwd":"{cwd}","sessionId":"s{n}","message":{{"id":"m{n}","model":"claude-sonnet-4-5-20250929","usage":{{"input_tokens":{input},"output_tokens":0}}}},"requestId":"r{n}","timestamp":"{at}"}}"#
+            ) + "\n"
+        };
+        std::fs::write(logs.join("a.jsonl"), line(1, "/srv/example/a", 100, 3)).unwrap();
+        std::fs::write(logs.join("b.jsonl"), line(2, "/srv/example/b", 5000, 2)).unwrap();
+        LocalCost::scanner(stores, &cost.env).scan(now).unwrap();
+        let projects = cost.breakdown(Breakdown::Project, &[]).unwrap();
+        let big = projects["projects"][0]["project"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        cost.set_hidden(&big, true).unwrap();
+        let input = |value: &serde_json::Value| value["tokens"]["input"].as_u64().unwrap();
+        for by in Breakdown::ALL {
+            let value = cost.breakdown(by, &[]).unwrap();
+            assert_eq!(value["hidden_note"]["id"], "cost.hidden.note", "{by:?}");
+            assert_eq!(input(&value["total"]), 100, "{by:?}");
+        }
+        let blocks = cost.breakdown(Breakdown::Block, &[]).unwrap();
+        assert_eq!(input(&blocks["live"][0]["block"]["estimate"]), 100);
+        let export = serde_json::to_value(cost.export().unwrap()).unwrap();
+        assert_eq!(export["hidden_projects"], 1);
+        assert_eq!(input(&export["total"]), 100);
+        cost.set_hidden(&big, false).unwrap();
+        let value = cost.breakdown(Breakdown::Day, &[]).unwrap();
+        assert!(value.get("hidden_note").is_none());
+        assert_eq!(input(&value["total"]), 5100);
+    }
+
     /// PRD 0030 RF6.1: the rate is validated and saved; USD is refused.
     #[test]
     fn the_display_currency_is_validated_and_saved() {

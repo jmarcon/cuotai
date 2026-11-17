@@ -50,7 +50,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -1764,7 +1766,7 @@
   "cost.project.name": "Proyecto {short}",
   "cost.project.none": "Sin proyecto",
   "cost.project.hidden": "oculto",
-  "cost.project.hidden_saved": "Proyecto {short} oculto: se lista, pero queda fuera de los totales.",
+  "cost.project.hidden_saved": "Proyecto {short} oculto: se lista, pero queda fuera de todos los totales.",
   "cost.project.shown_saved": "El proyecto {short} vuelve a contar en los totales.",
   "cost.block.provider_window": "Ventana del proveedor: {pct} % usado, se reinicia a las {at}",
   "cost.block.provider_window_reset": "Ventana del proveedor: se reinicia a las {at}",
@@ -2774,6 +2776,11 @@
   "cost.plan.share_small_rate": "menos del 1 % del precio del plan, a su tipo de cambio",
   "cost.plan.share_small_plans": "menos del 1 % del precio de los planes",
   "cost.plan.share_small_plans_rate": "menos del 1 % del precio de los planes, a su tipo de cambio",
+  "cost.hidden.note": {
+    "one": "{count} proyecto oculto no se cuenta en estas cifras.",
+    "other": "{count} proyectos ocultos no se cuentan en estas cifras."
+  },
+  "cost.hidden.unhide": "{command} vuelve a contar uno de ellos.",
   "doctor.title.metered": "Registro compartido de consultas facturadas {path}",
   "doctor.metered.unusable": "No es una carpeta privada de tu usuario o no se puede escribir; los comandos de una sola ejecución no consultan AWS Bedrock hasta que se corrija.",
   "doctor.fix.metered": "Elimina lo que haya en esta ruta (un archivo, un enlace o la carpeta de otro usuario) o conviértela en una carpeta que solo tu usuario pueda leer y escribir; Cuotai la vuelve a crear.",

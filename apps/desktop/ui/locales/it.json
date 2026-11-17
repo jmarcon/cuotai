@@ -1074,10 +1074,6 @@
   "settings.costBy.hide": "Nascondi",
   "settings.costBy.show": "Conta",
   "settings.costBy.hidden": "Nascosto",
-  "settings.costBy.hiddenNote": {
-    "one": "{count} progetto nascosto: elencato, ma escluso dai totali.",
-    "other": "{count} progetti nascosti: elencati, ma esclusi dai totali."
-  },
   "settings.costBy.blockDefault": "Durata del blocco; predefinita {hours} h",
   "settings.costBy.blockHours": "Durata del blocco di {source}, in ore",
   "settings.costBy.hoursUnit": "h",

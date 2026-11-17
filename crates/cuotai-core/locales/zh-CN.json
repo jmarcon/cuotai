@@ -210,7 +210,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -622,7 +624,7 @@
   "cost.project.name": "项目 {short}",
   "cost.project.none": "无项目",
   "cost.project.hidden": "已隐藏",
-  "cost.project.hidden_saved": "已隐藏项目 {short}：仍会列出，但不计入合计。",
+  "cost.project.hidden_saved": "已隐藏项目 {short}：仍会列出，但不计入任何合计。",
   "cost.project.shown_saved": "项目 {short} 重新计入合计。",
   "cost.block.provider_window": "提供商窗口：已用 {pct}%，{at} 重置",
   "cost.block.provider_window_reset": "提供商窗口：{at} 重置",
@@ -2871,6 +2873,10 @@
   "cost.plan.share_small_rate": "按自定汇率不到套餐价格的 1%",
   "cost.plan.share_small_plans": "不到套餐总价的 1%",
   "cost.plan.share_small_plans_rate": "按自定汇率不到套餐总价的 1%",
+  "cost.hidden.note": {
+    "other": "{count} 个已隐藏项目未计入这些数字。"
+  },
+  "cost.hidden.unhide": "使用 {command} 可重新计入其中一个。",
   "doctor.title.metered": "计费查询的共享记录 {path}",
   "doctor.metered.unusable": "它不是当前用户专属的文件夹，或无法写入；修复之前，一次性命令不会查询 AWS Bedrock。",
   "doctor.fix.metered": "删除此路径上的内容（文件、链接或其他用户的文件夹），或将其改为只有当前用户可以读写的文件夹；Cuotai 会重新创建它。",

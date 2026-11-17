@@ -1023,6 +1023,8 @@ pub(crate) fn source_rows(
     let Some(usage) = &source.usage else {
         return rows;
     };
+    // PRD 0042 M-05: these figures leave the hidden projects out.
+    rows.extend(summary.hidden_note.iter().map(|n| (Row::Note, n.clone())));
     rows.extend([
         (Row::Amount, usage.today.line(Period::Today.label())),
         (Row::Amount, usage.yesterday.line(cost::yesterday_label())),
@@ -1077,8 +1079,9 @@ fn usage_text(
         out += &format!("{}\n", error.resolve(locale));
     }
     for note in summary
-        .prices_age
+        .hidden_note
         .iter()
+        .chain(&summary.prices_age)
         .chain(&summary.unpriced)
         .chain(&summary.settings_notes)
     {
@@ -1091,6 +1094,10 @@ fn usage_text(
         }
         // The plan lines describe themselves and come once at the end.
         for (row, text) in source_rows(summary, source, display, &[]) {
+            // M-05: said once, under the notice.
+            if row == Row::Note && summary.hidden_note.as_ref() == Some(&text) {
+                continue;
+            }
             let indent = match row {
                 _ if source.usage.is_none() => "",
                 Row::Note | Row::Amount | Row::Heading | Row::Aside => "  ",
@@ -1131,6 +1138,9 @@ fn models_text(summary: &CostSummary, locale: &str) -> String {
         cost::by_heading(Breakdown::Model, span).resolve(locale),
         summary.notice.resolve(locale)
     );
+    if let Some(note) = &summary.hidden_note {
+        out += &format!("{}\n", note.resolve(locale));
+    }
     for source in summary.sources.iter().filter(|s| s.usage.is_some()) {
         let Some(usage) = &source.usage else {
             continue;
@@ -1170,12 +1180,19 @@ fn breakdown_text(
     let zone = DayZone::Local;
     let safe =
         |text: &cuotai_core::text::Localized| crate::ui::safe(&text.resolve(locale)).into_owned();
-    let header = |view: &cost::SpanView, notice: &cuotai_core::text::Localized| {
-        format!(
+    // M-05: the hidden projects' note under the notice.
+    let header = |view: &cost::SpanView,
+                  notice: &cuotai_core::text::Localized,
+                  hidden: &Option<cuotai_core::text::Localized>| {
+        let mut out = format!(
             "{}\n{}\n",
             cost::by_heading(by, view).resolve(locale),
             notice.resolve(locale)
-        )
+        );
+        if let Some(note) = hidden {
+            out += &format!("{}\n", note.resolve(locale));
+        }
+        out
     };
     match by {
         Breakdown::Session => {
@@ -1185,7 +1202,7 @@ fn breakdown_text(
                     .map(|text| text + "\n")
                     .map_err(|e| e.to_string());
             }
-            let mut out = header(&page.span, &page.notice);
+            let mut out = header(&page.span, &page.notice, &page.hidden_note);
             out += &format!(
                 "{}\n",
                 page.total.line(page.span.label.clone()).resolve(locale)
@@ -1227,7 +1244,7 @@ fn breakdown_text(
                     .map(|text| text + "\n")
                     .map_err(|e| e.to_string());
             }
-            let mut out = header(&page.span, &page.notice);
+            let mut out = header(&page.span, &page.notice, &page.hidden_note);
             out += &format!("{}\n", cost::local_estimate_text().resolve(locale));
             if page.blocks.is_empty() {
                 out += &format!("\n{}\n", cost::by_empty_text().resolve(locale));
@@ -1259,7 +1276,10 @@ fn breakdown_text(
                     .map(|text| text + "\n")
                     .map_err(|e| e.to_string());
             }
-            let mut out = header(&page.span, &page.notice);
+            let mut out = header(&page.span, &page.notice, &page.hidden_note);
+            if page.hidden_note.is_some() {
+                out += &format!("{}\n", cost::hidden_unhide_text().resolve(locale));
+            }
             out += &format!(
                 "{}\n",
                 page.total.line(page.span.label.clone()).resolve(locale)
@@ -1302,11 +1322,20 @@ fn breakdown_text(
 }
 
 /// PRD 0042 RF5.2: the live blocks as text.
-fn live_text(blocks: &[cost::LiveBlock], on: &[SourceId], locale: &str) -> String {
+fn live_text(
+    blocks: &[cost::LiveBlock],
+    hidden: Option<&cuotai_core::text::Localized>,
+    on: &[SourceId],
+    locale: &str,
+) -> String {
     let zone = DayZone::Local;
     let safe =
         |text: &cuotai_core::text::Localized| crate::ui::safe(&text.resolve(locale)).into_owned();
     let mut out = format!("{}\n", cost::estimate_notice().resolve(locale));
+    // M-05: the blocks leave the hidden projects out.
+    if let Some(note) = hidden {
+        out += &format!("{}\n", note.resolve(locale));
+    }
     if on.is_empty() {
         out += &format!("\n{}\n", cost::enable_hint().resolve(locale));
         return out;
@@ -1362,7 +1391,7 @@ fn live_loop(
                 .into_iter()
                 .filter(|s| only.is_none_or(|only| only == *s))
                 .collect();
-            let blocks = scanner.live(pricing, only, now, &[]).map_err(l10n)?;
+            let (blocks, hidden) = scanner.live_view(pricing, only, now, &[]).map_err(l10n)?;
             let mut stdout = io::stdout().lock();
             if json {
                 let text = if interval.is_some() {
@@ -1373,11 +1402,16 @@ fn live_loop(
                 .map_err(|e| e.to_string())?;
                 writeln!(stdout, "{text}").map_err(io_error)?;
             } else if terminal {
-                let text = live_text(&blocks, &on, locale).replace('\n', "\r\n");
+                let text = live_text(&blocks, hidden.as_ref(), &on, locale).replace('\n', "\r\n");
                 let quit = tr_in(locale, "cost.live.quit", "q quits");
                 write!(stdout, "\x1b[2J\x1b[H{text}\r\n{quit}\r\n").map_err(io_error)?;
             } else {
-                write!(stdout, "{}", live_text(&blocks, &on, locale)).map_err(io_error)?;
+                write!(
+                    stdout,
+                    "{}",
+                    live_text(&blocks, hidden.as_ref(), &on, locale)
+                )
+                .map_err(io_error)?;
             }
             stdout.flush().map_err(io_error)?;
             drop(stdout);
@@ -1632,13 +1666,54 @@ mod tests {
         assert_eq!(page["blocks"][0]["active"], true);
 
         let live = scanner.live(&pricing, None, now, &[]).unwrap();
-        let shown = live_text(&live, &[SourceId::ClaudeCode], "en-US");
+        let shown = live_text(&live, None, &[SourceId::ClaudeCode], "en-US");
         assert!(shown.contains("local estimate"), "{shown}");
         assert!(shown.contains("tok/min"), "{shown}");
-        let none = live_text(&[], &[SourceId::CodexCli], "en-US");
+        let none = live_text(&[], None, &[SourceId::CodexCli], "en-US");
         assert!(none.contains("Codex CLI: no active block."), "{none}");
-        let off = live_text(&[], &[], "en-US");
+        let off = live_text(&[], None, &[], "en-US");
         assert!(off.contains("cuotai --cost-enable"), "{off}");
+
+        // PRD 0042 M-05: a hidden project leaves every view, and each says so.
+        let note = "1 hidden project is not counted in these figures.";
+        assert!(!text(Breakdown::Session, None, false).contains(note));
+        let two = scanner
+            .projects(&pricing, span, now)
+            .unwrap()
+            .projects
+            .into_iter()
+            .find(|p| p.sessions == 1 && p.estimate.requests == 1)
+            .and_then(|p| p.short)
+            .unwrap();
+        scanner.index().set_hidden(&two, true).unwrap();
+        for by in [Breakdown::Session, Breakdown::Block, Breakdown::Project] {
+            let shown = text(by, None, false);
+            assert!(shown.contains(note), "{by:?}: {shown}");
+        }
+        let sessions = text(Breakdown::Session, None, false);
+        assert!(!sessions.contains("1 more"), "{sessions}");
+        assert!(sessions.contains("4.04K tokens"), "{sessions}");
+        let projects = text(Breakdown::Project, None, false);
+        assert!(
+            projects.contains("cuotai --cost-unhide PREFIX"),
+            "{projects}"
+        );
+        assert!(projects.contains(" (hidden)"), "{projects}");
+        let (live, hidden) = scanner.live_view(&pricing, None, now, &[]).unwrap();
+        let shown = live_text(&live, hidden.as_ref(), &[SourceId::ClaudeCode], "en-US");
+        assert!(shown.contains(note), "{shown}");
+        assert!(shown.contains("4.04K tokens"), "{shown}");
+        let summary = scanner.summary(&pricing, None, Some(span), now).unwrap();
+        let days = usage_text(&summary, None, &[], "en-US");
+        assert_eq!(days.matches(note).count(), 1, "{days}");
+        assert!(!days.contains("5.05K"), "{days}");
+        assert!(models_text(&summary, "en-US").contains(note));
+        let details = source_rows(&summary, &summary.sources[0], None, &[]);
+        assert!(details
+            .iter()
+            .any(|(row, text)| *row == Row::Note && text.resolve("en-US") == note));
+        let json = serde_json::to_value(&summary).unwrap();
+        assert_eq!(json["hidden_projects"], 1);
     }
 
     /// C-02: even a display currency built past its constructor never

@@ -190,7 +190,9 @@
       "cost.live.projection_partial",
       "cost.live.projection_tokens",
       "cost.live.rate_few",
-      "cost.live.rate_young"
+      "cost.live.rate_young",
+      "cost.hidden.note",
+      "cost.hidden.unhide"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -612,7 +614,7 @@
   "cost.project.name": "प्रोजेक्ट {short}",
   "cost.project.none": "कोई प्रोजेक्ट नहीं",
   "cost.project.hidden": "छिपा हुआ",
-  "cost.project.hidden_saved": "प्रोजेक्ट {short} छिपाया गया: सूची में है, पर कुल में शामिल नहीं।",
+  "cost.project.hidden_saved": "प्रोजेक्ट {short} छिपाया गया: सूची में है, पर किसी भी कुल में शामिल नहीं।",
   "cost.project.shown_saved": "प्रोजेक्ट {short} फिर से कुल में गिना जाता है।",
   "cost.block.provider_window": "प्रदाता विंडो: {pct}% उपयोग, {at} पर रीसेट",
   "cost.block.provider_window_reset": "प्रदाता विंडो: {at} पर रीसेट",
@@ -2914,6 +2916,11 @@
   "cost.plan.share_small_rate": "प्लान की कीमत के 1% से कम, आपकी दर पर",
   "cost.plan.share_small_plans": "प्लानों की कीमत के 1% से कम",
   "cost.plan.share_small_plans_rate": "प्लानों की कीमत के 1% से कम, आपकी दर पर",
+  "cost.hidden.note": {
+    "one": "{count} छिपा प्रोजेक्ट इन आंकड़ों में शामिल नहीं है।",
+    "other": "{count} छिपे प्रोजेक्ट इन आंकड़ों में शामिल नहीं हैं।"
+  },
+  "cost.hidden.unhide": "{command} उनमें से एक को फिर से गिनता है।",
   "doctor.title.metered": "बिल की गई क्वेरी का साझा रिकॉर्ड {path}",
   "doctor.metered.unusable": "यह आपके उपयोगकर्ता का निजी फ़ोल्डर नहीं है, या इसमें लिखा नहीं जा सकता; इसे ठीक होने तक एक-बार वाले कमांड AWS Bedrock से क्वेरी नहीं करते।",
   "doctor.fix.metered": "इस पथ पर जो है उसे हटाएँ (कोई फ़ाइल, लिंक या किसी दूसरे उपयोगकर्ता का फ़ोल्डर) या इसे ऐसा फ़ोल्डर बनाएँ जिसे केवल आपका उपयोगकर्ता पढ़ और लिख सके; Cuotai इसे फिर से बना देगा।",

@@ -3116,9 +3116,13 @@ function demoLive() {
 const DEMO_PROJECTS = ["3f9a1c2e7b4d5a60", "a81d0c44e2f97b13"];
 function demoBreakdown(by) {
   const usage = demoCostUsage();
-  const base = { notice: demoNotice(), span: usage.span, total: usage.total };
+  // M-05: the core's note of the hidden projects, on every tab (the demo's figures keep them; K10 rebuilds the data).
+  const count = demoCost.hidden.size;
+  const note = count ? { hidden_note: demoL10n("cost.hidden.note", { count: String(count) },
+    `${count} hidden ${count === 1 ? "project is" : "projects are"} not counted in these figures.`) } : {};
+  const base = { notice: demoNotice(), span: usage.span, total: usage.total, ...note };
   const label = (digest) => demoCost.labels[digest] ?? null;
-  if (by === "day" || by === "model") return usage;
+  if (by === "day" || by === "model") return { ...usage, ...note };
   if (by === "session") {
     const sessions = demoOn().flatMap((id, i) => [0, 1, 2].map((back) => {
       const digest = `${id.length}${i}${back}`.padEnd(64, "c");

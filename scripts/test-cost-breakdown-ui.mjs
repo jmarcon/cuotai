@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Browser-free UI smoke for PRD 0042 RF6: the Days · Models · Sessions · Blocks · Projects tabs of Settings › Local
 // cost (browser demo of the core's `cost_breakdown`) render empty, partial and full, with the KPI header ("—" when
-// unknown, never 0), inline labels, the hidden project left out of the total and the active block's live figures;
+// unknown, never 0), inline labels, the hidden project left out of the total (and the note on every tab) and the active block's live figures;
 // the card's "This block" line is present only while the active block has a burn rate. Every built-in locale renders
 // without raw catalog keys.
 import assert from "node:assert/strict";
@@ -86,7 +86,18 @@ const hidden = breakdownPanelHtml("project", projects);
 assert.match(hidden, /lc-hidden/);
 assert.match(hidden, /aria-pressed="true"/);
 assert.ok(projects.total.requests < before, "a hidden project leaves the total");
+// PRD 0042 M-05: every tab says how many hidden projects its figures leave out, in the core's words.
+for (const by of TABS) {
+  const html = breakdownPanelHtml(by, await lib.costBreakdown(by));
+  assert.match(html, /data-cost-hidden-note>1 hidden project is not counted in these figures\./, `${by}: the hidden note`);
+}
+{
+  const summary = { ...(await lib.costUsage()), hidden_note: (await lib.costBreakdown("day")).hidden_note };
+  const sc = summary.sources.find((s) => s.source === "claude_code");
+  assert.match(costCardHtml(sc, summary), /lc-foot">[^<]*<br\/><span data-cost-hidden-note>1 hidden project/, "the card foot says it");
+}
 await lib.costSetHidden(first.project, false);
+for (const by of TABS) assert.ok(!breakdownPanelHtml(by, await lib.costBreakdown(by)).includes("data-cost-hidden-note"), `${by}: no note when none is hidden`);
 
 // Blocks: the active block first with its live figures and the local-estimate wording.
 const blocks = breakdownPanelHtml("block", await lib.costBreakdown("block"));

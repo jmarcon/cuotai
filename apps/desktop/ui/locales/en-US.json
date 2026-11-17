@@ -1074,10 +1074,6 @@
   "settings.costBy.hide": "Hide",
   "settings.costBy.show": "Count",
   "settings.costBy.hidden": "Hidden",
-  "settings.costBy.hiddenNote": {
-    "one": "{count} hidden project: listed, but left out of the totals.",
-    "other": "{count} hidden projects: listed, but left out of the totals."
-  },
   "settings.costBy.blockDefault": "Block length; default {hours} h",
   "settings.costBy.blockHours": "Block length of {source}, in hours",
   "settings.costBy.hoursUnit": "h",

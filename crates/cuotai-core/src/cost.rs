@@ -54,16 +54,16 @@ mod worker;
 
 pub use breakdown::{
     block_hours_text, block_line, blocks, by_empty_text, by_heading, duration_text,
-    folder_hint_text, hidden_saved_text, hidden_text, label_saved_text, live, live_none_text,
-    live_window_text, local_estimate_text, more_text, project_name, projects, provider_window_text,
-    sessions, unknown_breakdown, BlockPage, BlockSummary, Breakdown, LiveBlock, ProjectPage,
-    ProjectSummary, ProjectionKind, ProviderWindow, SessionPage, SessionSummary,
-    BURN_WINDOW_MINUTES,
+    folder_hint_text, hidden_note, hidden_saved_text, hidden_text, hidden_unhide_text,
+    label_saved_text, live, live_none_text, live_window_text, local_estimate_text, more_text,
+    project_name, projects, provider_window_text, sessions, unknown_breakdown, BlockPage,
+    BlockSummary, Breakdown, LiveBlock, ProjectPage, ProjectSummary, ProjectionKind,
+    ProviderWindow, SessionPage, SessionSummary, BURN_WINDOW_MINUTES,
 };
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};
 pub use index::{
-    CostIndex, DailyUsage, Indexed, LabelTarget, Labels, ProjectLabel, ProjectRow, Request,
-    SessionLabel, MAX_LABEL_CHARS, MIN_PREFIX,
+    CostIndex, DailyUsage, HiddenUsage, Indexed, LabelTarget, Labels, ProjectLabel, ProjectRow,
+    Request, SessionLabel, MAX_LABEL_CHARS, MIN_PREFIX,
 };
 pub use plan::{
     cycle_start, earliest_cycle, migrate_plan_keys, plan_accounts, plan_values, DisplayCurrency,
@@ -201,6 +201,15 @@ impl Tokens {
         self.cache_read = self.cache_read.saturating_add(other.cache_read);
         self.cache_write = self.cache_write.saturating_add(other.cache_write);
         self.cache_write_1h = self.cache_write_1h.saturating_add(other.cache_write_1h);
+    }
+
+    /// PRD 0042 M-05: `other` taken out, each kind floored at zero.
+    pub fn saturating_sub(&mut self, other: &Tokens) {
+        self.input = self.input.saturating_sub(other.input);
+        self.output = self.output.saturating_sub(other.output);
+        self.cache_read = self.cache_read.saturating_sub(other.cache_read);
+        self.cache_write = self.cache_write.saturating_sub(other.cache_write);
+        self.cache_write_1h = self.cache_write_1h.saturating_sub(other.cache_write_1h);
     }
 }
 
