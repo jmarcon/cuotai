@@ -2438,45 +2438,60 @@ async fn cost_erase(window: WebviewWindow, cost: Cost<'_>) -> Result<usize, Stri
 
 /// PRD 0042 RF6.1: one tab of the local cost breakdown (`day`, `model`,
 /// `session`, `block` or `project`) over the saved period. Reads the
-/// index, never a log.
+/// index, never a log. Settings only (re-validation S-08): it carries the
+/// labels and folder names.
 #[tauri::command]
 async fn cost_breakdown(
+    window: WebviewWindow,
     cost: Cost<'_>,
     b: Shared<'_>,
     by: cuotai_core::cost::Breakdown,
 ) -> Result<serde_json::Value, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     let reports = b.reports().await;
     cost.breakdown(by, &reports)
 }
 
 /// PRD 0042 RF2.2/RF4.2: label (or, with `label` null, unlabel) a session or
-/// project. Error: `cost.error.invalid_label` or `unknown_prefix` as JSON.
+/// project (its full digest). Error: `cost.error.invalid_label` or
+/// `unknown_prefix` as JSON. Settings only (re-validation S-08).
 #[tauri::command]
 async fn cost_set_label(
+    window: WebviewWindow,
     cost: Cost<'_>,
     target: cuotai_core::cost::LabelTarget,
     digest: String,
     label: Option<String>,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     cost.set_label(target, &digest, label)
 }
 
-/// PRD 0042 RF4.1: hide a project from the totals, or count it again.
+/// PRD 0042 RF4.1: hide a project (its full fingerprint) from the totals,
+/// or count it again. Settings only (re-validation S-08).
 #[tauri::command]
-async fn cost_set_hidden(cost: Cost<'_>, digest: String, hidden: bool) -> Result<(), String> {
+async fn cost_set_hidden(
+    window: WebviewWindow,
+    cost: Cost<'_>,
+    digest: String,
+    hidden: bool,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     cost.set_hidden(&digest, hidden)
 }
 
 /// PRD 0042 RF3.1/RF4.3: a source's block length (1 to 24 hours) and
 /// folder-name hint (off deletes the names kept). Error:
-/// `cost.error.block_hours` as JSON.
+/// `cost.error.block_hours` as JSON. Settings only (re-validation S-08).
 #[tauri::command]
 async fn cost_set_source_options(
+    window: WebviewWindow,
     cost: Cost<'_>,
     source: cuotai_core::cost::SourceId,
     block_hours: u8,
     folder_hint: bool,
 ) -> Result<local_cost::CostView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     cost.set_source_options(source, block_hours, folder_hint)
 }
 
@@ -3569,6 +3584,11 @@ mod tests {
                 &[
                     "history_erase",
                     "cost_erase",
+                    // PRD 0042 re-validation S-08.
+                    "cost_breakdown",
+                    "cost_set_label",
+                    "cost_set_hidden",
+                    "cost_set_source_options",
                     "vault_prune",
                     "vault_remove",
                     "erase_all_data",
