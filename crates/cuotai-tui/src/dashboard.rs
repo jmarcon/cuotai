@@ -2584,6 +2584,24 @@ fn ellipsize(text: &str, room: usize) -> String {
     ellipsize_words(text, room).unwrap_or_else(|| "…".into())
 }
 
+/// PRD 0035 re-validation L-03: the account name of the details heading
+/// within what `width` cells leave after `taken` cells (the label and the
+/// provider), cut by cells and ended by "…" so the provider always stays on
+/// the row. A name keeps at least one cell plus "…"; zero-width marks stay
+/// with the character they follow ([`split_at_cells`]).
+fn fit_detail_name(name: &str, taken: usize, width: usize) -> String {
+    let room = width.saturating_sub(taken).max(2);
+    if cells(name) <= room {
+        return name.to_string();
+    }
+    let (head, _) = split_at_cells(name, room - 1);
+    if cells(head) > room - 1 {
+        // A wide first character that does not fit: "…" alone.
+        return "…".into();
+    }
+    format!("{}…", head.trim_end())
+}
+
 /// `text` wrapped to `width` cells on spaces; Chinese and Japanese text,
 /// which has no spaces, may also break between its wide characters (never
 /// inside a Latin run such as "Gemini"), and a token still wider than a line
@@ -2918,20 +2936,21 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         Some(&index) => format!("{arrow} {}", safe(&view.accounts[index].name)),
         None => format!("{arrow} —"),
     };
+    let label = tr("dashboard.detail.account", " ACCOUNT  ");
+    let provider = format!("  ·  {}", crate::ui::provider_label(account.provider));
+    let name = fit_detail_name(
+        &safe(&account.display_name()),
+        cells(label) + cells(&provider),
+        sections[0].width as usize,
+    );
     let heading = vec![
         Line::from(vec![
             Span::styled(
-                tr("dashboard.detail.account", " ACCOUNT  "),
+                label,
                 Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                safe(&account.display_name()).into_owned(),
-                Style::default().fg(FG).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!("  ·  {}", crate::ui::provider_label(account.provider)),
-                Style::default().fg(MUTED),
-            ),
+            Span::styled(name, Style::default().fg(FG).add_modifier(Modifier::BOLD)),
+            Span::styled(provider, Style::default().fg(MUTED)),
         ]),
         Line::from(vec![
             Span::styled("  ", Style::default()),
@@ -4812,6 +4831,86 @@ mod tests {
             .iter()
             .all(|(_, action)| *action != FooterAction::OpenDetails));
     }
+    /// PRD 0035 re-validation L-03: a hostile account name (120 CJK
+    /// characters, 3 000 combining marks) never pushes the provider off the
+    /// details heading, at 45 (the narrowest dashboard; 40 columns shows the
+    /// "too small" screen) or 200 columns.
+    #[test]
+    fn detail_heading_keeps_the_provider_beside_a_long_name() {
+        let provider = crate::ui::provider_label(Provider::OpenAiApi);
+        let label = tr("dashboard.detail.account", " ACCOUNT  ");
+        let names = [
+            "漢".repeat(120),
+            format!("e{}", "\u{301}".repeat(3_000)),
+            format!("{}{}", "e\u{301}".repeat(150), "漢".repeat(60)),
+        ];
+        for name in &names {
+            let mut accounts = three_accounts();
+            accounts[0].name = name.clone();
+            let snapshot = ready_snapshot();
+            let visible = visible_indices(&accounts, &reports_of(&snapshot), "", true);
+            for width in [NARROW_WIDTH, 200] {
+                let mut terminal = Terminal::new(TestBackend::new(width, 30)).unwrap();
+                terminal
+                    .draw(|frame| {
+                        draw(
+                            frame,
+                            View {
+                                accounts: &accounts,
+                                reports: &reports_of(&snapshot),
+                                model_counts: &[],
+                                live: &[],
+                                visible: &visible,
+                                selected: Some(0),
+                                details: true,
+                                detail_scroll: 0,
+                                show_unmeasured: true,
+                                refreshing: false,
+                                location: "config.toml",
+                                filter: "",
+                                filtering: false,
+                                next_refresh: None,
+                                error: None,
+                                anim: None,
+                                last_good: &[],
+                                recent: &[],
+                                refresh_seconds: 300,
+                                history: None,
+                                banner: None,
+                                incidents: &[],
+                                local_cost: None,
+                                sub_cards: &[],
+                                aggregators_collapsed: false,
+                                connection_focus: None,
+                                access_account: None,
+                                now: Utc::now(),
+                            },
+                        );
+                    })
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                let rows = (0..buffer.area.height)
+                    .map(|y| {
+                        (0..buffer.area.width)
+                            .map(|x| buffer[(x, y)].symbol())
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>();
+                let row = rows
+                    .iter()
+                    .find(|row| row.contains(label.trim()))
+                    .unwrap_or_else(|| panic!("no heading at {width}: {}", rows.join("\n")));
+                assert!(
+                    row.contains(&format!("·  {provider}")),
+                    "provider missing at {width} columns (name of {} chars)",
+                    name.chars().count()
+                );
+                let cut = cells(name) + cells(label) + cells(&provider) + 7 > usize::from(width);
+                assert_eq!(row.contains('…'), cut, "ellipsis at {width} columns");
+            }
+        }
+    }
+
     #[test]
     fn detail_source_click_targets_visible_url() {
         let accounts = three_accounts();
