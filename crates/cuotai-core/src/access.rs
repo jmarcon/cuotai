@@ -967,12 +967,17 @@ pub(crate) fn classify(
                     "Uses an OpenRouter inference key and shows only that key's numbers, not the account balance.",
                 )
             };
-            if account {
-                access.risk = Localized::fixed(
+            access.risk = if account {
+                Localized::fixed(
                     "access.risk.open_router_management_key",
-                    "A management key can also create and delete keys, so it is more powerful than an inference key: keep it in the system vault, not in a shared shell profile.",
-                );
-            }
+                    "A management key cannot call models, but it can create, change and delete keys, so it is more powerful than an inference key: keep it in the system vault, not in a shared shell profile.",
+                )
+            } else {
+                Localized::fixed(
+                    "access.risk.open_router_inference_key",
+                    "An inference key can spend credits up to its own limit; keys created by sign-in have no limit unless you set one at openrouter.ai/settings/keys.",
+                )
+            };
             access
         }
         Provider::LiteLlm => entry(Official, AdminKey, Scope::Instance,

@@ -392,10 +392,16 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
             "management_key",
             "a management key is not documented for listing models; use an inference key (product key).",
         ),
+        // PRD 0038 RF11: the models reference was read when the provider was
+        // specified (2026-10-23, the date of its access evidence), not on
+        // the catalog-wide 2026-10-20.
         Provider::OpenRouter => live(
             "GET /api/v1/models",
             false,
-            documented("https://openrouter.ai/docs/api/api-reference/models/get-models"),
+            ModelEvidence {
+                verified_on: "2026-10-23",
+                ..documented("https://openrouter.ai/docs/api/api-reference/models/get-models")
+            },
         ),
         Provider::Meta => source(
             "models.source.meta",
