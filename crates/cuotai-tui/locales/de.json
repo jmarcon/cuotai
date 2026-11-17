@@ -3,7 +3,12 @@
     "name": "Deutsch",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "feed.setup.chained",
+      "feed.setup.intro",
+      "wizard.budgets.prompt"
+    ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
   "about.component.core": "Kern",
@@ -244,9 +249,9 @@
   "extensions.secret.value": "Wert: {mask}",
   "extensions.secret.where": "Der Wert bleibt nur im Systemtresor und gelangt nur in die Umgebung der Erweiterung.",
   "extensions.title": " Erweiterungen ",
-  "feed.setup.chained": "Um dein eigenes Statuszeilen-Skript zu behalten, verkette es stattdessen:",
+  "feed.setup.chained": "Um Ihr eigenes Statuszeilen-Skript zu behalten, verketten Sie es stattdessen:",
   "feed.setup.docs": "Details und die Datenschutzerklärung: docs/integrations/claude-code.md",
-  "feed.setup.intro": "Füge dies zu ~/.claude/settings.json hinzu (Cuotai bearbeitet die Datei nie für dich):",
+  "feed.setup.intro": "Fügen Sie dies zu ~/.claude/settings.json hinzu (Cuotai bearbeitet die Datei nie für Sie):",
   "feed.write_failed": "Der Messwert der Statuszeile konnte nicht im Datenordner gespeichert werden.",
   "headless.hooks_reloaded": "cuotai: Hooks neu geladen.",
   "headless.hooks_suspended": "cuotai: Hooks ausgesetzt.",
@@ -577,7 +582,7 @@
   "wizard.budgets.field.start": "Beginnt",
   "wizard.budgets.field.balance": "Kontostand",
   "wizard.budgets.field.floor_amount": "Warnen unter",
-  "wizard.budgets.prompt": "Budgets und Untergrenzen (optional): deine eigenen Grenzen für Ausgaben, Nutzung oder Guthaben und der Kontostand, bei dem du gewarnt wirst.",
+  "wizard.budgets.prompt": "Budgets und Untergrenzen (optional): Ihre eigenen Grenzen für Ausgaben, Nutzung oder Guthaben und der Kontostand, bei dem Sie gewarnt werden.",
   "wizard.budgets.none": "  keine",
   "wizard.budgets.floor_row": "{marker}{target}: warnen unter {amount} {unit}",
   "wizard.budgets.help": "Bis zu {budgets} Budgets und {floors} Untergrenzen. Cuotai liest und warnt nur; beim Anbieter wird nie etwas geändert.",

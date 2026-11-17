@@ -1180,7 +1180,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "你固定的一个账户，显示其约束额度和读数时间。"
+            "value": "固定的一个账户，显示其约束额度和读数时间。"
           }
         },
         "ko": {

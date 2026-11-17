@@ -15,7 +15,10 @@
       "models.unsupported.reason.nine_router",
       "text.duration.compact.days",
       "text.duration.compact.hours",
-      "text.duration.compact.minutes"
+      "text.duration.compact.minutes",
+      "detect.ask",
+      "history.relocation.prompt",
+      "privacy.erase.confirm.title"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -484,7 +487,7 @@
   "detect.consent.key_step": "키를 붙여 넣으세요. Cuotai는 {tool} 폴더에서 아무것도 읽지 않습니다.",
   "detect.consent.native_login": "Cuotai가 {provider} 로그인을 엽니다. {tool} 폴더에서는 아무것도 읽지 않습니다.",
   "detect.consent.nine_router_local": "http://127.0.0.1:20128 주소가 미리 채워져 있습니다. 9router의 공개 상태 경로만 조회했으며 그 밖의 것은 읽지 않았습니다.",
-  "detect.ask": "이 기기에서 이미 쓰고 있는 AI 도구를 찾아볼까요? Cuotai는 해당 도구의 폴더가 있는지와 특정 환경 변수가 설정되어 있는지(있는지 여부만 확인하고 값은 읽지 않음)만 확인하며 그 밖의 것은 읽지 않습니다.",
+  "detect.ask": "이 기기에서 이미 쓰고 있는 AI 도구를 찾아보시겠습니까? Cuotai는 해당 도구의 폴더가 있는지와 특정 환경 변수가 설정되어 있는지(있는지 여부만 확인하고 값은 읽지 않음)만 확인하며 그 밖의 것은 읽지 않습니다.",
   "detect.hint": "{tool}이(가) 이 기기에 설치되어 있습니다",
   "detect.hint.env": "{variable}이(가) 이 환경에 설정되어 있습니다",
   "detect.hint.nine_router_local": "이 기기에서 발견됨: 9router가 127.0.0.1:20128에서 응답합니다",
@@ -1041,7 +1044,7 @@
   "history.error.retention_bounds": "기록 보관 기간은 {min}일에서 {max}일 사이입니다.",
   "history.error.storage": "로컬 측정 기록을 읽거나 쓰지 못했습니다.",
   "history.relocation.adopted": "기록을 옮겼습니다. 측정값: {count}.",
-  "history.relocation.prompt": "구성 파일이 이동했습니다. {path}은(는) 더 이상 없고, 그 기록(측정값: {count}, 계정: {accounts})은 이 파일과 정확히 같은 계정을 가지고 있습니다. 그 기록을 여기서 사용할까요?",
+  "history.relocation.prompt": "구성 파일이 이동했습니다. {path}은(는) 더 이상 없고, 그 기록(측정값: {count}, 계정: {accounts})은 이 파일과 정확히 같은 계정을 가지고 있습니다. 그 기록을 여기서 사용하시겠습니까?",
   "history.warning.ceiling": "기록이 {max} MiB를 넘어 가장 오래된 측정값 {removed}개를 삭제했습니다.",
   "history.warning.dropped": {
     "other": "디스크 응답이 늦어 조회값 {count}개가 기록에 들어가지 못했습니다."
@@ -1723,7 +1726,7 @@
   "privacy.erase.word": "삭제",
   "privacy.erase.word_mismatch": "확인 단어가 일치하지 않습니다. 아무것도 지우지 않았습니다.",
   "privacy.erase.declined": "시스템 대화 상자에서 확인하지 않았습니다. 아무것도 지우지 않았습니다.",
-  "privacy.erase.confirm.title": "Cuotai 데이터를 모두 지울까요?",
+  "privacy.erase.confirm.title": "Cuotai 데이터를 모두 지우시겠습니까?",
   "privacy.erase.confirm.body": "Cuotai가 백그라운드 작업을 멈추고 {erased}개 항목을 지웁니다: 기록, 설정, 로그, 로컬 비용 데이터, 시스템 자격 증명 보관함에 저장한 로그인. {kept}개 항목은 유지됩니다. 되돌릴 수 없습니다.",
   "privacy.erase.confirm.accept": "모두 지우기",
   "privacy.erase.done": "Cuotai 데이터를 모두 지웠습니다. 이제 Cuotai가 종료됩니다.",
