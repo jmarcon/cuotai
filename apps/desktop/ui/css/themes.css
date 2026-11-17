@@ -407,9 +407,12 @@ svg.i {
   display: block;
   border-radius: var(--radius-xs);
 }
-/* DS-CMP-SEL-3: only flags with a white field get a hairline, so they stay visible on light surfaces. */
-.flag.white-field {
-  box-shadow: 0 0 0 var(--border-w) var(--border);
+/* DS-CMP-SEL-3 (PRD 0035 re-validation V35-10): a flag with a light fill (white or a light band, `.light-band`, set by
+   flags.js from the artwork) keeps its outline on light themes with a 1 px inner `--border` hairline; dark themes need
+   none. An outline, not an inset shadow: a shadow is painted under the artwork, an outline over it. */
+:root[data-mode="light"] .flag.light-band {
+  outline: var(--border-w) solid var(--border);
+  outline-offset: calc(-1 * var(--border-w));
 }
 .lang {
   position: relative;

@@ -25,7 +25,7 @@ const trigram = (cx, cy, deg) =>
   `<g transform="rotate(${deg} ${cx} ${cy})" fill="#000">${[-1.3, 0, 1.3].map((dy) =>
     `<rect x="${cx - 2.2}" y="${(cy + dy - 0.4).toFixed(2)}" width="4.4" height=".8"/>`).join("")}</g>`;
 
-const FLAGS = {
+export const FLAGS = {
   br: `<rect width="30" height="20" fill="#009c3b"/><path d="M15 2.2 27.2 10 15 17.8 2.8 10Z" fill="#ffdf00"/><circle cx="15" cy="10" r="4.6" fill="#002776"/><path d="M10.5 9.1c3-1.1 6.3-.6 9 1.8" stroke="#fff" stroke-width="1" fill="none"/>`,
   us: `${stripes13}<rect width="12.6" height="10.77" fill="#3c3b6e"/>${stars}`,
   es: `<rect width="30" height="20" fill="#aa151b"/><rect y="5" width="30" height="10" fill="#f1bf00"/>`,
@@ -63,10 +63,22 @@ export function flagCountry(code, explicit) {
   return LANG_FLAG[lang.toLowerCase()] ?? "";
 }
 
-/** DS-CMP-SEL-3 (PRD 0035 RF7.5): flags whose field is white get a 1 px `--border` hairline. */
-const WHITE_FIELD = new Set(["jp", "kr", "id"]);
+/** WCAG relative luminance of a `#rgb` or `#rrggbb` color. */
+export function luminance(hex) {
+  const h = hex.length === 4 ? [...hex.slice(1)].map((c) => c + c).join("") : hex.slice(1);
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+/** DS-CMP-SEL-3 (PRD 0035 RF7.5, re-validation V35-10): a flag with a light fill (relative luminance 0.8 or more:
+ *  white or a light band, at an edge or in the middle) gets the 1 px `--border` hairline on light themes. Computed
+ *  once from the artwork, so a new flag follows the rule without a list to keep. */
+export const LIGHT_BAND_MIN = 0.8;
+const LIGHT_BAND = new Set(Object.entries(FLAGS)
+  .filter(([, art]) => [...art.matchAll(/fill="(#[0-9a-f]{3}(?:[0-9a-f]{3})?)"/gi)].some((m) => luminance(m[1]) >= LIGHT_BAND_MIN))
+  .map(([country]) => country));
 
 export function flagSvg(country, width = 24) {
   const art = FLAGS[country] ?? GLOBE;
-  return `<svg class="flag${WHITE_FIELD.has(country) ? " white-field" : ""}" viewBox="0 0 30 20" width="${width}" height="${Math.round((width * 2) / 3)}" aria-hidden="true">${art}</svg>`;
+  return `<svg class="flag${LIGHT_BAND.has(country) ? " light-band" : ""}" viewBox="0 0 30 20" width="${width}" height="${Math.round((width * 2) / 3)}" aria-hidden="true">${art}</svg>`;
 }
