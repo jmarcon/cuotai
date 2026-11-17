@@ -978,25 +978,36 @@ fn load_user_content() -> Result<user_content::UserContent, String> {
 }
 
 /// The words of the placeholder tray menu shown until the interface loads and
-/// replaces it, in the system language (Portuguese, else English).
-fn initial_tray_words() -> (&'static str, &'static str, &'static str) {
-    let portuguese = ["LC_ALL", "LC_MESSAGES", "LANG"]
+/// replaces it (PRD 0035 re-validation V35-13): in the language saved in
+/// `desktop.json`, else the system's (`LC_ALL`, `LC_MESSAGES`, `LANG`).
+fn initial_tray_words() -> [String; 3] {
+    let saved = settings::settings_path().and_then(|file| settings::read_locale(&file));
+    let system = ["LC_ALL", "LC_MESSAGES", "LANG"]
         .iter()
-        .find_map(|name| std::env::var(name).ok().filter(|v| !v.is_empty()))
-        .is_some_and(|v| v.to_lowercase().starts_with("pt"));
-    if portuguese {
-        ("Abrir", "Configurações", "Sair")
-    } else {
-        ("Open", "Settings", "Quit")
-    }
+        .find_map(|name| std::env::var(name).ok().filter(|v| !v.is_empty()));
+    tray_words(saved.as_deref(), system.as_deref())
+}
+
+/// [`initial_tray_words`] for a saved and a system language code: the saved
+/// one wins, the code goes through the registry (`text::normalize`, never a
+/// prefix match) and the words are the core's `tray.menu.*` texts, the same
+/// as the interface's; English for an unknown code.
+fn tray_words(saved: Option<&str>, system: Option<&str>) -> [String; 3] {
+    use cuotai_core::text::{normalize, Localized, TRAY_MENU};
+    let code = saved
+        .or(system)
+        .and_then(normalize)
+        .map_or("en-US", |row| row.code);
+    TRAY_MENU.map(|(id, english)| Localized::fixed(id, english).resolve(code))
 }
 
 /// RF8: ship the core-owned locale catalog (`crates/cuotai-core/locales/*.json`)
 /// to the desktop frontend so it can resolve every id the core emits without
-/// shipping those strings itself. `locale` follows the same precedence as
-/// `cuotai_core::text::Locale::resolve`; en-US and languages still in
-/// progress return an empty catalog so the frontend falls back to the
-/// English `fallback` text embedded in each `Localized`. Values are strings
+/// shipping those strings itself. `locale` is matched through the registry
+/// (`cuotai_core::text::normalize`: aliases, the language subtag, never a
+/// prefix); en-US, unknown codes and languages still in progress return an
+/// empty catalog so the frontend falls back to the English `fallback` text
+/// embedded in each `Localized`. Values are strings
 /// or plural objects (PRD 0035 RF4).
 #[tauri::command]
 fn core_catalog(locale: String) -> cuotai_core::text::Catalog {
@@ -2933,13 +2944,13 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
         })
         .build(app)?;
     // Initial menu (the interface replaces it, already translated and with the accounts, as soon as it loads).
-    let initial = initial_tray_words();
+    let [open_word, settings_word, quit_word] = initial_tray_words();
     let initial = TrayMenuPayload {
         lines: vec![],
         empty: "Cuotai".into(),
-        open: initial.0.into(),
-        settings: initial.1.into(),
-        quit: initial.2.into(),
+        open: open_word,
+        settings: settings_word,
+        quit: quit_word,
         tooltip: "Cuotai".into(),
         notice: None,
         update: None,
@@ -3371,6 +3382,41 @@ pub fn run() -> std::process::ExitCode {
 
 #[cfg(test)]
 mod tests {
+    /// PRD 0035 re-validation V35-13: the placeholder tray menu follows the
+    /// saved language, else the system's, through the registry.
+    #[test]
+    fn the_first_tray_menu_follows_the_chosen_language() {
+        let words = |saved, system| super::tray_words(saved, system);
+        // A saved choice wins over the system.
+        assert_eq!(
+            words(Some("de"), Some("pt_BR.UTF-8")),
+            ["Öffnen", "Einstellungen", "Beenden"]
+        );
+        assert_eq!(
+            words(Some("pt-BR"), Some("en_US.UTF-8")),
+            ["Abrir", "Configurações", "Sair"]
+        );
+        // Nothing saved: the system language.
+        assert_eq!(words(None, Some("ja-JP")), ["開く", "設定", "終了"]);
+        assert_eq!(
+            words(None, Some("ru_RU.UTF-8")),
+            ["Открыть", "Настройки", "Выйти"]
+        );
+        // An unknown code, a prefix lookalike or nothing at all: English.
+        for (saved, system) in [
+            (Some("xx-YY"), Some("de_DE.UTF-8")),
+            (None, Some("ptx")),
+            (None, Some("C")),
+            (None, None),
+        ] {
+            assert_eq!(
+                words(saved, system),
+                ["Open", "Settings", "Quit"],
+                "{saved:?} {system:?}"
+            );
+        }
+    }
+
     /// PRD 0020 re-validation S-01: every destructive command checks the
     /// window that called it, first, with its scope; a new destructive
     /// command added to these lists without the check fails here.
