@@ -2282,21 +2282,45 @@
   "freshness.age.minutes": "{n} 分钟前",
   "freshness.age.hours": "{n} 小时前",
   "freshness.age.days": "{n} 天前",
-  "metric.unit.credits": "积分",
-  "metric.unit.frames": "帧",
-  "metric.unit.images": "图像",
-  "metric.unit.calls": "次调用",
-  "metric.unit.requests": "请求",
-  "metric.unit.requisitions": "请求",
-  "metric.unit.tokens": "token",
-  "metric.unit.voices": "语音",
+  "metric.unit.credits": {
+    "other": "积分"
+  },
+  "metric.unit.frames": {
+    "other": "帧"
+  },
+  "metric.unit.images": {
+    "other": "图像"
+  },
+  "metric.unit.calls": {
+    "other": "次调用"
+  },
+  "metric.unit.requests": {
+    "other": "请求"
+  },
+  "metric.unit.requisitions": {
+    "other": "请求"
+  },
+  "metric.unit.tokens": {
+    "other": "token"
+  },
+  "metric.unit.voices": {
+    "other": "语音"
+  },
   "metric.word.unknown": "未知",
   "metric.word.limit": "限额",
   "metric.word.quota": "配额",
-  "metric.unit.units": "单位",
-  "metric.unit.queries": "查询",
-  "metric.unit.members": "成员",
-  "metric.unit.models": "个模型",
+  "metric.unit.units": {
+    "other": "单位"
+  },
+  "metric.unit.queries": {
+    "other": "查询"
+  },
+  "metric.unit.members": {
+    "other": "成员"
+  },
+  "metric.unit.models": {
+    "other": "个模型"
+  },
   "metric.period.billing_cycle": "计费周期",
   "metric.period.current_balance": "当前余额",
   "metric.period.weekly": "每周",
@@ -2462,7 +2486,9 @@
   "metric.label.rate_limit_of": "{label}（速率限制）",
   "metric.label.rate_limit": "速率限制",
   "metric.label.extra_usage_used": "额外用量 — 已用",
-  "metric.unit.provider_units": "提供商单位",
+  "metric.unit.provider_units": {
+    "other": "提供商单位"
+  },
   "metric.label.overage_of": "{label}（超额）",
   "metric.label.overage_charged_of": "{label}（已计费超额）",
   "metric.label.free_trial_of": "{label}（免费试用）",

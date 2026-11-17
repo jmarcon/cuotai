@@ -2391,21 +2391,81 @@
   "freshness.age.minutes": "{n} мин назад",
   "freshness.age.hours": "{n} ч назад",
   "freshness.age.days": "{n} дн. назад",
-  "metric.unit.credits": "кредиты",
-  "metric.unit.frames": "кадры",
-  "metric.unit.images": "изображения",
-  "metric.unit.calls": "вызовов",
-  "metric.unit.requests": "запросы",
-  "metric.unit.requisitions": "запросы",
-  "metric.unit.tokens": "токены",
-  "metric.unit.voices": "голоса",
+  "metric.unit.credits": {
+    "one": "кредит",
+    "few": "кредита",
+    "many": "кредитов",
+    "other": "кредита"
+  },
+  "metric.unit.frames": {
+    "one": "кадр",
+    "few": "кадра",
+    "many": "кадров",
+    "other": "кадра"
+  },
+  "metric.unit.images": {
+    "one": "изображение",
+    "few": "изображения",
+    "many": "изображений",
+    "other": "изображения"
+  },
+  "metric.unit.calls": {
+    "one": "вызов",
+    "few": "вызова",
+    "many": "вызовов",
+    "other": "вызова"
+  },
+  "metric.unit.requests": {
+    "one": "запрос",
+    "few": "запроса",
+    "many": "запросов",
+    "other": "запроса"
+  },
+  "metric.unit.requisitions": {
+    "one": "запрос",
+    "few": "запроса",
+    "many": "запросов",
+    "other": "запроса"
+  },
+  "metric.unit.tokens": {
+    "one": "токен",
+    "few": "токена",
+    "many": "токенов",
+    "other": "токена"
+  },
+  "metric.unit.voices": {
+    "one": "голос",
+    "few": "голоса",
+    "many": "голосов",
+    "other": "голоса"
+  },
   "metric.word.unknown": "неизвестно",
   "metric.word.limit": "лимит",
   "metric.word.quota": "квота",
-  "metric.unit.units": "единицы",
-  "metric.unit.queries": "запросы",
-  "metric.unit.members": "участники",
-  "metric.unit.models": "моделей",
+  "metric.unit.units": {
+    "one": "единица",
+    "few": "единицы",
+    "many": "единиц",
+    "other": "единицы"
+  },
+  "metric.unit.queries": {
+    "one": "запрос",
+    "few": "запроса",
+    "many": "запросов",
+    "other": "запроса"
+  },
+  "metric.unit.members": {
+    "one": "участник",
+    "few": "участника",
+    "many": "участников",
+    "other": "участника"
+  },
+  "metric.unit.models": {
+    "one": "модель",
+    "few": "модели",
+    "many": "моделей",
+    "other": "модели"
+  },
   "metric.period.billing_cycle": "расчётный цикл",
   "metric.period.current_balance": "текущий баланс",
   "metric.period.weekly": "за неделю",
@@ -2580,7 +2640,12 @@
   "metric.label.rate_limit_of": "{label} (лимит частоты)",
   "metric.label.rate_limit": "Лимит частоты",
   "metric.label.extra_usage_used": "Дополнительное использование — израсходовано",
-  "metric.unit.provider_units": "ед. провайдера",
+  "metric.unit.provider_units": {
+    "one": "ед. провайдера",
+    "few": "ед. провайдера",
+    "many": "ед. провайдера",
+    "other": "ед. провайдера"
+  },
   "metric.label.overage_of": "{label} (сверх лимита)",
   "metric.label.overage_charged_of": "{label} (списано сверх лимита)",
   "metric.label.free_trial_of": "{label} (пробный период)",

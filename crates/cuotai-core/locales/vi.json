@@ -2246,21 +2246,45 @@
   "freshness.age.minutes": "{n} phút trước",
   "freshness.age.hours": "{n} giờ trước",
   "freshness.age.days": "{n} ngày trước",
-  "metric.unit.credits": "tín dụng",
-  "metric.unit.frames": "khung hình",
-  "metric.unit.images": "hình ảnh",
-  "metric.unit.calls": "lần gọi",
-  "metric.unit.requests": "yêu cầu",
-  "metric.unit.requisitions": "yêu cầu",
-  "metric.unit.tokens": "token",
-  "metric.unit.voices": "giọng nói",
+  "metric.unit.credits": {
+    "other": "tín dụng"
+  },
+  "metric.unit.frames": {
+    "other": "khung hình"
+  },
+  "metric.unit.images": {
+    "other": "hình ảnh"
+  },
+  "metric.unit.calls": {
+    "other": "lần gọi"
+  },
+  "metric.unit.requests": {
+    "other": "yêu cầu"
+  },
+  "metric.unit.requisitions": {
+    "other": "yêu cầu"
+  },
+  "metric.unit.tokens": {
+    "other": "token"
+  },
+  "metric.unit.voices": {
+    "other": "giọng nói"
+  },
   "metric.word.unknown": "không rõ",
   "metric.word.limit": "giới hạn",
   "metric.word.quota": "hạn mức",
-  "metric.unit.units": "đơn vị",
-  "metric.unit.queries": "truy vấn",
-  "metric.unit.members": "thành viên",
-  "metric.unit.models": "mô hình",
+  "metric.unit.units": {
+    "other": "đơn vị"
+  },
+  "metric.unit.queries": {
+    "other": "truy vấn"
+  },
+  "metric.unit.members": {
+    "other": "thành viên"
+  },
+  "metric.unit.models": {
+    "other": "mô hình"
+  },
   "metric.period.billing_cycle": "chu kỳ thanh toán",
   "metric.period.current_balance": "số dư hiện tại",
   "metric.period.weekly": "hằng tuần",
@@ -2426,7 +2450,9 @@
   "metric.label.rate_limit_of": "{label} (giới hạn tốc độ)",
   "metric.label.rate_limit": "Giới hạn tốc độ",
   "metric.label.extra_usage_used": "Sử dụng thêm — đã dùng",
-  "metric.unit.provider_units": "đơn vị của nhà cung cấp",
+  "metric.unit.provider_units": {
+    "other": "đơn vị của nhà cung cấp"
+  },
   "metric.label.overage_of": "{label} (vượt mức)",
   "metric.label.overage_charged_of": "{label} (vượt mức đã tính phí)",
   "metric.label.free_trial_of": "{label} (dùng thử miễn phí)",

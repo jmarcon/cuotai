@@ -648,22 +648,49 @@ export const fmtMoney = (amount, currency) => {
 };
 /** PRD 0030 L-01: a typed rate with up to six significant digits ("0.0000099", "5.4321"), never rounded to zero. */
 export const fmtRate = (n) => (n == null ? "—" : intlFormatter("NumberFormat", currentLocale(), { maximumSignificantDigits: 6 }).format(n));
+// PRD 0037 re-validation (V-03): the English singular of each counted unit, the twin of the core's
+// `metric_text::UNITS` (there is no en-US core catalog, so English reads the core's `fallback`, its plural form).
+const UNIT_ONE_EN = {
+  "metric.unit.credits": "credit",
+  "metric.unit.requests": "request",
+  "metric.unit.requisitions": "request",
+  "metric.unit.voices": "voice",
+  "metric.unit.units": "unit",
+  "metric.unit.queries": "query",
+  "metric.unit.members": "member",
+  "metric.unit.models": "model",
+  "metric.unit.calls": "call",
+  "metric.unit.provider_units": "provider unit",
+  "metric.unit.tokens": "token",
+  "metric.unit.images": "image",
+  "metric.unit.frames": "frame",
+};
 /** PRD 0034 re-validation V-05: the metric's unit as a person reads it (`unit_text`, the core's display text); the raw
- *  `unit` is an id (often Portuguese) and is shown only when the core sent no text. */
-export const unitName = (m) => (m?.unit_text ? tl(m.unit_text) : m?.unit ?? "");
+ *  `unit` is an id (often Portuguese) and is shown only when the core sent no text. PRD 0037 re-validation (V-03):
+ *  with the `figure` printed right before it, a counted unit takes that figure's plural form ("1 voice",
+ *  "4 000 кредитов"); without one it reads in the plural (`other`) form. */
+export const unitName = (m, figure) => {
+  if (!m?.unit_text) return m?.unit ?? "";
+  if (figure == null || !Number.isFinite(Number(figure))) return tl(m.unit_text);
+  const one = UNIT_ONE_EN[m.unit_text.id];
+  const n = Math.abs(Number(figure));
+  const singular = one && new Intl.PluralRules("en-US").select(n) === "one";
+  return tl(singular ? { ...m.unit_text, fallback: one } : m.unit_text, { count: n });
+};
 // Units that describe "request count": left implicit. Others (USD, credits, tokens) are shown. The test keys on ids
 // (the raw unit's symbols or the core's `metric.unit.*` id of `unit_text`), never on a word of some language.
 const QUIET_UNITS = new Set(["", "%", "—", "requests"]);
 const QUIET_UNIT_IDS = new Set(["metric.unit.requests", "metric.unit.requisitions", "metric.unit.queries", "metric.unit.units"]);
 const isQuietUnit = (m) => QUIET_UNITS.has(m.unit ?? "") || QUIET_UNIT_IDS.has(m.unit_text?.id);
 // A no-break space: the figure never wraps away from its unit (PRD 0034 re-validation V-10).
-const unitSuffix = (m) => (isQuietUnit(m) ? "" : `\u00a0${unitName(m)}`);
+// The unit agrees with the figure printed right before it (`figure`).
+const unitSuffix = (m, figure) => (isQuietUnit(m) ? "" : `\u00a0${unitName(m, figure)}`);
 export function fmtAmount(m) {
-  if (m.limit == null) return m.used == null ? "—" : `${fmtNumber(m.used)}${unitSuffix(m)}`;
-  return `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m)}`;
+  if (m.limit == null) return m.used == null ? "—" : `${fmtNumber(m.used)}${unitSuffix(m, m.used)}`;
+  return `${fmtNumber(m.used)} / ${fmtNumber(m.limit)}${unitSuffix(m, m.limit)}`;
 }
 /** One recorded value of metric `m` (history; its `unit` and `unit_text`): "60%", "12.5 USD", or a bare count. */
-export const fmtValue = (v, m) => (m.unit === "%" ? fmtPercent(v, 2) : `${fmtNumber(v)}${unitSuffix(m)}`);
+export const fmtValue = (v, m) => (m.unit === "%" ? fmtPercent(v, 2) : `${fmtNumber(v)}${unitSuffix(m, v)}`);
 /** Metric without a usable limit: text in place of the bar (never invents "100% free"). PRD 0037 RF5: a metric the
  *  provider stated has no cap (`unlimited`) says "No cap" after its amount. */
 export function textualMetric(m) {
@@ -671,7 +698,7 @@ export function textualMetric(m) {
   if (m.state === "available" && m.uncapped) {
     const amount = m.remaining ?? m.used;
     if (amount == null) return m.unlimited ? t("metric.noCap") : null;
-    const text = t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: `${fmtNumber(amount)}${unitSuffix(m)}` });
+    const text = t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: `${fmtNumber(amount)}${unitSuffix(m, amount)}` });
     return m.unlimited ? `${text} · ${t("metric.noCap")}` : text;
   }
   return null;
@@ -800,13 +827,17 @@ export const isOverage = (m) => m.billing === "overage";
 // PRD 0034 re-validation (G13): `unit` is the adapter's id (often Portuguese: `créditos`); `unit_name` is how a person
 // reads it, the `unit_text` of the overage metric that carries that unit (the raw unit when no metric has one).
 // Resolved on each call: the name follows a language switch.
-const overageUnitName = (r, o) => {
+// `figure`: the amount printed right before the unit (PRD 0037 re-validation V-03); none for the bare unit.
+const overageUnitName = (r, o, figure) => {
   if (!o.unit || o.currency) return o.unit ?? "";
   const m = (r.metrics ?? []).find((x) => x.billing === "overage" && x.unit === o.unit);
-  return m ? unitName(m) : o.unit;
+  return m ? unitName(m, figure) : o.unit;
 };
+// `unit_name` is the bare unit; `unit_name_of(figure)` is the unit printed after `figure`.
 export const overageOf = (r) =>
-  r.status === "ready" && !r.pending && r.overage ? { ...r.overage, unit_name: overageUnitName(r, r.overage) } : null;
+  r.status === "ready" && !r.pending && r.overage
+    ? { ...r.overage, unit_name: overageUnitName(r, r.overage), unit_name_of: (figure) => overageUnitName(r, r.overage, figure) }
+    : null;
 /** The overage while money is being billed (`active`) or the extra budget is used up (`cap_reached`). */
 export const billingOverage = (r) => {
   const o = overageOf(r);
@@ -814,10 +845,11 @@ export const billingOverage = (r) => {
 };
 /** One amount: money with the locale's currency format, provider units as the core words them, anything else with
  *  its unit. A missing amount is "—", never zero (DS-MSG-5). */
-/** `shown` is the unit as a person reads it (a metric's `unitName`, an overage's `unit_name`); `unit` stays the id the
- *  provider-units test reads. */
+/** `shown` is the unit as a person reads it (a metric's `unitName`, an overage's `unit_name`), or a function of the
+ *  value that words it in the value's plural form (`unit_name_of`); `unit` stays the id the provider-units test reads. */
 export function fmtExtra(value, unit, currency, shown = unit) {
   if (value == null) return "—";
+  if (typeof shown === "function") shown = shown(value);
   if (currency) {
     try { return new Intl.NumberFormat(currentLocale(), { style: "currency", currency }).format(value); } catch { /* unknown code */ }
   }
@@ -835,14 +867,14 @@ export function extraFigure(o) {
   if (o.currency) return { fig: fmtExtra(o.spent, o.unit, o.currency), unit: t("figure.extra") };
   const unit = o.unit === "unid. provedor"
     ? tl({ id: "metric.unit.provider_units", params: {}, fallback: "provider units" })
-    : (o.unit_name ?? o.unit) || t("figure.extra");
+    : (o.unit_name_of?.(o.spent) ?? o.unit_name ?? o.unit) || t("figure.extra");
   return { fig: fmtNumber(o.spent), unit };
 }
 /** Figure first (DS-MSG-4): "$6.25 extra of $50" for one overage metric. */
 export function fmtMetricExtra(m) {
   if (m.used == null) return "—";
-  const amount = fmtExtra(m.used, m.unit, m.kind === "spend" ? m.unit : null, unitName(m));
-  return m.limit > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(m.limit, m.unit, m.kind === "spend" ? m.unit : null, unitName(m)) })
+  const amount = fmtExtra(m.used, m.unit, m.kind === "spend" ? m.unit : null, unitName(m, m.used));
+  return m.limit > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(m.limit, m.unit, m.kind === "spend" ? m.unit : null, unitName(m, m.limit)) })
     : t("metric.overage", { amount });
 }
 /** The account-level line: the figure while billing, the core's words for the other states. */
@@ -850,8 +882,8 @@ export function overageLineText(o) {
   if (o.state === "disabled") return "";
   if (o.state === "active" || o.state === "cap_reached") {
     if (o.spent == null) return tl(o.text);
-    const amount = fmtExtra(o.spent, o.unit, o.currency, o.unit_name);
-    return o.cap > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(o.cap, o.unit, o.currency, o.unit_name) }) : t("metric.overage", { amount });
+    const amount = fmtExtra(o.spent, o.unit, o.currency, o.unit_name_of ?? o.unit_name);
+    return o.cap > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(o.cap, o.unit, o.currency, o.unit_name_of ?? o.unit_name) }) : t("metric.overage", { amount });
   }
   return tl(o.text);
 }
@@ -879,7 +911,7 @@ export function overageDetailHtml(r) {
   const o = overageOf(r);
   if (!o) return "";
   const cycle = fmtReset(o.cycle_ends_at);
-  const cap = o.cap > 0 ? fmtExtra(o.cap, o.unit, o.currency, o.unit_name) : null;
+  const cap = o.cap > 0 ? fmtExtra(o.cap, o.unit, o.currency, o.unit_name_of ?? o.unit_name) : null;
   return `<div class="metric extra-detail" data-overage-detail>
     <div class="metric-top"><div><h3>${te("card.extra.title")}</h3>${o.state === "active" ? "" : `<span class="sub">${esc(tl(o.text))}</span>`}</div></div>
     ${o.state === "active" || o.state === "cap_reached" ? `<div class="balance">${esc(overageLineText(o))}</div>` : ""}

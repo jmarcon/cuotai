@@ -2263,21 +2263,45 @@
   "freshness.age.minutes": "{n}분 전",
   "freshness.age.hours": "{n}시간 전",
   "freshness.age.days": "{n}일 전",
-  "metric.unit.credits": "크레딧",
-  "metric.unit.frames": "프레임",
-  "metric.unit.images": "이미지",
-  "metric.unit.calls": "회 호출",
-  "metric.unit.requests": "요청",
-  "metric.unit.requisitions": "요청",
-  "metric.unit.tokens": "토큰",
-  "metric.unit.voices": "음성",
+  "metric.unit.credits": {
+    "other": "크레딧"
+  },
+  "metric.unit.frames": {
+    "other": "프레임"
+  },
+  "metric.unit.images": {
+    "other": "이미지"
+  },
+  "metric.unit.calls": {
+    "other": "회 호출"
+  },
+  "metric.unit.requests": {
+    "other": "요청"
+  },
+  "metric.unit.requisitions": {
+    "other": "요청"
+  },
+  "metric.unit.tokens": {
+    "other": "토큰"
+  },
+  "metric.unit.voices": {
+    "other": "음성"
+  },
   "metric.word.unknown": "알 수 없음",
   "metric.word.limit": "한도",
   "metric.word.quota": "할당량",
-  "metric.unit.units": "단위",
-  "metric.unit.queries": "쿼리",
-  "metric.unit.members": "구성원",
-  "metric.unit.models": "개 모델",
+  "metric.unit.units": {
+    "other": "단위"
+  },
+  "metric.unit.queries": {
+    "other": "쿼리"
+  },
+  "metric.unit.members": {
+    "other": "구성원"
+  },
+  "metric.unit.models": {
+    "other": "개 모델"
+  },
   "metric.period.billing_cycle": "결제 주기",
   "metric.period.current_balance": "현재 잔액",
   "metric.period.weekly": "주간",
@@ -2443,7 +2467,9 @@
   "metric.label.rate_limit_of": "{label}(요청 제한)",
   "metric.label.rate_limit": "요청 제한",
   "metric.label.extra_usage_used": "추가 사용량 — 사용됨",
-  "metric.unit.provider_units": "제공업체 단위",
+  "metric.unit.provider_units": {
+    "other": "제공업체 단위"
+  },
   "metric.label.overage_of": "{label} (초과분)",
   "metric.label.overage_charged_of": "{label} (청구된 초과분)",
   "metric.label.free_trial_of": "{label} (무료 체험)",

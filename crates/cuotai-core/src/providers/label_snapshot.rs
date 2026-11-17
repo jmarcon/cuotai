@@ -1537,7 +1537,7 @@ fn without_slots(text: &str) -> String {
 /// `metric.*` id, is a literal part of a [`crate::metric_text::TABLE`]
 /// template, or may show verbatim (its slots aside).
 fn literal_resolves(text: &str) -> bool {
-    use crate::metric_text::{metric_text, AGGREGATOR_LABELS, ENGLISH_LABELS, TABLE};
+    use crate::metric_text::{metric_text, AGGREGATOR_LABELS, ENGLISH_LABELS, TABLE, UNITS};
     let text = normalize_format(text);
     let trimmed = text.trim();
     trimmed.is_empty()
@@ -1549,6 +1549,7 @@ fn literal_resolves(text: &str) -> bool {
             .chain(AGGREGATOR_LABELS)
             .chain(ENGLISH_LABELS)
             .any(|(template, _, _)| template.contains(trimmed))
+        || UNITS.iter().any(|(unit, ..)| *unit == trimmed)
 }
 
 fn not_metric_text(text: &str) -> bool {

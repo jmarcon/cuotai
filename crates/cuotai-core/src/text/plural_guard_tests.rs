@@ -220,3 +220,44 @@ fn count_texts_are_plurals_in_every_layer() {
     out.extend(problems("ui", &ui, &both(UI_ALLOWED, UI_FOLLOW_UP)));
     assert!(out.is_empty(), "{out:#?}");
 }
+
+/// PRD 0037 re-validation (V-03), the "selector plural" rule: a counted
+/// unit is printed beside its figure ("1 voice", "4 000 кредитов"), so
+/// every `metric.unit.*` id is a plural object (with no `{count}`: the
+/// figure is not part of the text) in each language with several plural
+/// categories, even though it never shows `{count}`.
+#[test]
+fn counted_units_are_selector_plurals() {
+    let core = layer("locales");
+    let mut out = Vec::new();
+    for (row, catalog) in &core {
+        if row.plural_categories().len() < 2 {
+            continue;
+        }
+        for (id, message) in catalog.iter() {
+            if !id.starts_with("metric.unit.") {
+                continue;
+            }
+            match message {
+                Message::Plural(_) => {
+                    if message
+                        .templates()
+                        .iter()
+                        .any(|text| text.contains("{count}"))
+                    {
+                        out.push(format!("core {} {id}: a unit holds {{count}}", row.code));
+                    }
+                }
+                Message::Text(_) => {
+                    out.push(format!("core {} {id}: a unit, not a plural", row.code));
+                }
+            }
+        }
+    }
+    assert!(
+        core.iter()
+            .any(|(_, catalog)| catalog.iter().any(|(id, _)| id.starts_with("metric.unit."))),
+        "the core catalogs hold counted units"
+    );
+    assert!(out.is_empty(), "{out:#?}");
+}

@@ -437,7 +437,10 @@ fn overage_amount(value: f64, unit: &str, currency: Option<&str>) -> ParamValue 
                 "amount",
                 ParamValue::l10n(crate::text::number::number(value)),
             ),
-            ("unit", ParamValue::l10n(metric_text(unit))),
+            (
+                "unit",
+                ParamValue::l10n(crate::metric_text::unit_for(unit, Some(value))),
+            ),
         ]),
         "{amount}\u{a0}{unit}",
     ))
@@ -482,7 +485,12 @@ fn usage_text(metrics: &[MetricReading]) -> ParamValue {
                         "amount",
                         ParamValue::l10n(crate::text::number::number(used)),
                     ),
-                    ("unit", ParamValue::l10n(metric.unit_text.clone())),
+                    // The unit takes the form of its figure (PRD 0037
+                    // re-validation V-03).
+                    (
+                        "unit",
+                        ParamValue::l10n(crate::metric_text::unit_for(&metric.unit, Some(used))),
+                    ),
                 ]),
                 "{metric} {amount}\u{a0}{unit}",
             )),

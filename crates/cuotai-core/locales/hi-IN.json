@@ -2294,21 +2294,57 @@
   "freshness.age.minutes": "{n} मिनट पहले",
   "freshness.age.hours": "{n} घंटे पहले",
   "freshness.age.days": "{n} दिन पहले",
-  "metric.unit.credits": "क्रेडिट",
-  "metric.unit.frames": "फ़्रेम",
-  "metric.unit.images": "इमेज",
-  "metric.unit.calls": "कॉल",
-  "metric.unit.requests": "अनुरोध",
-  "metric.unit.requisitions": "अनुरोध",
-  "metric.unit.tokens": "टोकन",
-  "metric.unit.voices": "आवाज़ें",
+  "metric.unit.credits": {
+    "one": "क्रेडिट",
+    "other": "क्रेडिट"
+  },
+  "metric.unit.frames": {
+    "one": "फ़्रेम",
+    "other": "फ़्रेम"
+  },
+  "metric.unit.images": {
+    "one": "इमेज",
+    "other": "इमेज"
+  },
+  "metric.unit.calls": {
+    "one": "कॉल",
+    "other": "कॉल"
+  },
+  "metric.unit.requests": {
+    "one": "अनुरोध",
+    "other": "अनुरोध"
+  },
+  "metric.unit.requisitions": {
+    "one": "अनुरोध",
+    "other": "अनुरोध"
+  },
+  "metric.unit.tokens": {
+    "one": "टोकन",
+    "other": "टोकन"
+  },
+  "metric.unit.voices": {
+    "one": "आवाज़",
+    "other": "आवाज़ें"
+  },
   "metric.word.unknown": "अज्ञात",
   "metric.word.limit": "सीमा",
   "metric.word.quota": "कोटा",
-  "metric.unit.units": "इकाइयाँ",
-  "metric.unit.queries": "क्वेरी",
-  "metric.unit.members": "सदस्य",
-  "metric.unit.models": "मॉडल",
+  "metric.unit.units": {
+    "one": "इकाई",
+    "other": "इकाइयाँ"
+  },
+  "metric.unit.queries": {
+    "one": "क्वेरी",
+    "other": "क्वेरी"
+  },
+  "metric.unit.members": {
+    "one": "सदस्य",
+    "other": "सदस्य"
+  },
+  "metric.unit.models": {
+    "one": "मॉडल",
+    "other": "मॉडल"
+  },
   "metric.period.billing_cycle": "बिलिंग चक्र",
   "metric.period.current_balance": "मौजूदा बैलेंस",
   "metric.period.weekly": "साप्ताहिक",
@@ -2477,7 +2513,10 @@
   "metric.label.rate_limit_of": "{label} (रेट लिमिट)",
   "metric.label.rate_limit": "रेट लिमिट",
   "metric.label.extra_usage_used": "अतिरिक्त उपयोग — इस्तेमाल हुआ",
-  "metric.unit.provider_units": "प्रदाता इकाइयाँ",
+  "metric.unit.provider_units": {
+    "one": "प्रदाता इकाई",
+    "other": "प्रदाता इकाइयाँ"
+  },
   "metric.label.overage_of": "{label} (अतिरिक्त)",
   "metric.label.overage_charged_of": "{label} (अतिरिक्त शुल्क)",
   "metric.label.free_trial_of": "{label} (मुफ़्त ट्रायल)",

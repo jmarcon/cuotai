@@ -21,13 +21,6 @@ use std::collections::BTreeMap;
 /// and become params; every slot but `count` is itself rendered through
 /// [`metric_text`], and a slot named `count` selects the plural form.
 pub(crate) const TABLE: &[(&str, &str, &str)] = &[
-    ("créditos", "metric.unit.credits", "credits"),
-    ("solicitações", "metric.unit.requests", "requests"),
-    ("requisições", "metric.unit.requisitions", "requests"),
-    ("vozes", "metric.unit.voices", "voices"),
-    ("unidades", "metric.unit.units", "units"),
-    ("consultas", "metric.unit.queries", "queries"),
-    ("membros", "metric.unit.members", "members"),
     (
         "ciclo de cobrança",
         "metric.period.billing_cycle",
@@ -100,8 +93,6 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "last {days} days",
     ),
     ("cota gratuita", "metric.period.free_tier", "free tier"),
-    ("modelos", "metric.unit.models", "models"),
-    ("chamadas", "metric.unit.calls", "calls"),
     (
         "Modelos com cota gratuita",
         "metric.label.free_tier_models",
@@ -690,9 +681,6 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "metric.label.video_frames",
         "Video frames processed",
     ),
-    ("tokens", "metric.unit.tokens", "tokens"),
-    ("imagens", "metric.unit.images", "images"),
-    ("quadros", "metric.unit.frames", "frames"),
     (
         "mês corrente ({start} a {end}, {tz})",
         "metric.period.current_month_range",
@@ -743,11 +731,6 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
         "Extra usage — used",
     ),
     (
-        "unid. provedor",
-        "metric.unit.provider_units",
-        "provider units",
-    ),
-    (
         "{label} (excedente cobrado)",
         "metric.label.overage_charged_of",
         "{label} (overage charged)",
@@ -775,6 +758,42 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
     // [`ENGLISH_ONE`]. After "últimos {days} dias", which matches first.
     ("{count} dias", "metric.period.days", "{count} days"),
     ("{label} (%)", "metric.label.percent_of", "{label} (%)"),
+];
+
+/// PRD 0037 re-validation (V-03): the counted units, `(adapter text, id,
+/// English one, English other)`. Each id is a plural object with no
+/// `{count}` in the catalogs: [`unit_for`] picks the form of the figure
+/// printed beside the unit; a bare unit ([`metric_text`], the export's
+/// `unit_text`, a column header) reads in the `other` form.
+pub(crate) const UNITS: &[(&str, &str, &str, &str)] = &[
+    ("créditos", "metric.unit.credits", "credit", "credits"),
+    (
+        "solicitações",
+        "metric.unit.requests",
+        "request",
+        "requests",
+    ),
+    (
+        "requisições",
+        "metric.unit.requisitions",
+        "request",
+        "requests",
+    ),
+    ("vozes", "metric.unit.voices", "voice", "voices"),
+    ("unidades", "metric.unit.units", "unit", "units"),
+    ("consultas", "metric.unit.queries", "query", "queries"),
+    ("membros", "metric.unit.members", "member", "members"),
+    ("modelos", "metric.unit.models", "model", "models"),
+    ("chamadas", "metric.unit.calls", "call", "calls"),
+    (
+        "unid. provedor",
+        "metric.unit.provider_units",
+        "provider unit",
+        "provider units",
+    ),
+    ("tokens", "metric.unit.tokens", "token", "tokens"),
+    ("imagens", "metric.unit.images", "image", "images"),
+    ("quadros", "metric.unit.frames", "frame", "frames"),
 ];
 
 /// PRD 0036 re-validation V-10: the quota labels 9router writes as free
@@ -871,6 +890,9 @@ pub fn metric_text(raw: &str) -> Localized {
             return localized(id, english, captures);
         }
     }
+    if let Some((_, id, _, other)) = UNITS.iter().find(|(unit, ..)| *unit == raw) {
+        return Localized::with_params(*id, BTreeMap::new(), *other);
+    }
     for (template, id, english) in AGGREGATOR_LABELS.iter().chain(ENGLISH_LABELS) {
         if let Some(captures) = capture(template, raw) {
             return localized(id, english, captures);
@@ -886,6 +908,30 @@ pub fn metric_text(raw: &str) -> Localized {
 /// `(id, English singular)` of the [`TABLE`] entries whose `{count}` slot
 /// changes the English wording (the entry's English is the plural).
 const ENGLISH_ONE: &[(&str, &str)] = &[("metric.period.days", "{count} day")];
+
+/// PRD 0037 re-validation (V-03): the display text of a unit printed right
+/// after `figure`, in the plural form that figure takes ("1 credit",
+/// "4 000 кредитов"). Without a figure, or for a text that is not a counted
+/// unit (`%`, a currency code), it is [`metric_text`].
+pub fn unit_for(raw: &str, figure: Option<f64>) -> Localized {
+    let counted = UNITS.iter().find(|(unit, ..)| *unit == raw);
+    match (counted, figure.filter(|f| f.is_finite())) {
+        (Some((_, id, one, other)), Some(figure)) => Localized::plural(
+            *id,
+            crate::text::params([("count", ParamValue::Text(plural_count(figure)))]),
+            one,
+            other,
+        ),
+        _ => metric_text(raw),
+    }
+}
+
+/// `figure` as the plural rules read it: digits, a `.` and the visible
+/// fraction (two decimals at most, as the figures are shown).
+fn plural_count(figure: f64) -> String {
+    let text = format!("{:.2}", figure.abs());
+    text.trim_end_matches('0').trim_end_matches('.').to_string()
+}
 
 fn localized(id: &'static str, english: &'static str, captures: Vec<(&str, &str)>) -> Localized {
     let mut params = BTreeMap::new();
@@ -1294,6 +1340,55 @@ mod tests {
                 metric_text(raw).resolve(locale),
                 expected,
                 "{raw} in {locale}"
+            );
+        }
+    }
+
+    /// PRD 0037 re-validation (V-03): every counted unit is a plural object
+    /// in every catalog, with no slot (the figure is printed beside it),
+    /// and pt-BR's `other` form is the adapter's text; the unit takes the
+    /// form of its figure in every language, English included.
+    #[test]
+    fn counted_units_take_the_plural_form_of_their_figure() {
+        let mut ids = std::collections::BTreeSet::new();
+        for (raw, id, one, other) in UNITS {
+            assert!(ids.insert(*id), "duplicate id {id}");
+            assert!(id.starts_with("metric.unit."), "{id}");
+            assert!(TABLE.iter().all(|(_, table_id, _)| table_id != id), "{id}");
+            for locale in crate::text::catalog_locales() {
+                let catalog = crate::text::core_catalog(locale).unwrap();
+                let Some(crate::text::Message::Plural(forms)) = catalog.get(*id) else {
+                    panic!("{locale}: {id} is not a plural object");
+                };
+                for text in forms.values() {
+                    assert!(slots(text).is_empty(), "{locale}: slots of {id}");
+                }
+                if locale == "pt-BR" {
+                    assert_eq!(forms.get("other").map(String::as_str), Some(*raw));
+                }
+            }
+            assert_eq!(unit_for(raw, Some(1.0)).resolve("en"), *one, "{id}");
+            assert_eq!(unit_for(raw, Some(2.0)).resolve("en"), *other, "{id}");
+            assert_eq!(metric_text(raw).resolve("en"), *other, "{id}");
+        }
+        let cases = [
+            ("créditos", Some(1.0), "ru", "кредит"),
+            ("créditos", Some(3.0), "ru", "кредита"),
+            ("créditos", Some(10_000.0), "ru", "кредитов"),
+            ("créditos", Some(1.5), "ru", "кредита"),
+            ("créditos", None, "ru", "кредита"),
+            ("vozes", Some(1.0), "de", "Stimme"),
+            ("vozes", Some(4.0), "de", "Stimmen"),
+            ("vozes", Some(1.0), "pt-BR", "voz"),
+            ("tokens", Some(1.0), "en", "token"),
+            ("%", Some(1.0), "en", "%"),
+            ("USD", Some(1.0), "de", "USD"),
+        ];
+        for (raw, figure, locale, expected) in cases {
+            assert_eq!(
+                unit_for(raw, figure).resolve(locale),
+                expected,
+                "{raw} {figure:?} {locale}"
             );
         }
     }
