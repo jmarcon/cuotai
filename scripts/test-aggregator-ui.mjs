@@ -76,7 +76,7 @@ const expected = {
   tr: { pool: "Claude · 2 içinden 1 kullanılabilir", off: "9router&#39;da kapalı", tight: "En sıkı: Claude · work" },
   vi: { pool: "Claude · 1 trên 2 khả dụng", off: "Tắt trong 9router", tight: "Chặt nhất: Claude · work" },
   "zh-CN": { pool: "Claude · 2 个中 1 个可用", off: "在 9router 中已关闭", tight: "最紧：Claude · work" },
-  fr: { pool: "Claude · 1 sur 2 disponibles", off: "Désactivée dans 9router", tight: "Plus serrée : Claude · work" },
+  fr: { pool: "Claude · 1 sur 2 disponibles", off: "Désactivée dans 9router", tight: "Plus serrée : Claude · work" },
   ja: { pool: "Claude · 2 件中 1 件利用可能", off: "9router でオフ", tight: "最も厳しい：Claude · work" },
 };
 const untranslated = /\b(agg|settings\.agg)\.[a-zA-Z.]+/;

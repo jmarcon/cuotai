@@ -180,7 +180,7 @@ console.log("PASS: nested notes keep their own parameters and one escape");
   const { filterWords } = await import("../apps/desktop/ui/js/settings/channels.js");
   const pair = { label: "A", value: "B" };
   const expected = {
-    "en-US": ["A, B, C", "A: B"], de: ["A, B und C", "A: B"], fr: ["A, B, C", "A : B"], ja: ["A、B、C", "A：B"],
+    "en-US": ["A, B, C", "A: B"], de: ["A, B und C", "A: B"], fr: ["A, B, C", "A : B"], ja: ["A、B、C", "A：B"],
     "zh-CN": ["A、B、C", "A：B"], "pt-BR": ["A, B, C", "A: B"],
   };
   for (const { code } of i18n.LOCALES) {

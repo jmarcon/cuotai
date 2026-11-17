@@ -138,15 +138,17 @@ review" until a native reviewer signs the critical strings (RF11.2).
 | es | informal "tú" | precedent for tone |
 | it | informal "tu" | precedent for tone |
 | zh-CN | no pronoun by default; 您 only in error, consent, privacy and warning texts | help and labels drop 您 (自定价格表, not 您的价格表) |
-| fr | "vous", imperative in the vous form | French spacing before `:` `;` `?` |
+| fr | "vous", imperative in the vous form | no-break space U+00A0 before `:`, narrow no-break space U+202F before `;` `?` `!`, U+00A0 inside « » (enforced by `style_tests.rs`; code such as `://`, `::1`, `Authorization:`, `#!` keeps its ASCII form) |
 | de | "Sie" | |
-| ja | です/ます | no あなた; use 現在のユーザー for "your user" |
+| ja | です/ます | no あなた; use 現在のユーザー for "your user"; full-width colon `：` (no space after it) after Japanese text |
 | ru | "вы" | |
-| ko | 합쇼체 (-ㅂ니다/-습니다), polite imperative -세요 | the catalogs use 합쇼체 consistently; no 해요체 sentences |
+| ko | 합쇼체 (-ㅂ니다/-습니다), polite imperative -세요 | the catalogs use 합쇼체 consistently; no 해요체 sentences; confirmation titles end in …하시겠습니까? (to confirm with a native reader: many Korean apps use 해요체 …할까요? in titles) |
 | hi-IN | आप, imperative in the -एँ/-ें form | never तुम or तू |
 | id-ID | "Anda" | |
 | tr | "siz" | |
 | vi | "bạn" | |
+
+`crates/cuotai-core/src/text/style_tests.rs` enforces the register table (de, zh-CN, ja, ko), the glossary terms (ru, ko, zh-CN, de, hi-IN, vi, as ratchets of reviewed exceptions) and the fr/ja punctuation on the three catalog layers.
 
 ### Review checklist
 
@@ -212,9 +214,9 @@ review" counts the `pending_review` ids of the three catalogs.
 | `es` | Español | es | complete | complete | complete | maintainer | pending | pending | 9 |
 | `it` | Italiano | it | complete | complete | complete | maintainer | pending | pending | 8 |
 | `zh-CN` | 中文（简体） | cn | complete | complete | complete | machine-translated, needs native review | pending | pending | 79 |
-| `fr` | Français | fr | complete | complete | complete | machine-translated, needs native review | pending | pending | 12 |
+| `fr` | Français | fr | complete | complete | complete | machine-translated, needs native review | pending | pending | 1441 |
 | `de` | Deutsch | de | complete | complete | complete | machine-translated, needs native review | pending | pending | 49 |
-| `ja` | 日本語 | jp | complete | complete | complete | machine-translated, needs native review | pending | pending | 22 |
+| `ja` | 日本語 | jp | complete | complete | complete | machine-translated, needs native review | pending | pending | 108 |
 | `ru` | Русский | ru | complete | complete | complete | machine-translated, needs native review | pending | pending | 91 |
 | `ko` | 한국어 | kr | complete | complete | complete | machine-translated, needs native review | pending | pending | 62 |
 | `hi-IN` | हिन्दी | in | complete | complete | complete | machine-translated, needs native review | pending | pending | 29 |
