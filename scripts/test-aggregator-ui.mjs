@@ -73,7 +73,7 @@ const expected = {
   ko: { pool: "Claude · 2개 중 1개 사용 가능", off: "9router에서 꺼짐", tight: "가장 빠듯함: Claude · work" },
   "hi-IN": { pool: "Claude · 2 में से 1 उपलब्ध", off: "9router में बंद", tight: "सबसे कम: Claude · work" },
   "id-ID": { pool: "Claude · 1 dari 2 tersedia", off: "Nonaktif di 9router", tight: "Paling ketat: Claude · work" },
-  tr: { pool: "Claude · 2 içinden 1 kullanılabilir", off: "9router&#39;da kapalı", tight: "En sıkı: Claude · work" },
+  tr: { pool: "Claude · 2 içinden 1 kullanılabilir", off: "9router içinde kapalı", tight: "En sıkı: Claude · work" },
   vi: { pool: "Claude · 1 trên 2 khả dụng", off: "Tắt trong 9router", tight: "Chặt nhất: Claude · work" },
   "zh-CN": { pool: "Claude · 2 个中 1 个可用", off: "在 9router 中已关闭", tight: "最紧：Claude · work" },
   fr: { pool: "Claude · 1 sur 2 disponibles", off: "Désactivée dans 9router", tight: "Plus serrée : Claude · work" },
@@ -164,5 +164,64 @@ assert.equal(agg.connectionsOf((await lib.getView()).reports.find(agg.isAggregat
 await lib.setConnectionFlag(router.index, "hidden", work.connection.sub, false);
 assert.equal(agg.connectionsOf((await lib.getView()).reports.find(agg.isAggregator)).length, 4);
 assert.equal(work.plan, "Max", "the connection's plan rides on the view");
+
+// PRD 0036 re-validation (V-06): every aggregator text names the instance's own aggregator; a LiteLLM proxy never reads
+// "9router" and has its own caveat and dialog hint (no dashboard password).
+const lite = { ...router, provider: "litellm", aggregator: { ...router.aggregator, kind: "LiteLLM proxy", version: null } };
+const liteConn = { ...work, connection: { ...work.connection, aggregator: "LiteLLM proxy", aggregator_provider: "litellm", enabled_upstream: false } };
+for (const { code } of i18n.LOCALES) {
+  await i18n.setLocale(code);
+  const texts = [agg.connectionChips(liteConn, { via: true }), agg.connectionInfoHtml(liteConn, router.index), agg.instanceHeadHtml(lite),
+    agg.cardName(liteConn), agg.connectionActionsHtml(liteConn, router.index)].join("\n");
+  assert.ok(!texts.includes("9router") && texts.includes("LiteLLM proxy"), `${code}: LiteLLM texts name LiteLLM: ${texts}`);
+  assert.ok(texts.includes(i18n.te("agg.caveat.litellm", { aggregator: "LiteLLM proxy" })) && !texts.includes(i18n.te("agg.caveat", { aggregator: "LiteLLM proxy" })), `${code}: LiteLLM caveat`);
+  assert.ok(!/\{aggregator\}/.test(texts), `${code}: no raw placeholder`);
+  assert.ok(agg.connectionInfoHtml(connections[0], router.index).includes(i18n.te("agg.caveat", { aggregator: "9router" })), `${code}: 9router caveat`);
+}
+await i18n.setLocale("en-US");
+assert.ok(agg.cardName(work) === "work, Claude, via 9router", agg.cardName(work));
+const hintSrc = await readFile(ui("js/account-dialog.js"), "utf8");
+assert.ok(hintSrc.includes('"dialog.aggregator.hint.litellm" : "dialog.aggregator.hint", { aggregator: providerLabel() }'), "the dialog hint is per kind and named");
+assert.ok(!/dashboard|password/i.test(i18n.t("dialog.aggregator.hint.litellm", { aggregator: "LiteLLM proxy" })), "no dashboard password for LiteLLM");
+
+// V-07: the tightest percentage takes the locale's percent format; V-09: the connection count is a plural.
+for (const [code, pct] of [["de", /60\s%/], ["fr", /60\s%/], ["tr", /%60/], ["en-US", /60%/]]) {
+  await i18n.setLocale(code);
+  assert.match(agg.statusLine(router).text, pct, code);
+}
+await i18n.setLocale("en-US");
+const one = { ...router, aggregator: { ...router.aggregator, connections: 1 } };
+assert.ok(agg.instanceHint(one).startsWith("1 connection ·") && agg.accessibleName(one).includes("1 connection,"), agg.instanceHint(one));
+await i18n.setLocale("ru");
+assert.ok(agg.instanceHint({ ...router, aggregator: { ...router.aggregator, connections: 21 } }).startsWith("21 подключение"), "ru plural");
+await i18n.setLocale("en-US");
+
+// V-14 (RF5.3): a duplicate's chip shows the direct account where it may be a button (the card, never inside a tray
+// row's button), and the details offer the same link; without a known direct account the chip stays plain text.
+const linked = { ...work, connection: { ...work.connection, duplicate_of: "claude:Account 2", duplicate_index: 3 } };
+assert.match(agg.connectionChips(linked, { link: true }), /<button type="button" class="mini muted" data-conn-duplicate data-show-account="3"/);
+assert.ok(!agg.connectionChips(linked).includes("<button"), "no button where the chip sits in another button");
+assert.ok(!agg.connectionChips({ ...linked, connection: { ...linked.connection, duplicate_index: null } }, { link: true }).includes("<button"));
+assert.ok(agg.connectionInfoHtml(linked, router.index).includes('data-show-account="3"') && agg.connectionInfoHtml(linked, router.index).includes("Show the direct account"));
+assert.ok(!agg.connectionInfoHtml(work, router.index).includes("data-show-account"), "no duplicate, no link");
+const mainSrc = await readFile(ui("js/main.js"), "utf8");
+assert.ok(mainSrc.includes("connectionChips(r, { via: true, link: true })") && mainSrc.includes('role="group" aria-label="${esc(cardName(r))}"'), "connection cards: via mark, link and name (V-17)");
+assert.ok(mainSrc.includes('t.closest("[data-show-account]")'), "the main window follows the duplicate link");
+
+// V-15 (RF8.5): the instance details say how Cuotai signs in, how the address is protected and when the connections
+// were last read, in every language.
+for (const { code } of i18n.LOCALES) {
+  await i18n.setLocale(code);
+  for (const [auth, tls] of [["password", "off"], ["none", "platform"], ["session", "ca_file"], ["key", "pinned"]]) {
+    const info = agg.instanceInfoHtml({ ...router, aggregator: { ...router.aggregator, auth, tls } });
+    for (const id of ["agg.authMode", "agg.tlsMode", "agg.lastDiscovery"]) assert.ok(info.includes(i18n.te(id)), `${code}: ${id}`);
+    assert.ok(!untranslated.test(info), `${code}: ${auth}/${tls} untranslated in ${info}`);
+  }
+}
+await i18n.setLocale("en-US");
+const info = agg.instanceInfoHtml(router);
+assert.ok(info.includes("Dashboard password") && info.includes("None (plain HTTP)"), info);
+assert.ok(info.includes(`<dt>Connections last read</dt><dd>${i18n.t("time.now")}</dd>`) || /<dt>Connections last read<\/dt><dd>\d+ min/.test(info), info);
+assert.ok(agg.instanceInfoHtml({ ...router, aggregator: { ...router.aggregator, discovered_at: null } }).includes("<dt>Connections last read</dt><dd>—</dd>"), "no reading, no age");
 
 console.log("PASS: 9router instance, pools, connections and details render in pt-BR, en-US, es and it without raw keys, paths or e-mails");

@@ -125,7 +125,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <div class="session-box" id="move-box" data-protected-texts="move" hidden></div>
     <div class="session-box" id="aggregator-box" hidden>
       <h3>${te("dialog.aggregator.title")}</h3>
-      <p class="hint">${te("dialog.aggregator.hint")}</p>
+      <p class="hint" id="aggregator-hint"></p>
       <div class="dlg-actions"><button type="button" class="btn" id="aggregator-test">${te("dialog.aggregator.test")}</button></div>
       <p class="hint" id="aggregator-status" role="status" aria-live="polite"></p>
     </div>
@@ -756,6 +756,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const aggregatorStatus = dlg.querySelector("#aggregator-status");
   function renderAggregator() {
     aggregatorBox.hidden = !schema.aggregator;
+    // PRD 0036 re-validation (V-06): the hint names this aggregator and says what its test checks (a LiteLLM proxy
+    // has a key, not a dashboard password).
+    dlg.querySelector("#aggregator-hint").textContent = schema.aggregator
+      ? t(provider === "litellm" ? "dialog.aggregator.hint.litellm" : "dialog.aggregator.hint", { aggregator: providerLabel() }) : "";
     aggregatorStatus.textContent = "";
   }
   async function runAggregatorTest(pending) {

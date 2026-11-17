@@ -129,7 +129,6 @@ const UI_ALLOWED: &[(&str, &str)] = &[
 /// Desktop UI ids that should become plurals (the UI catalogs and
 /// `apps/desktop/ui/js` are outside this change).
 const UI_FOLLOW_UP: &[(&str, &str)] = &[
-    ("agg.connections", "FOLLOW-UP: \"{count} connections\""),
     ("backup.done", "FOLLOW-UP: \"({count} files)\""),
     ("dialog.session.testOk", "FOLLOW-UP: \"({count} metrics)\""),
     ("restore.done", "FOLLOW-UP: \"Restored: {count} files\""),

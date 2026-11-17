@@ -1655,7 +1655,7 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
     class: "available", connections: conns,
     // PRD 0036 RF2.3/RF2.4: `?aggwarn` shows both standing warnings (the demo instance itself is loopback).
     ...(new URLSearchParams(location.search).has("aggwarn") ? { connection_warnings: { exposed: true, private_http: true } } : {}),
-    aggregator: { kind: "9router", version: "0.5.109", host: "127.0.0.1:20128", available: 1, total: 3, connections: conns.length,
+    aggregator: { kind: "9router", version: "0.5.109", host: "127.0.0.1:20128", auth: "password", tls: "off", available: 1, total: 3, connections: conns.length,
       pools: [
         { upstream: "claude", provider: "claude", available: 1, exhausted: 1, total: 2, returns_at: null,
           summary: { id: "pool.available", params: { upstream: "Claude", available: "1", total: "2" }, fallback: "Claude · 1 of 2 available" } },
@@ -1690,10 +1690,10 @@ const demoPools = (conns) => {
     return { ...p, summary };
   });
 };
-const demoInstance = (provider, name, conns, { version = null, host, notes = [], dashboard = true } = {}) => {
+const demoInstance = (provider, name, conns, { version = null, host, notes = [], dashboard = true, auth = provider === "litellm" ? "key" : "password", tls = "off" } = {}) => {
   const pools = demoPools(conns);
   return { ...dr(name, provider, []), ...coreNotes(notes), class: pools.some((p) => p.available) ? "available" : conns.length ? "exhausted" : "unmeasured", connections: conns,
-    aggregator: { kind: DEMO_AGG_NAMES[provider], version, host, available: pools.reduce((n, p) => n + p.available, 0), total: pools.reduce((n, p) => n + p.total, 0),
+    aggregator: { kind: DEMO_AGG_NAMES[provider], version, host, auth, tls, available: pools.reduce((n, p) => n + p.available, 0), total: pools.reduce((n, p) => n + p.total, 0),
       connections: conns.length, pools, alert_each: false, dashboard } };
 };
 /** One 9router connection of instance `name` (the `n`-th): an upstream from the list above and a 5-hour window. */
@@ -1732,7 +1732,9 @@ for (const size of (new URLSearchParams(location.search).get("agg") ?? "").split
     conns[0].connection = { ...conns[0].connection, duplicate_of: "claude:Account 2" };
     conns[1].connection = { ...conns[1].connection, enabled_upstream: false };
   }
-  demoReports.push(demoInstance("nine_router", name, conns, { version: "0.5.109", host: "192.0.2.10:20128", notes: demoRouterNotes(conns, "0.5.109") }));
+  // The 40-connection instance is a remote one over HTTPS with a pinned certificate and a pasted SSO session.
+  const remote = count >= 40 ? { host: "router.example.com", auth: "session", tls: "pinned" } : { host: "192.0.2.10:20128" };
+  demoReports.push(demoInstance("nine_router", name, conns, { version: "0.5.109", ...remote, notes: demoRouterNotes(conns, "0.5.109") }));
 }
 // PRD 0029 re-validation (V-01, V-03): `?unnamed` leaves a plain account (Groq, the only one of its provider) and the
 // 9router instance without a name, as a configuration may; the core then shows them by their provider.
@@ -2044,15 +2046,18 @@ const demoView = () => {
     // RF3 mirror: a failed query during an incident gains the core's note, its status unchanged.
     const note = incident && r.status !== "ready" && ["degraded", "partial_outage", "major_outage"].includes(incident.state) && DEMO_INCIDENT_NOTE;
     // PRD 0036 RF8: a connection keeps its aggregator's index (actions act on it) and its own core key.
+    // PRD 0036 re-validation (V-06, V-14): each connection names its aggregator and points at the direct account it repeats.
     const connections = (r.connections ?? []).filter((c) => !demoConnFlags.hidden.has(c.demo_id))
       .map((c) => ({ ...c, connection: { ...c.connection, show_both: demoConnFlags.show_both.has(c.demo_id),
         duplicate_of: demoConnFlags.show_both.has(c.demo_id) ? null : c.connection.duplicate_of } }))
+      .map((c) => ({ ...c, connection: { ...c.connection, aggregator: r.aggregator.kind, aggregator_provider: r.provider,
+        duplicate_index: c.connection.duplicate_of ? demoReports.findIndex((x) => demoKey(x) === c.connection.duplicate_of) : null } }))
       .map((c) => ({ ...c, index, binding: demoConnectionBinding(c), binding_rank: 0, pace_index: null,
       metrics: c.metrics.map((m) => ({ ...m, pace: null, alert: null })), next_refresh_at_ms: Date.now() + 90e3, access: demoAccess(r),
       account_key: `${r.provider}:${r.account}/${c.demo_id}`, notify: true, usage_alerts: [], incident: null }));
     // PRD 0029 RF3.4: the backend's `named` and `display_name`.
     const named = Boolean((r.account ?? "").trim());
-    return { ...r, account: demoName(r.account), named, display_name: named ? demoName(r.account).trim() : providerName(r.provider), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
+    return { ...r, ...(r.aggregator ? { aggregator: { ...r.aggregator, discovered_at: r.checked_at } } : {}), account: demoName(r.account), named, display_name: named ? demoName(r.account).trim() : providerName(r.provider), connections, index, binding: demoBinding(r), binding_rank: DEMO_BINDINGS.get(r)?.[1] ?? DEMO_BINDINGS.size + index,
       metrics, pace_index: paceIndex, windows: r.status === "ready" ? demoTrayPair(r) : null,
       next_refresh_at_ms: Date.now() + (40 + index * 37) * 1000, uses_oauth: r.provider === "kiro" || r.uses_oauth, access: demoAccess(r),
       // PRD 0025 re-validation V-19: the stable id the real backend sends (the popover's menu-bar split reads it).

@@ -22,7 +22,7 @@ import { accountName, accountFullLabel,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
 import { initRowLayout, rowLayout } from "./density.js";
-import { connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, warningChipsHtml, withConnections } from "./aggregator.js";
+import { cardName, connectionChips, groupsOf, handleConnectionAction, instanceHeadHtml, isAggregator, poolLineHtml, warningChipsHtml, withConnections } from "./aggregator.js";
 import {
   accountState, announceChanges, filterTabsHtml, changeMarkHtml, clearChange, fitStatusLines, fmtAt, monograms,
   repeatedProviders, statusLineHtml, oneStatusHtml, tileHtml, trackChanges,
@@ -87,7 +87,9 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
     // PRD 0008 RF3.4 (DS-A11Y-5): an active usage alert has an icon and a word, never the stripe alone; the
     // tooltip lists the metrics.
     alert?.id === "usage" ? `<span class="mini warn" data-usage-alert-chip title="${esc(alert.label(r))}">${icon("bell")}<span class="mini-t">${te("alerts.activeTitle")}</span></span>` : "",
-    connection ? connectionChips(r) : "",
+    // PRD 0036 re-validation (V-17): a connection card says which aggregator it comes through, also once its section
+    // header scrolled away; its "also direct" chip shows the direct account (RF5.3).
+    connection ? connectionChips(r, { via: true, link: true }) : "",
     recharging ? `<span class="mini bad" data-return>${icon("clock")}<span class="mini-t">${esc(returnText(r))}</span></span>` : "",
     stale || hasExtraColumn(r) ? "" : overageChipHtml(r),
     // PRD 0041 RF3.2: "Balance low · $3.20 left" (warn; bad at or below a quarter of the floor).
@@ -119,7 +121,7 @@ function card(r, ctx, recharging = false, { connection = false } = {}) {
   const connName = isBusy ? te("tray.refreshing") : te("agg.refreshConnection");
   // PRD 0036 RF5.2: a connection that duplicates a direct account stays listed, dimmed, with its "also direct" chip.
   const dup = connection && r.connection.duplicate_of ? " dup" : "";
-  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${stripeOf(r, alert)}${dup}" data-card="${esc(key)}">
+  return `<section class="card ${on ? "" : "off"} ${alert?.id === "exhausted" ? "exhausted" : ""} ${stripeOf(r, alert)}${dup}" data-card="${esc(key)}"${connection ? ` role="group" aria-label="${esc(cardName(r))}"` : ""}>
     <div class="card-head">
       ${custom ? `<button class="icon grip" draggable="${!reorderPending}" data-grip="${esc(key)}" title="${te("account.reorderKeys")}" aria-label="${te("account.reorder")}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">${icon("grip")}</button>` : ""}
       ${tileHtml(r.provider, 40, ctx.monos.get(key) ?? "")}
@@ -587,6 +589,9 @@ root.addEventListener("click", (e) => {
   if (bell) return toggleBell(bell.dataset.bell, bell.dataset.bellOn !== "true");
   const dashboard = t.closest("[data-agg-dashboard]");
   if (dashboard) return detailsContext.onDashboard(Number(dashboard.dataset.aggDashboard));
+  // PRD 0036 RF5.3: a connection's "also direct" chip focuses the direct account's card.
+  const showAccount = t.closest("[data-show-account]");
+  if (showAccount) return detailsContext.onShowAccount(Number(showAccount.dataset.showAccount));
   if (handleConnectionAction(t, () => isDesktop || store.reload(), (x) => setNotice("bad", errText(x)))) return;
   const tog = t.closest("[data-toggle]");
   if (tog) {

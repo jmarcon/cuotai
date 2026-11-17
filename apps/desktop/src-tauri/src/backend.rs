@@ -1029,6 +1029,13 @@ pub struct AggregatorView {
     alert_each: bool,
     /// The instance's dashboard can be opened (`open_aggregator_dashboard`).
     dashboard: bool,
+    /// PRD 0036 RF8.5: how Cuotai signs in (`none`, `password`, `session`,
+    /// `key`) and how the address is protected (`off` for plain HTTP,
+    /// `platform`, `ca_file`, `pinned`), from the account's parameters.
+    auth: &'static str,
+    tls: &'static str,
+    /// When the connection list was last read (the reading shown).
+    discovered_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -1060,6 +1067,13 @@ pub struct ConnectionView {
     sub: String,
     /// Its id is in the aggregator's `show_both` list.
     show_both: bool,
+    /// PRD 0036 RF5.3: `ReportView::index` of the direct account named by
+    /// `duplicate_of` (the link "Show the direct account").
+    duplicate_index: Option<usize>,
+    /// PRD 0036 RF8.5: the aggregator's display name ("9router",
+    /// "LiteLLM proxy") and provider, for "via …" and the per-kind texts.
+    aggregator: &'static str,
+    aggregator_provider: Provider,
 }
 
 /// PRD 0024 RF7.3: "Work runs out ≈18:53 · Personal has 64% left", and the
@@ -1479,6 +1493,8 @@ fn aggregator_views(
             upstreams.push(&sub.upstream);
         }
     }
+    let kind =
+        cuotai_core::aggregators::shape(parent.provider).map_or("9router", |shape| shape.kind());
     let mut views = Vec::new();
     if let Some(source) = source {
         for upstream in &upstreams {
@@ -1520,6 +1536,14 @@ fn aggregator_views(
                     via: sub.via.clone(),
                     sub: sub.id.clone(),
                     show_both: connection_listed(parent, "show_both", &sub.id),
+                    duplicate_index: sub.duplicate_of.as_deref().and_then(|key| {
+                        config
+                            .accounts
+                            .iter()
+                            .position(|account| account.key() == key)
+                    }),
+                    aggregator: kind,
+                    aggregator_provider: parent.provider,
                 });
                 if sub.plan.is_some() {
                     view.plan = sub.plan.clone();
@@ -1529,9 +1553,9 @@ fn aggregator_views(
         }
     }
     let pools = source.map(pools).unwrap_or_default();
+    let (auth, tls) = instance_access(parent);
     let summary = AggregatorView {
-        kind: cuotai_core::aggregators::shape(parent.provider)
-            .map_or("9router", |shape| shape.kind()),
+        kind,
         version: source.and_then(instance_version),
         host: instance_host(parent),
         available: pools.iter().map(|pool| pool.available).sum(),
@@ -1551,8 +1575,43 @@ fn aggregator_views(
             .collect(),
         alert_each,
         dashboard: dashboard_url(parent).is_some(),
+        auth,
+        tls,
+        discovered_at: source.map(|report| report.checked_at),
     };
     (views, summary)
+}
+
+/// PRD 0036 RF8.5: the sign-in and transport modes of aggregator account
+/// `account`, read from its parameters (nothing is resolved or sent): a
+/// pasted SSO session wins over the password, as in the adapter; a LiteLLM
+/// proxy always takes a key. A plain-HTTP address has no TLS mode; a pin
+/// wins over a CA file (the core refuses both together).
+fn instance_access(account: &cuotai_core::Account) -> (&'static str, &'static str) {
+    let set = |value: Option<&str>| value.is_some_and(|value| !value.trim().is_empty());
+    let param = |key: &str| account.params.get(key).map(String::as_str);
+    let auth = if account.provider == Provider::LiteLlm {
+        "key"
+    } else if set(param(user_session::NINE_ROUTER_SSO_SLOT)) {
+        "session"
+    } else if set(account.credential_env.as_deref()) {
+        "password"
+    } else {
+        "none"
+    };
+    let https = cuotai_core::aggregators::shape(account.provider)
+        .and_then(|shape| shape.base(account))
+        .is_some_and(|base| base.scheme() == "https");
+    let tls = if !https {
+        "off"
+    } else if set(param("tls_pin_sha256")) {
+        "pinned"
+    } else if set(param("tls_ca_file")) {
+        "ca_file"
+    } else {
+        "platform"
+    };
+    (auth, tls)
 }
 
 /// An account no query answered yet, shown through its restored reading
@@ -8146,6 +8205,121 @@ mod tests {
         assert!(stale.iter().all(|v| v.pending));
         assert!(stale[0].last_good.is_some() && stale[2].last_good.is_none());
         assert!(summary.alert_each);
+    }
+
+    /// PRD 0036 RF5.3/RF8.5: a duplicate connection points at the direct
+    /// account's index, every connection names its aggregator, and the
+    /// instance says how Cuotai signs in, how the address is protected and
+    /// when the connections were last read.
+    #[test]
+    fn an_aggregator_view_names_its_access_and_links_duplicates() {
+        use cuotai_core::SubReport;
+        let mut direct = plain_account("work");
+        direct.provider = Provider::Claude;
+        let mut router = plain_account("home");
+        router.provider = Provider::NineRouter;
+        router.credential_env = None;
+        router
+            .params
+            .insert("base_url".into(), "http://127.0.0.1:20128".into());
+        let mut config = Config {
+            accounts: vec![direct.clone(), router],
+            ..Config::default()
+        };
+        let sub = |id: &str, duplicate_of: Option<String>| SubReport {
+            id: id.into(),
+            upstream: "claude".into(),
+            provider: Some(Provider::Claude),
+            label: id.into(),
+            status: Status::Ready,
+            metrics: Vec::new(),
+            notes_l10n: Vec::new(),
+            checked_at: chrono::Utc::now(),
+            as_of: None,
+            enabled_upstream: Some(true),
+            duplicate_of,
+            plan: None,
+            via: None,
+            identity: None,
+        };
+        let mut instance = ready("home", vec![]);
+        instance.provider = Provider::NineRouter;
+        instance.sub_reports = vec![sub("a1", Some(direct.key())), sub("b2", None)];
+        let views = |config: &Config| {
+            aggregator_views(1, config, Some(&instance), None, |_| None, None, false)
+        };
+        let (connections, summary) = views(&config);
+        let link: Vec<_> = connections
+            .iter()
+            .map(|v| v.connection.as_ref().unwrap().duplicate_index)
+            .collect();
+        assert_eq!(link, [Some(0), None]);
+        assert!(connections.iter().all(|v| {
+            let c = v.connection.as_ref().unwrap();
+            c.aggregator == "9router" && c.aggregator_provider == Provider::NineRouter
+        }));
+        assert_eq!(
+            (summary.kind, summary.auth, summary.tls),
+            ("9router", "none", "off")
+        );
+        assert_eq!(summary.discovered_at, Some(instance.checked_at));
+
+        let router = &mut config.accounts[1];
+        router
+            .params
+            .insert("base_url".into(), "https://router.example.com".into());
+        router.credential_env = Some("ROUTER_PASSWORD".into());
+        assert_eq!(
+            (views(&config).1.auth, views(&config).1.tls),
+            ("password", "platform")
+        );
+        let router = &mut config.accounts[1];
+        router.params.insert(
+            user_session::NINE_ROUTER_SSO_SLOT.into(),
+            "ROUTER_SESSION".into(),
+        );
+        router
+            .params
+            .insert("tls_ca_file".into(), "/etc/router-ca.pem".into());
+        assert_eq!(
+            (views(&config).1.auth, views(&config).1.tls),
+            ("session", "ca_file")
+        );
+        config.accounts[1].params.remove("tls_ca_file");
+        config.accounts[1]
+            .params
+            .insert("tls_pin_sha256".into(), "AB".repeat(32));
+        assert_eq!(views(&config).1.tls, "pinned");
+        // No reading yet: no discovery time.
+        assert_eq!(
+            aggregator_views(1, &config, None, None, |_| None, None, false)
+                .1
+                .discovered_at,
+            None
+        );
+
+        let mut proxy = plain_account("gateway");
+        proxy.provider = Provider::LiteLlm;
+        proxy
+            .params
+            .insert("base_url".into(), "http://127.0.0.1:4000".into());
+        let litellm = Config {
+            accounts: vec![proxy],
+            ..Config::default()
+        };
+        let mut answer = ready("gateway", vec![]);
+        answer.provider = Provider::LiteLlm;
+        answer.sub_reports = vec![sub("openai", None)];
+        let (lite, summary) =
+            aggregator_views(0, &litellm, Some(&answer), None, |_| None, None, false);
+        assert_eq!(
+            (summary.kind, summary.auth, summary.tls),
+            ("LiteLLM proxy", "key", "off")
+        );
+        assert_eq!(
+            lite[0].connection.as_ref().unwrap().aggregator,
+            "LiteLLM proxy"
+        );
     }
 
     #[test]

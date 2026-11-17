@@ -21,7 +21,7 @@ import {
   repeatedProviders, ringHtml, rowHtml, rowName, stateGlyph, statusParts, tileHtml, trackChanges,
 } from "./components.js";
 import {
-  accessibleName, aggregatorsInAll, activeConnection, connectionChips, connectionInfoHtml, connectionsOf, groupsOf, instanceHeadHtml,
+  accessibleName, aggregatorName, aggregatorsInAll, activeConnection, connectionChips, connectionInfoHtml, connectionsOf, groupsOf, instanceHeadHtml,
   handleConnectionAction, isAggregator, isConnection, onAggregatorModeChange, poolFigure, poolLineHtml, poolPct, statusLine, warningChipsHtml, withConnections,
 } from "./aggregator.js";
 import { initUpdates, onUpdateState } from "./updater.js";
@@ -168,7 +168,7 @@ function aggregatorRow(r, view) {
       </span>
     </button>
     ${open ? `<div class="rb agg-body">${groupsHtml(r, view)}
-      <button class="link" data-open="${esc(key)}">${icon("list")}<span>${te("agg.openView")}</span></button></div>` : ""}
+      <button class="link" data-open="${esc(key)}">${icon("list")}<span>${te("agg.openView", aggregatorName(r))}</span></button></div>` : ""}
   </article>`;
 }
 /** The Rings view's aggregator tile: the ring is the share of active connections with room left. */
