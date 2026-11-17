@@ -125,6 +125,7 @@
   "dashboard.detail.none": "Seçili hesap yok.",
   "dashboard.detail.notes": "  NOTLAR",
   "dashboard.detail.pace_expected": "   ·   beklenen {percent} kullanım · doğrusal tahmin",
+  "dashboard.detail.pools": "  HAVUZLAR",
   "dashboard.detail.quotas": "  KOTALAR VE KULLANIM",
   "dashboard.detail.reading": "  OKUMA ",
   "dashboard.detail.session": "  OTURUM  ",
@@ -186,6 +187,10 @@
   "dashboard.hint.more": {
     "one": "+{count} metrik • ",
     "other": "+{count} metrik • "
+  },
+  "dashboard.hint.more_pools": {
+    "one": "+{count} havuz • ",
+    "other": "+{count} havuz • "
   },
   "dashboard.history.empty": "  geçmiş {range}: kayıtlı ölçüm yok",
   "dashboard.history.no_measured": "  geçmiş {range}: ölçülen değer yok",

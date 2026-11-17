@@ -224,7 +224,9 @@
       "wizard.summary.session_vault",
       "wizard.summary.target",
       "wizard.summary.token_vault",
-      "wizard.too_small"
+      "wizard.too_small",
+      "dashboard.detail.pools",
+      "dashboard.hint.more_pools"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -347,6 +349,7 @@
   "dashboard.detail.none": "Aucun compte sélectionné.",
   "dashboard.detail.notes": "  NOTES",
   "dashboard.detail.pace_expected": "   ·   {percent} utilisé attendu · estimation linéaire",
+  "dashboard.detail.pools": "  GROUPES",
   "dashboard.detail.quotas": "  QUOTAS ET UTILISATION",
   "dashboard.detail.reading": "  RELEVÉ  ",
   "dashboard.detail.session": "  SESSION  ",
@@ -408,6 +411,10 @@
   "dashboard.hint.more": {
     "one": "+{count} métrique • ",
     "other": "+{count} métriques • "
+  },
+  "dashboard.hint.more_pools": {
+    "one": "+{count} groupe • ",
+    "other": "+{count} groupes • "
   },
   "dashboard.history.empty": "  historique {range} : aucune mesure enregistrée",
   "dashboard.history.no_measured": "  historique {range} : aucune valeur mesurée",

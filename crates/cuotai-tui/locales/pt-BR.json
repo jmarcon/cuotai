@@ -122,6 +122,7 @@
   "dashboard.detail.none": "Nenhuma conta selecionada.",
   "dashboard.detail.notes": "  OBSERVAÇÕES",
   "dashboard.detail.pace_expected": "   ·   esperado {percent} usado · estimativa linear",
+  "dashboard.detail.pools": "  POOLS",
   "dashboard.detail.quotas": "  QUOTAS E CONSUMO",
   "dashboard.detail.reading": "  LEITURA ",
   "dashboard.detail.session": "  SESSÃO  ",
@@ -189,6 +190,10 @@
   "dashboard.hint.more": {
     "one": "+{count} métrica • ",
     "other": "+{count} métricas • "
+  },
+  "dashboard.hint.more_pools": {
+    "one": "+{count} pool • ",
+    "other": "+{count} pools • "
   },
   "dashboard.history.empty": "  histórico {range}: sem medições registradas",
   "dashboard.history.no_measured": "  histórico {range}: sem valores medidos",

@@ -13,7 +13,9 @@
       "report.healthy",
       "report.no_account",
       "wizard.interval.help_metered",
-      "wizard.interval.prompt_metered"
+      "wizard.interval.prompt_metered",
+      "dashboard.detail.pools",
+      "dashboard.hint.more_pools"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -140,6 +142,7 @@
   "dashboard.detail.none": "Учётная запись не выбрана.",
   "dashboard.detail.notes": "  ЗАМЕТКИ",
   "dashboard.detail.pace_expected": "   ·   ожидается {percent} израсходовано · линейная оценка",
+  "dashboard.detail.pools": "  ПУЛЫ",
   "dashboard.detail.quotas": "  КВОТЫ И РАСХОД",
   "dashboard.detail.reading": "  ПОКАЗАНИЕ ",
   "dashboard.detail.session": "  СЕАНС  ",
@@ -207,6 +210,12 @@
     "few": "+{count} метрики • ",
     "many": "+{count} метрик • ",
     "other": "+{count} метрики • "
+  },
+  "dashboard.hint.more_pools": {
+    "one": "+{count} пул • ",
+    "few": "+{count} пула • ",
+    "many": "+{count} пулов • ",
+    "other": "+{count} пула • "
   },
   "dashboard.history.empty": "  история {range}: измерений не записано",
   "dashboard.history.no_measured": "  история {range}: нет измеренных значений",
