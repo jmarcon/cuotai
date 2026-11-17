@@ -1265,15 +1265,17 @@ async fn read_usage(
     match parse_usage(&value) {
         Ok(UsageOutcome::Usage(mut usage)) => {
             if usage.limit_reached && usage.metrics.is_empty() {
-                // No detail but the limit is reached: exhausted, no cap.
+                // No detail but the limit is reached (RF3.3: an exhausted
+                // signal): a full percentage meter, so no amount is shown
+                // as "0 left" and no unknown figure appears (V-18).
                 usage.metrics.push(Metric {
                     billing: Default::default(),
                     scope: None,
                     label: "Limite atingido".into(),
-                    used: None,
-                    limit: None,
-                    remaining: Some(0.0),
-                    unit: String::new(),
+                    used: Some(100.0),
+                    limit: Some(100.0),
+                    remaining: None,
+                    unit: "%".into(),
                     kind: MetricKind::Quota,
                     window: None,
                     period: None,
@@ -1511,14 +1513,15 @@ pub(crate) async fn fetch_with(
         .iter()
         .filter(|sub| sub.status == Status::Ready)
         .count();
-    notes.push_params(
+    notes.push_note(Localized::plural(
         "note.nine_router.summary",
         params([
             ("ready", ParamValue::from(ready as u64)),
-            ("total", ParamValue::from(sub_reports.len() as u64)),
+            ("count", ParamValue::from(sub_reports.len() as u64)),
         ]),
-        "{ready} of {total} 9router connections with usage.",
-    );
+        "{ready} of {count} 9router connection with usage.",
+        "{ready} of {count} 9router connections with usage.",
+    ));
     let seen = instance
         .version_seen
         .lock()
@@ -1690,11 +1693,11 @@ pub enum TestOutcome {
 /// names 9router; `None` for the outcomes whose 9router text is generic.
 pub(crate) fn litellm_outcome_text(outcome: &TestOutcome) -> Option<Localized> {
     Some(match outcome {
-        TestOutcome::Connected { connections, .. } => Localized::with_param(
+        TestOutcome::Connected { connections, .. } => Localized::plural(
             "test.litellm.connected",
-            "providers",
-            *connections as u64,
-            "LiteLLM: {providers} providers with a budget found.",
+            params([("count", ParamValue::from(*connections as u64))]),
+            "LiteLLM: {count} provider with a budget found.",
+            "LiteLLM: {count} providers with a budget found.",
         ),
         TestOutcome::NotNineRouter => Localized::fixed(
             "test.litellm.not_litellm",
@@ -1723,27 +1726,29 @@ fn outcome_text_with_min(outcome: &TestOutcome, min: Option<&str>) -> Localized 
         TestOutcome::Connected {
             version: Some(version),
             connections,
-        } if below_tested_min(version, min) => Localized::with_params(
+        } if below_tested_min(version, min) => Localized::plural(
             "test.nine_router.connected_untested",
             params([
-                ("connections", ParamValue::from(*connections as u64)),
+                ("count", ParamValue::from(*connections as u64)),
                 ("version", ParamValue::from(version.clone())),
                 ("min", ParamValue::from(min.unwrap_or_default().to_owned())),
             ]),
-            "9router {version}: {connections} connections with usage found. This version is older than {min}, the oldest one Cuotai was tested with; some readings may fail.",
+            "9router {version}: {count} connection with usage found. This version is older than {min}, the oldest one Cuotai was tested with; some readings may fail.",
+            "9router {version}: {count} connections with usage found. This version is older than {min}, the oldest one Cuotai was tested with; some readings may fail.",
         ),
         TestOutcome::Connected {
             version,
             connections,
         } => {
             let version = version.clone().unwrap_or_default();
-            Localized::with_params(
+            Localized::plural(
                 "test.nine_router.connected",
                 params([
-                    ("connections", ParamValue::from(*connections as u64)),
+                    ("count", ParamValue::from(*connections as u64)),
                     ("version", ParamValue::from(version.clone())),
                 ]),
-                "9router {version}: {connections} connections with usage found.",
+                "9router {version}: {count} connection with usage found.",
+                "9router {version}: {count} connections with usage found.",
             )
         }
         TestOutcome::NotNineRouter => Localized::fixed(
@@ -1976,9 +1981,17 @@ pub(crate) async fn test_connection_with(
 pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
     let body = serde_json::json!({
         "plan": "Pro",
-        "quotas": {"Session": {
-            "total": 100, "used": 10, "remaining": 90, "resetAt": "2026-10-01T00:00:00Z"
-        }}
+        "quotas": {
+            "Session": {
+                "total": 100, "used": 10, "remaining": 90, "resetAt": "2026-10-01T00:00:00Z"
+            },
+            // Re-validation V-10: the window labels 9router writes.
+            "session (5h)": {"total": 100, "used": 20, "remainingPercentage": 80},
+            "weekly (7d)": {"total": 100, "used": 30, "remainingPercentage": 70},
+            "weekly Opus (7d)": {"total": 100, "used": 5, "remainingPercentage": 95},
+            "weekly Sonnet (7d)": {"total": 100, "used": 5, "remainingPercentage": 95},
+            "weekly Gemini (7d)": {"total": 100, "used": 5, "remainingPercentage": 95}
+        }
     });
     let metrics = match parse_usage(&body).expect("fixture decodes") {
         UsageOutcome::Usage(usage) => usage.metrics,
@@ -2305,11 +2318,11 @@ mod tests {
         assert!(validate(&[("base_url", "http://127.0.0.1:20128")]).is_ok());
         assert!(matches!(
             validate(&[("base_url", "http://example.com")]),
-            Err(crate::ConfigError::BaseUrl)
+            Err(crate::ConfigError::BaseUrl { .. })
         ));
         assert!(matches!(
             validate(&[("base_url", "https://u:p@example.com")]),
-            Err(crate::ConfigError::BaseUrl)
+            Err(crate::ConfigError::BaseUrl { .. })
         ));
         assert!(validate(&[
             ("base_url", "http://192.168.1.5"),
@@ -2970,10 +2983,11 @@ mod tests {
             .iter()
             .any(|n| n.id == "query.schema"));
         assert_eq!(by("Reconnect").status, Status::AuthenticationError);
-        // limitReached without detail: exhausted, from a zero remaining.
+        // limitReached without detail: exhausted, a full meter with no
+        // made-up remaining (V-18).
         let limit = by("Limit");
         assert_eq!(limit.status, Status::Ready);
-        assert_eq!(limit.metrics[0].remaining, Some(0.0));
+        assert_eq!(limit.metrics[0].remaining, None);
         assert_eq!(
             crate::aggregators::sub_class(limit),
             crate::metrics::AccountClass::Exhausted
@@ -3730,6 +3744,92 @@ mod tests {
 
     /// R-01 item 1: hostile connection ids in a recorded full refresh: only
     /// allow-listed targets are requested, none of those ids, never `force`.
+    /// RF3.3 with re-validation V-18: `limitReached` with no detail is an
+    /// exhausted connection, shown as a full meter, never "— (0 left)".
+    #[tokio::test]
+    async fn a_reached_limit_without_detail_is_exhausted_with_no_made_up_remaining() {
+        let server = MockServer::start().await;
+        mount_json(
+            &server,
+            "/api/providers/client",
+            page(json!([connection("cx1", "codex", "Codex")]), 1),
+        )
+        .await;
+        mount_json(
+            &server,
+            "/api/usage/cx1",
+            json!({ "limitReached": true, "quotas": {} }),
+        )
+        .await;
+        let http = client();
+        let data = fetch_at(
+            &account(&server, false, &[]),
+            &context(&http),
+            Limits::DEFAULT,
+            Utc::now(),
+        )
+        .await
+        .unwrap();
+        let metric = &data.sub_reports[0].metrics[0];
+        assert_eq!(metric.remaining, None);
+        assert_eq!((metric.used, metric.limit), (Some(100.0), Some(100.0)));
+        assert_eq!(metric.unit, "%");
+        assert!(matches!(
+            crate::metrics::classify_metric(metric),
+            crate::metrics::MetricState::Exhausted { .. }
+        ));
+        assert_eq!(
+            crate::metric_text::metric_text(&metric.label).resolve("en-US"),
+            "Limit reached"
+        );
+    }
+
+    /// Re-validation V-09: the counted texts of the instance and of Test
+    /// connection are plurals.
+    #[test]
+    fn counted_texts_are_plurals() {
+        let connected = |connections| {
+            outcome_text(&TestOutcome::Connected {
+                version: Some("0.5.109".into()),
+                connections,
+            })
+        };
+        assert_eq!(
+            connected(1).resolve("en-US"),
+            "9router 0.5.109: 1 connection with usage found."
+        );
+        assert_eq!(
+            connected(3).resolve("en-US"),
+            "9router 0.5.109: 3 connections with usage found."
+        );
+        assert!(connected(1).resolve("pt-BR").contains("1 conexão"));
+        assert!(connected(5).resolve("ru").contains("5 подключений"));
+        assert!(connected(2).resolve("ru").contains("2 подключения"));
+        let lite = |connections| {
+            litellm_outcome_text(&TestOutcome::Connected {
+                version: None,
+                connections,
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            lite(1).resolve("en-US"),
+            "LiteLLM: 1 provider with a budget found."
+        );
+        assert!(lite(1).resolve("es").contains("1 proveedor "));
+        let untested = outcome_text_with_min(
+            &TestOutcome::Connected {
+                version: Some("0.4.0".into()),
+                connections: 1,
+            },
+            Some("0.5.0"),
+        );
+        assert!(untested
+            .resolve("en-US")
+            .starts_with("9router 0.4.0: 1 connection with"));
+        assert!(untested.resolve("de").contains("1 Verbindung "));
+    }
+
     #[tokio::test]
     async fn a_refresh_never_requests_a_hostile_connection_id() {
         let server = MockServer::start().await;

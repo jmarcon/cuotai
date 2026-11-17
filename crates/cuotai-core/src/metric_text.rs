@@ -584,20 +584,50 @@ pub(crate) const TABLE: &[(&str, &str, &str)] = &[
     ("{label} (%)", "metric.label.percent_of", "{label} (%)"),
 ];
 
+/// PRD 0036 re-validation V-10: the quota labels 9router writes as free
+/// English text, mapped to the localized ids of the same windows. `(label,
+/// id, English)`, matched exactly as 9router writes them (lowercase) after
+/// [`TABLE`] (whose adapter texts win); the English of an id [`TABLE`] also
+/// holds is the same text. The raw label stays the metric's identity.
+pub(crate) const AGGREGATOR_LABELS: &[(&str, &str, &str)] = &[
+    (
+        "session (5h)",
+        "metric.label.session_5h",
+        "Session (5 hours)",
+    ),
+    // Codex's 5-hour window is named `session` alone.
+    ("session", "metric.label.session_5h", "Session (5 hours)"),
+    ("weekly (7d)", "metric.label.week_7d", "Week (7 days)"),
+    (
+        "weekly Opus (7d)",
+        "metric.label.week_opus_7d",
+        "Week — Opus (7 days)",
+    ),
+    (
+        "weekly Sonnet (7d)",
+        "metric.label.week_sonnet_7d",
+        "Week — Sonnet (7 days)",
+    ),
+    // Any other model's weekly window.
+    (
+        "weekly {label} (7d)",
+        "metric.label.week_model_7d",
+        "Week — {label} (7 days)",
+    ),
+    ("weekly", "metric.label.weekly", "Weekly"),
+    ("monthly", "metric.label.monthly", "Monthly"),
+];
+
 /// The display text of a metric label, unit or period.
 pub fn metric_text(raw: &str) -> Localized {
     for (template, id, english) in TABLE {
         if let Some(captures) = capture(template, raw) {
-            let mut params = BTreeMap::new();
-            for (name, value) in captures {
-                let value = if name == "label" {
-                    ParamValue::l10n(metric_text(value))
-                } else {
-                    ParamValue::Text(value.to_string())
-                };
-                params.insert(name.to_string(), value);
-            }
-            return Localized::with_params(*id, params, *english);
+            return localized(id, english, captures);
+        }
+    }
+    for (template, id, english) in AGGREGATOR_LABELS {
+        if let Some(captures) = capture(template, raw) {
+            return localized(id, english, captures);
         }
     }
     Localized {
@@ -605,6 +635,19 @@ pub fn metric_text(raw: &str) -> Localized {
         params: BTreeMap::new(),
         fallback: Cow::Owned(raw.to_string()),
     }
+}
+
+fn localized(id: &'static str, english: &'static str, captures: Vec<(&str, &str)>) -> Localized {
+    let mut params = BTreeMap::new();
+    for (name, value) in captures {
+        let value = if name == "label" {
+            ParamValue::l10n(metric_text(value))
+        } else {
+            ParamValue::Text(value.to_string())
+        };
+        params.insert(name.to_string(), value);
+    }
+    Localized::with_params(id, params, english)
 }
 
 /// Match `raw` against `template`, whose `{name}` slots take any
@@ -723,6 +766,66 @@ mod tests {
             metric_text("Claude — janela de 5 hora(s) (%)").id,
             "metric.label.window_hours"
         );
+    }
+
+    /// PRD 0036 re-validation V-10: 9router's window labels are named in
+    /// the reader's language through the ids of the same windows; a label
+    /// it does not know stays verbatim.
+    #[test]
+    fn nine_router_window_labels_are_translated() {
+        let cases = [
+            (
+                "session (5h)",
+                "metric.label.session_5h",
+                "Session (5 hours)",
+            ),
+            ("session", "metric.label.session_5h", "Session (5 hours)"),
+            ("weekly (7d)", "metric.label.week_7d", "Week (7 days)"),
+            (
+                "weekly Opus (7d)",
+                "metric.label.week_opus_7d",
+                "Week — Opus (7 days)",
+            ),
+            (
+                "weekly Sonnet (7d)",
+                "metric.label.week_sonnet_7d",
+                "Week — Sonnet (7 days)",
+            ),
+            (
+                "weekly Gemini (7d)",
+                "metric.label.week_model_7d",
+                "Week — Gemini (7 days)",
+            ),
+            ("weekly", "metric.label.weekly", "Weekly"),
+            ("monthly", "metric.label.monthly", "Monthly"),
+        ];
+        for (raw, id, english) in cases {
+            let text = metric_text(raw);
+            assert_eq!(text.id, id, "{raw}");
+            assert_eq!(text.resolve("en-US"), english, "{raw}");
+            for locale in ["pt-BR", "de", "ja", "ru"] {
+                let shown = text.resolve(locale);
+                assert_ne!(shown, raw, "{locale}: {raw}");
+                assert!(!shown.contains('{'), "{locale}: {shown}");
+            }
+        }
+        assert_eq!(
+            metric_text("weekly Gemini (7d)").resolve("de"),
+            "Woche — Gemini (7 Tage)"
+        );
+        assert_eq!(metric_text("requests (daily)").id, "metric.verbatim");
+        // Exact text only: another casing is not 9router's label.
+        assert_eq!(metric_text("Session (5h)").id, "metric.verbatim");
+        // An id TABLE also holds keeps its English text.
+        for (_, id, english) in AGGREGATOR_LABELS {
+            if let Some((_, _, table)) = TABLE.iter().find(|(_, tid, _)| tid == id) {
+                assert_eq!(english, table, "{id}");
+            }
+            for locale in crate::text::catalog_locales() {
+                let catalog = crate::text::core_catalog(locale).unwrap();
+                assert!(catalog.get(*id).is_some(), "{locale}: {id} missing");
+            }
+        }
     }
 
     /// PRD 0034 re-validation V-12: counted texts are real plurals, so

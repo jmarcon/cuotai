@@ -42,7 +42,9 @@
       "note.aggregator.metrics_truncated",
       "note.aggregator.instance_truncated",
       "note.aggregator.duplicate_ids",
-      "note.litellm.truncated"
+      "note.litellm.truncated",
+      "metric.label.monthly",
+      "metric.label.week_model_7d"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -630,7 +632,7 @@
   "edit_error.config_account_name_repeated": "{field} पर नाम {other_field} पर दिए नाम को दोहराता है (छोटे-बड़े अक्षर नहीं गिने जाते); इनमें से एक बदलें।",
   "edit_error.config_account_name_required": "{field} पर खाते को नाम चाहिए, क्योंकि आपका एक और {provider} खाता है; इसमें name पंक्ति जोड़ें।",
   "edit_error.config_accounts_shape": "मौजूदा कुंजी 'accounts' तालिकाओं की सूची नहीं है",
-  "edit_error.config_base_url": "9router खाते का params.base_url http(s)://host[:port][/prefix] रूप में होना चाहिए, बिना उपयोगकर्ता, क्वेरी या फ़्रैगमेंट के; HTTP केवल लूपबैक पर, या allow_private_http के साथ निजी नेटवर्क पर मान्य है।",
+  "edit_error.config_base_url": "{provider} खाते का params.base_url http(s)://host[:port][/prefix] रूप में होना चाहिए, बिना उपयोगकर्ता, क्वेरी या फ़्रैगमेंट के; HTTP केवल लूपबैक पर, या allow_private_http के साथ निजी नेटवर्क पर मान्य है।",
   "edit_error.config_bounds": "refresh_seconds >= 30, concurrency 1 से 32 के बीच और timeout_seconds 1 से 300 के बीच होना चाहिए।",
   "edit_error.config_client": "HTTPS क्लाइंट शुरू नहीं किया जा सका।",
   "edit_error.config_extension": "एक्सटेंशन खाते में मान्य extension_id नहीं है, किसी और एक्सटेंशन की id दोहराई गई है या क्रेडेंशियल फ़ील्ड मेल नहीं खाते।",
@@ -647,7 +649,7 @@
   "edit_error.config_roundtrip": "बना हुआ दस्तावेज़ कॉन्फ़िगरेशन से मेल नहीं खाता",
   "edit_error.config_serialize": "कॉन्फ़िगरेशन सीरियलाइज़ करना विफल रहा",
   "edit_error.config_session": "[accounts.session] में सत्र का संदर्भ अमान्य या दोहराया हुआ है; खाता विज़ार्ड में सत्र फिर से दें।",
-  "edit_error.config_tls": "9router खाते का TLS अमान्य है: tls_pin_sha256 में 64 हेक्साडेसिमल अंक होने चाहिए, और tls_ca_file तथा tls_pin_sha256 न साथ इस्तेमाल हो सकते हैं न HTTPS के बिना।",
+  "edit_error.config_tls": "{provider} खाते का TLS अमान्य है: tls_pin_sha256 में 64 हेक्साडेसिमल अंक होने चाहिए, और tls_ca_file तथा tls_pin_sha256 न साथ इस्तेमाल हो सकते हैं न HTTPS के बिना।",
   "edit_error.config_toml_invalid": "TOML फ़ाइल अमान्य है",
   "edit_error.conflict": "फ़ाइल {path} लोड होने के बाद बदल गई है; सहेजने से पहले दोबारा लोड करें।",
   "edit_error.account_moved": "संपादित किया जा रहा खाता अब कॉन्फ़िगरेशन फ़ाइल में इस जगह पर नहीं है; फ़ाइल दोबारा लोड करें और खाता फिर से खोलें।",
@@ -1464,7 +1466,10 @@
   "note.kimi.no_membership_quota_endpoint": "इस कुंजी से Kimi Code/Membership कोटे का कोई सार्वजनिक एंडपॉइंट नहीं; सदस्यता के उपयोग की जाँच कंसोल और उसके अपने CLI तक सीमित है।",
   "note.kimi.platform_key_scope": "platform.kimi.ai की कुंजी platform.kimi.com (Kimi Code/Membership सदस्यता) से स्वतंत्र है; कुंजी को किसी और एंडपॉइंट पर इस्तेमाल करने से 401 मिलता है।",
   "note.litellm.no_budgets": "LiteLLM में प्रदाता-वार बजट (provider_budget_config) नहीं हैं; दिखाने को कुछ नहीं।",
-  "note.litellm.summary": "LiteLLM में बजट वाले {total} प्रदाता।",
+  "note.litellm.summary": {
+    "one": "LiteLLM में बजट वाले {count} प्रदाता।",
+    "other": "LiteLLM में बजट वाले {count} प्रदाता।"
+  },
   "note.litellm.truncated": "LiteLLM में पढ़ने की सीमा (200) से ज़्यादा प्रदाता हैं; बाकी छोड़ दिए गए।",
   "note.metered.interval_raised": "कॉन्फ़िगर किया अंतराल {configured} सेकंड बढ़ाकर {effective} सेकंड कर दिया गया क्योंकि प्रदाता प्रति जाँच बिल करता है।",
   "note.mimo_platform.cash_balance": "चुकाया बैलेंस: {amount} {currency}।",
@@ -1488,7 +1493,10 @@
   "note.nine_router.off": "9router में बंद।",
   "note.nine_router.private_http": "आपकी पसंद से निजी नेटवर्क पर सादा HTTP: पासवर्ड या कुंजी उस नेटवर्क पर बिना एन्क्रिप्शन के जाती है। पिन किए प्रमाणपत्र के साथ HTTPS बेहतर है।",
   "note.nine_router.reconnect": "इस खाते को 9router में फिर से जोड़ें।",
-  "note.nine_router.summary": "उपयोग वाले 9router कनेक्शन: {total} में से {ready}।",
+  "note.nine_router.summary": {
+    "one": "उपयोग वाले 9router कनेक्शन: {count} में से {ready}।",
+    "other": "उपयोग वाले 9router कनेक्शन: {count} में से {ready}।"
+  },
   "note.nine_router.truncated": "9router में पढ़ने की सीमा (1000) से ज़्यादा कनेक्शन हैं; बाकी छोड़ दिए गए।",
   "note.nine_router.version": "9router {version}।",
   "note.nine_router.version_untested": "9router {version}, {min} से पुराना है, जो Cuotai द्वारा जाँचा गया सबसे पुराना संस्करण है; इसे अपडेट करने तक कुछ रीडिंग विफल हो सकती हैं।",
@@ -1775,7 +1783,10 @@
   "pool.available": "{upstream} · {total} में से {available} उपलब्ध",
   "pool.exhausted": "{upstream} · सभी खत्म",
   "pool.exhausted_returns": "{upstream} · सभी खत्म · {at} को वापसी",
-  "pool.unmeasured": "{upstream} · {total} कनेक्शन जिनका उपयोग अज्ञात है",
+  "pool.unmeasured": {
+    "one": "{upstream} · {count} कनेक्शन जिसका उपयोग अज्ञात है",
+    "other": "{upstream} · {count} कनेक्शन जिनका उपयोग अज्ञात है"
+  },
   "privacy.erase.vault_unavailable": "कुछ भी नहीं मिटाया गया: सिस्टम का क्रेडेंशियल वॉल्ट Cuotai की प्रविष्टियाँ सूचीबद्ध नहीं कर सकता। इसे अनलॉक करें (Linux पर, D-Bus सत्र में GNOME Keyring जैसी Secret Service शुरू करें) और फिर से प्रयास करें।",
   "privacy.erase.word": "मिटाएँ",
   "privacy.erase.word_mismatch": "पुष्टि शब्द मेल नहीं खाता; कुछ भी नहीं मिटाया गया।",
@@ -2077,13 +2088,22 @@
   "status.rate_limited": "रेट लिमिट",
   "status.ready": "अद्यतन",
   "status.unsupported": "अनुपलब्ध",
-  "test.litellm.connected": "LiteLLM: बजट वाले {providers} प्रदाता मिले।",
+  "test.litellm.connected": {
+    "one": "LiteLLM: बजट वाले {count} प्रदाता मिले।",
+    "other": "LiteLLM: बजट वाले {count} प्रदाता मिले।"
+  },
   "test.litellm.key_required": "LiteLLM की मास्टर कुंजी या वर्चुअल कुंजी दें।",
   "test.litellm.key_wrong": "LiteLLM की कुंजी अस्वीकार हुई।",
   "test.litellm.not_litellm": "पता जवाब देता है, पर LiteLLM प्रॉक्सी जैसा नहीं दिखता (/provider/budgets नहीं है)।",
   "test.nine_router.certificate_changed": "इंस्टेंस का प्रमाणपत्र बदल गया है और पिन किए प्रमाणपत्र से मेल नहीं खाता। नया SHA-256 फ़िंगरप्रिंट: {fingerprint}। भरोसा करने से पहले उसे सर्वर पर जाँचें।",
-  "test.nine_router.connected": "9router {version}: उपयोग वाले {connections} कनेक्शन मिले।",
-  "test.nine_router.connected_untested": "9router {version}: उपयोग वाले {connections} कनेक्शन मिले। यह संस्करण {min} से पुराना है, जो Cuotai द्वारा जाँचा गया सबसे पुराना संस्करण है; कुछ रीडिंग विफल हो सकती हैं।",
+  "test.nine_router.connected": {
+    "one": "9router {version}: उपयोग वाले {count} कनेक्शन मिले।",
+    "other": "9router {version}: उपयोग वाले {count} कनेक्शन मिले।"
+  },
+  "test.nine_router.connected_untested": {
+    "one": "9router {version}: उपयोग वाले {count} कनेक्शन मिले। यह संस्करण {min} से पुराना है, जो Cuotai द्वारा जाँचा गया सबसे पुराना संस्करण है; कुछ रीडिंग विफल हो सकती हैं।",
+    "other": "9router {version}: उपयोग वाले {count} कनेक्शन मिले। यह संस्करण {min} से पुराना है, जो Cuotai द्वारा जाँचा गया सबसे पुराना संस्करण है; कुछ रीडिंग विफल हो सकती हैं।"
+  },
   "test.nine_router.listener_foreign": "पोर्ट {port} पर सुन रहे प्रोग्राम की पुष्टि आपके प्रोग्राम के रूप में नहीं हो सकी (वह किसी दूसरे उपयोगकर्ता का हो सकता है); पासवर्ड या सत्र नहीं भेजा गया। 9router को अपने उपयोगकर्ता से शुरू करें, या पिन किए प्रमाणपत्र के साथ HTTPS से उस तक पहुँचें।",
   "test.nine_router.not_nine_router": "पता जवाब देता है, पर 9router जैसा नहीं दिखता।",
   "test.nine_router.password_required": "इस इंस्टेंस को डैशबोर्ड का पासवर्ड चाहिए; \"डैशबोर्ड का पासवर्ड\" चुनें।",
@@ -2248,7 +2268,9 @@
   "metric.label.total_tokens": "कुल टोकन",
   "metric.label.key_total_spend": "कुंजी का कुल खर्च",
   "metric.label.month_spend": "महीने का खर्च",
+  "metric.label.monthly": "मासिक",
   "metric.label.week_spend": "सप्ताह का खर्च",
+  "metric.label.week_model_7d": "सप्ताह — {label} (7 दिन)",
   "metric.label.spend_30d_other": "30 दिन का खर्च — अन्य",
   "metric.label.spend_30d": "30 दिन का खर्च — {name}",
   "metric.label.key_limit": "कुंजी की सीमा",

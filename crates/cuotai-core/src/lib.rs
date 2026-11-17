@@ -238,10 +238,12 @@ pub enum ConfigError {
     Extension,
     #[error("The ElevenLabs account's params.region must be default, us, eu, in or sg.")]
     Region,
-    #[error("The 9router base_url must be http(s)://host[:port][/prefix] without user, query or fragment; HTTP is only valid on loopback or, with allow_private_http, on a private network.")]
-    BaseUrl,
-    #[error("Invalid TLS for the 9router account: tls_pin_sha256 must have 64 hexadecimal digits, and tls_ca_file and tls_pin_sha256 cannot be used together or without HTTPS.")]
-    Tls,
+    /// An aggregator account's `params.base_url` breaks the address rules
+    /// (re-validation V-08: the text names `provider`, 9router or LiteLLM).
+    #[error("The {} base_url must be http(s)://host[:port][/prefix] without user, query or fragment; HTTP is only valid on loopback or, with allow_private_http, on a private network.", .provider.label())]
+    BaseUrl { provider: Provider },
+    #[error("Invalid TLS for the {} account: tls_pin_sha256 must have 64 hexadecimal digits, and tls_ca_file and tls_pin_sha256 cannot be used together or without HTTPS.", .provider.label())]
+    Tls { provider: Provider },
     /// PRD 0024 RF7.1: a `group` that is not a slug of at most 32 characters,
     /// or a `[[groups]]` table with an invalid or repeated id.
     #[error("An account group and each [[groups]] id must be 1 to 32 lowercase letters, digits, - or _; the [[groups]] ids cannot repeat, and an account id can be a member of one group only.")]
@@ -524,18 +526,27 @@ impl Config {
             if account.provider == Provider::NineRouter
                 && providers::nine_router::account_base(account).is_err()
             {
-                return Err(ConfigError::BaseUrl);
+                return Err(ConfigError::BaseUrl {
+                    provider: account.provider,
+                });
             }
             if account.provider == Provider::LiteLlm
                 && providers::litellm::account_base(account).is_err()
             {
-                return Err(ConfigError::BaseUrl);
+                return Err(ConfigError::BaseUrl {
+                    provider: account.provider,
+                });
             }
             if account.provider == Provider::NineRouter {
-                let base = providers::nine_router::account_base(account)
-                    .map_err(|_| ConfigError::BaseUrl)?;
+                let base = providers::nine_router::account_base(account).map_err(|_| {
+                    ConfigError::BaseUrl {
+                        provider: account.provider,
+                    }
+                })?;
                 if providers::nine_router_tls::mode(account, &base).is_err() {
-                    return Err(ConfigError::Tls);
+                    return Err(ConfigError::Tls {
+                        provider: account.provider,
+                    });
                 }
             }
             if account.provider == Provider::OpenRouter

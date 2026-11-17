@@ -1648,7 +1648,7 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
     { ...demoConnection("9bc0de", "zhipu", "glm", null, [], { status: "error", ...coreNotes([coreNote("note.nine_router.reconnect", "Reconnect this account in 9router.")]), class: "unmeasured" }) },
   ];
   demoReports.push({ ...dr("home", "nine_router", []),
-    ...coreNotes([coreNote("note.nine_router.summary", "2 of 4 9router connections with usage.", { ready: "2", total: "4" }),
+    ...coreNotes([coreNote("note.nine_router.summary", "2 of 4 9router connections with usage.", { ready: "2", count: "4" }),
       coreNote("note.nine_router.version", "9router 0.5.109.", { version: "0.5.109" })]),
     class: "available", connections: conns,
     // PRD 0036 RF2.3/RF2.4: `?aggwarn` shows both standing warnings (the demo instance itself is loopback).
@@ -1658,7 +1658,7 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
         { upstream: "claude", provider: "claude", available: 1, exhausted: 1, total: 2, returns_at: null,
           summary: { id: "pool.available", params: { upstream: "Claude", available: "1", total: "2" }, fallback: "Claude · 1 of 2 available" } },
         { upstream: "glm", provider: null, available: 0, exhausted: 0, total: 1, returns_at: null,
-          summary: { id: "pool.unmeasured", params: { upstream: "glm", total: "1" }, fallback: "glm · 1 connections with unknown usage" } },
+          summary: { id: "pool.unmeasured", params: { upstream: "glm", count: "1" }, fallback: "glm · 1 connection with unknown usage" } },
       ],
       alert_each: false, dashboard: true } });
 }
@@ -3036,7 +3036,7 @@ const demo = {
     if (base && !/^https?:\/\//.test(base)) {
       return { ok: false, message: { id: "test.nine_router.unreachable", params: {}, fallback: "The address could not be reached." } };
     }
-    return { ok: true, message: { id: "test.nine_router.connected", params: { connections: 3, version: "0.5.109" }, fallback: "9router 0.5.109: 3 connections with usage found." } };
+    return { ok: true, message: { id: "test.nine_router.connected", params: { count: "3", version: "0.5.109" }, fallback: "9router 0.5.109: 3 connections with usage found." } };
   },
   test_session: async ({ input }) => {
     await demo.preview_session({ paste: input.sessions?.[0]?.paste ?? "" });
