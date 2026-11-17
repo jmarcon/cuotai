@@ -15,7 +15,11 @@ renders and validates it locally and pushes nothing.
 Feature and fix commits never change a version or `CHANGELOG.md`; each
 user-visible commit carries its entry as a `Changelog:` trailer (see
 [`AGENTS.md`](../AGENTS.md), "How to deliver a change"). A release is made
-on demand by the owner (PRD 0039 D8):
+on demand, when the owner asks for one; the owner or an agent under the
+[agent rules](#agents-releasing-and-tagging) runs it (PRD 0039 D8 as
+refined). The owner does not name the version: `release prepare` computes
+it from the commits, and the release is stable unless the owner asks for an
+rc:
 
 1. **See what is pending.** `cargo xtask changelog-draft` (or the job
    summary of the latest `main` CI run) prints the next version and its
@@ -25,7 +29,7 @@ on demand by the owner (PRD 0039 D8):
    ```sh
    git switch main && git pull --ff-only
    cargo xtask release prepare --dry-run        # version, rationale, every diff
-   cargo xtask release prepare --branch         # writes and commits on release/vX.Y.Z
+   cargo xtask release prepare --branch --trailer 'Co-Authored-By: …'   # writes and commits on release/vX.Y.Z
    ```
 
    `prepare` computes the version from the commits since the release base
@@ -64,36 +68,47 @@ on demand by the owner (PRD 0039 D8):
    `Changelog:` one. If more commits land on `main` first, rebase the branch
    and run `cargo xtask release prepare --refresh`, which re-applies the
    recorded edits and adds the new commits. Do not edit `CHANGELOG.md` in
-   the release commit by hand. For the first three releases (D7), also run
-   **Actions → Release → Run workflow** on `release/vX.Y.Z` with
-   **full_rehearsal**.
+   the release commit by hand. A leftover `vNEXT` token is reported as
+   `path:line`; the remedy is `cargo xtask release prepare --refresh` on the
+   release branch (or backticks around the token when it is not a delivery
+   marker). Before pushing, `cargo xtask preflight --push` on a branch whose
+   only commit is a release commit verified line by line runs only the
+   release checks (`commit-policy`, `changelog-gate`, `changelog-check`,
+   `release-check` and `release prepare --check`), not Clippy and the tests;
+   anything else (a second commit, a hand edit) gets the full selection. D7
+   asks for a run of **Actions → Release → Run workflow** on
+   `release/vX.Y.Z` with **full_rehearsal** for the first three releases,
+   and recommends it afterwards when release tooling changed.
 4. **Merge** with **Rebase and merge**.
 5. **Tag** (the owner, or an agent under the rules below, after the release PR merged):
 
    ```sh
    git switch main && git pull --ff-only
+   cargo xtask release tag                      # vX.Y.Z, a stable release
+   git push origin vX.Y.Z
+   # only when the owner asked for a release candidate:
    cargo xtask release tag --rc                 # vX.Y.Z-rc.N, a GitHub pre-release
    git push origin vX.Y.Z-rc.N
-   # once the rc is good:
-   cargo xtask release tag                      # vX.Y.Z
-   git push origin vX.Y.Z
    ```
 
    `release tag` finds the newest release commit, checks that it is on
    `origin/main`, re-runs `release prepare --check`, and creates the
    **annotated** tag whose message is the section. It refuses a version that
-   already has a stable tag. Fixes after an rc land normally; then
+   already has a stable tag, and warns when the section date is not today,
+   naming the remedy (`cargo xtask release prepare --refresh --branch --date
+   <today>` on a fresh branch). Fixes after an rc land normally; then
    `cargo xtask release prepare --refresh --branch` on a fresh branch
    re-renders the **same** version's section as
    `chore(release): X.Y.Z (refresh)`, followed by `release tag --rc` (rc.2) or `release tag`.
 6. On that pushed tag, `.github/workflows/release.yml` runs: **check → builds
    → assemble → artifact smoke → publish → verify-public → package-manifests
    → channel jobs**.
-   Its `check` job also runs `release prepare --check` on the tagged commit.
+   Its `check` job also runs `release prepare --check` on the tagged commit
+   and the [CI result proof](#ci-result-proof-rf54).
 
-The first release after the cutover is a release candidate of the next
-computed version (`v0.80.0-rc.1` when a feature landed, D9). Versions 0.1.0
-to 0.79.0 are internal versions and get no retroactive tags (D10).
+The first release after the cutover was a release candidate of the next
+computed version (`v0.80.0-rc.1`, D9). Versions 0.1.0 to 0.79.0 are internal
+versions and get no retroactive tags (D10).
 
 ```text
 check ─┬─► [owner approves release builds] ─┬─ desktop-macos ───────────────────┐
@@ -115,19 +130,76 @@ assemble ─┬─ smoke-cli (7 legs) ────┐
                                                                                    └─► channel-aur
 ```
 
-A stable release asks the owner for exactly two approvals: once for the
-desktop signing builds to enter `release`, and once for `publish`. The former
-prerequisite deployment added a separate click before the builds
+What is configured: the `release` environment has one required reviewer,
+the owner's account, with self-review allowed (`prevent_self_review` is
+off). A tag run therefore waits for that reviewer twice: once when the
+desktop signing builds enter `release`, and once when `publish` does. The
+former prerequisite deployment added a separate wait before the builds
 (run 40142600517 reached three approvals during rc.2), while channel jobs
 could add a fourth after publication (run 40202699547 waited two days on
-Homebrew). Credential validation now runs first inside every signing build,
-and the immutable, admin-created `v*` tag is the deployment boundary for the
-reviewer-free `channels` environment.
+Homebrew). Credential validation now runs first inside every signing build.
+In practice the approvals are given through the API by the agent session
+that runs the release, with the owner's login and under the owner's
+standing instruction (run 44047156067 of v0.86.7), so the reviewer is not a
+party independent of the agent's token; an independent reviewer is an open
+owner decision (PRD 0039 re-validation B-2, PRD 0053 D3).
+
+The reviewer-free `channels` environment is meant to accept only the
+immutable, admin-created `v*` tags, but it has **no deployment rule yet**:
+today a run from any branch or same-repository pull request that declares
+`environment: channels` would receive its tokens (fork pull requests receive
+no secrets). Setting the tag rule `v*` on `channels` is an open owner step
+(re-validation B-4; see [Owner prerequisites](#owner-prerequisites-one-time-rf91)).
 
 An interrupted or failing run leaves at most a **draft** release — never a
 public partial one. The channel jobs run last, are independent of each
 other, and nothing depends on them: a channel failure never affects the
 GitHub Release (RF5.7).
+
+### CI result proof (RF5.4)
+
+Before any build, the `check` job of `release.yml` runs the step "CI result
+proof and release identity (RF5.4)". It runs `cargo xtask
+security-baseline`, then fetches, with read-only `gh api` GETs and a job
+token limited to `contents`, `checks`, `actions` and `pull-requests` read,
+the `CI result` check runs, the workflow runs and the pull requests of the
+tagged commit (and the commit, check runs and runs of the merged pull
+request's head). `cargo xtask release ci-proof` then decides offline from
+those files and Git:
+
+- **CI result (strict form, always on):** a check run named `CI result`,
+  created by GitHub Actions (app 15368, so a commit status or another app
+  cannot stand in for it), concluded `success`, whose check suite belongs to
+  a `ci.yml` run on the tagged commit itself. A tag on a release commit whose
+  `main` run is red, missing or still running fails here, so wait for that
+  run before tagging. It does not catch a merge that bypassed a `CI result`
+  still running which later concluded green; only the ruleset can
+  (see [Branch and tag protection](#branch-and-tag-protection-prd-0039-rf7-owner)).
+- **Identities and tag:** the author and committer of the tagged commit and
+  the tagger are GitHub noreply addresses, the tag is annotated with the
+  message `release tag` writes, and its version is above the newest other
+  stable tag.
+
+On a tag push a failed proof fails `check`, so nothing is built. On a
+**workflow_dispatch** the same step runs with `--report-only`: it prints
+every finding to the log and the "CI result proof" job summary and exits 0,
+so the permissions and API calls can be exercised before a tag depends on
+them. After a change to this step lands, run **Actions → Release → Run
+workflow** once on `main` (with **full_rehearsal** off) and read that
+summary.
+
+A second form, the **identical pull request head**, is written and tested
+but **available, not enabled**: it would accept a green `pull_request` run
+of `ci.yml` on the merged release PR's head when that head has the same
+tree, parents, message and author as the tagged commit, so a release could
+be tagged without waiting for the `main` run of the release commit. It sits
+behind the constant `ACCEPT_IDENTICAL_PR_HEAD` (`false`) in
+`xtask/src/release/ci_proof.rs`; enabling it is an owner decision
+(re-validation B-6).
+
+By hand: `cargo xtask release ci-proof --commit <sha> --evidence <dir>
+[--tag vX.Y.Z] [--report-only]`, with the API responses saved in `<dir>`
+under the names the workflow uses.
 
 ## Which build is this? (PRD 0039 RF10)
 
@@ -270,8 +342,9 @@ free-tier budget.
   `env` block of the step that consumes them. `HOMEBREW_TAP_TOKEN`,
   `SCOOP_BUCKET_TOKEN`, `WINGET_SUBMIT_TOKEN`, `AUR_SSH_PRIVATE_KEY` and
   `CARGO_REGISTRY_TOKEN` are separate credentials stored only in the
-  owner-configured, reviewer-free, tag-only `channels` environment; signing
-  credentials remain in the reviewer-protected `release` environment.
+  owner-configured, reviewer-free `channels` environment (meant to be
+  tag-only; its `v*` deployment rule is not set yet, an open owner step);
+  signing credentials remain in the reviewer-protected `release` environment.
 - Desktop bundles, the seven-row CLI matrix and aggregate SBOM run only for a
   pushed tag or an explicit full rehearsal. Windows ARM64, Linux ARM64 and
   the two ARM64 CLI rows are optional; every other RF2 artifact is required.
@@ -571,8 +644,10 @@ Workflow behaviour (RF5.7):
   environment secret (`HOMEBREW_TAP_TOKEN`, `WINGET_SUBMIT_TOKEN`,
   `SCOOP_BUCKET_TOKEN`, `AUR_SSH_PRIVATE_KEY`, or `CARGO_REGISTRY_TOKEN`) and
   stop with an explicit error when it is missing, instead of half-publishing.
-  The environment has no required reviewer because only immutable,
-  admin-created `v*` tags can enter it. Optional gates:
+  The environment has no required reviewer because it is meant to admit
+  only immutable, admin-created `v*` tags; until the owner sets its `v*`
+  deployment rule, any branch or same-repository pull request run can enter
+  it. Optional gates:
   `WINGET_SUBMIT=true` (the first winget submission stays manual) and the
   repository variables `HOMEBREW_TAP_REPO`, `SCOOP_BUCKET_REPO` (default
   `jmarcon/homebrew-cuotai`, `jmarcon/scoop-cuotai`).
@@ -673,7 +748,16 @@ Before the first real release:
    Dispatch rehearsals instead enter the separate, secretless `rehearsal`
    environment and cannot read production secrets. See
    [`docs/updater-security.md`](updater-security.md) for the updater key's own
-   requirements.
+   requirements. **Open (checked on 2026-11-17):** `release` has its `v*`
+   restriction, but `channels` has no deployment rule at all. To set it:
+
+   ```sh
+   gh api -X PUT repos/jmarcon/cuotai/environments/channels \
+     -F 'deployment_branch_policy[protected_branches]=false' \
+     -F 'deployment_branch_policy[custom_branch_policies]=true'
+   gh api -X POST repos/jmarcon/cuotai/environments/channels/deployment-branch-policies \
+     -f name='v*' -f type=tag
+   ```
 2. Add signing credentials to the `release` environment, as desired:
    - `APPLE_CERTIFICATE` — base64-encoded PKCS#12 (`.p12`);
      `APPLE_CERTIFICATE_PASSWORD` — that file's password; and
@@ -795,14 +879,16 @@ The release flow is agentic: an agent may prepare a release, open the
 release PR, and create and push the tag, under the "Release & tag rules for
 agents" of [`AGENTS.md`](../AGENTS.md). In short:
 
-- The owner must ask for the release in the current conversation and name
-  the version or rc.
+- The owner must ask for the release in the current conversation. The owner
+  does not name the version: it is the one `release prepare` computes, and
+  the release is stable unless the owner asks for an rc.
 - Before tagging, the agent verifies and reports all of these: local `main`
   is fast-forwarded to `origin/main`; `HEAD` is the merged
   `chore(release): X.Y.Z` commit; `CI result` is green on it; and
   `release-check` and `release prepare --check` pass.
-- The annotated tag comes only from `cargo xtask release tag [--rc]`, never
-  from `git tag` by hand.
+- The annotated tag comes only from `cargo xtask release tag` (with `--rc`
+  for a release candidate), never from `git tag` by hand. `release.yml`
+  checks it again in the [CI result proof](#ci-result-proof-rf54).
 - The agent pushes only that one tag (never `--tags`), then watches
   `release.yml` and reports the result.
 - No `v*` tag is ever moved, re-pointed, deleted or force-pushed. A failed
@@ -893,13 +979,34 @@ GitHub Actions, the app that reports `CI result`.
 The agents push with the owner's identity, so they hold the same rights.
 On `main` the bypass is `pull_request`: it applies only to merging a pull
 request and never to a direct push, for the owner and for agents alike.
+But it does let the admin role merge a pull request whose `CI result` is
+red or still pending: a non-admin cannot, an admin (the owner, or an agent
+with the owner's token) can. It has been used: PR #11 merged on 2026-10-23
+while `CI result` was still running (it later concluded green). The
+[CI result proof](#ci-result-proof-rf54) of `release.yml` stops a tag on a
+commit without a green `CI result`, but not such a merge. Removing the
+bypass, or giving agents a non-admin identity, is an open owner decision
+(re-validation B-1, PRD 0053 D1).
 Agents can create `v*` tags. The release rules of `AGENTS.md` decide when
 they may; the immutability ruleset makes sure no one, the owner included,
 can move or delete a published tag. Code
 scanning does not block merges yet (D13); enable code-scanning merge
 protection for high and critical alerts once the flow has run for a few
-weeks. Check the result once: a direct push to `main` without the bypass is
-refused, and a pull request with a red `CI result` cannot merge.
+weeks. Check the result once: a direct push to `main` is refused, and a
+pull request with a red `CI result` cannot be merged by a non-admin.
+
+GitHub's **immutable releases** (RF7.4: "where available") are **off**
+(checked on 2026-11-17), so a token with `contents: write` can still replace
+the assets of a published release. Turning them on is an open owner step
+(re-validation B-3):
+
+```sh
+gh api -X PUT repos/jmarcon/cuotai/immutable-releases
+```
+
+The pipeline is compatible: `scripts/release/publish-release.sh` uploads
+only to a draft and refuses a published release, and a broken asset is
+replaced by a patch release, never in place.
 
 ## Rehearsing in a fork
 

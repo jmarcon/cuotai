@@ -15,8 +15,13 @@ release takes the largest bump any of its commits asks for.
 
 - **`feat`** (new user-visible feature) raises the **minor**
   (`0.17.0` → `0.18.0`).
-- **`fix`** and dependency or security fixes (`chore(security)`,
-  `fix(deps)`) raise the **patch**.
+- **`fix`** and **`revert`** raise the **patch** (entries under **Fixed**);
+  dependency and security fixes (`fix(deps)`, `fix(security)`,
+  `chore(security)`) raise the **patch** too, with entries under
+  **Security**. A `fix` whose entry adds an output field or changes what
+  input is accepted should file that entry under `[Added]` or `[Changed]`
+  (`Changelog: [Added] <sentence>`), so a script author scanning those
+  categories finds it.
 - A change to distributed metadata that the app displays (license, About)
   also raises the patch: any other commit type with a `Changelog:` sentence
   is a patch-level **Changed** entry.
