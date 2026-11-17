@@ -12,7 +12,8 @@
 //! API: a `rate_limits` object this reader does not recognise is refused
 //! with a schema error, never read as zero.
 //!
-//! Only the newest log is read, and only its first line (the session id,
+//! Only the logs modified within the last day are read, newest first and
+//! at most [`MAX_LOGS`], and of each only its first line (the session id,
 //! digested at once) and its last 256 KiB. Messages, instructions, working
 //! directories and tool output are never deserialized into a value, and
 //! symbolic links are never followed, so no file outside the given roots
@@ -252,17 +253,42 @@ fn read_log(path: &Path) -> Result<Option<FeedReading>, CodexError> {
     }))
 }
 
-/// RF4.1: the newest reading of the Codex CLI logs below `roots` (the
-/// directories of the consented `codex_cli` local source). Looks at the
-/// three most recently modified logs, newest first, and returns the first
-/// that carries rate limits.
-pub fn latest(roots: &[PathBuf]) -> Result<Option<FeedReading>, CodexError> {
+/// How many of the most recently modified logs are looked at.
+pub const MAX_LOGS: usize = 16;
+
+/// RF4.1 (PRD 0040 re-validation V-02): the readings of the Codex CLI logs
+/// below `roots` (the directories of the consented `codex_cli` local
+/// source), newest first, for [`super::AccountReading::merge`]. Looks at
+/// the logs modified within the feed retention (24 hours of `now`), newest
+/// first and at most [`MAX_LOGS`], keeps each one's newest rate-limit event
+/// that meets the feed contract at `now`, and stops once both windows are
+/// known with their resets ahead. A log without a `token_count` event (a
+/// session that has not reported its limits) is skipped, never taken as
+/// "no limits".
+pub fn readings(roots: &[PathBuf], now: DateTime<Utc>) -> Result<Vec<FeedReading>, CodexError> {
+    let cutoff: std::time::SystemTime = (now - super::RETENTION).into();
     let mut files = logs(roots);
+    files.retain(|(_, modified)| *modified >= cutoff);
     files.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
-    for (path, _) in files.into_iter().take(3) {
-        if let Some(reading) = read_log(&path)? {
-            return Ok(Some(reading));
+    let mut found = Vec::new();
+    let mut primary = false;
+    let mut secondary = false;
+    for (path, _) in files.into_iter().take(MAX_LOGS) {
+        let Some(reading) = read_log(&path)?.filter(|reading| reading.is_valid(now)) else {
+            continue;
+        };
+        let live = |id: WindowId| {
+            reading
+                .window(id)
+                .is_some_and(|window| window.resets_at().is_none_or(|at| at > now))
+        };
+        primary |= live(WindowId::Primary);
+        secondary |= live(WindowId::Secondary);
+        found.push(reading);
+        if primary && secondary {
+            break;
         }
     }
-    Ok(None)
+    found.sort_by_key(|reading| std::cmp::Reverse(reading.written_at));
+    Ok(found)
 }

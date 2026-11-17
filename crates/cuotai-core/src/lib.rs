@@ -2029,7 +2029,9 @@ impl Monitor {
                 return providers::agent_feed::fetch(source, store.as_ref(), now);
             }
             let interval = account.effective_refresh_seconds(self.config.refresh_seconds);
-            if let Ok(Some(reading)) = providers::agent_feed::latest(source, store.as_ref(), now) {
+            if let Ok(Some(reading)) =
+                providers::agent_feed::account_reading(source, store.as_ref(), now)
+            {
                 if providers::agent_feed::fresh_enough(&reading, interval, now) {
                     return Ok(providers::agent_feed::data(&reading, now, true));
                 }

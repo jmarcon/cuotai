@@ -1,7 +1,8 @@
 //! PRD 0040 RF3 and RF4: accounts answered by an agent's feed.
 //!
-//! `claude` with `query_mode = "claude_code"` reads the newest Claude Code
-//! status-line feed ([`crate::feed`]); `chat_gpt` with `query_mode =
+//! `claude` with `query_mode = "claude_code"` reads the Claude Code
+//! status-line feed ([`crate::feed`]), merged window by window from the
+//! recent sessions ([`crate::feed::AccountReading`]); `chat_gpt` with `query_mode =
 //! "codex_cli"` reads Codex CLI's own session logs. Neither makes a network
 //! request or reads a credential. The hybrid modes (`*_or_api`) use the feed
 //! while it is younger than the account's refresh interval and otherwise
@@ -15,7 +16,7 @@
 use chrono::{DateTime, TimeDelta, Utc};
 
 use super::{Data, QueryError};
-use crate::feed::{self, FeedReading, FeedSource, FeedStore, WindowId};
+use crate::feed::{self, AccountReading, FeedReading, FeedSource, FeedStore, WindowId};
 use crate::text::Notes;
 use crate::{Billing, Metric, MetricKind, MetricWindow};
 
@@ -149,8 +150,10 @@ pub(crate) fn metrics(reading: &FeedReading, now: DateTime<Utc>) -> (Vec<Metric>
     }
 }
 
-/// RF3.1-RF3.3: the [`Data`] of a feed reading.
-pub(crate) fn data(reading: &FeedReading, now: DateTime<Utc>, hybrid: bool) -> Data {
+/// RF3.1-RF3.3: the [`Data`] of an account's merged feed reading; its
+/// `as_of` is the oldest time among the readings used (V-02).
+pub(crate) fn data(account: &AccountReading, now: DateTime<Utc>, hybrid: bool) -> Data {
+    let reading = &account.reading;
     let (metrics, absent) = metrics(reading, now);
     let mut notes = Notes::new();
     match reading.source {
@@ -200,16 +203,19 @@ pub(crate) fn data(reading: &FeedReading, now: DateTime<Utc>, hybrid: bool) -> D
     Data::new(metrics, notes, source).with_as_of(Some(reading.written_at))
 }
 
-/// The newest reading of `source`: the store for Claude Code; for Codex
-/// CLI, its logs (gated on the `codex_cli` local-source consent, RF4.3),
-/// stored in the feed directory so the live block can read it too.
-pub(crate) fn latest(
+/// The merged reading of `source` an account shows ([`AccountReading`],
+/// V-02): the store for Claude Code; for Codex CLI, its logs (gated on the
+/// `codex_cli` local-source consent, RF4.3), the newest of them stored in
+/// the feed directory so the live block can read it too.
+pub(crate) fn account_reading(
     source: FeedSource,
     store: Option<&FeedStore>,
     now: DateTime<Utc>,
-) -> Result<Option<FeedReading>, QueryError> {
+) -> Result<Option<AccountReading>, QueryError> {
     match source {
-        FeedSource::ClaudeCode => Ok(store.and_then(|store| store.latest(source, now))),
+        FeedSource::ClaudeCode => {
+            Ok(store.and_then(|store| feed::account_reading(store, source, now)))
+        }
         FeedSource::CodexCli => {
             let settings = crate::cost::SettingsStore::in_data_dir()
                 .and_then(|store| store.load())
@@ -219,37 +225,38 @@ pub(crate) fn latest(
                 return Err(no_consent());
             }
             let roots = settings.roots(crate::cost::SourceId::CodexCli, &env);
-            let reading = codex_latest(&roots, now)?;
-            if let (Some(reading), Some(store)) = (&reading, store) {
+            let readings = codex_readings(&roots, now)?;
+            if let (Some(newest), Some(store)) = (readings.first(), store) {
                 // Best effort: the live block reads it from there.
-                let _ = store.write(reading, now);
+                let _ = store.write(newest, now);
             }
-            Ok(reading)
+            Ok(AccountReading::merge(&readings, now))
         }
     }
 }
 
-/// RF4.1: the Codex CLI reading below `roots`, an unknown shape being a
-/// schema error. RF1.3: it must meet the same contract at `now` as a stored
-/// reading, so a log dated in the future is ignored, never taken as the
-/// newest.
-pub(crate) fn codex_latest(
+/// RF4.1: the Codex CLI readings below `roots`, newest first, an unknown
+/// shape being a schema error. RF1.3: each must meet the same contract at
+/// `now` as a stored reading, so a log dated in the future is ignored,
+/// never taken as the newest.
+pub(crate) fn codex_readings(
     roots: &[std::path::PathBuf],
     now: DateTime<Utc>,
-) -> Result<Option<FeedReading>, QueryError> {
-    feed::codex::latest(roots)
-        .map(|reading| reading.filter(|reading| reading.is_valid(now)))
-        .map_err(|_| QueryError::schema())
+) -> Result<Vec<FeedReading>, QueryError> {
+    feed::codex::readings(roots, now).map_err(|_| QueryError::schema())
 }
 
-/// RF3.4: whether a hybrid account uses `reading` rather than the query:
-/// the feed is younger than the account's refresh interval.
+/// RF3.4 (V-02): whether a hybrid account uses the feed rather than the
+/// query: a reading carrying at least one limit window is younger than the
+/// account's refresh interval. A session without limits never decides it.
 pub(crate) fn fresh_enough(
-    reading: &FeedReading,
+    account: &AccountReading,
     interval_seconds: u64,
     now: DateTime<Utc>,
 ) -> bool {
-    now - reading.written_at <= TimeDelta::seconds(interval_seconds as i64)
+    account
+        .newest_window_at()
+        .is_some_and(|at| now - at <= TimeDelta::seconds(interval_seconds as i64))
 }
 
 /// RF3.1/RF4.2: answer a feed-mode account.
@@ -258,8 +265,8 @@ pub(crate) fn fetch(
     store: Option<&FeedStore>,
     now: DateTime<Utc>,
 ) -> Result<Data, QueryError> {
-    match latest(source, store, now)? {
-        Some(reading) => Ok(data(&reading, now, false)),
+    match account_reading(source, store, now)? {
+        Some(account) => Ok(data(&account, now, false)),
         None => Err(no_feed(source)),
     }
 }

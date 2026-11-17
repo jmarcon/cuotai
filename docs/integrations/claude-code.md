@@ -54,10 +54,14 @@ Claude Code runs a command you choose as its [status line](https://code.claude.c
 
 A query-mode account can still show Claude Code's live session with `params = { feed = "claude_code" }`. Claude Code's JSON carries no account identity, so only **one** account may read it (its feed mode or its `feed` binding); two are a configuration error. If you have a work and a personal Claude account, bind the feed to the one Claude Code is signed in with.
 
+**Two accounts in different Claude Code windows.** The card merges the windows of every recent session (below). If two Claude Code windows are signed in to different Claude accounts, Cuotai cannot tell their readings apart and may show one account's 5-hour window beside the other's weekly window. Bind the feed to one account and use Claude Code with that account only.
+
 ### What the card shows
 
 - The 5-hour and weekly windows as the query mode shows them, with the reading's age counted from when Claude Code last spoke. When Claude Code is closed the reading ages; it never turns into 0.
 - A window Claude Code dropped after its reset stays **unknown** until the next prompt brings the new one.
+- Each window comes from the newest session that reported it with its reset still ahead. A new Claude Code window that has not reported its limits yet (before its first API response) does not blank the card, and its status line shows the account's last known windows. The card's age counts from the oldest reading it uses.
+- `claude_code_or_api` uses the feed only while a reading **with** limits is younger than the refresh interval; a fresh session without limits never decides it, so the query answers instead.
 - **Live session** while a session sent a reading in the last 10 minutes: model, "ctx 8%" (the context window share; information only, never an alert) and "≈ $0.42 this session" (Claude Code's own estimate at list price, not a charge). Settings › Dashboard › Show live agent session turns it off. The terminal shows `ctx 8% · ≈$0.42` on the card and `--once` prints a `Live session:` line.
 
 ### `cuotai --statusline-claude`
@@ -85,7 +89,7 @@ The status line is a documented extension point of Claude Code and Cuotai reuses
 
 ## Codex CLI
 
-Codex CLI writes its rate-limit windows into its own session logs (`token_count` events under `CODEX_HOME` or `~/.codex/sessions`). A ChatGPT / Codex account with **Source › Fed by Codex CLI** reads the newest of them:
+Codex CLI writes its rate-limit windows into its own session logs (`token_count` events under `CODEX_HOME` or `~/.codex/sessions`). A ChatGPT / Codex account with **Source › Fed by Codex CLI** reads the recent ones:
 
 ```toml
 [[accounts]]
@@ -94,7 +98,7 @@ params = { query_mode = "codex_cli" }   # or "codex_cli_or_api"
 ```
 
 - Reading the logs needs the **Codex CLI** local source turned on (Local cost: `cuotai --cost-enable codex_cli`, or the desktop's Local cost page), whose consent lists exactly the folders read. Without it the account says so instead of showing numbers.
-- Only the first line of the newest log (the session id, digested at once) and its last 256 KiB are read; symbolic links are not followed. Messages, instructions, working directories and tool output are never deserialized.
+- Only the logs modified in the last 24 hours are read, newest first and at most 16, until both windows are found: each window comes from the newest log that reported it, so a session that has not reported its limits yet hides nothing. Of each log only the first line (the session id, digested at once) and the last 256 KiB are read; symbolic links are not followed. Messages, instructions, working directories and tool output are never deserialized.
 - The format is not a published API: it was checked against the Codex CLI source (`RateLimitSnapshot` in `codex-rs/protocol/src/protocol.rs`, 2026-11-05). A shape Cuotai does not recognise is reported as a changed interface, never as 0.
 - Cuotai never starts Codex CLI or calls its local RPC.
 

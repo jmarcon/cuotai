@@ -167,6 +167,25 @@ fn claude_part(
     })
 }
 
+/// RF5.1 (PRD 0040 re-validation V-02): the reading the line shows. The
+/// context share is the agent's own (`own`, its standard input, when there
+/// is one); Claude's windows are the account's ([`super::AccountReading`]),
+/// so a new Claude Code window that has not reported its limits yet still
+/// shows the last known ones. Their times stay in `account.window_times`.
+pub fn line_reading(
+    own: Option<&FeedReading>,
+    account: Option<&super::AccountReading>,
+) -> Option<FeedReading> {
+    match (own, account) {
+        (Some(own), Some(account)) => Some(FeedReading {
+            windows: account.reading.windows.clone(),
+            ..own.clone()
+        }),
+        (Some(own), None) => Some(own.clone()),
+        (None, account) => account.map(|account| account.reading.clone()),
+    }
+}
+
 /// "Codex 64% left (3m)": the tightest of `others` with a known share.
 fn other_part(others: &[OtherAccount], locale: &str) -> Option<String> {
     let other = others
