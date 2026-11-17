@@ -55,10 +55,10 @@ export function costHtml(cv, prices, plans = null) {
     ${row({ key: "cost-erase", label: te("settings.cost.erase"), danger: true, msg: "cost-msg",
       desc: `<span data-cost-size>${te("settings.cost.size", { size: fmtBytes(cv.size) })}</span>`,
       control: () => buttons(`<button class="btn sm danger-btn" data-cost-erase aria-labelledby="cost-erase-label">${icon("trash")}</button>`),
-      body: `<div class="confirm" id="cost-erase-confirm" role="alertdialog" aria-labelledby="cost-erase-text" hidden>
+      body: `<div class="confirm" id="cost-erase-confirm" data-protected-texts="cost-erase" role="alertdialog" aria-labelledby="cost-erase-text" hidden>
           <p id="cost-erase-text">${te("settings.cost.eraseText")}</p>
           <div class="dlg-actions left"><button class="btn danger-btn" data-cost-erase-confirm>${te("settings.cost.eraseConfirm")}</button>
-            <button class="btn" data-cost-erase-cancel>${te("common.cancel")}</button></div>
+            <button class="btn" data-cost-erase-cancel>${te("confirm.cancel")}</button></div>
         </div>` })}`;
 }
 

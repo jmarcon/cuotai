@@ -81,7 +81,14 @@ assert.equal(styles[0].dataset.userTheme, "ocean");
 // The pack: ordinary text replaced, the protected banner keeps the built-in words.
 await i18n.setLocale("fr");
 assert.equal(i18n.t("tray.ok"), "Tout fonctionne");
-assert.equal(i18n.t("serve.banner"), builtinBanner);
+// R-01: the pack overlays the shipped French catalog key by key. A text it does not set (or may not set: the core
+// dropped the protected ids) reads the shipped French translation, never English or the raw key.
+const shippedFr = JSON.parse(await readFile(new URL("../apps/desktop/ui/locales/fr.json", import.meta.url), "utf8"));
+assert.equal(i18n.t("serve.banner"), shippedFr["serve.banner"]);
+assert.notEqual(i18n.t("serve.banner"), builtinBanner);
+assert.equal(i18n.t("confirm.cancel"), shippedFr["confirm.cancel"]);
+assert.equal(i18n.t("settings.page.general"), shippedFr["settings.page.general"]);
+assert.equal(i18n.machineTranslated(), shippedFr._meta.reviewed === false, "the shipped _meta is read under a pack");
 
 // Refusals carry the parser's reason, each with a translated message in every catalog.
 assert.deepEqual(content.errors.map((e) => e.reason), ["externalUrl", "property", "protected", "invalidCode", "invalidCode",

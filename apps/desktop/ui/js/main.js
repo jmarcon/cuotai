@@ -1,6 +1,6 @@
 import { boot } from "./boot.js";
 import { te, t, tl } from "./i18n.js";
-import { skippedMessage, userContent } from "./usercontent.js";
+import { bannerNotices, dismissNotice, skippedMessage } from "./usercontent.js";
 import { confirmDelete, offerExternalReload, openAccountDialog } from "./account-dialog.js";
 import { openExtensionsDialog } from "./extensions-dialog.js";
 import { openDetails, refreshDetails } from "./details-dialog.js";
@@ -242,8 +242,9 @@ const matchesFilter = (r) =>
 // surviving account drops.
 let notice = null;
 let noticeTimer = null;
-function setNotice(tone, text, retry = null) {
-  notice = { tone, text, retry };
+// `mark`: a delete result, a protected surface (PRD 0035 re-validation S-01): `data-protected-texts` and `confirm.dismiss`.
+function setNotice(tone, text, retry = null, mark = false) {
+  notice = { tone, text, retry, mark };
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => { notice = null; render(); }, 12000);
   render();
@@ -282,11 +283,11 @@ function onDeleted(result) {
   const retry = result.recovery_handle ? { handle: result.recovery_handle } : null;
   // PRD 0029 RF5.3: the stored web session is reported apart from the OAuth credential.
   const session = result.sessions_removed ? ` ${t("delete.sessionToo")}` : "";
-  if (result.outcome === "removed" && result.sessions_removed) setNotice("ok", t("delete.session"));
-  else if (result.outcome === "purged") setNotice("ok", t("delete.purged") + session);
-  else if (result.outcome === "kept") setNotice("ok", t("delete.kept") + session, retry);
-  else if (result.outcome === "kept_shared") setNotice("ok", t("delete.keptShared", { other: result.other_account ?? "" }) + session, retry);
-  else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }) + session, retry);
+  if (result.outcome === "removed" && result.sessions_removed) setNotice("ok", t("delete.session"), null, true);
+  else if (result.outcome === "purged") setNotice("ok", t("delete.purged") + session, null, true);
+  else if (result.outcome === "kept") setNotice("ok", t("delete.kept") + session, retry, true);
+  else if (result.outcome === "kept_shared") setNotice("ok", t("delete.keptShared", { other: result.other_account ?? "" }) + session, retry, true);
+  else if (result.outcome === "partial_failure") setNotice("bad", t("delete.partial", { message: result.message ?? "" }) + session, retry, true);
 }
 
 // "Try again" button of the RF3 notice. Reuses `onDeleted` to re-render
@@ -300,13 +301,13 @@ async function retryDelete() {
   // stack retries. The `setTimeout` is cancelled by the next
   // `setNotice` when `onDeleted` runs again.
   const previous = notice;
-  notice = { tone: previous.tone, text: previous.text, retry: null };
+  notice = { tone: previous.tone, text: previous.text, retry: null, mark: previous.mark };
   render();
   try {
     const result = await retryPurge(handle);
     onDeleted(result);
   } catch (x) {
-    setNotice("bad", errText(x), previous.retry);
+    setNotice("bad", errText(x), previous.retry, true);
   }
 }
 
@@ -496,17 +497,17 @@ function render() {
     ${trayUnavailableHtml()}
     ${relocationBannerHtml(store.view)}
     ${otherBannerHtml()}
-    ${notice ? `<div class="banner ${notice.tone}">${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te("common.dismiss")}</button></div>` : ""}
-    ${userContent.errors.map((e) => `<div class="banner">${esc(skippedMessage(e))}</div>`).join("")}
+    ${notice ? `<div class="banner ${notice.tone}"${notice.mark ? ' data-protected-texts="delete-result"' : ""}>${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te(notice.mark ? "confirm.dismiss" : "common.dismiss")}</button></div>` : ""}
+    ${bannerNotices().map((e) => `<div class="banner" data-protected-texts="user-content">${esc(skippedMessage(e))}${e.key ? ` <button class="link" data-dismiss-pack="${esc(e.key)}">${te("confirm.dismiss")}</button>` : ""}</div>`).join("")}
     ${updateBannerHtml()}
     ${feedBannersHtml(view)}
     ${clockSkewBannerHtml(view)}
     ${view?.history_warning ? `<div class="banner bad" role="status" data-history-warning>${icon("warn")} ${esc(tl(view.history_warning))}</div>` : ""}
     ${(view?.config_notices ?? []).map((note) => `<div class="banner bad" role="status" data-config-notice>${icon("warn")} ${esc(tl(note))}</div>`).join("")}
-    ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${
+    ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-protected-texts="serve-banner" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${
       view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
-    ${view?.serve?.token_notice && view.serve.state === "on" ? `<div class="banner info" role="status" data-serve-token-notice>${icon("info")} ${te("settings.serve.token.notice")} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
-    ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings="integrations" data-settings-anchor="hooks">${te("serve.bannerOpen")}</button></div>` : ""}
+    ${view?.serve?.token_notice && view.serve.state === "on" ? `<div class="banner info" role="status" data-protected-texts="serve-banner" data-serve-token-notice>${icon("info")} ${te("settings.serve.token.notice")} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
+    ${["unconfirmed", "invalid"].includes(view?.hooks?.state) ? `<div class="banner bad" role="status" data-protected-texts="hooks-banner" data-hooks-banner>${icon("warn")} ${te(`hooks.banner.${view.hooks.state}`)} <button class="link" data-settings="integrations" data-settings-anchor="hooks">${te("serve.bannerOpen")}</button></div>` : ""}
     ${!view && !error ? `<div class="empty">${te("common.loading")}</div>` : ""}${view && !view.loaded && !error && !waiting.length ? `<div class="empty">${te("common.querying")}</div>` : ""}
     ${view && view.loaded && !reports.length ? `<div class="empty empty-state">${icon("plus")}<p>${te("account.empty")}</p><div class="dlg-actions"><button class="btn" data-restore-backup>${te("firstrun.restore")}</button><button class="btn primary" data-add>${te("common.add")}</button></div><small>${esc(configLabel(view))}</small></div>` : ""}
     ${view && view.loaded && reports.length && !sorted.length ? `<div class="empty empty-state"><p>${te("filter.none")}</p><button class="btn outline" data-clear-filters>${te("tray.showAll")}</button></div>` : ""}
@@ -549,6 +550,7 @@ root.addEventListener("click", (e) => {
   if (more) { moreFor = moreFor === more.dataset.cardMore ? null : more.dataset.cardMore; return render(); }
   if (moreFor && !t.closest(".card-more .menu")) { moreFor = null; render(); }
   if (t.closest("[data-dismiss-notice]")) { notice = null; return render(); }
+  if (t.closest("[data-dismiss-pack]")) { dismissNotice(t.closest("[data-dismiss-pack]").dataset.dismissPack); return render(); }
   if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
   if (t.closest("[data-relocation-adopt]")) return answerRelocation(true);
   if (t.closest("[data-relocation-decline]")) return answerRelocation(false);

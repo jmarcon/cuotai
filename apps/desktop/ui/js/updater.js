@@ -54,7 +54,7 @@ export function updateBannerHtml() {
     case "downloading":
       return downloadingHtml(s);
     case "installing":
-      return `<div class="banner info" role="status" data-update-banner>${icon("refresh")} ${te("update.installing", { version: s.version })}</div>`;
+      return `<div class="banner info" role="status" data-protected-texts="update" data-update-banner>${icon("refresh")} ${te("update.installing", { version: s.version })}</div>`;
     case "ready":
       return readyHtml(s);
     case "failed":
@@ -74,10 +74,10 @@ export function updateBannerHtml() {
  * so this session continues without a request and the question returns on the
  * next launch.
  */
-export const updateConsentDialogHtml = () => `<div class="dlg-body">
+export const updateConsentDialogHtml = () => `<div class="dlg-body" data-protected-texts="update-consent">
   <header class="dlg-head">
     <h2 id="update-consent-title">${te("update.consent.title")}</h2>
-    <button class="icon" data-update-consent-close title="${te("common.close")}" aria-label="${te("common.close")}">${icon("x")}</button>
+    <button class="icon" data-update-consent-close title="${te("confirm.close")}" aria-label="${te("confirm.close")}">${icon("x")}</button>
   </header>
   <p>${te("update.consent.body")}</p>
   <p class="err" data-update-consent-error role="alert"></p>
@@ -93,6 +93,7 @@ export async function promptForUpdateConsent() {
   consentPrompted = true;
   const dlg = document.createElement("dialog");
   dlg.className = "dlg update-consent";
+  dlg.setAttribute("data-protected-texts", "update-consent");
   dlg.setAttribute("aria-labelledby", "update-consent-title");
   dlg.innerHTML = updateConsentDialogHtml();
   document.body.append(dlg);
@@ -135,7 +136,7 @@ const notesBodyHtml = (notes) => {
 
 const availableHtml = (s) => {
   const releaseDate = fmtDate(s.date);
-  return `<div class="banner info" role="status" data-update-banner data-update="available">
+  return `<div class="banner info" role="status" data-protected-texts="update" data-update-banner data-update="available">
   ${icon("download")}<div class="banner-main"><b>${te("update.available", { version: s.version })}</b>${releaseDate ? `<span class="hint">${te("update.date", { date: releaseDate })}</span>` : ""}
   <details class="update-notes"><summary>${icon("chev", "upd-chev")}${te("update.notes")}</summary>${notesBodyHtml(s.notes)}</details></div>
   <div class="banner-acts">
@@ -146,29 +147,29 @@ const availableHtml = (s) => {
 };
 
 /** PRD 0018 RF2.5 / PRD 0021 RF8.1: managed or non-writable installation. */
-const managedHtml = (s) => `<div class="banner info" role="status" data-update-banner data-update="managed">
+const managedHtml = (s) => `<div class="banner info" role="status" data-protected-texts="update" data-update-banner data-update="managed">
   ${icon("download")}<b>${te("update.available", { version: s.version })}</b>
   <p class="hint">${te(`update.cannot.${s.upgrade_command ? "managed" : "place"}`)}</p>
   ${s.upgrade_command ? `<code class="update-cmd">${esc(s.upgrade_command)}</code>` : ""}
   <div class="dlg-actions left"><button class="btn" data-update-manual>${te("update.manual")}</button></div>
 </div>`;
 
-const downloadingHtml = (s) => `<div class="banner info" role="status" data-update-banner data-update="downloading">
+const downloadingHtml = (s) => `<div class="banner info" role="status" data-protected-texts="update" data-update-banner data-update="downloading">
   ${icon("download")}<b>${te("update.downloading", { version: s.version })}</b>
   ${s.progress == null ? "" : `<progress class="update-progress" max="100" value="${s.progress}"></progress><span class="hint">${s.progress}%</span>`}
   <div class="dlg-actions left"><button class="btn" data-update-cancel>${te("update.cancel")}</button></div>
 </div>`;
 
-const readyHtml = (s) => `<div class="banner info" role="status" data-update-banner data-update="ready">
+const readyHtml = (s) => `<div class="banner info" role="status" data-protected-texts="update" data-update-banner data-update="ready">
   ${icon("refresh")}<b>${te("update.ready", { version: s.version })}</b>
   <div class="dlg-actions left"><button class="btn primary" data-update-restart>${te("update.restart")}</button></div>
 </div>`;
 
-const failedHtml = (s) => `<div class="banner bad" role="status" data-update-banner data-update="failed">
+const failedHtml = (s) => `<div class="banner bad" role="status" data-protected-texts="update" data-update-banner data-update="failed">
   ${icon("warn")}<div class="banner-main">${te(`update.error.${s.error ?? "other"}`)}</div>
   <div class="banner-acts">
     ${s.can_retry ? `<button class="btn" data-update-now>${te("update.retry")}</button>` : `<button class="btn" data-update-manual>${te("update.manual")}</button>`}
-    <button class="icon" data-update-dismiss title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button>
+    <button class="icon" data-update-dismiss title="${te("confirm.dismiss")}" aria-label="${te("confirm.dismiss")}">${icon("x")}</button>
   </div>
 </div>`;
 

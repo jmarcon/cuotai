@@ -22,6 +22,7 @@ const managedHtml = (managed) => `<section class="first-run-update" aria-labelle
 
 export const stepHtml = ({ updatePending, managed = null }) => shellHtml({
   id: "first-run-title",
+  protectedTexts: "first-run",
   title: t("firstrun.title"),
   body: `<p>${te("firstrun.body")}</p>
   <ul class="first-run-list"><li>${icon("bell")}<span>${te("firstrun.item.alerts")}</span></li></ul>
@@ -57,6 +58,7 @@ export async function maybeShowFirstRun(view, update) {
   shownThisSession = true;
   const dlg = document.createElement("dialog");
   dlg.className = "dlg dlg-shell first-run";
+  dlg.setAttribute("data-protected-texts", "first-run");
   dlg.setAttribute("aria-labelledby", "first-run-title");
   dlg.innerHTML = stepHtml({ updatePending: !!update?.consent_pending, managed: update?.upgrade_command ? { reason: update.disabled_reason, command: update.upgrade_command } : null });
   document.body.append(dlg);

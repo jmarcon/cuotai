@@ -101,7 +101,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     <label class="f" data-field="name"><span id="name-label">${te("dialog.nameOptional")}</span><input name="name" value="${esc(existing?.name ?? "")}" aria-describedby="name-hint" /><small class="hint" id="name-hint"></small><small class="field-err" id="name-err" role="alert" hidden></small></label>
     <label class="f" data-field="peer_name" id="peer-row" hidden><span id="peer-label"></span><input name="peer_name" autocomplete="off" aria-describedby="peer-hint" /><small class="hint" id="peer-hint"></small><small class="field-err" role="alert" hidden></small></label>
     <div id="dyn"><div id="dyn-auth"></div>
-    <div class="login-panel" id="login-panel" hidden>
+    <div class="login-panel" id="login-panel" data-protected-texts="login" hidden>
       <div class="login-log" id="login-log" role="status" aria-live="polite"></div>
       <div id="login-prompt" hidden>
         <label class="f" id="login-url-row" hidden><span>${te("dialog.login.urlLabel")}</span>
@@ -121,8 +121,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       <div class="dlg-actions"><button type="button" class="btn" id="login-cancel">${te("dialog.login.cancel")}</button></div>
     </div>
     <div id="dyn-fields"></div></div>
-    <div class="session-box" id="session-box" hidden></div>
-    <div class="session-box" id="move-box" hidden></div>
+    <div class="session-box" id="session-box" data-protected-texts="session" hidden></div>
+    <div class="session-box" id="move-box" data-protected-texts="move" hidden></div>
     <div class="session-box" id="aggregator-box" hidden>
       <h3>${te("dialog.aggregator.title")}</h3>
       <p class="hint">${te("dialog.aggregator.hint")}</p>
@@ -1573,13 +1573,13 @@ export function confirmDelete(index, label, { usesOauth = false, secretsOf = nul
   const buttons = usesOauth
     ? `<button type="button" class="btn" data-purge="0">${te("dialog.deleteVaultKeep")}</button>
        <button type="button" class="btn danger-btn" data-purge="1">${te("dialog.deleteVaultPurge")}</button>`
-    : `<button type="button" class="btn danger-btn" data-purge="0">${te("common.remove")}</button>`;
-  const dlg = open(`<form method="dialog" class="dlg-body">
+    : `<button type="button" class="btn danger-btn" data-purge="0">${te("confirm.remove")}</button>`;
+  const dlg = open(`<form method="dialog" class="dlg-body" data-protected-texts="delete">
     <h2>${te("dialog.deleteTitle")}</h2>
     <p>${te(usesOauth ? "dialog.deleteBodyVault" : "dialog.deleteBody", { label })}</p>
     ${secretsOf ? `<label class="extension-confirm"><input type="checkbox" id="forget-secrets" />${te("dialog.deleteExtensionSecrets")}</label>` : ""}
     <p class="err" id="err" role="alert"></p>
-    <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("common.cancel")}</button>${buttons}</div>
+    <div class="dlg-actions"><button type="button" class="btn" data-cancel>${te("confirm.cancel")}</button>${buttons}</div>
   </form>`);
   dlg.querySelector("[data-cancel]").addEventListener("click", () => dlg.close());
   for (const btn of dlg.querySelectorAll("[data-purge]")) {
@@ -1610,12 +1610,12 @@ function confirmFingerprint(fingerprint) {
   return new Promise((resolve) => {
     const dlg = document.createElement("dialog");
     dlg.className = "dlg";
-    dlg.innerHTML = `<form method="dialog" class="dlg-body">
+    dlg.innerHTML = `<form method="dialog" class="dlg-body" data-protected-texts="fingerprint">
       <h2>${te("dialog.aggregator.trustTitle")}</h2>
       <p>${te("dialog.aggregator.trustBody")}</p>
       <p><code class="fingerprint">${esc(fingerprint)}</code></p>
       <div class="dlg-actions">
-        <button type="button" class="btn" data-choice="cancel">${te("common.cancel")}</button>
+        <button type="button" class="btn" data-choice="cancel">${te("confirm.cancel")}</button>
         <button type="button" class="btn primary" data-choice="trust">${te("dialog.aggregator.trust")}</button>
       </div>
     </form>`;
@@ -1655,7 +1655,7 @@ export function offerExternalReload() {
   return new Promise((resolve) => {
     const dlg = document.createElement("dialog");
     dlg.className = "dlg";
-    dlg.innerHTML = `<form method="dialog" class="dlg-body">
+    dlg.innerHTML = `<form method="dialog" class="dlg-body" data-protected-texts="external">
       <h2>${te("dialog.external.title")}</h2>
       <p>${te("dialog.external.body")}</p>
       <p class="err" id="err" role="alert"></p>

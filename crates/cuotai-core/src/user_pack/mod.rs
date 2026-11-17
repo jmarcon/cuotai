@@ -13,6 +13,13 @@
 //! could not read safely reaches the interface. A front end hands on only
 //! the [`Pack`] (its `messages` re-serialized from the typed values), never
 //! the file's bytes, so a second parser can never disagree with this one.
+//!
+//! PRD 0035 re-validation S-01: which ids a pack may replace is decided by
+//! one classification file, `policy.json` beside this module (its header
+//! states the contributor rule). An id no rule covers is protected, so a
+//! new namespace is protected until someone classifies it. The desktop
+//! shows the shipped translation of the pack's language for a dropped id,
+//! else English.
 
 use crate::text::{
     parity::{has_markup, is_hidden_or_directional},
@@ -103,33 +110,125 @@ impl fmt::Display for Refusal {
 
 impl std::error::Error for Refusal {}
 
-/// Id prefixes a pack may not replace.
-pub const PROTECTED_PREFIXES: [&str; 12] = [
-    "credential_help.",
-    "oauth_error.",
-    "edit_error.",
-    "remove_error.",
-    "user_session.",
-    "access.risk.",
-    "access.credential_hint.",
-    "hooks.",
-    "extensions.consent.",
-    "serve.",
-    "update.",
-    "execution.",
-];
+/// The classification file: which ids a pack may replace (S-01). Its
+/// header states the rule a contributor applies.
+pub const POLICY_JSON: &str = include_str!("policy.json");
 
-/// Whether a pack may not replace `id`: a [`PROTECTED_PREFIXES`] id, the
-/// delete confirmation (`dialog.delete…`), or any id with a `.confirm.` or
-/// `.consent.` part.
+/// The catalog layer an id belongs to: the core catalogs or the desktop UI
+/// catalogs. Each has its own section in [`POLICY_JSON`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layer {
+    Core,
+    Ui,
+}
+
+/// Whether a pack may replace a text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Class {
+    /// A pack's text for it is dropped; the shipped translation stays.
+    Protected,
+    /// A pack may replace it.
+    Overridable,
+}
+
+#[derive(serde::Deserialize)]
+struct Rules {
+    protected: Vec<String>,
+    overridable: Vec<String>,
+}
+
+/// The parsed [`POLICY_JSON`] (see [`policy`]).
+#[derive(serde::Deserialize)]
+pub struct Policy {
+    core: Rules,
+    ui: Rules,
+}
+
+static POLICY: std::sync::LazyLock<Policy> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(POLICY_JSON).expect("user_pack/policy.json is valid (tested)")
+});
+
+/// The embedded pack policy.
+pub fn policy() -> &'static Policy {
+    &POLICY
+}
+
+impl Policy {
+    fn section(&self, layer: Layer) -> &Rules {
+        match layer {
+            Layer::Core => &self.core,
+            Layer::Ui => &self.ui,
+        }
+    }
+
+    /// Every rule of `layer` with its class, protected ones first.
+    pub fn rules(&self, layer: Layer) -> impl Iterator<Item = (&str, Class)> {
+        let section = self.section(layer);
+        let protected = section
+            .protected
+            .iter()
+            .map(|rule| (rule.as_str(), Class::Protected));
+        let overridable = section
+            .overridable
+            .iter()
+            .map(|rule| (rule.as_str(), Class::Overridable));
+        protected.chain(overridable)
+    }
+
+    /// The rule of `layer` that decides `id`, if one matches: an exact id
+    /// beats any prefix (`prefix*`), and the longest prefix wins.
+    pub fn rule(&self, layer: Layer, id: &str) -> Option<(&str, Class)> {
+        self.rules(layer)
+            .filter_map(|(rule, class)| {
+                let score = match rule.strip_suffix('*') {
+                    Some(prefix) if id.starts_with(prefix) => (false, prefix.len()),
+                    None if rule == id => (true, rule.len()),
+                    _ => return None,
+                };
+                Some((score, rule, class))
+            })
+            .max_by_key(|(score, ..)| *score)
+            .map(|(_, rule, class)| (rule, class))
+    }
+
+    /// The class of `id` in `layer`: its rule's, protected when no rule
+    /// matches, and always protected with a `confirm` or `consent`
+    /// dot-segment.
+    pub fn class(&self, layer: Layer, id: &str) -> Class {
+        if has_guarded_segment(id) {
+            return Class::Protected;
+        }
+        self.rule(layer, id)
+            .map_or(Class::Protected, |(_, class)| class)
+    }
+}
+
+/// The PRD 0050 naming convention, kept: an id with a `confirm` or
+/// `consent` dot-segment is protected whatever matches.
+fn has_guarded_segment(id: &str) -> bool {
+    id.split('.')
+        .any(|segment| segment == "confirm" || segment == "consent")
+}
+
+/// Whether a pack may replace `id`. A pack's ids are not tagged with a
+/// layer, so an id is judged by every layer that has a rule for it and
+/// takes the strictest class (an id in both, like the en-US UI copies of
+/// `pace.chip.*`); an id no layer classifies is protected.
+pub fn is_overridable(id: &str) -> bool {
+    if has_guarded_segment(id) {
+        return false;
+    }
+    let policy = policy();
+    let classes: Vec<Class> = [Layer::Core, Layer::Ui]
+        .into_iter()
+        .filter_map(|layer| policy.rule(layer, id).map(|(_, class)| class))
+        .collect();
+    !classes.is_empty() && classes.iter().all(|class| *class == Class::Overridable)
+}
+
+/// Whether a pack may not replace `id` (the negation of [`is_overridable`]).
 pub fn is_protected(id: &str) -> bool {
-    PROTECTED_PREFIXES
-        .iter()
-        .any(|prefix| id.starts_with(prefix))
-        || id == "dialog.delete"
-        || id.starts_with("dialog.delete.")
-        || id.contains(".confirm.")
-        || id.contains(".consent.")
+    !is_overridable(id)
 }
 
 /// Read the pack `text` of the file `file_name` (`fr.json`): parse, check
@@ -244,7 +343,8 @@ fn is_clean_name(name: &str) -> bool {
         && is_clean_value(name)
 }
 
-/// The messages a pack may set, and the ids it may not (sorted).
+/// The messages a pack may set ([`is_overridable`]), and the ids it may
+/// not (sorted).
 fn filter(messages: BTreeMap<String, Message>) -> (BTreeMap<String, Message>, Vec<String>) {
     let (ignored, kept): (BTreeMap<_, _>, BTreeMap<_, _>) =
         messages.into_iter().partition(|(id, _)| is_protected(id));

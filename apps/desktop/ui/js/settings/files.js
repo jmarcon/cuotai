@@ -39,7 +39,7 @@ export function html({ settings: s, view }) {
       ${disc("data-dir-path", te("settings.config.path"), `${pathHtml(s.data_dir)}<p class="hint">${te("settings.dataDir.cli")}</p>`)}` });
   // PRD 0029 RF6.2: what Cuotai stored in the system vault, filled in by `bind` (never a value).
   const vaultRowHtml = row({ key: "vault", attrs: 'data-section="credentials"', label: te("settings.vault.title"), info: te("settings.vault.help"), msg: "vault-msg",
-    body: `<div data-vault aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>` });
+    body: `<div data-vault data-protected-texts="vault" aria-live="polite"><p class="hint">${te("settings.vault.loading")}</p></div>` });
   // PRD 0046 RF2.1/RF3.3/RF5.2: a secret-free backup of these settings, its restore, and the recipes.
   const backupRowHtml = row({ key: "backup", attrs: 'data-section="backup"', label: te("settings.backup.title"), info: te("settings.backup.help"), msg: "backup-msg",
     control: () => buttons(`<button class="btn sm" data-backup>${icon("download")} ${te("settings.backup.backup")}</button>`,
@@ -82,15 +82,15 @@ export function vaultHtml(plan) {
   return `<p class="hint">${te("settings.vault.checked", { path })}</p>
     <ul class="hook-runs">${entries.map(vaultRow).join("")}</ul>
     ${unused ? `<div class="dlg-actions left"><button class="btn danger-btn" data-vault-prune>${icon("trash")} ${te("settings.vault.prune", { count: unused })}</button></div>
-    <div class="confirm" data-vault-confirm role="alertdialog" aria-labelledby="vault-confirm-text" hidden>
+    <div class="confirm" data-vault-confirm data-protected-texts="vault-prune" role="alertdialog" aria-labelledby="vault-confirm-text" hidden>
       <p id="vault-confirm-text">${te("settings.vault.confirm", { count: unused, path })}</p>
       <div class="dlg-actions left"><button class="btn danger-btn" data-vault-prune-confirm>${te("settings.vault.pruneConfirm")}</button>
-        <button class="btn" data-vault-prune-cancel>${te("common.cancel")}</button></div>
+        <button class="btn" data-vault-prune-cancel>${te("confirm.cancel")}</button></div>
     </div>` : ""}
-    <div class="confirm" data-vault-one role="alertdialog" aria-labelledby="vault-one-text" hidden>
+    <div class="confirm" data-vault-one data-protected-texts="vault-one" role="alertdialog" aria-labelledby="vault-one-text" hidden>
       <p id="vault-one-text"></p>
       <div class="dlg-actions left"><button class="btn danger-btn" data-vault-one-confirm>${te("settings.vault.pruneConfirm")}</button>
-        <button class="btn" data-vault-one-cancel>${te("common.cancel")}</button></div>
+        <button class="btn" data-vault-one-cancel>${te("confirm.cancel")}</button></div>
     </div>`;
 }
 

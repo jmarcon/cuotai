@@ -149,3 +149,19 @@ console.log("desktop wording: ok");
     assert.match(cat["dialog.session.open"], /\{site\}/, f);
   }
 }
+
+// PRD 0035 re-validation S-01: protection follows the text to the id that is rendered. A UI id this file maps a
+// protected core text onto is protected too, and listed by name in the `ui` section of user_pack/policy.json.
+{
+  const { DESKTOP_WORDING } = await import("../apps/desktop/ui/js/desktop-wording.js");
+  const { classIn, policy } = await import("./pack-policy.mjs");
+  let raised = 0;
+  for (const [coreId, target] of Object.entries(DESKTOP_WORDING)) {
+    if (classIn("core", coreId) !== "protected") continue;
+    raised += 1;
+    assert.equal(classIn("ui", target.id), "protected", `${coreId} is protected, so ${target.id} (its desktop wording) must be`);
+    assert.ok(policy.ui.protected.includes(target.id), `${target.id}: list it in policy.json ui.protected (it shows the protected ${coreId})`);
+  }
+  assert.ok(raised > 0, "some protected core texts have a desktop wording");
+  console.log(`PASS: the ${raised} desktop wordings of protected core texts are protected UI ids`);
+}

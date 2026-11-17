@@ -11,41 +11,146 @@ fn text(message: &Message) -> &str {
     message.as_text().expect("a plain text")
 }
 
+/// Real shipped ids a pack may not replace (S-01): the delete dialog and
+/// its buttons, a billed-query warning, the vault, the local server, the
+/// user-content notices, a credential help, a consent mapped by
+/// `desktop-wording.js`.
+const NAMED_PROTECTED: &[&str] = &[
+    "dialog.deleteTitle",
+    "dialog.deleteVaultPurge",
+    "confirm.cancel",
+    "confirm.remove",
+    "access.cost_advisory",
+    "settings.vault.confirm",
+    "serve.allow_browsers.warning",
+    "userContent.protected",
+    "credential_help.alibaba_cloud",
+    "coreText.migrateConsent",
+    "hooks.confirm.command",
+    "extensions.consent.risk",
+    "refresh.billed.title",
+];
+
+/// Real shipped ids a pack may replace.
+const NAMED_OVERRIDABLE: &[&str] = &[
+    "tray.ok",
+    "settings.page.general",
+    "card.connectSession",
+    "access.summary.claude",
+    "common.cancel",
+    "models.search",
+    "quota.count",
+];
+
 // security-invariant: SEC-USER-PACK
 #[test]
-fn every_protected_pattern_is_refused_and_ordinary_ids_pass() {
+fn shipped_security_texts_are_protected_and_ordinary_ones_are_not() {
+    for id in NAMED_PROTECTED.iter().chain(PROTECTED_IDS) {
+        assert!(is_protected(id), "{id}");
+    }
+    for id in NAMED_OVERRIDABLE.iter().chain(OVERRIDABLE_IDS) {
+        assert!(is_overridable(id), "{id}");
+    }
+    // No rule, or a `confirm`/`consent` segment: protected.
     for id in [
-        "credential_help.openai_api",
-        "oauth_error.store.sqlite_dev_only",
-        "edit_error.option_not_valid_for_auth_mode",
-        "remove_error.oauth",
-        "user_session.slot.secret",
-        "access.risk.undocumented",
-        "access.credential_hint.extension",
-        "hooks.confirm.command",
-        "extensions.consent.risk",
-        "serve.allow_browsers.warning",
-        "update.verify.failed",
-        "execution.review.approve_hooks.title",
-        "dialog.delete",
-        "dialog.delete.title",
-        "settings.hooks.confirm.title",
-        "dialog.detect.consent.body",
+        "brand_new.namespace.title",
+        "x.consent.y",
+        "tray.confirm.title",
+        "confirm",
     ] {
         assert!(is_protected(id), "{id}");
     }
-    for id in [
-        "tray.ok",
-        "settings.page.general",
-        "card.connectSession",
-        "dialog.deleted_banner",
-        "access.summary.claude",
-        "extensions.title",
-        "settings.serve.origins.label",
-        "confirm",
-    ] {
-        assert!(!is_protected(id), "{id}");
+    // The longest match wins and an exact id beats any prefix.
+    let policy = policy();
+    assert_eq!(
+        policy.rule(Layer::Ui, "dialog.deleteTitle"),
+        Some(("dialog.delete*", Class::Protected))
+    );
+    assert_eq!(
+        policy.rule(Layer::Ui, "dialog.title"),
+        Some(("dialog.*", Class::Overridable))
+    );
+    assert_eq!(
+        policy.rule(Layer::Ui, "dialog.saveAnyway"),
+        Some(("dialog.saveAnyway", Class::Protected))
+    );
+    assert_eq!(
+        policy.class(Layer::Core, "nothing.matches"),
+        Class::Protected
+    );
+}
+
+/// Every id the tests of `user_pack` (and `user_content.rs`, which uses the
+/// same ones) name exists in a shipped catalog, so a renamed id fails here
+/// instead of silently testing nothing (S-01: the old test asserted
+/// `dialog.delete.title`, which never existed).
+#[test]
+fn every_id_these_tests_name_is_shipped() {
+    let ui_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../apps/desktop/ui/locales/en-US.json");
+    let ui: BTreeMap<String, serde_json::Value> =
+        serde_json::from_str(&std::fs::read_to_string(ui_path).unwrap()).unwrap();
+    let shipped = |id: &str| {
+        ui.contains_key(id)
+            || crate::text::catalog_locales()
+                .iter()
+                .filter_map(|code| crate::text::core_catalog(code))
+                .any(|catalog| catalog.contains_key(id))
+    };
+    for id in NAMED_PROTECTED
+        .iter()
+        .chain(NAMED_OVERRIDABLE)
+        .chain(PROTECTED_IDS)
+        .chain(OVERRIDABLE_IDS)
+    {
+        assert!(shipped(id), "{id} is not in any shipped catalog");
     }
+}
+
+/// S-01 coverage: every id of every core catalog (which hold every id the
+/// core writes, `text::emitted_ids_tests`, plus the deliberately absent
+/// `metric.verbatim`) matches a rule of the `core` section explicitly, so
+/// no shipped id relies on the default; and no rule is in both lists of a
+/// section. The desktop crate checks the `ui` section the same way.
+#[test]
+fn every_shipped_core_id_is_classified() {
+    let policy = policy();
+    let mut ids: std::collections::BTreeSet<&str> = ["metric.verbatim"].into();
+    for code in crate::text::catalog_locales() {
+        ids.extend(
+            crate::text::core_catalog(code)
+                .unwrap()
+                .keys()
+                .map(String::as_str),
+        );
+    }
+    let unclassified: Vec<&str> = ids
+        .iter()
+        .copied()
+        .filter(|id| policy.rule(Layer::Core, id).is_none())
+        .collect();
+    assert!(
+        unclassified.is_empty(),
+        "add a rule to user_pack/policy.json for {unclassified:?}"
+    );
+    for layer in [Layer::Core, Layer::Ui] {
+        let rules: Vec<(&str, Class)> = policy.rules(layer).collect();
+        for (rule, class) in &rules {
+            assert!(
+                !rules.iter().any(|(other, c)| other == rule && c != class),
+                "{rule} is both protected and overridable"
+            );
+            assert!(
+                !rule.is_empty() && !rule[..rule.len() - 1].contains('*'),
+                "{rule}: a prefix rule ends in its only `*`"
+            );
+        }
+    }
+    // The header carries the contributor rule.
+    let raw: serde_json::Value = serde_json::from_str(POLICY_JSON).unwrap();
+    assert!(raw["_comment"]
+        .as_array()
+        .is_some_and(|lines| lines.len() > 3));
 }
 
 #[test]
@@ -353,30 +458,32 @@ impl Rng {
     }
 }
 
-/// Real ids the current policy protects.
+/// Real shipped ids the policy protects.
 const PROTECTED_IDS: &[&str] = &[
     "serve.allow_browsers.warning",
     "hooks.confirm.command",
     "hooks.error.command",
-    "update.verify.failed",
-    "credential_help.openai_api",
+    "update.consent.body",
+    "credential_help.alibaba_cloud",
     "oauth_error.store.sqlite_dev_only",
     "edit_error.toml_int_range",
     "extensions.consent.risk",
     "user_session.slot.secret",
     "access.risk.undocumented",
-    "settings.hooks.confirm.title",
-    "dialog.delete",
+    "settings.vault.confirm",
+    "dialog.deleteTitle",
+    "dialog.deleteVaultPurge",
+    "confirm.cancel",
 ];
 
-/// Real ids a pack may set today.
+/// Real shipped ids a pack may set.
 const OVERRIDABLE_IDS: &[&str] = &[
     "tray.ok",
     "tray.lastCheck",
     "settings.page.general",
     "card.connectSession",
     "access.summary.claude",
-    "extensions.title",
+    "card.keyMissing",
     "models.search",
     "sort.custom",
     "quota.count",

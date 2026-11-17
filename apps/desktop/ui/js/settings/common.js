@@ -49,9 +49,10 @@ export function askDialog(id, title, body, yes) {
     const d = document.createElement("dialog");
     d.className = `dlg ${id}`;
     d.setAttribute("role", "alertdialog");
+    d.setAttribute("data-protected-texts", id);
     d.setAttribute("aria-labelledby", `${id}-title`);
     d.innerHTML = `<div class="dlg-body"><h2 id="${id}-title">${title}</h2>${body}
-      <div class="dlg-actions"><button class="btn" data-ask-no>${te("common.cancel")}</button>
+      <div class="dlg-actions"><button class="btn" data-ask-no>${te("confirm.cancel")}</button>
         <button class="btn danger-btn" data-ask-yes>${yes}</button></div></div>`;
     document.body.append(d);
     let answer = false;
