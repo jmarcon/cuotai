@@ -214,7 +214,11 @@ fn the_retention_takes_the_names_and_the_unlabelled_projects() {
         .set_label(LabelTarget::Project, &labelled.project, Some("Mine"))
         .unwrap();
     index
-        .prune(NaiveDate::from_ymd_opt(2025, 10, 2).unwrap(), 0)
+        .prune(
+            NaiveDate::from_ymd_opt(2025, 10, 2).unwrap(),
+            NaiveDate::from_ymd_opt(2100, 1, 1).unwrap(),
+            0,
+        )
         .unwrap();
     let left = index.projects().unwrap();
     assert_eq!(left.len(), 2, "the unlabelled old project went");

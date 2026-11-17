@@ -219,7 +219,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2885,6 +2886,7 @@
     "other": "非表示のプロジェクト {count} 件は、これらの数値に含まれていません。"
   },
   "cost.hidden.unhide": "{command} で再び合計に含めます。",
+  "cost.sources.size": "インデックス：ディスク上 {size}",
   "doctor.title.metered": "課金されるクエリの共有記録 {path}",
   "doctor.metered.unusable": "ユーザー専用のフォルダーではないか、書き込めません。修正されるまで、単発のコマンドは AWS Bedrock を照会しません。",
   "doctor.fix.metered": "このパスにあるもの（ファイル、リンク、他のユーザーのフォルダー）を削除するか、現在のユーザーだけが読み書きできるフォルダーにしてください。Cuotai が作り直します。",

@@ -53,7 +53,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -2783,6 +2784,7 @@
     "other": "{count} projetos ocultos não são contados nestes números."
   },
   "cost.hidden.unhide": "{command} volta a contar um deles.",
+  "cost.sources.size": "Índice: {size} em disco",
   "doctor.title.metered": "Registro compartilhado de consultas cobradas {path}",
   "doctor.metered.unusable": "Não é uma pasta privada do seu usuário, ou não pode ser gravada; comandos de execução única não consultam o AWS Bedrock até que seja corrigida.",
   "doctor.fix.metered": "Remova o que estiver neste caminho (um arquivo, um link ou a pasta de outro usuário) ou transforme-o em uma pasta que só o seu usuário possa ler e gravar; o Cuotai a recria.",

@@ -712,6 +712,8 @@ fn sources(
 ) -> Result<String, String> {
     let l10n = |error: cost::CostError| error.l10n().resolve(locale);
     let saved = settings.load().map_err(l10n)?;
+    // PRD 0042 re-validation S-07: the size on disk, as Settings shows it.
+    let size = index.size_on_disk().map_err(l10n)?;
     let mut rows = Vec::new();
     for source in SourceId::ALL {
         let disclosure = saved.disclosure(source, env);
@@ -745,6 +747,7 @@ fn sources(
             "period": saved.period.slug(),
             "retention_days": saved.retention().keep_days(),
             "index": index.path(),
+            "size": size,
             "settings": settings.path(),
         });
         return serde_json::to_string_pretty(&value)
@@ -827,6 +830,8 @@ fn sources(
             ("settings", &settings.path().display()),
         ],
     );
+    out += "\n";
+    out += &cost::index_size_text(size).resolve(locale);
     out += "\n";
     Ok(out)
 }
@@ -1445,6 +1450,10 @@ fn live_loop(
     }
     result
 }
+
+#[cfg(test)]
+#[path = "cost_sources_tests.rs"]
+mod cost_sources_tests;
 
 #[cfg(test)]
 mod tests {

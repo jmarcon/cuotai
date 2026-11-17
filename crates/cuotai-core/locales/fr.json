@@ -1091,7 +1091,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -3821,6 +3822,7 @@
     "other": "{count} projets masqués ne sont pas comptés dans ces chiffres."
   },
   "cost.hidden.unhide": "{command} en compte un de nouveau.",
+  "cost.sources.size": "Index : {size} sur le disque",
   "doctor.title.metered": "Registre partagé des requêtes facturées {path}",
   "doctor.metered.unusable": "Ce n'est pas un dossier privé de votre utilisateur, ou il n'est pas inscriptible ; les commandes ponctuelles n'interrogent pas AWS Bedrock tant que ce n'est pas corrigé.",
   "doctor.fix.metered": "Supprimez ce qui se trouve à ce chemin (un fichier, un lien ou le dossier d'un autre utilisateur) ou faites-en un dossier que seul votre utilisateur peut lire et écrire ; Cuotai le recrée.",

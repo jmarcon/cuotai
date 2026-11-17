@@ -1095,15 +1095,28 @@ impl CostIndex {
 
     /// RF2.3: drop usage of days before `first` and the control rows of
     /// files not read since `read_before` (unix ms). Returns rows removed.
-    pub fn prune(&self, first: NaiveDate, read_before: i64) -> Result<usize, CostError> {
+    ///
+    /// PRD 0042 re-validation S-04: rows dated after the day following
+    /// `today` go too. The scan no longer stores them, and an index written
+    /// before kept them past any retention.
+    pub fn prune(
+        &self,
+        first: NaiveDate,
+        today: NaiveDate,
+        read_before: i64,
+    ) -> Result<usize, CostError> {
         let Some(mut db) = self.open_existing()? else {
             return Ok(0);
         };
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let first = day_text(first);
+        let last = day_text(today.succ_opt().unwrap_or(today));
         let mut removed = 0;
         for table in ["usage", "sessions", "seen", "requests"] {
-            removed += tx.execute(&format!("DELETE FROM {table} WHERE day < ?1"), [&first])?;
+            removed += tx.execute(
+                &format!("DELETE FROM {table} WHERE day < ?1 OR day > ?2"),
+                [&first, &last],
+            )?;
         }
         removed += tx.execute("DELETE FROM files WHERE read_at < ?1", [read_before])?;
         // S-03: nothing derived outlives the retention: the folder names

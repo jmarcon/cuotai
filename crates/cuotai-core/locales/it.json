@@ -52,7 +52,8 @@
       "cost.live.rate_young",
       "cost.hidden.note",
       "cost.hidden.unhide",
-      "cost.error.label_characters"
+      "cost.error.label_characters",
+      "cost.sources.size"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -2782,6 +2783,7 @@
     "other": "{count} progetti nascosti non sono conteggiati in queste cifre."
   },
   "cost.hidden.unhide": "{command} ne conta di nuovo uno.",
+  "cost.sources.size": "Indice: {size} su disco",
   "doctor.title.metered": "Registro condiviso delle query fatturate {path}",
   "doctor.metered.unusable": "Non è una cartella privata del tuo utente o non è scrivibile; i comandi singoli non interrogano AWS Bedrock finché non viene corretta.",
   "doctor.fix.metered": "Rimuovi ciò che si trova in questo percorso (un file, un collegamento o la cartella di un altro utente) oppure rendilo una cartella che solo il tuo utente può leggere e scrivere; Cuotai la ricrea.",

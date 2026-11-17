@@ -635,6 +635,18 @@ pub fn erased_text(removed: usize) -> Localized {
     )
 }
 
+/// PRD 0042 re-validation S-07: `--cost-sources`' line with the size of
+/// the index on disk (`bytes`, the database and its WAL), written as the
+/// doctor writes the history's.
+pub fn index_size_text(bytes: u64) -> Localized {
+    Localized::with_param(
+        "cost.sources.size",
+        "size",
+        crate::doctor::size_text(bytes),
+        "Index: {size} on disk",
+    )
+}
+
 /// `name` is not a period.
 pub fn unknown_period(name: &str) -> Localized {
     let known = Period::ALL.map(Period::slug).join(", ");
