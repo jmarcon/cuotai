@@ -214,16 +214,16 @@ review" counts the `pending_review` ids of the three catalogs.
 | `en-US` | English | us | source (code) | source | source (code) | English source | source | source | 0 |
 | `es` | Español | es | complete | complete | complete | maintainer | pending | pending | 9 |
 | `it` | Italiano | it | complete | complete | complete | maintainer | pending | pending | 8 |
-| `zh-CN` | 中文（简体） | cn | complete | complete | complete | machine-translated, needs native review | pending | pending | 215 |
-| `fr` | Français | fr | complete | complete | complete | machine-translated, needs native review | pending | pending | 1575 |
-| `de` | Deutsch | de | complete | complete | complete | machine-translated, needs native review | pending | pending | 185 |
-| `ja` | 日本語 | jp | complete | complete | complete | machine-translated, needs native review | pending | pending | 244 |
-| `ru` | Русский | ru | complete | complete | complete | machine-translated, needs native review | pending | pending | 227 |
-| `ko` | 한국어 | kr | complete | complete | complete | machine-translated, needs native review | pending | pending | 197 |
-| `hi-IN` | हिन्दी | in | complete | complete | complete | machine-translated, needs native review | pending | pending | 128 |
-| `id-ID` | Bahasa Indonesia | id | complete | complete | complete | machine-translated, needs native review | pending | pending | 110 |
-| `tr` | Türkçe | tr | complete | complete | complete | machine-translated, needs native review | pending | pending | 110 |
-| `vi` | Tiếng Việt | vn | complete | complete | complete | machine-translated, needs native review | pending | pending | 154 |
+| `zh-CN` | 中文（简体） | cn | complete | complete | complete | machine-translated, needs native review | pending | pending | 224 |
+| `fr` | Français | fr | complete | complete | complete | machine-translated, needs native review | pending | pending | 1584 |
+| `de` | Deutsch | de | complete | complete | complete | machine-translated, needs native review | pending | pending | 194 |
+| `ja` | 日本語 | jp | complete | complete | complete | machine-translated, needs native review | pending | pending | 253 |
+| `ru` | Русский | ru | complete | complete | complete | machine-translated, needs native review | pending | pending | 236 |
+| `ko` | 한국어 | kr | complete | complete | complete | machine-translated, needs native review | pending | pending | 206 |
+| `hi-IN` | हिन्दी | in | complete | complete | complete | machine-translated, needs native review | pending | pending | 132 |
+| `id-ID` | Bahasa Indonesia | id | complete | complete | complete | machine-translated, needs native review | pending | pending | 114 |
+| `tr` | Türkçe | tr | complete | complete | complete | machine-translated, needs native review | pending | pending | 114 |
+| `vi` | Tiếng Việt | vn | complete | complete | complete | machine-translated, needs native review | pending | pending | 163 |
 <!-- status-table:end -->
 
 Native reviewers volunteer through a [Question issue](https://github.com/jmarcon/cuotai/issues/new?template=question.yml) ("Looking for

@@ -14,7 +14,8 @@
       "dashboard.metric.full",
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
-      "once.renewal_due"
+      "once.renewal_due",
+      "feed.forget.failed"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -259,6 +260,7 @@
   "extensions.secret.where": "Giá trị chỉ nằm trong kho của hệ thống và chỉ đến môi trường của tiện ích mở rộng.",
   "extensions.title": " Tiện ích mở rộng ",
   "feed.setup.chained": "Để giữ script dòng trạng thái của riêng bạn, hãy nối chuỗi như sau:",
+  "feed.forget.failed": "Không thể xoá các số liệu Claude Code đã lưu.",
   "feed.setup.docs": "Chi tiết và tuyên bố quyền riêng tư: docs/integrations/claude-code.md",
   "feed.setup.intro": "Thêm nội dung này vào ~/.claude/settings.json (Cuotai không bao giờ tự sửa tệp đó):",
   "feed.write_failed": "Không thể lưu số liệu của dòng trạng thái vào thư mục dữ liệu.",

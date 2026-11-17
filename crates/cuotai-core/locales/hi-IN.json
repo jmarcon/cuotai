@@ -132,7 +132,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -441,6 +445,7 @@
   "cost.disclosure.directories": "केवल इन डायरेक्टरी की {pattern} फ़ाइलें पढ़ता है:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "केवल संख्याएँ निकाली जाती हैं: समय, मॉडल, टोकन गणना (इनपुट, आउटपुट, कैश पढ़ना और कैश लिखना), सत्र का एक गुमनाम डाइजेस्ट और प्रोजेक्ट फ़ोल्डर का एकतरफ़ा फ़िंगरप्रिंट, ताकि आप उसे लेबल दे सकें।",
+  "cost.disclosure.extracted_v3": "केवल संख्याएँ निकाली जाती हैं: समय, मॉडल, टोकन गणना (इनपुट, आउटपुट, कैश पढ़ना और कैश लिखना), सत्र का एक गुमनाम डाइजेस्ट और प्रोजेक्ट फ़ोल्डर का एकतरफ़ा फ़िंगरप्रिंट, ताकि आप उसे लेबल दे सकें; Codex CLI से फ़ीड होने वाले खाते के लिए उसकी रेट-लिमिट विंडो और रीसेट समय भी, जो इस कंप्यूटर पर एक दिन तक रखे जाते हैं।",
   "cost.disclosure.header": "{source} के स्थानीय लॉग पढ़ना चालू करें।",
   "cost.disclosure.never_v2": "बातचीत की सामग्री, प्रॉम्प्ट, उत्तर, फ़ाइल नाम और प्रोजेक्ट पथ कभी इंडेक्स में नहीं पढ़े जाते, सहेजे या दिखाए नहीं जाते; प्रोजेक्ट के फ़ोल्डर का अंतिम नाम केवल तभी रखा जाता है जब आप इसे चालू करें। इस कंप्यूटर से कुछ भी बाहर नहीं जाता।",
   "cost.disclosure.off": "स्रोत बंद करने पर हर पढ़ना रुक जाता है और उससे बना सब कुछ मिट जाता है।",
@@ -934,6 +939,8 @@
   "feed.banner.codex_cli": "Codex CLI के पास रेट-लिमिट रीडिंग हैं; Codex CLI से चलने वाला एक ChatGPT / Codex खाता जोड़ें।",
   "feed.error.malformed": "स्टेटस लाइन का इनपुट JSON ऑब्जेक्ट नहीं है।",
   "feed.error.too_large": "स्टेटस लाइन का इनपुट 64 KiB से बड़ा है।",
+  "feed.forget.done": "{agent} की सहेजी गई रीडिंग मिटा दी गईं।",
+  "feed.forget.nothing": "{agent} की कोई रीडिंग सहेजी नहीं गई थी।",
   "feed.health.unreadable": {
     "one": "{count} अपठनीय फ़ीड फ़ाइल अनदेखी की गई।",
     "other": "{count} अपठनीय फ़ीड फ़ाइलें अनदेखी की गईं।"
@@ -1510,6 +1517,7 @@
   "note.cloud.google_no_quota_series": "कोई कोटा सीरीज़ नहीं लौटी। जाँचें कि प्रोजेक्ट में {service} API चालू है और टोकन में monitoring.timeSeries.list है।",
   "note.cloud.google_scope": "दायरा: प्रोजेक्ट {project}, सेवा {service}। सीमाएँ लागू कोटे हैं (दिन में एक बार नमूना); उपयोग पिछले 10 मिनट के net_usage का योग है (लगभग 4 मिनट तक की देरी)।",
   "note.codex_cli.answered_by_api": "Codex क्वेरी से जवाब: Codex CLI लॉग में कोई ताज़ा रीडिंग नहीं।",
+  "note.codex_cli.answered_by_api_no_consent": "Codex क्वेरी से जवाब: Codex CLI के लॉग पढ़ने के लिए Codex CLI स्थानीय स्रोत चालू होना चाहिए (स्थानीय लागत)।",
   "note.codex_cli.answered_by_feed": "Codex CLI के अपने सत्र लॉग से जवाब (कोई नेटवर्क अनुरोध नहीं)।",
   "note.codex_cli.fed": "Codex CLI के स्थानीय सत्र लॉग से पढ़ा गया (अदस्तावेज़ीकृत फ़ॉर्मेट): कोई नेटवर्क अनुरोध नहीं, कोई टोकन दोबारा इस्तेमाल नहीं।",
   "note.codex_cli.needs_consent": "Codex CLI के लॉग पढ़ने के लिए Codex CLI स्थानीय स्रोत चालू होना चाहिए (स्थानीय लागत), जो पढ़े जाने वाले फ़ोल्डर बताता है।",

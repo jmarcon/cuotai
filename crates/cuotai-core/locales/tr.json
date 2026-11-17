@@ -114,7 +114,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -423,6 +427,7 @@
   "cost.disclosure.directories": "Yalnızca şu dizinlerdeki {pattern} dosyalarını okur:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Yalnızca sayılar çıkarılır: zaman, model, token sayıları (girdi, çıktı, önbellek okuma ve yazma), oturumun anonim bir özeti ve etiketleyebilmeniz için proje klasörünün tek yönlü bir parmak izi.",
+  "cost.disclosure.extracted_v3": "Yalnızca sayılar çıkarılır: zaman, model, token sayıları (girdi, çıktı, önbellek okuma ve yazma), oturumun anonim bir özeti ve etiketleyebilmeniz için proje klasörünün tek yönlü bir parmak izi; Codex CLI ile beslenen bir hesap için ayrıca hız sınırı pencereleri ve sıfırlama saatleri; bunlar bu bilgisayarda en fazla bir gün tutulur.",
   "cost.disclosure.header": "{source} yerel günlüklerinin okunmasını aç.",
   "cost.disclosure.never_v2": "Konuşma içeriği, istemler, yanıtlar, dosya adları ve proje yolları dizine hiç okunmaz, saklanmaz ya da gösterilmez; bir projenin son klasör adı yalnızca siz açarsanız saklanır. Hiçbir şey bu bilgisayardan çıkmaz.",
   "cost.disclosure.off": "Kaynağı kapatmak her okumayı durdurur ve ondan türetilen her şeyi siler.",
@@ -916,6 +921,8 @@
   "feed.banner.codex_cli": "Codex CLI’de hız sınırı ölçümleri var; Codex CLI tarafından beslenen bir ChatGPT / Codex hesabı ekleyin.",
   "feed.error.malformed": "Durum satırı girdisi bir JSON nesnesi değil.",
   "feed.error.too_large": "Durum satırı girdisi 64 KiB’tan büyük.",
+  "feed.forget.done": "Kayıtlı {agent} ölçümleri silindi.",
+  "feed.forget.nothing": "Kayıtlı {agent} ölçümü yoktu.",
   "feed.health.unreadable": {
     "one": "{count} okunamayan besleme dosyası yok sayıldı.",
     "other": "{count} okunamayan besleme dosyası yok sayıldı."
@@ -1492,6 +1499,7 @@
   "note.cloud.google_no_quota_series": "Hiçbir kota serisi döndürülmedi. {service} API'sinin projede etkin olduğunu ve jetonun monitoring.timeSeries.list iznine sahip olduğunu kontrol edin.",
   "note.cloud.google_scope": "Kapsam: {project} projesi, {service} hizmeti. Sınırlar geçerli kotalardır (günde 1 kez örneklenir); kullanım son 10 dakikanın net_usage toplamıdır (~4 dk gecikme).",
   "note.codex_cli.answered_by_api": "Codex sorgusuyla yanıtlandı: Codex CLI günlüklerinde yakın tarihli ölçüm yok.",
+  "note.codex_cli.answered_by_api_no_consent": "Codex sorgusuyla yanıtlandı: Codex CLI günlüklerini okumak için Codex CLI yerel kaynağının (Yerel maliyet) açık olması gerekir.",
   "note.codex_cli.answered_by_feed": "Codex CLI’nin kendi oturum günlükleriyle yanıtlandı (ağ isteği yok).",
   "note.codex_cli.fed": "Codex CLI’nin yerel oturum günlüklerinden okundu (belgelenmemiş biçim): ağ isteği yok, belirteç yeniden kullanılmıyor.",
   "note.codex_cli.needs_consent": "Codex CLI günlüklerini okumak için okunan klasörleri listeleyen Codex CLI yerel kaynağının (Yerel maliyet) açık olması gerekir.",

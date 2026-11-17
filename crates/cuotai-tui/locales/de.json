@@ -14,7 +14,8 @@
       "dashboard.metric.full",
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
-      "once.renewal_due"
+      "once.renewal_due",
+      "feed.forget.failed"
     ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
@@ -265,6 +266,7 @@
   "extensions.secret.where": "Der Wert bleibt nur im Systemtresor und gelangt nur in die Umgebung der Erweiterung.",
   "extensions.title": " Erweiterungen ",
   "feed.setup.chained": "Um Ihr eigenes Statuszeilen-Skript zu behalten, verketten Sie es stattdessen:",
+  "feed.forget.failed": "Die gespeicherten Messwerte von Claude Code konnten nicht gelöscht werden.",
   "feed.setup.docs": "Details und die Datenschutzerklärung: docs/integrations/claude-code.md",
   "feed.setup.intro": "Fügen Sie dies zu ~/.claude/settings.json hinzu (Cuotai bearbeitet die Datei nie für Sie):",
   "feed.write_failed": "Der Messwert der Statuszeile konnte nicht im Datenordner gespeichert werden.",

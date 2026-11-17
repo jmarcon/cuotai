@@ -56,7 +56,11 @@
       "metric.noCap",
       "metric.full",
       "metric.exhaustedAmount",
-      "metric.resetsUtcMidnight"
+      "metric.resetsUtcMidnight",
+      "settings.claudeCode.forget",
+      "confirm.claudeCode.forgetTitle",
+      "confirm.claudeCode.forgetBody",
+      "confirm.claudeCode.forget"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -173,7 +177,8 @@
   "settings.claudeCode.copied": "복사됨",
   "settings.claudeCode.copy": "복사",
   "settings.claudeCode.desc": "네트워크 요청과 토큰 재사용 없이 Claude 계정에 데이터를 공급합니다.",
-  "settings.claudeCode.privacy": "스니펫을 ~/.claude/settings.json에 붙여 넣으세요. Cuotai는 한도 창, 컨텍스트 비율, 비용 추정치, 모델, 세션 id 다이제스트만 보관하며 작업 폴더, 대화 기록 경로, 프롬프트는 저장 전에 버립니다. Cuotai는 에이전트 설정을 수정하지 않습니다.",
+  "settings.claudeCode.forget": "Claude Code 측정값 지우기",
+  "settings.claudeCode.privacy": "스니펫을 ~/.claude/settings.json에 붙여 넣으세요. Cuotai는 한도 창, 컨텍스트 비율, 비용 추정치, 모델, 세션 id 다이제스트만 최대 하루 보관하며 작업 폴더, 대화 기록 경로, 프롬프트는 저장 전에 버립니다. Claude Code로 채우는 계정만 이를 읽습니다. Cuotai는 에이전트 설정을 수정하지 않습니다. 중단하려면 스니펫을 제거하고 측정값을 지우세요.",
   "settings.claudeCode.title": "Claude Code",
   "settings.dataDir.cli": "터미널의 cuotai는 이 선택을 읽지 않습니다. 데이터 폴더를 함께 쓰려면 둘 다 CUOTAI_DATA_DIR을 설정하세요.",
   "settings.dataDir.env": "CUOTAI_DATA_DIR 변수로 설정되어 있습니다. 여기서의 선택은 그 변수를 제거한 뒤에만 적용됩니다.",
@@ -1526,6 +1531,9 @@
   "confirm.certificate.firstBody": "이 인스턴스가 이 컴퓨터가 신뢰하지 않는 인증서를 제시했습니다. 신뢰하기 전에 아래 SHA-256 지문을 서버의 지문과 비교하세요. Cuotai는 이 인증서만 허용하며, 인증서가 바뀌면 계정이 중지되고 다시 묻습니다.",
   "confirm.remove": "제거",
   "confirm.close": "닫기",
+  "confirm.claudeCode.forgetTitle": "Claude Code 측정값을 지우시겠습니까?",
+  "confirm.claudeCode.forget": "측정값 지우기",
+  "confirm.claudeCode.forgetBody": "저장된 Claude Code 측정값이 이 컴퓨터에서 삭제됩니다. Claude Code로 채우는 Claude 계정은 다음 프롬프트에서 Claude Code가 새 측정값을 기록할 때까지 데이터를 표시하지 않습니다.",
   "confirm.back": "뒤로",
   "confirm.dismiss": "닫기",
   "login.demo.oauth.label": "OAuth 로그인(데모)",

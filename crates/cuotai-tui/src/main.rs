@@ -182,6 +182,11 @@ struct Args {
     /// With --feed, prints the ~/.claude/settings.json snippet and exits.
     #[arg(long, requires = "feed")]
     setup: bool,
+    /// With --feed, erases the stored Claude Code readings and exits
+    /// (Claude Code writes a new one at its next prompt while its status
+    /// line runs Cuotai).
+    #[arg(long, requires = "feed", conflicts_with_all = ["print", "setup"])]
+    forget: bool,
     /// PRD 0040 RF5: one line for Claude Code's status line: reads its JSON
     /// on standard input like --feed, then prints Claude's windows, the
     /// tightest other account (from --from-server, or the last recorded
@@ -1198,7 +1203,7 @@ async fn run_agent_side(args: Args) -> u8 {
     if args.statusline_claude {
         feed_cli::run_statusline(&line, locale).await
     } else {
-        feed_cli::run_feed(args.print, args.setup, &line, locale).await
+        feed_cli::run_feed(args.print, args.setup, args.forget, &line, locale).await
     }
 }
 

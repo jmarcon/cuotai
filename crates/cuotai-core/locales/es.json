@@ -336,6 +336,8 @@
   "feed.banner.codex_cli": "Codex CLI tiene lecturas de límites; añade una cuenta de ChatGPT / Codex alimentada por Codex CLI.",
   "feed.error.malformed": "La entrada de la línea de estado no es un objeto JSON.",
   "feed.error.too_large": "La entrada de la línea de estado supera los 64 KiB.",
+  "feed.forget.done": "Se borraron las lecturas guardadas de {agent}.",
+  "feed.forget.nothing": "No había lecturas guardadas de {agent}.",
   "feed.health.unreadable": {
     "one": "{count} archivo de feed ilegible ignorado.",
     "other": "{count} archivos de feed ilegibles ignorados."
@@ -937,6 +939,7 @@
   "note.cloud.google_no_quota_series": "No se devolvieron series de cuota. Verifique si la API {service} está habilitada en el proyecto y si el token tiene monitoring.timeSeries.list.",
   "note.cloud.google_scope": "Alcance: proyecto {project}, servicio {service}. Los límites son cuotas vigentes (muestreadas 1x/día); el uso es la suma de net_usage de los últimos 10 min (retraso de ~4 min).",
   "note.codex_cli.answered_by_api": "Respondido por la consulta de Codex: no hay lectura reciente en los registros de Codex CLI.",
+  "note.codex_cli.answered_by_api_no_consent": "Respondido por la consulta de Codex: leer los registros de Codex CLI requiere activar la fuente local Codex CLI (Coste local).",
   "note.codex_cli.answered_by_feed": "Respondido por los propios registros de sesión de Codex CLI (sin solicitud de red).",
   "note.codex_cli.fed": "Leído de los registros de sesión locales de Codex CLI (formato no documentado): sin solicitud de red ni reutilización de tokens.",
   "note.codex_cli.needs_consent": "Leer los registros de Codex CLI requiere activar la fuente local Codex CLI (Coste local), que indica las carpetas que se leen.",
@@ -1592,6 +1595,7 @@
   "cost.disclosure.directories": "Solo lee los archivos {pattern} de estos directorios:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Solo se extraen números: la hora, el modelo, los conteos de tokens (entrada, salida, lectura y escritura de caché), un resumen anónimo de la sesión y una huella unidireccional de la carpeta del proyecto, para que pueda etiquetarla.",
+  "cost.disclosure.extracted_v3": "Solo se extraen números: la hora, el modelo, los conteos de tokens (entrada, salida, lectura y escritura de caché), un resumen anónimo de la sesión y una huella unidireccional de la carpeta del proyecto, para que pueda etiquetarla; para una cuenta alimentada por Codex CLI, también sus ventanas de límite y horas de reinicio, guardadas en este equipo hasta un día.",
   "cost.disclosure.header": "Activar la lectura de los registros locales de {source}.",
   "cost.disclosure.never_v2": "El contenido de las conversaciones, los prompts, las respuestas, los nombres de archivo y las rutas de proyecto nunca se leen en el índice, se guardan ni se muestran; el último nombre de carpeta de un proyecto solo se guarda si lo activa. Nada sale de este equipo.",
   "cost.disclosure.off": "Desactivar la fuente detiene toda lectura y borra todo lo derivado de ella.",

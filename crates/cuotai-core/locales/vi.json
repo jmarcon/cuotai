@@ -116,7 +116,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -422,6 +426,7 @@
   "cost.disclosure.directories": "Chỉ đọc các tệp {pattern} trong những thư mục này:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Chỉ trích xuất số liệu: thời gian, mô hình, số token (đầu vào, đầu ra, đọc và ghi bộ nhớ đệm), bản tóm lược ẩn danh của phiên và dấu vân tay một chiều của thư mục dự án để bạn có thể gắn nhãn.",
+  "cost.disclosure.extracted_v3": "Chỉ trích xuất số liệu: thời gian, mô hình, số token (đầu vào, đầu ra, đọc và ghi bộ nhớ đệm), bản tóm lược ẩn danh của phiên và dấu vân tay một chiều của thư mục dự án để bạn có thể gắn nhãn; với tài khoản được Codex CLI cung cấp dữ liệu, còn có các cửa sổ giới hạn và thời điểm đặt lại, lưu trên máy tính này tối đa một ngày.",
   "cost.disclosure.header": "Bật việc đọc nhật ký cục bộ của {source}.",
   "cost.disclosure.never_v2": "Nội dung hội thoại, prompt, câu trả lời, tên tệp và đường dẫn dự án không bao giờ được đọc vào chỉ mục, lưu hoặc hiển thị; tên thư mục cuối của dự án chỉ được giữ nếu bạn bật tính năng đó. Không có gì rời khỏi máy tính này.",
   "cost.disclosure.off": "Tắt nguồn sẽ dừng mọi việc đọc và xóa mọi thứ rút ra từ nó.",
@@ -901,6 +906,8 @@
   "feed.banner.codex_cli": "Codex CLI có số liệu giới hạn; hãy thêm một tài khoản ChatGPT / Codex lấy dữ liệu từ Codex CLI.",
   "feed.error.malformed": "Dữ liệu vào của dòng trạng thái không phải đối tượng JSON.",
   "feed.error.too_large": "Dữ liệu vào của dòng trạng thái lớn hơn 64 KiB.",
+  "feed.forget.done": "Đã xoá các số liệu {agent} đã lưu.",
+  "feed.forget.nothing": "Không có số liệu {agent} nào được lưu.",
   "feed.health.unreadable": {
     "other": "Đã bỏ qua {count} tệp nguồn không đọc được."
   },
@@ -1473,6 +1480,7 @@
   "note.cloud.google_no_quota_series": "Không có chuỗi hạn mức nào được trả về. Hãy kiểm tra API {service} đã được bật trong dự án chưa và token có monitoring.timeSeries.list không.",
   "note.cloud.google_scope": "Phạm vi: dự án {project}, dịch vụ {service}. Giới hạn là các hạn mức hiện hành (lấy mẫu 1 lần/ngày); mức sử dụng là tổng net_usage trong 10 phút qua (trễ đến ~4 phút).",
   "note.codex_cli.answered_by_api": "Trả lời bằng truy vấn Codex: nhật ký Codex CLI không có số liệu mới.",
+  "note.codex_cli.answered_by_api_no_consent": "Trả lời bằng truy vấn Codex: để đọc nhật ký Codex CLI, cần bật nguồn cục bộ Codex CLI (Chi phí cục bộ).",
   "note.codex_cli.answered_by_feed": "Trả lời bằng chính nhật ký phiên của Codex CLI (không có yêu cầu mạng).",
   "note.codex_cli.fed": "Đọc từ nhật ký phiên cục bộ của Codex CLI (định dạng không có tài liệu): không yêu cầu mạng, không tái sử dụng token.",
   "note.codex_cli.needs_consent": "Để đọc nhật ký Codex CLI, cần bật nguồn cục bộ Codex CLI (Chi phí cục bộ), nơi liệt kê các thư mục được đọc.",

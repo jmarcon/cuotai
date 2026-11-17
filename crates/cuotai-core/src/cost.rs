@@ -511,13 +511,20 @@ pub fn needs_terminal() -> Localized {
 /// RF2.4: turn `source` off, then remove everything derived from it from
 /// `index`. The preference is written first, so a scan running elsewhere
 /// (another front end) sees the source off before it could write again.
-/// Returns the index rows removed.
+/// PRD 0040 RF4.3 (S-01): turning Codex CLI off also erases its rate-limit
+/// readings from `feed` (the feed store front ends pass). Returns the index
+/// rows removed.
 pub fn turn_off(
     settings: &SettingsStore,
     index: &CostIndex,
     source: SourceId,
+    feed: Option<&crate::feed::FeedStore>,
 ) -> Result<usize, CostError> {
     settings.disable(source)?;
+    if let (SourceId::CodexCli, Some(feed)) = (source, feed) {
+        // Best effort: readers also refuse (and erase) it without consent.
+        let _ = feed.clear_source(crate::feed::FeedSource::CodexCli);
+    }
     index.erase_source(source)
 }
 
@@ -532,6 +539,7 @@ pub fn choose_paths(
     source: SourceId,
     paths: Vec<std::path::PathBuf>,
     env: &Env,
+    feed: Option<&crate::feed::FeedStore>,
 ) -> Result<usize, CostError> {
     let mut chosen: Vec<std::path::PathBuf> = Vec::with_capacity(paths.len());
     for path in paths {
@@ -549,7 +557,7 @@ pub fn choose_paths(
         return Ok(0);
     }
     let removed = if saved.enabled(source, env) {
-        turn_off(settings, index, source)?
+        turn_off(settings, index, source, feed)?
     } else {
         0
     };

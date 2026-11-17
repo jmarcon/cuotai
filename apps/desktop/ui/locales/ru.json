@@ -54,7 +54,11 @@
       "metric.noCap",
       "metric.full",
       "metric.exhaustedAmount",
-      "metric.resetsUtcMidnight"
+      "metric.resetsUtcMidnight",
+      "settings.claudeCode.forget",
+      "confirm.claudeCode.forgetTitle",
+      "confirm.claudeCode.forgetBody",
+      "confirm.claudeCode.forget"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -180,7 +184,8 @@
   "settings.claudeCode.copied": "Скопировано",
   "settings.claudeCode.copy": "Копировать",
   "settings.claudeCode.desc": "Передаёт данные учётной записи Claude без сетевых запросов и без повторного использования токенов.",
-  "settings.claudeCode.privacy": "Вставьте фрагмент в ~/.claude/settings.json. Cuotai хранит только окна лимитов, долю контекста, оценку стоимости, модель и дайджест id сеанса; рабочая папка, путь к расшифровке и запросы отбрасываются до записи. Cuotai никогда не меняет настройки агента.",
+  "settings.claudeCode.forget": "Забыть показания Claude Code",
+  "settings.claudeCode.privacy": "Вставьте фрагмент в ~/.claude/settings.json. Cuotai хранит до суток только окна лимитов, долю контекста, оценку стоимости, модель и дайджест id сеанса; рабочая папка, путь к расшифровке и запросы отбрасываются до записи. Их читает только учётная запись, получающая данные от Claude Code. Cuotai никогда не меняет настройки агента: чтобы прекратить, удалите фрагмент и забудьте показания.",
   "settings.claudeCode.title": "Claude Code",
   "settings.dataDir.cli": "cuotai в терминале не читает этот выбор: чтобы использовать одну папку данных, задайте CUOTAI_DATA_DIR для обоих.",
   "settings.dataDir.env": "Задано переменной CUOTAI_DATA_DIR; выбор здесь применится только после её удаления.",
@@ -1608,6 +1613,9 @@
   "confirm.certificate.firstBody": "Экземпляр предъявил сертификат, которому этот компьютер не доверяет. Прежде чем доверять, сравните отпечаток SHA-256 ниже с отпечатком сервера. Cuotai примет только этот сертификат; если он изменится, запись остановится и спросит снова.",
   "confirm.remove": "Удалить",
   "confirm.close": "Закрыть",
+  "confirm.claudeCode.forgetTitle": "Забыть показания Claude Code?",
+  "confirm.claudeCode.forget": "Забыть показания",
+  "confirm.claudeCode.forgetBody": "Сохранённые показания Claude Code будут удалены с этого компьютера. Учётная запись Claude, получающая данные от Claude Code, не покажет данных, пока Claude Code не запишет новые показания при следующем запросе.",
   "confirm.back": "Назад",
   "confirm.dismiss": "Закрыть",
   "login.demo.oauth.label": "Вход через OAuth (демо)",

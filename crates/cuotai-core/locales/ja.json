@@ -159,7 +159,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -465,6 +469,7 @@
   "cost.disclosure.directories": "次のディレクトリの {pattern} ファイルのみを読み取ります：",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "抽出するのは数値だけです：時刻、モデル、トークン数（入力、出力、キャッシュ読み取り、キャッシュ書き込み）、セッションの匿名ダイジェスト、そしてラベルを付けられるようにプロジェクトフォルダーの一方向フィンガープリント。",
+  "cost.disclosure.extracted_v3": "抽出するのは数値だけです：時刻、モデル、トークン数（入力、出力、キャッシュ読み取り、キャッシュ書き込み）、セッションの匿名ダイジェスト、そしてラベルを付けられるようにプロジェクトフォルダーの一方向フィンガープリント。Codex CLI から取り込むアカウントでは、レート制限ウィンドウとリセット時刻も抽出し、このコンピューターに最大 1 日保持します。",
   "cost.disclosure.header": "{source} のローカルログの読み取りをオンにします。",
   "cost.disclosure.never_v2": "会話の内容、プロンプト、回答、ファイル名、プロジェクトのパスはインデックスに読み込まれず、保存も表示もされません。プロジェクトの最後のフォルダー名は、オンにした場合にのみ保存されます。このコンピューターの外には何も送られません。",
   "cost.disclosure.off": "ソースをオフにすると、すべての読み取りが止まり、そこから得たものはすべて消去されます。",
@@ -944,6 +949,8 @@
   "feed.banner.codex_cli": "Codex CLI にレート制限の測定値があります。Codex CLI からのフィードで動く ChatGPT / Codex アカウントを追加してください。",
   "feed.error.malformed": "ステータスラインの入力が JSON オブジェクトではありません。",
   "feed.error.too_large": "ステータスラインの入力が 64 KiB を超えています。",
+  "feed.forget.done": "保存されていた {agent} の測定値を消去しました。",
+  "feed.forget.nothing": "保存されている {agent} の測定値はありませんでした。",
   "feed.health.unreadable": {
     "other": "読み取れないフィードファイル {count} 件を無視しました。"
   },
@@ -1516,6 +1523,7 @@
   "note.cloud.google_no_quota_series": "クォータの系列が返されませんでした。プロジェクトで {service} API が有効か、トークンに monitoring.timeSeries.list があるか確認してください。",
   "note.cloud.google_scope": "範囲：プロジェクト {project}、サービス {service}。上限は有効なクォータ（1 日 1 回サンプリング）、使用量は直近 10 分間の net_usage の合計（約 4 分遅れ）です。",
   "note.codex_cli.answered_by_api": "Codex の照会で取得しました。Codex CLI のログに新しい測定値がありません。",
+  "note.codex_cli.answered_by_api_no_consent": "Codex の照会で取得しました。Codex CLI のログを読むには、ローカルソース Codex CLI（ローカルコスト）をオンにする必要があります。",
   "note.codex_cli.answered_by_feed": "Codex CLI 自身のセッションログで取得しました（ネットワーク要求なし）。",
   "note.codex_cli.fed": "Codex CLI のローカルセッションログから読み取りました（文書化されていない形式）。ネットワーク要求もトークンの再利用もありません。",
   "note.codex_cli.needs_consent": "Codex CLI のログを読むには、読み取るフォルダーを示すローカルソース Codex CLI（ローカルコスト）をオンにする必要があります。",

@@ -165,7 +165,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -480,6 +484,7 @@
   "cost.disclosure.directories": "Читает только файлы {pattern} из этих каталогов:",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Извлекаются только числа: время, модель, количество токенов (ввод, вывод, чтение и запись кэша), анонимный дайджест сеанса и односторонний отпечаток папки проекта, чтобы вы могли дать ему метку.",
+  "cost.disclosure.extracted_v3": "Извлекаются только числа: время, модель, количество токенов (ввод, вывод, чтение и запись кэша), анонимный дайджест сеанса и односторонний отпечаток папки проекта, чтобы вы могли дать ему метку; для учётной записи, получающей данные от Codex CLI, — также её окна лимитов и время сброса, которые хранятся на этом компьютере до суток.",
   "cost.disclosure.header": "Включить чтение локальных логов {source}.",
   "cost.disclosure.never_v2": "Содержимое разговоров, промпты, ответы, имена файлов и пути проектов никогда не считываются в индекс, не сохраняются и не показываются; последнее имя папки проекта хранится, только если вы это включите. Ничто не покидает этот компьютер.",
   "cost.disclosure.off": "Выключение источника прекращает любое чтение и удаляет всё, что было из него получено.",
@@ -1001,6 +1006,8 @@
   "feed.banner.codex_cli": "У Codex CLI есть показания лимитов; добавьте учётную запись ChatGPT / Codex, получающую данные от Codex CLI.",
   "feed.error.malformed": "Входные данные строки состояния не являются объектом JSON.",
   "feed.error.too_large": "Входные данные строки состояния больше 64 КиБ.",
+  "feed.forget.done": "Сохранённые показания {agent} стёрты.",
+  "feed.forget.nothing": "Сохранённых показаний {agent} не было.",
   "feed.health.unreadable": {
     "one": "Пропущен {count} нечитаемый файл потока.",
     "few": "Пропущено {count} нечитаемых файла потока.",
@@ -1585,6 +1592,7 @@
   "note.cloud.google_no_quota_series": "Ряды квот не возвращены. Проверьте, что API {service} включён в проекте, а у токена есть monitoring.timeSeries.list.",
   "note.cloud.google_scope": "Область: проект {project}, сервис {service}. Лимиты — действующие квоты (опрос раз в сутки); использование — сумма net_usage за последние 10 мин (задержка до ~4 мин).",
   "note.codex_cli.answered_by_api": "Ответ получен запросом Codex: в журналах Codex CLI нет свежих показаний.",
+  "note.codex_cli.answered_by_api_no_consent": "Ответ получен запросом Codex: чтобы читать журналы Codex CLI, включите локальный источник Codex CLI (Локальная стоимость).",
   "note.codex_cli.answered_by_feed": "Ответ получен из журналов сеансов Codex CLI (без сетевых запросов).",
   "note.codex_cli.fed": "Прочитано из локальных журналов сеансов Codex CLI (недокументированный формат): без сетевых запросов и повторного использования токенов.",
   "note.codex_cli.needs_consent": "Чтобы читать журналы Codex CLI, включите локальный источник Codex CLI (Локальная стоимость); там перечислены читаемые папки.",

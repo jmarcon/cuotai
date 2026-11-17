@@ -171,7 +171,7 @@ await sourceSurface("pack-marker", "lib.js", ["packMarkHtml", "packMarkText"]);
 
 // askDialog and each of its callers' words.
 const common = await import("../apps/desktop/ui/js/settings/common.js");
-for (const id of ["hooks-leave", "channel-remove", "cost-off", "serve-access-log-erase"]) {
+for (const id of ["hooks-leave", "channel-remove", "cost-off", "serve-access-log-erase", "claude-code-forget"]) {
   await surface(id, () => { common.askDialog(id, "", "", ""); });
 }
 for (const file of await jsFiles()) {

@@ -3596,6 +3596,7 @@ const demo = {
     settings: JSON.stringify({ statusLine: { type: "command", command: "cuotai --feed claude-statusline --print" } }, null, 2),
     chained: JSON.stringify({ statusLine: { type: "command", command: `sh -c 'input=$(cat); printf %s "$input" | cuotai --feed claude-statusline; printf %s "$input" | ~/.claude/statusline.sh'` } }, null, 2),
   }),
+  forget_claude_code_readings: async () => ({ id: "feed.forget.done", params: { agent: "Claude Code" }, fallback: "The stored Claude Code readings were erased." }),
   set_pace_unit: async ({ unit }) => { if (!["points", "percent"].includes(unit)) throw "invalid_pace_unit"; },
   set_history_days: async ({ days }) => { if (!(Number.isInteger(days) && days >= 7 && days <= 365)) throw "invalid_history_days"; demoSettings.historyDays = days; },
   // ponytail: the browser demo has no history file; fixed counts let the export and erase flows be driven, and an
@@ -4049,6 +4050,8 @@ export const setLiveSession = async (on) => { await call("set_live_session", { s
 export const dismissFeedBanner = (source) => call("dismiss_feed_banner", { source });
 /** PRD 0040 RF2.4: the `~/.claude/settings.json` snippets (text only; Cuotai never edits the agent's settings). */
 export const claudeCodeSnippets = () => call("claude_code_snippets");
+/** PRD 0040 RF1.2: erase the stored Claude Code readings; resolves to the core's text saying whether there were any. */
+export const forgetClaudeCodeReadings = () => call("forget_claude_code_readings");
 const ctxRole = (level) => (level === "bad" ? "bad" : level === "warn" ? "warn" : "");
 /** PRD 0040 RF7.1: the card's Live session rows (model, "ctx 8%" in its display-only role, the agent's cost estimate
  *  marked "≈" with the caveat as tooltip), newest first, "and N more"; nothing while there is none or it is turned off.

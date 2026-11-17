@@ -46,7 +46,11 @@
       "metric.noCap",
       "metric.full",
       "metric.exhaustedAmount",
-      "metric.resetsUtcMidnight"
+      "metric.resetsUtcMidnight",
+      "settings.claudeCode.forget",
+      "confirm.claudeCode.forgetTitle",
+      "confirm.claudeCode.forgetBody",
+      "confirm.claudeCode.forget"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -166,7 +170,8 @@
   "settings.claudeCode.copied": "Kopiert",
   "settings.claudeCode.copy": "Kopieren",
   "settings.claudeCode.desc": "Speist das Claude-Konto ohne Netzwerkanfrage und ohne Token-Wiederverwendung.",
-  "settings.claudeCode.privacy": "Füge das Snippet in ~/.claude/settings.json ein. Cuotai behält nur die Ratenlimit-Fenster, den Kontextanteil, die Kostenschätzung, das Modell und einen Digest der Sitzungs-ID; Arbeitsordner, Transkriptpfad und Eingaben werden vor dem Speichern verworfen. Cuotai bearbeitet die Einstellungen des Agenten nie.",
+  "settings.claudeCode.forget": "Messwerte von Claude Code vergessen",
+  "settings.claudeCode.privacy": "Fügen Sie das Snippet in ~/.claude/settings.json ein. Cuotai behält bis zu einen Tag lang nur die Ratenlimit-Fenster, den Kontextanteil, die Kostenschätzung, das Modell und einen Digest der Sitzungs-ID; Arbeitsordner, Transkriptpfad und Eingaben werden vor dem Speichern verworfen. Nur das von Claude Code gespeiste Konto liest sie. Cuotai bearbeitet die Einstellungen des Agenten nie: Zum Beenden entfernen Sie das Snippet und vergessen die Messwerte.",
   "settings.claudeCode.title": "Claude Code",
   "settings.dataDir.cli": "cuotai im Terminal liest diese Auswahl nicht: Um einen Datenordner mit ihm zu teilen, setze CUOTAI_DATA_DIR für beide.",
   "settings.dataDir.env": "Durch die Variable CUOTAI_DATA_DIR festgelegt; die Auswahl hier gilt erst, wenn sie entfernt wird.",
@@ -1544,6 +1549,9 @@
   "confirm.certificate.firstBody": "Die Instanz hat ein Zertifikat vorgelegt, dem dieser Computer nicht vertraut. Vergleichen Sie den SHA-256-Fingerabdruck unten mit dem des Servers, bevor Sie vertrauen. Cuotai akzeptiert nur dieses Zertifikat; ändert es sich, stoppt das Konto und fragt erneut.",
   "confirm.remove": "Entfernen",
   "confirm.close": "Schließen",
+  "confirm.claudeCode.forgetTitle": "Messwerte von Claude Code vergessen?",
+  "confirm.claudeCode.forget": "Messwerte vergessen",
+  "confirm.claudeCode.forgetBody": "Die gespeicherten Messwerte von Claude Code werden von diesem Computer gelöscht. Ein von Claude Code gespeistes Claude-Konto zeigt keine Daten, bis Claude Code beim nächsten Prompt einen neuen Messwert schreibt.",
   "confirm.back": "Zurück",
   "confirm.dismiss": "Schließen",
   "login.demo.oauth.label": "OAuth-Anmeldung (Demo)",

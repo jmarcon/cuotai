@@ -43,12 +43,20 @@ fn no_feed(source: FeedSource) -> QueryError {
     }
 }
 
+/// The id of the note [`no_consent`] gives.
+const NO_CONSENT_NOTE: &str = "note.codex_cli.needs_consent";
+
+/// Whether `error` is the missing Codex CLI consent (RF4.3).
+pub(crate) fn is_no_consent(error: &QueryError) -> bool {
+    error.note.id == NO_CONSENT_NOTE
+}
+
 fn no_consent() -> QueryError {
     QueryError {
         diagnostic: None,
         status: crate::Status::NeedsConfiguration,
         note: crate::text::Localized::fixed(
-            "note.codex_cli.needs_consent",
+            NO_CONSENT_NOTE,
             "Reading Codex CLI's logs needs the Codex CLI local source turned on (Local cost), which lists the folders read.",
         ),
     }
@@ -271,9 +279,14 @@ pub(crate) fn fetch(
     }
 }
 
-/// RF3.4: the note added when a hybrid account fell back to the query.
-pub(crate) fn answered_by_api(source: FeedSource) -> crate::text::Localized {
+/// RF3.4: the note added when a hybrid account fell back to the query;
+/// RF4.3 (S-01): for Codex CLI without its consent, it says so instead.
+pub(crate) fn answered_by_api(source: FeedSource, consent: bool) -> crate::text::Localized {
     match source {
+        FeedSource::CodexCli if !consent => crate::text::Localized::fixed(
+            "note.codex_cli.answered_by_api_no_consent",
+            "Answered by the Codex query: reading Codex CLI's logs needs the Codex CLI local source turned on (Local cost).",
+        ),
         FeedSource::ClaudeCode => crate::text::Localized::fixed(
             "note.claude_code.answered_by_api",
             "Answered by the Claude query: no recent reading from Claude Code.",

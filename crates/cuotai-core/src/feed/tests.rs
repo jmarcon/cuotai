@@ -999,6 +999,162 @@ fn a_one_window_codex_event_keeps_the_other_window_of_an_older_log() {
     assert!(!absent);
 }
 
+// ------------------------------------------- S-01: consent and forget
+
+/// A stored Codex CLI reading of session `session`.
+fn codex_reading(session: &str, at: DateTime<Utc>) -> FeedReading {
+    FeedReading {
+        schema: SCHEMA,
+        source: FeedSource::CodexCli,
+        written_at: at,
+        agent_version: None,
+        session: FeedSession {
+            digest: session_digest(session),
+            model_name: Some("gpt-5-codex".into()),
+            context_used_pct: Some(12.0),
+            ..FeedSession::default()
+        },
+        windows: vec![FeedWindow {
+            id: WindowId::Primary,
+            used_pct: 30.0,
+            resets_at: Some(at.timestamp() + 3_600),
+            used_usd: None,
+            limit_usd: None,
+            period: None,
+            window_minutes: Some(300),
+        }],
+    }
+}
+
+/// S-01: without the Codex CLI consent nothing reads the stored Codex
+/// readings (live block, banner, export sessions) and they are erased;
+/// Claude Code's are untouched.
+#[test]
+fn without_the_codex_consent_no_reader_sees_the_codex_readings() {
+    let current = Utc::now();
+    let dir = tempfile::tempdir().unwrap();
+    let writer = FeedStore::at(dir.path().join("feed"));
+    writer
+        .write(
+            &codex_reading("c", current - TimeDelta::minutes(1)),
+            current,
+        )
+        .unwrap();
+    writer
+        .write(&reading("a", current - TimeDelta::minutes(1)), current)
+        .unwrap();
+    let toml = "[[accounts]]\nprovider = \"chat_gpt\"\nparams = { query_mode = \"codex_cli\" }\n";
+    let config = Config::from_toml(toml).unwrap();
+    let account = &config.accounts[0];
+
+    let allowed = FeedStore::with_codex_consent(dir.path().join("feed"), true);
+    assert_eq!(
+        live::block_for(account, &allowed, current).sessions.len(),
+        1
+    );
+
+    let refused = FeedStore::with_codex_consent(dir.path().join("feed"), false);
+    assert!(!refused.source_readable(FeedSource::CodexCli));
+    assert!(refused.source_readable(FeedSource::ClaudeCode));
+    assert!(live::block_for(account, &refused, current).is_empty());
+    let latest = refused.latest(FeedSource::CodexCli, current);
+    assert_eq!(latest, None);
+    assert!(live::unbound_banner(
+        FeedSource::CodexCli,
+        &Config::default(),
+        latest.as_ref(),
+        None,
+        current
+    )
+    .is_none());
+    let cycle = crate::refresh::RefreshCycle::new(&config, std::time::Instant::now());
+    let export = crate::export::v1::Export::from_cycle(
+        &config,
+        &crate::config_file::ConfigIdentity::Explicit("feed".into()),
+        &cycle,
+        &[],
+        current,
+        Default::default(),
+    )
+    .with_live_sessions(&config, Some(&refused), current);
+    assert!(export.accounts[0].sessions.is_empty());
+    assert!(
+        !dir.path().join("feed/codex_cli").exists(),
+        "erased without the consent"
+    );
+    assert_eq!(writer.sessions(FeedSource::ClaudeCode, current).len(), 1);
+}
+
+/// RF1.2 (S-01): `--forget` and Settings' button erase Claude Code's
+/// readings, and say whether there were any.
+#[test]
+fn forgetting_erases_the_claude_code_readings() {
+    let (_dir, store) = self::store();
+    let current = Utc::now();
+    store.write(&reading("a", current), current).unwrap();
+    store.write(&codex_reading("c", current), current).unwrap();
+    let done = forget(&store, FeedSource::ClaudeCode).unwrap();
+    assert_eq!(done.id, "feed.forget.done");
+    assert_eq!(
+        done.resolve("en-US"),
+        "The stored Claude Code readings were erased."
+    );
+    assert!(store.sessions(FeedSource::ClaudeCode, current).is_empty());
+    assert_eq!(store.sessions(FeedSource::CodexCli, current).len(), 1);
+    let again = forget(&store, FeedSource::ClaudeCode).unwrap();
+    assert_eq!(again.id, "feed.forget.nothing");
+}
+
+/// RF1.2 (S-01): the newest file outlives the retention only while an
+/// account reads that source.
+#[test]
+fn the_newest_file_is_kept_only_for_a_bound_source() {
+    let (_dir, store) = self::store();
+    let current = Utc::now();
+    store.write(&reading("a", current), current).unwrap();
+    let later = current + TimeDelta::hours(25);
+    store.prune_unbound(&Config::from_toml(FED).unwrap(), later);
+    assert_eq!(
+        store.sessions(FeedSource::ClaudeCode, later).len(),
+        1,
+        "bound"
+    );
+    store.prune_unbound(&Config::default(), later);
+    assert!(
+        store.sessions(FeedSource::ClaudeCode, later).is_empty(),
+        "nothing reads it"
+    );
+}
+
+/// S-01: a hybrid Codex account without the consent says why the query
+/// answered.
+#[test]
+fn the_hybrid_codex_fallback_names_the_missing_consent() {
+    use crate::providers::agent_feed::answered_by_api;
+    assert_eq!(
+        answered_by_api(FeedSource::CodexCli, false).id,
+        "note.codex_cli.answered_by_api_no_consent"
+    );
+    assert_eq!(
+        answered_by_api(FeedSource::CodexCli, true).id,
+        "note.codex_cli.answered_by_api"
+    );
+}
+
+/// L-2: the typed lines skip every other field whatever its type, and a
+/// non-string field the reader uses is ignored rather than failing.
+#[test]
+fn codex_lines_are_parsed_through_typed_fields() {
+    let meta = r#"{"timestamp":"2026-10-25T13:00:00.000Z","type":"session_meta","payload":{"id":"typed-1","cwd":"/Users/ana/SENSITIVE","git":{"branch":"x"},"instructions":["SENSITIVE"]}}"#;
+    let turn = r#"{"timestamp":"2026-10-25T13:00:01.000Z","type":"turn_context","payload":{"model":42,"cwd":"/Users/ana/SENSITIVE"}}"#;
+    let event = r#"{"timestamp":"2026-10-25T13:05:00.000Z","type":"event_msg","payload":{"type":"token_count","id":7,"info":{"total":[1,2,{"x":null}]},"rate_limits":{"primary":{"used_percent":9.0,"window_minutes":300},"secondary":null}}}"#;
+    let (_home, roots) = codex_home(&[meta.to_owned(), turn.to_owned(), event.to_owned()]);
+    let reading = codex_newest(&roots).unwrap().unwrap();
+    assert_eq!(reading.session.digest, session_digest("typed-1"));
+    assert_eq!(reading.session.model_name, None, "a non-string model");
+    assert_eq!(reading.window(WindowId::Primary).unwrap().used_pct, 9.0);
+}
+
 #[cfg(unix)]
 #[test]
 fn the_codex_reader_never_follows_a_link_outside_its_roots() {

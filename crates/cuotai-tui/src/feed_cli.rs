@@ -56,10 +56,21 @@ fn read_stdin() -> std::io::Result<Vec<u8>> {
 
 /// RF2.1/RF2.2: read, store, and (with `print`) compose. Exit `0` on a
 /// valid object, whatever windows it carries; `1` on malformed input.
-pub(crate) async fn run_feed(print: bool, setup: bool, line: &LineOptions, locale: &str) -> u8 {
+/// `forget` erases the stored readings instead (RF1.2): `0` done, `1` when
+/// they could not be erased.
+pub(crate) async fn run_feed(
+    print: bool,
+    setup: bool,
+    forget: bool,
+    line: &LineOptions,
+    locale: &str,
+) -> u8 {
     if setup {
         print_setup(locale);
         return 0;
+    }
+    if forget {
+        return run_forget(locale);
     }
     let Some(reading) = read_and_store(locale) else {
         return 1;
@@ -83,6 +94,30 @@ fn with_account_windows(own: Option<feed::FeedReading>) -> Option<feed::FeedRead
     readings.extend(own.iter().cloned());
     let account = feed::AccountReading::merge(&readings, now);
     statusline::line_reading(own.as_ref(), account.as_ref())
+}
+
+/// RF1.2 (S-01): `--feed claude-statusline --forget`.
+fn run_forget(locale: &str) -> u8 {
+    let erased = FeedStore::in_data_dir()
+        .ok_or(())
+        .and_then(|store| feed::forget(&store, FeedSource::ClaudeCode).map_err(drop));
+    match erased {
+        Ok(text) => {
+            println!("{}", text.resolve(locale));
+            0
+        }
+        Err(()) => {
+            eprintln!(
+                "cuotai: {}",
+                crate::l10n::tr_in(
+                    locale,
+                    "feed.forget.failed",
+                    "Could not erase the stored Claude Code readings.",
+                )
+            );
+            1
+        }
+    }
 }
 
 /// RF5: store the stdin reading (when there is one) and print the line.

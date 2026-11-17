@@ -79,11 +79,15 @@ Reads the status-line JSON on standard input (like `--feed`), stores it and prin
 
 Exit codes: `0` for a valid object (absent windows are normal), `1` for malformed input or input over 64 KiB.
 
+`cuotai --feed claude-statusline --forget` erases the stored Claude Code readings and exits (`0`, or `1` when they could not be erased).
+
 ### Privacy
 
 From the status-line JSON Cuotai keeps only: the windows' percentages, resets, spend dollars and period; the context share and size; the session cost estimate; the model id and name (when they are plain text of up to 64 characters); the Claude Code version; and a **digest** of the session id (SHA-256, 16 hex characters). The working directory, `workspace`, `transcript_path`, `output_style`, the session name, prompts and every other field are never copied into a structure, written or logged.
 
-The readings live in `<data dir>/feed/claude_code/`, one `0600` file per session in a `0700` directory, deleted after 24 hours (the newest one is kept so a quiet agent ages instead of disappearing) and capped at 64 files. `docs/privacy.md` lists the directory; **Erase all data** removes it.
+The readings live in `<data dir>/feed/claude_code/`, one `0600` file per session in a `0700` directory, deleted after 24 hours and capped at 64 files. While an account reads them (its feed mode or `feed` binding), the newest one is kept so a quiet agent ages instead of disappearing; without such an account it is deleted after 24 hours too. `docs/privacy.md` lists the directory; **Erase all data** removes it.
+
+Installing the status line is your consent: Cuotai reads the readings only for the account bound to Claude Code, and the banner only checks whether a recent one exists. To stop, remove the `statusLine` entry from `~/.claude/settings.json` (Claude Code then stops writing) and erase what is stored with `cuotai --feed claude-statusline --forget` or the desktop's Settings › Dashboard › More display options › Claude Code › **Forget Claude Code readings**.
 
 The status line is a documented extension point of Claude Code and Cuotai reuses no token through it. That is documented, not "approved": Anthropic's terms still govern how you use Claude Code.
 
@@ -97,8 +101,8 @@ provider = "chat_gpt"
 params = { query_mode = "codex_cli" }   # or "codex_cli_or_api"
 ```
 
-- Reading the logs needs the **Codex CLI** local source turned on (Local cost: `cuotai --cost-enable codex_cli`, or the desktop's Local cost page), whose consent lists exactly the folders read. Without it the account says so instead of showing numbers.
-- Only the logs modified in the last 24 hours are read, newest first and at most 16, until both windows are found: each window comes from the newest log that reported it, so a session that has not reported its limits yet hides nothing. Of each log only the first line (the session id, digested at once) and the last 256 KiB are read; symbolic links are not followed. Messages, instructions, working directories and tool output are never deserialized.
+- Reading the logs needs the **Codex CLI** local source turned on (Local cost: `cuotai --cost-enable codex_cli`, or the desktop's Local cost page), whose consent lists exactly the folders read and says that the rate-limit windows are kept for up to a day. Without it the account says so instead of showing numbers, a `codex_cli_or_api` account says why the query answered, and nothing shows or exports the stored Codex readings (live session, `--once`, `--json-v1`, the local servers). Turning the source off erases them.
+- Only the logs modified in the last 24 hours are read, newest first and at most 16, until both windows are found: each window comes from the newest log that reported it, so a session that has not reported its limits yet hides nothing. Of each log only the first line (the session id, digested at once) and the last 256 KiB are read; symbolic links are not followed. Each line is parsed into a structure that keeps only the time, the model, the session id and the rate-limit numbers: messages, instructions, working directories and tool output are skipped, never deserialized.
 - The format is not a published API: it was checked against the Codex CLI source (`RateLimitSnapshot` in `codex-rs/protocol/src/protocol.rs`, 2026-11-05). A shape Cuotai does not recognise is reported as a changed interface, never as 0.
 - Cuotai never starts Codex CLI or calls its local RPC.
 

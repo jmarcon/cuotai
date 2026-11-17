@@ -1151,6 +1151,19 @@ impl Monitor {
         feed::FeedStore::in_data_dir()
     }
 
+    /// PRD 0040 RF1.2 (S-01): expire the kept newest feed file of every
+    /// source no account reads.
+    fn prune_unbound_feeds(&self, now: chrono::DateTime<Utc>) {
+        #[cfg(test)]
+        if self.feed_dir.is_none() {
+            // Tests never touch the data directory.
+            return;
+        }
+        if let Some(store) = self.feed_store() {
+            store.prune_unbound(&self.config, now);
+        }
+    }
+
     fn now(&self) -> chrono::DateTime<Utc> {
         #[cfg(test)]
         if let Some(clock) = &self.clock {
@@ -1164,6 +1177,7 @@ impl Monitor {
     /// delays or changes a quota reading beyond its own short timeout.
     pub async fn refresh(&self) -> Snapshot {
         let started_at = self.now();
+        self.prune_unbound_feeds(started_at);
         // PRD 0017 RF5.12: local extensions run under the extension
         // manager's own cap, never this provider semaphore, so a slow or
         // stuck extension at index 0 cannot delay a built-in account when
@@ -2029,15 +2043,18 @@ impl Monitor {
                 return providers::agent_feed::fetch(source, store.as_ref(), now);
             }
             let interval = account.effective_refresh_seconds(self.config.refresh_seconds);
-            if let Ok(Some(reading)) =
-                providers::agent_feed::account_reading(source, store.as_ref(), now)
-            {
-                if providers::agent_feed::fresh_enough(&reading, interval, now) {
+            let mut consent = true;
+            match providers::agent_feed::account_reading(source, store.as_ref(), now) {
+                Ok(Some(reading))
+                    if providers::agent_feed::fresh_enough(&reading, interval, now) =>
+                {
                     return Ok(providers::agent_feed::data(&reading, now, true));
                 }
+                Err(error) if providers::agent_feed::is_no_consent(&error) => consent = false,
+                _ => {}
             }
             let mut data = providers::subscriptions::fetch(account, ctx).await?;
-            let note = providers::agent_feed::answered_by_api(source);
+            let note = providers::agent_feed::answered_by_api(source, consent);
             data.notes.push(note.text().to_owned());
             data.notes_l10n.push(note);
             return Ok(data);

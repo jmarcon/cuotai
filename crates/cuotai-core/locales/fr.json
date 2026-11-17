@@ -1032,7 +1032,11 @@
       "edit_error.open_router.key_class",
       "edit_error.open_router.key_class_warning",
       "query.open_router.management_key_expired",
-      "access.risk.open_router_inference_key"
+      "access.risk.open_router_inference_key",
+      "cost.disclosure.extracted_v3",
+      "feed.forget.done",
+      "feed.forget.nothing",
+      "note.codex_cli.answered_by_api_no_consent"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1341,6 +1345,7 @@
   "cost.disclosure.directories": "Ne lit que les fichiers {pattern} de ces dossiers :",
   "cost.disclosure.directory": "{path}",
   "cost.disclosure.extracted_v2": "Seuls des chiffres sont extraits : l’heure, le modèle, le nombre de jetons (entrée, sortie, lecture et écriture du cache), une empreinte anonyme de la session et une empreinte à sens unique du dossier du projet, pour que vous puissiez le nommer.",
+  "cost.disclosure.extracted_v3": "Seuls des chiffres sont extraits : l’heure, le modèle, le nombre de jetons (entrée, sortie, lecture et écriture du cache), une empreinte anonyme de la session et une empreinte à sens unique du dossier du projet, pour que vous puissiez le nommer ; pour un compte alimenté par Codex CLI, aussi ses fenêtres de limite et heures de réinitialisation, conservées sur cet ordinateur jusqu’à un jour.",
   "cost.disclosure.header": "Activer la lecture des journaux locaux de {source}.",
   "cost.disclosure.never_v2": "Le contenu des conversations, les prompts, les réponses, les noms de fichiers et les chemins de projet ne sont jamais lus dans l’index, enregistrés ni affichés ; le dernier nom de dossier d’un projet n’est conservé que si vous l’activez. Rien ne quitte cet ordinateur.",
   "cost.disclosure.off": "Désactiver la source arrête toute lecture et efface tout ce qui en découle.",
@@ -1834,6 +1839,8 @@
   "feed.banner.codex_cli": "Codex CLI a des mesures de limites ; ajoutez un compte ChatGPT / Codex alimenté par Codex CLI.",
   "feed.error.malformed": "L’entrée de la ligne d’état n’est pas un objet JSON.",
   "feed.error.too_large": "L’entrée de la ligne d’état dépasse 64 Kio.",
+  "feed.forget.done": "Les mesures enregistrées de {agent} ont été effacées.",
+  "feed.forget.nothing": "Aucune mesure de {agent} n’était enregistrée.",
   "feed.health.unreadable": {
     "one": "{count} fichier de flux illisible ignoré.",
     "other": "{count} fichiers de flux illisibles ignorés."
@@ -2410,6 +2417,7 @@
   "note.cloud.google_no_quota_series": "Aucune série de quota renvoyée. Vérifiez que l’API {service} est activée dans le projet et que le token dispose de monitoring.timeSeries.list.",
   "note.cloud.google_scope": "Portée : projet {project}, service {service}. Les limites sont les quotas en vigueur (échantillonnés une fois par jour) ; l’utilisation est la somme de net_usage des 10 dernières minutes (retard d’environ 4 min).",
   "note.codex_cli.answered_by_api": "Réponse de la requête Codex : aucune mesure récente dans les journaux de Codex CLI.",
+  "note.codex_cli.answered_by_api_no_consent": "Réponse de la requête Codex : lire les journaux de Codex CLI exige d’activer la source locale Codex CLI (Coût local).",
   "note.codex_cli.answered_by_feed": "Réponse des journaux de session de Codex CLI (aucune requête réseau).",
   "note.codex_cli.fed": "Lu dans les journaux de session locaux de Codex CLI (format non documenté) : aucune requête réseau, aucun jeton réutilisé.",
   "note.codex_cli.needs_consent": "Lire les journaux de Codex CLI exige d’activer la source locale Codex CLI (Coût local), qui liste les dossiers lus.",
