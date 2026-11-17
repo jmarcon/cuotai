@@ -56,7 +56,8 @@ const LANG_FLAG = { en: "us", es: "es", pt: "pt", fr: "fr", de: "de", it: "it", 
 
 /** Flag country for a language: explicit `_meta.flag`, otherwise the code's region (pt-BR → br), otherwise the language. */
 export function flagCountry(code, explicit) {
-  if (/^[A-Za-z]{2}$/.test(explicit ?? "")) return explicit.toLowerCase();
+  // PRD 0035 re-validation L-02: only a two-letter string counts (an array `["fr"]` would pass the test as "fr").
+  if (typeof explicit === "string" && /^[A-Za-z]{2}$/.test(explicit)) return explicit.toLowerCase();
   const [lang, region] = code.split("-");
   if (region && /^[A-Za-z]{2}$/.test(region)) return region.toLowerCase();
   return LANG_FLAG[lang.toLowerCase()] ?? "";

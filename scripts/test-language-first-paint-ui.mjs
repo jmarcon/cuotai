@@ -74,9 +74,15 @@ async function runPrePaintBootstrap(page, storedLocale, systemLanguages, storage
   }
 }
 
+// A pack as `user_content.rs` sends it once the core parsed and filtered it (PRD 0035 re-validation S-02).
 const userLocaleFile = {
   name: "fr.json",
-  text: JSON.stringify({ _meta: { name: "Français" }, "tray.ok": "Tout fonctionne" }),
+  code: "fr",
+  label: "Français",
+  flag: null,
+  digest: "0".repeat(64),
+  messages: { "tray.ok": "Tout fonctionne" },
+  ignored: [],
 };
 window.__TAURI__ = {
   core: {
@@ -129,7 +135,7 @@ const { boot } = await import("../apps/desktop/ui/js/boot.js");
 const { langMenuHtml } = await import("../apps/desktop/ui/js/lib.js");
 await boot();
 
-const frenchCatalog = JSON.parse(userLocaleFile.text);
+const frenchCatalog = userLocaleFile.messages;
 assert.equal(document.documentElement.lang, "fr", "shared boot replaced the stored user locale");
 assert.equal(i18n.currentLocale(), "fr", "shared boot did not initialize the stored user locale");
 assert.equal(i18n.t("tray.ok"), frenchCatalog["tray.ok"], "first translated string did not use the user catalog");

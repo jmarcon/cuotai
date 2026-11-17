@@ -1,7 +1,9 @@
 // User themes and languages. The shell (Rust) reads <config folder>/cuotai/{themes,locales} and hands them over:
 // each theme already PARSED by the core (PRD 0050 RF3.1/RF3.2: only its canonical token CSS and registry entry arrive,
-// refused files come as errors with the parser's reason), each language pack with its protected security ids already
-// removed (PRD 0050 RF3.3). Here they are registered; invalid items are ignored and listed in `userContent.errors`.
+// refused files come as errors with the parser's reason), each language pack already PARSED and filtered by the core
+// (PRD 0050 RF3.3, PRD 0035 re-validation S-02: `{ name, code, label, flag, digest, messages, ignored }`, never the
+// file's text, so nothing here parses a pack; a file the core refused arrives only as an error). Here they are
+// registered; invalid items are ignored and listed in `userContent.errors`.
 //
 // Theme:    themes/<id>.css  — optional header  /*! cuotai-theme {"label":"Name","group":"custom","modes":["dark","light"]} */
 // Language: locales/<code>.json — { "_meta": { "name": "Name" }, "key": "text" }
@@ -9,12 +11,17 @@ import { LOCALES, isIntlTag, registerLocale, t } from "./i18n.js";
 import { isBuiltinTheme, registerTheme, THEMES } from "./themes.js";
 
 const T = window.__TAURI__;
-export const userContent = { dir: null, errors: [] };
+// `locales`: the packs registered, each `{ name, code, label, flag, digest, ignored, messages }` as the core sent it.
+export const userContent = { dir: null, errors: [], locales: [] };
 
 // The shape of a pack name; `isIntlTag` then refuses what `Intl` cannot read (`en-US-US`, `en-a1`), PRD 0034
 // re-validation S-05.
 const LOCALE_RE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
-const MAX_BYTES = 256 * 1024;
+const ID_RE = /^[A-Za-z0-9_.-]{1,128}$/;
+const FLAG_RE = /^[A-Za-z]{2}$/;
+const PLURAL = new Set(["zero", "one", "two", "few", "many", "other"]);
+const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v)
+  && Object.getPrototypeOf(v) === Object.prototype;
 
 class Skip extends Error {}
 
@@ -29,23 +36,26 @@ function addTheme(file) {
   registerTheme({ id, label, group, modes });
 }
 
-function addLocale(file) {
-  const code = file.name.replace(/\.json$/i, "");
-  if (!LOCALE_RE.test(code) || !isIntlTag(code)) throw new Skip("invalidId");
-  if (file.text.length > MAX_BYTES) throw new Skip("tooLarge");
-  let data;
-  try { data = JSON.parse(file.text); } catch { throw new Skip("invalidJson"); }
-  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Skip("invalidJson");
-  const messages = {};
-  for (const [k, v] of Object.entries(data)) {
-    if (k === "_meta") continue;
-    const plural = v && typeof v === "object" && !Array.isArray(v) && Object.values(v).every((x) => typeof x === "string");
-    if (typeof v === "string" || plural) messages[k] = v;
-    else throw new Skip("invalidMeta");
+// The pack was parsed, checked and filtered in the core (`user_pack::load`). An item still carrying a file's `text`, or
+// without a messages object, comes from no shell that filtered it and is refused whole. The other checks repeat the
+// core's shape rules as defence in depth; they never parse anything.
+function addLocale(item) {
+  if (!isPlainObject(item) || Object.hasOwn(item, "text") || !isPlainObject(item.messages)) throw new Skip("unreadable");
+  const { name, code, label, flag, digest, messages } = item;
+  const ignored = Array.isArray(item.ignored) ? item.ignored.length : 0;
+  if (typeof code !== "string" || code.length > 35 || !LOCALE_RE.test(code) || !isIntlTag(code)) throw new Skip("invalidCode");
+  if (typeof label !== "string" || !label.trim() || [...label].length > 48) throw new Skip("invalidMeta");
+  if (flag != null && (typeof flag !== "string" || !FLAG_RE.test(flag))) throw new Skip("invalidMeta");
+  const out = {};
+  for (const [id, v] of Object.entries(messages)) {
+    if (!ID_RE.test(id) || id === "__proto__") throw new Skip("invalidKey");
+    const plural = isPlainObject(v) && Object.hasOwn(v, "other")
+      && Object.entries(v).every(([k, x]) => PLURAL.has(k) && typeof x === "string");
+    if (typeof v !== "string" && !plural) throw new Skip("invalidValue");
+    out[id] = typeof v === "string" ? v : { ...v };
   }
-  const name = String(data._meta?.name ?? "").slice(0, 48);
-  if (!name) throw new Skip("invalidMeta");
-  registerLocale(code, name, messages, data._meta?.flag);
+  registerLocale(code, label, out, flag ?? undefined);
+  userContent.locales.push({ name, code, label, flag: flag ?? null, digest, ignored, messages: out });
   return code;
 }
 
@@ -54,6 +64,7 @@ export async function loadUserContent() {
   let raw;
   try { raw = await T.core.invoke("load_user_content"); } catch { return userContent; }
   userContent.dir = raw.dir;
+  userContent.locales = [];
   const errors = [...raw.errors];
   const userLocales = [];
   for (const [kind, files, add] of [["theme", raw.themes, addTheme], ["locale", raw.locales, addLocale]]) {
