@@ -422,7 +422,7 @@ fn oauth_help(provider: Provider) -> String {
         Provider::Cursor => "Imports the personal Cursor session from this computer's local install. Does not start OAuth: log into the Cursor app first. After confirmation, accessToken and machine ID are read from the local SQLite in read-only mode. Tokens are never displayed; the copy is saved to the vault only at the final review.".into(),
         Provider::Qwen => "EXPERIMENTAL flow based on the native client. Qwen Code: free OAuth discontinued on 15/04/2026; the attempt may be rejected and login does not guarantee an available quota. No password or token is typed into Cuotai.".into(),
         Provider::Claude => "EXPERIMENTAL flow based on the native client. The provider may restrict this flow to its own clients; if refused, use the environment variable. No password or token is typed into Cuotai.".into(),
-        Provider::OpenRouter => "OpenRouter's documented OAuth PKCE flow. Consent happens in the browser and OpenRouter returns an inference key kept in the system vault; it shows that key's numbers, not the account balance (use a management key for that). No password is typed into Cuotai.".into(),
+        Provider::OpenRouter => "OpenRouter's documented OAuth PKCE flow. Consent happens in the browser and OpenRouter returns an inference key kept in the system vault; it shows that key's numbers, not the account balance (use a management key for that). OpenRouter creates a new inference key each time you sign in; Cuotai never deletes keys. No password is typed into Cuotai.".into(),
         Provider::XiaomiMimo => "The code authorises an inference key, not the console session. Balance and Token Plan use platform_session_env; the weekly Desktop quota uses session_env. No password is typed into Cuotai.".into(),
         _ => "EXPERIMENTAL flow based on the provider's native client (internal interface, without official support; may fail or be restricted at any time). Consent happens in the browser/device-code; no password or token is typed into Cuotai.".into(),
     }
@@ -431,7 +431,7 @@ fn oauth_help(provider: Provider) -> String {
 fn oauth_completion_notice(provider: Provider) -> String {
     match provider {
         Provider::Cursor => "Cursor session imported in memory. Review and save to persist in the vault.".into(),
-        Provider::OpenRouter => "Login authorised; the OpenRouter inference key was saved in the system vault.".into(),
+        Provider::OpenRouter => "Signed in; OpenRouter created a new inference key, saved in the system vault. If you signed in before, delete the old key at openrouter.ai/settings/keys.".into(),
         Provider::XiaomiMimo => "MiMo key authorised. To query the balance/plan, set platform_session_env with the web session; do not re-enter the code.".into(),
         _ => "Login authorised; account parameters filled in automatically.".into(),
     }

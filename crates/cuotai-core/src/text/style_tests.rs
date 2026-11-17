@@ -207,7 +207,6 @@ const HI_IN_LOGIN: &[&str] = &[
     "core:login.kimi.oauth.label",
     "core:login.kiro.oauth.completion_notice",
     "core:login.kiro.oauth.label",
-    "core:login.open_router.oauth.completion_notice",
     "core:login.progress.bailian_done",
     "core:login.qoder.oauth.completion_notice",
     "core:login.qoder.oauth.label",
