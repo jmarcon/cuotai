@@ -302,11 +302,22 @@ pub enum BudgetRule {
     /// account's last reading ([`editor::check`]); a hand-edited TOML gets
     /// the reading-time note `note.budget.unit_mismatch_named` instead.
     UnitMismatch,
+    /// F-05: a typed amount with one separator before exactly three digits
+    /// ("1,000"), which reads as 1000 in some languages and 1 in others.
+    /// Only the editors find it ([`editor::check_rows`]); the TOML holds
+    /// plain numbers.
+    AmountAmbiguous,
 }
 
 impl BudgetRule {
     /// The localized explanation, naming the offending `field`.
     pub fn note(self, field: &str) -> Localized {
+        self.note_for(ParamValue::Text(field.to_owned()))
+    }
+
+    /// [`Self::note`] with the field given as a text or a nested localized
+    /// label (F-10: the editors name the field, not its TOML path).
+    pub fn note_for(self, field: ParamValue) -> Localized {
         let (id, fallback) = match self {
             Self::Selector => (
                 "budget.error.selector",
@@ -362,6 +373,11 @@ impl BudgetRule {
                 "budget.error.unit",
                 "{field}: the unit must be a currency code such as USD or the metric's own unit.",
             ),
+            // The editors name both readings ([`editor::check_rows`]).
+            Self::AmountAmbiguous => (
+                "budget.error.amount",
+                "{field}: the amount must be greater than 0 and at most 1,000,000,000.",
+            ),
         };
         Localized::with_param(id, "field", field, fallback)
     }
@@ -376,8 +392,17 @@ pub struct BudgetError {
 }
 
 impl BudgetError {
+    /// The text naming the TOML path (`accounts[0].budgets[1].amount`), for
+    /// `--check-config` and the configuration errors.
     pub fn note(&self) -> Localized {
         self.rule.note(&self.field)
+    }
+
+    /// F-10: the same text naming the field as the editors label it
+    /// ("Amount", "Unit"), for a problem shown at its field.
+    pub fn editor_note(&self) -> Localized {
+        self.rule
+            .note_for(ParamValue::l10n(editor::field_label(&self.field)))
     }
 }
 

@@ -3006,7 +3006,7 @@ impl Wizard {
                     }),
                 ]));
                 lines.extend(self.breakdown_lines(dim));
-                lines.extend(self.budget_step.summary_lines(dim));
+                lines.extend(self.budget_step.summary_lines(self.provider, dim));
             }
             Err(message) => {
                 lines.push(Line::from(Span::styled(

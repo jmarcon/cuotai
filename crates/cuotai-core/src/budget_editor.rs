@@ -18,11 +18,12 @@ use super::{
 use crate::cost::PlanSetting;
 use crate::model::{Metric, MetricKind, Provider};
 use crate::pace::Point;
+use crate::text::number::{amount_input, parse_amount, AmountProblem};
 use crate::text::{params, Localized, ParamValue};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// What a budget row targets: a metric kind, or the account's total spend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Target {
     Spend,
@@ -144,15 +145,17 @@ pub fn start_text(period: BudgetPeriod, start: Option<BudgetStart>) -> Localized
     }
 }
 
-/// Typed amount text → number: a comma decimal is accepted; anything else
-/// that is not a number reads as 0, which the validation rejects.
-fn parse_amount(text: &str) -> f64 {
-    text.trim().replace(',', ".").parse::<f64>().unwrap_or(0.0)
+/// F-05: typed amount text → number, read in `locale`
+/// ([`parse_amount`]); text that is not an amount reads as 0, which the
+/// validation rejects ([`check_rows`] names an ambiguous one).
+fn amount_of(text: &str, locale: &str) -> f64 {
+    parse_amount(text, locale).unwrap_or(0.0)
 }
 
-fn amount_field(amount: f64) -> String {
+/// F-05: a saved amount as its field shows it in `locale` (no grouping).
+fn amount_field(amount: f64, locale: &str) -> String {
     if amount > 0.0 && amount.is_finite() {
-        format!("{amount}")
+        amount_input(amount, locale)
     } else {
         String::new()
     }
@@ -163,8 +166,11 @@ fn some_text(text: &str) -> Option<String> {
     (!text.is_empty()).then(|| text.to_owned())
 }
 
-/// RF5.2: one budget as an editor holds it: choices plus typed text.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// RF5.2: one budget as an editor holds it: choices plus typed text. The
+/// desktop sends these rows as they are typed (F-05), so the core reads
+/// the amount in the person's language.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct BudgetRow {
     pub target: Target,
     pub amount: String,
@@ -180,17 +186,20 @@ pub struct BudgetRow {
 
 impl Default for BudgetRow {
     fn default() -> Self {
-        Self::from_budget(&Budget {
-            kind: Some(BudgetKind::Spend),
-            scope: None,
-            label_contains: None,
-            amount: 0.0,
-            unit: None,
-            period: BudgetPeriod::Monthly,
-            starts: None,
-            label: None,
-            row: None,
-        })
+        Self::from_budget(
+            &Budget {
+                kind: Some(BudgetKind::Spend),
+                scope: None,
+                label_contains: None,
+                amount: 0.0,
+                unit: None,
+                period: BudgetPeriod::Monthly,
+                starts: None,
+                label: None,
+                row: None,
+            },
+            "en-US",
+        )
     }
 }
 
@@ -204,10 +213,11 @@ impl BudgetRow {
         row
     }
 
-    pub fn from_budget(budget: &Budget) -> Self {
+    /// The row of a saved budget, its amount written for `locale`.
+    pub fn from_budget(budget: &Budget, locale: &str) -> Self {
         Self {
             target: Target::of(budget),
-            amount: amount_field(budget.amount),
+            amount: amount_field(budget.amount, locale),
             unit: budget.unit.clone().unwrap_or_default(),
             period: budget.period,
             start: budget.starts,
@@ -218,8 +228,9 @@ impl BudgetRow {
     }
 
     /// The budget the TOML holds (blank texts omitted; a start that does
-    /// not fit the period dropped, as the editors offer none).
-    pub fn to_budget(&self) -> Budget {
+    /// not fit the period dropped, as the editors offer none), its amount
+    /// read in `locale`.
+    pub fn to_budget(&self, locale: &str) -> Budget {
         let (kind, scope) = match self.target {
             Target::Account => (None, Some(BudgetScope::Account)),
             Target::Spend => (Some(BudgetKind::Spend), None),
@@ -233,7 +244,7 @@ impl BudgetRow {
             kind,
             scope,
             label_contains: some_text(&self.filter),
-            amount: parse_amount(&self.amount),
+            amount: amount_of(&self.amount, locale),
             unit: some_text(&self.unit),
             period: self.period,
             starts,
@@ -245,7 +256,7 @@ impl BudgetRow {
 
 /// What a floor row watches: the first balance or credits metric, or one
 /// kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FloorTarget {
     Any,
@@ -286,7 +297,8 @@ pub fn floor_targets(provider: Provider) -> Vec<FloorTarget> {
 }
 
 /// RF5.2: one floor as an editor holds it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct FloorRow {
     pub target: FloorTarget,
     pub amount: String,
@@ -306,24 +318,26 @@ impl Default for FloorRow {
 }
 
 impl FloorRow {
-    pub fn from_floor(floor: &Floor) -> Self {
+    /// The row of a saved floor, its amount written for `locale`.
+    pub fn from_floor(floor: &Floor, locale: &str) -> Self {
         Self {
             target: match floor.kind {
                 None => FloorTarget::Any,
                 Some(FloorKind::Balance) => FloorTarget::Balance,
                 Some(FloorKind::Credits) => FloorTarget::Credits,
             },
-            amount: amount_field(floor.amount),
+            amount: amount_field(floor.amount, locale),
             unit: floor.unit.clone().unwrap_or_default(),
             filter: floor.label_contains.clone().unwrap_or_default(),
         }
     }
 
-    pub fn to_floor(&self) -> Floor {
+    /// The floor the TOML holds, its amount read in `locale`.
+    pub fn to_floor(&self, locale: &str) -> Floor {
         Floor {
             kind: self.target.kind(),
             label_contains: some_text(&self.filter),
-            amount: parse_amount(&self.amount),
+            amount: amount_of(&self.amount, locale),
             unit: some_text(&self.unit),
         }
     }
@@ -341,10 +355,31 @@ pub struct RowProblem {
 impl RowProblem {
     fn of(problem: BudgetError) -> Self {
         Self {
-            note: problem.note(),
+            note: problem.editor_note(),
             rule: problem.rule,
             field: problem.field,
         }
+    }
+}
+
+/// F-10: the label the editors give the field at `path` (`budgets[1].amount`
+/// → "Amount", `floors` → "Floors"), so a problem names the field the person
+/// sees instead of its TOML path. An unknown path is shown as it is.
+pub fn field_label(path: &str) -> Localized {
+    let key = path.rsplit('.').next().unwrap_or(path);
+    let key = if key.contains('[') { "" } else { key };
+    match (path, key) {
+        ("budgets", _) => Localized::fixed("budget.field.budgets", "Budgets"),
+        ("floors", _) => Localized::fixed("budget.field.floors", "Balance floors"),
+        (_, "kind") => Localized::fixed("budget.field.kind", "Metric"),
+        (_, "amount") => Localized::fixed("budget.field.amount", "Amount"),
+        (_, "unit") => Localized::fixed("budget.field.unit", "Unit"),
+        (_, "period") => Localized::fixed("budget.field.period", "Period"),
+        (_, "starts") => Localized::fixed("budget.field.starts", "Starts"),
+        (_, "label") => Localized::fixed("budget.field.label", "Name"),
+        (_, "label_contains") => Localized::fixed("budget.field.label_contains", "Label contains"),
+        (_, "row") => Localized::fixed("budget.field.row", "Breakdown row"),
+        _ => Localized::fixed("metric.verbatim", path.to_owned()),
     }
 }
 
@@ -378,7 +413,7 @@ pub fn check(
             continue;
         };
         out.push(RowProblem {
-            note: unit_mismatch_note(ParamValue::Text(field.clone()), &metric.unit, unit),
+            note: unit_mismatch_note(ParamValue::l10n(field_label(&field)), &metric.unit, unit),
             rule: BudgetRule::UnitMismatch,
             field,
         });
@@ -397,6 +432,138 @@ fn unit_mismatch_note(field: ParamValue, metric_unit: &str, budget_unit: &str) -
             ("budget_unit", ParamValue::Text(budget_unit.to_owned())),
         ]),
         "{field}: the metric is reported in {metric_unit} and this budget is in {budget_unit}; set it in {metric_unit}.",
+    )
+}
+
+/// F-11: the unit of the metric `budget` would follow in `metrics`,
+/// whatever unit the budget names (the editors prefill and describe a row
+/// with it).
+pub fn metric_unit(budget: &Budget, metrics: &[Metric]) -> Option<String> {
+    let any_unit = Budget {
+        unit: None,
+        ..budget.clone()
+    };
+    super::target(&any_unit, metrics)
+        .map(|metric| metric.unit.clone())
+        .filter(|unit| !unit.is_empty())
+}
+
+/// What an editor shows for its draft rows (RF5.1, F-05, F-10, F-11).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RowCheck {
+    /// The rows as the TOML would hold them (an amount that is not one
+    /// reads as 0, which a problem names).
+    #[serde(skip)]
+    pub budgets: Vec<Budget>,
+    #[serde(skip)]
+    pub floors: Vec<Floor>,
+    /// Every problem, each naming its field as the editors label it.
+    pub problems: Vec<RowProblem>,
+    /// RF5.1: each budget row's live sentence, in the row's unit, else
+    /// its metric's (from the reading), else none.
+    pub sentences: Vec<Localized>,
+    /// F-11: the unit of each budget row's metric in the reading, for the
+    /// prefill of a new row; `None` without a reading or a metric.
+    pub units: Vec<Option<String>>,
+}
+
+/// F-05, F-10, F-11: check the rows an editor holds, as typed, for an
+/// account of `provider`: amounts read in `locale` (one that reads two
+/// ways is refused with both readings), every rule of [`check`] (with the
+/// last reading's units), each problem labelled as the editors show the
+/// field, and each budget's sentence in its unit.
+pub fn check_rows(
+    provider: crate::model::Provider,
+    budget_rows: &[BudgetRow],
+    floor_rows: &[FloorRow],
+    locale: &str,
+    reading: Option<&[Metric]>,
+) -> RowCheck {
+    let budgets: Vec<Budget> = budget_rows
+        .iter()
+        .map(|row| row.to_budget(locale))
+        .collect();
+    let floors: Vec<Floor> = floor_rows.iter().map(|row| row.to_floor(locale)).collect();
+    let mut ambiguous = Vec::new();
+    let texts = budget_rows
+        .iter()
+        .map(|row| ("budgets", &row.amount))
+        .enumerate()
+        .chain(
+            floor_rows
+                .iter()
+                .map(|row| ("floors", &row.amount))
+                .enumerate(),
+        );
+    for (i, (list, text)) in texts {
+        if let Err(AmountProblem::Ambiguous { whole, decimal }) = parse_amount(text, locale) {
+            ambiguous.push((format!("{list}[{i}].amount"), text.trim(), whole, decimal));
+        }
+    }
+    let problems = check(provider, &budgets, &floors, reading)
+        .into_iter()
+        .map(
+            |problem| match ambiguous.iter().find(|(field, ..)| *field == problem.field) {
+                Some((field, text, whole, decimal)) => RowProblem {
+                    note: amount_ambiguous_note(
+                        ParamValue::l10n(field_label(field)),
+                        text,
+                        *whole,
+                        *decimal,
+                        locale,
+                    ),
+                    rule: BudgetRule::AmountAmbiguous,
+                    field: problem.field,
+                },
+                None => problem,
+            },
+        )
+        .collect();
+    let units: Vec<Option<String>> = budgets
+        .iter()
+        .map(|budget| reading.and_then(|metrics| metric_unit(budget, metrics)))
+        .collect();
+    let sentences = budgets
+        .iter()
+        .zip(&units)
+        .map(|(budget, unit)| {
+            let unit = budget
+                .unit
+                .as_deref()
+                .or(unit.as_deref())
+                .unwrap_or_default();
+            super::describe(budget, unit)
+        })
+        .collect();
+    RowCheck {
+        budgets,
+        floors,
+        problems,
+        sentences,
+        units,
+    }
+}
+
+/// F-05: "{field}: 1,000 could be 1000 or 1. Type 1000 or 1 instead.", the
+/// two readings of an ambiguous amount `text` written for `locale` so
+/// either one, typed back, reads as meant. The command line uses it for
+/// `--cost-plan` and `--cost-currency`.
+pub fn amount_ambiguous_note(
+    field: ParamValue,
+    text: &str,
+    whole: f64,
+    decimal: f64,
+    locale: &str,
+) -> Localized {
+    Localized::with_params(
+        "budget.error.amount_ambiguous",
+        params([
+            ("field", field),
+            ("text", ParamValue::Text(text.trim().to_owned())),
+            ("whole", ParamValue::Text(amount_input(whole, locale))),
+            ("decimal", ParamValue::Text(amount_input(decimal, locale))),
+        ]),
+        "{field}: {text} could be {whole} or {decimal}. Type {whole} or {decimal} instead.",
     )
 }
 
@@ -518,7 +685,11 @@ mod tests {
             label: Some("Team".into()),
             row: None,
         };
-        assert_eq!(BudgetRow::from_budget(&budget).to_budget(), budget);
+        assert_eq!(
+            BudgetRow::from_budget(&budget, "de").to_budget("de"),
+            budget
+        );
+        assert_eq!(BudgetRow::from_budget(&budget, "de").amount, "50,5");
         // PRD 0045 RF5.2: a budget on a breakdown row keeps its row.
         let on_row = Budget {
             kind: Some(BudgetKind::Spend),
@@ -529,27 +700,33 @@ mod tests {
             }),
             ..budget.clone()
         };
-        assert_eq!(BudgetRow::from_budget(&on_row).to_budget(), on_row);
+        assert_eq!(
+            BudgetRow::from_budget(&on_row, "en-US").to_budget("en-US"),
+            on_row
+        );
         let mut row = BudgetRow::new(Provider::OpenAiApi);
         assert_eq!(row.target, Target::Spend);
         row.amount = " 12,5 ".into();
         row.unit = "  ".into();
         row.start = Some(BudgetStart::Day(3));
         row.period = BudgetPeriod::Weekly;
-        let built = row.to_budget();
+        let built = row.to_budget("en-US");
         assert_eq!(built.amount, 12.5);
         assert_eq!(built.unit, None);
         assert_eq!(built.starts, None, "a day does not start a week");
         row.amount = "fifty".into();
-        assert_eq!(row.to_budget().amount, 0.0);
+        assert_eq!(row.to_budget("en-US").amount, 0.0);
         let floor = Floor {
             kind: Some(FloorKind::Credits),
             label_contains: None,
             amount: 5.0,
             unit: Some("USD".into()),
         };
-        assert_eq!(FloorRow::from_floor(&floor).to_floor(), floor);
-        assert_eq!(FloorRow::default().to_floor().kind, None);
+        assert_eq!(
+            FloorRow::from_floor(&floor, "en-US").to_floor("en-US"),
+            floor
+        );
+        assert_eq!(FloorRow::default().to_floor("en-US").kind, None);
     }
 
     #[test]
@@ -570,11 +747,11 @@ mod tests {
     #[test]
     fn row_problem_finds_the_rows_own_rule() {
         let budgets = vec![
-            BudgetRow::default().to_budget(),
+            BudgetRow::default().to_budget("en-US"),
             Budget {
                 amount: 10.0,
                 period: BudgetPeriod::Weekly,
-                ..BudgetRow::default().to_budget()
+                ..BudgetRow::default().to_budget("en-US")
             },
         ];
         let problems = check(Provider::OpenAiApi, &budgets, &[], None);

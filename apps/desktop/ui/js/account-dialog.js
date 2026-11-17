@@ -1338,6 +1338,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     err.textContent = "";
     err.classList.remove("warn");
     clearFieldErrors();
+    // PRD 0041 F-10: Save shows every budget problem at its field, a new row's empty amount included.
+    budgetsEditor.reveal();
     if (!validMonogram(new FormData(form).get("monogram"))) {
       setFieldError("monogram", t("dialog.monogram.invalid"));
       form.querySelector('[name="monogram"]')?.focus();

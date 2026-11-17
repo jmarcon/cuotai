@@ -293,6 +293,158 @@ pub fn format_percent(value: f64, locale: &str) -> String {
     percent(value).resolve(locale)
 }
 
+/// PRD 0041 re-validation (F-05): why a typed amount was not read.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AmountProblem {
+    /// Empty, not a number, an exponent, or separators in a shape no
+    /// language writes (`1,2.3`, `1.00.0`).
+    Invalid,
+    /// One separator followed by exactly three digits (`1,000`, `1.500`):
+    /// a thousands group in some languages and a decimal in others. Both
+    /// readings travel so the message can name them.
+    Ambiguous { whole: f64, decimal: f64 },
+}
+
+fn is_space_group(c: char) -> bool {
+    matches!(c, ' ' | '\u{a0}' | '\u{202f}' | '\u{2009}')
+}
+
+fn all_digits(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Whether the groups after the first are thousands groups (Indian
+/// grouping, groups of two before the last, also passes).
+fn grouped(groups: &[&str]) -> bool {
+    let Some((first, rest)) = groups.split_first() else {
+        return false;
+    };
+    let Some((last, middle)) = rest.split_last() else {
+        return all_digits(first);
+    };
+    (1..=3).contains(&first.len())
+        && all_digits(first)
+        && last.len() == 3
+        && all_digits(last)
+        && (middle.iter().all(|g| g.len() == 3 && all_digits(g))
+            || middle.iter().all(|g| g.len() == 2 && all_digits(g)))
+}
+
+/// PRD 0041 re-validation (F-05): an amount as a person types it, in any
+/// of the built-in languages' separators: `1000`, `12,5`, `1.000,50`,
+/// `1,000.50`, `1 000` (a space, no-break space or narrow no-break space
+/// groups digits). With both `,` and `.` the last one is the decimal; a
+/// separator that repeats groups thousands. One separator followed by
+/// exactly three digits (`1,000`, `1.000`) is refused as
+/// [`AmountProblem::Ambiguous`] whatever the language, unless spaces
+/// already group the digits or the whole part is 0. Exponents, signs other
+/// than a leading `-`, and letters are [`AmountProblem::Invalid`].
+/// `_locale` is accepted for the callers' symmetry with [`amount_input`];
+/// the reading does not depend on it.
+pub fn parse_amount(text: &str, _locale: &str) -> Result<f64, AmountProblem> {
+    let text = text.trim();
+    let (negative, body) = match text.strip_prefix('-') {
+        Some(rest) => (true, rest.trim_start()),
+        None => (false, text),
+    };
+    let spaced = body.chars().any(is_space_group);
+    let compact: String = body.chars().filter(|c| !is_space_group(*c)).collect();
+    if compact.is_empty()
+        || !compact
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == ',' || c == '.')
+    {
+        return Err(AmountProblem::Invalid);
+    }
+    if spaced {
+        // Spaces group the whole part only ("1 000,50"); the one separator
+        // left, if any, is then the decimal.
+        let int_end = body.find([',', '.']).unwrap_or(body.len());
+        let (int, rest) = body.split_at(int_end);
+        let groups: Vec<&str> = int.split(is_space_group).collect();
+        if !grouped(&groups)
+            || rest.chars().any(is_space_group)
+            || rest.matches([',', '.']).count() > 1
+        {
+            return Err(AmountProblem::Invalid);
+        }
+    }
+    let commas = compact.matches(',').count();
+    let dots = compact.matches('.').count();
+    let number = |int: &str, frac: &str| -> Result<f64, AmountProblem> {
+        let int = if int.is_empty() { "0" } else { int };
+        let plain = if frac.is_empty() {
+            int.to_owned()
+        } else {
+            format!("{int}.{frac}")
+        };
+        let value: f64 = plain.parse().map_err(|_| AmountProblem::Invalid)?;
+        let value = if negative { -value } else { value };
+        value
+            .is_finite()
+            .then_some(value)
+            .ok_or(AmountProblem::Invalid)
+    };
+    let split_group = |int: &str, group: char| -> Result<String, AmountProblem> {
+        let groups: Vec<&str> = int.split(group).collect();
+        if grouped(&groups) {
+            Ok(groups.concat())
+        } else {
+            Err(AmountProblem::Invalid)
+        }
+    };
+    match (commas, dots) {
+        (0, 0) => number(&compact, ""),
+        (c, d) if c > 0 && d > 0 => {
+            // The last separator is the decimal; it appears once.
+            let last = compact.rfind([',', '.']).unwrap_or(0);
+            let decimal = compact[last..].chars().next().unwrap_or('.');
+            let group = if decimal == ',' { '.' } else { ',' };
+            if compact.matches(decimal).count() != 1 {
+                return Err(AmountProblem::Invalid);
+            }
+            let (int, frac) = (&compact[..last], &compact[last + 1..]);
+            if !frac.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(AmountProblem::Invalid);
+            }
+            number(&split_group(int, group)?, frac)
+        }
+        (1, 0) | (0, 1) => {
+            let at = compact.find([',', '.']).unwrap_or(0);
+            let (int, frac) = (&compact[..at], &compact[at + 1..]);
+            if frac.len() == 3 && !spaced && !int.trim_start_matches('0').is_empty() {
+                let whole = number(&format!("{int}{frac}"), "")?;
+                let decimal = number(int, frac)?;
+                return Err(AmountProblem::Ambiguous { whole, decimal });
+            }
+            number(int, frac)
+        }
+        (_, 0) => number(&split_group(&compact, ',')?, ""),
+        _ => number(&split_group(&compact, '.')?, ""),
+    }
+}
+
+/// PRD 0041 re-validation (F-05): `value` as an editable amount field in
+/// `locale`: the language's decimal separator, no grouping, and a fourth
+/// fraction digit after exactly three (`1.1250`), so the text reads back
+/// as the same number through [`parse_amount`].
+pub fn amount_input(value: f64, locale: &str) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
+    let plain = format!("{value}");
+    let decimal = locale_format(super::Locale::resolve(locale).code()).decimal;
+    match plain.split_once('.') {
+        Some((int, frac)) if frac.len() == 3 => format!("{int}{decimal}{frac}0"),
+        Some((int, frac)) => format!("{int}{decimal}{frac}"),
+        None => plain,
+    }
+}
+
+#[cfg(test)]
+#[path = "number_amount_tests.rs"]
+mod amount_tests;
+
 fn text_param<'a>(note: &'a Localized, key: &str) -> Option<&'a str> {
     match note.params.get(key)? {
         ParamValue::Text(text) => Some(text),

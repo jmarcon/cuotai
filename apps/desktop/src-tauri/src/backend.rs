@@ -6732,14 +6732,18 @@ pub struct AccountInput {
     /// `desktop.json`, never written to the TOML.
     #[serde(default)]
     pub monogram: Option<String>,
-    /// PRD 0041 RF5.1: the dialog's budget rows; `None` keeps the edited
-    /// account's budgets (a plain edit never loses them).
+    /// PRD 0041 RF5.1: the dialog's budget rows as typed (F-05); `None`
+    /// keeps the edited account's budgets (a plain edit never loses them).
     #[serde(default)]
-    pub budgets: Option<Vec<cuotai_core::budget::Budget>>,
-    /// PRD 0041 RF5.1: the dialog's floor rows; `None` keeps the edited
-    /// account's floors.
+    pub budgets: Option<Vec<cuotai_core::budget::editor::BudgetRow>>,
+    /// PRD 0041 RF5.1: the dialog's floor rows as typed; `None` keeps the
+    /// edited account's floors.
     #[serde(default)]
-    pub floors: Option<Vec<cuotai_core::budget::Floor>>,
+    pub floors: Option<Vec<cuotai_core::budget::editor::FloorRow>>,
+    /// PRD 0041 F-05: the dialog's language, in which the core reads the
+    /// typed amounts of the rows (en-US when absent).
+    #[serde(default)]
+    pub locale: Option<String>,
 }
 
 /// One pasted session of the dialog; the text is overwritten when dropped.
@@ -6835,64 +6839,78 @@ pub struct AccountForm {
 
 /// PRD 0041 RF5.1: what the dialog's budget rows show and check, from the
 /// core: each row's live sentence, the problems with their field paths
-/// (`budgets[1].amount`) and localized texts.
+/// (`budgets[1].amount`), rules and texts naming the field's label (F-10),
+/// and each row's metric unit (F-11).
 #[derive(Serialize)]
 pub struct BudgetCheck {
-    sentences: Vec<cuotai_core::text::Localized>,
-    problems: Vec<cuotai_core::budget::editor::RowProblem>,
+    #[serde(flatten)]
+    check: cuotai_core::budget::editor::RowCheck,
     /// RF5.1: the metric choices the provider can report (every one when
     /// the core does not know its shapes) and the floor kinds.
     targets: Vec<cuotai_core::budget::editor::Target>,
     floor_targets: Vec<cuotai_core::budget::editor::FloorTarget>,
 }
 
-/// PRD 0041 RF5.1: check the dialog's draft rows for an account of
-/// `provider` (no save); with `reading` (the edited account's last good
-/// metrics), a budget in another unit than its metric is refused (F-07).
+/// PRD 0041 RF5.1: check the dialog's draft rows, as typed, for an
+/// account of `provider` (no save): amounts read in `locale` (F-05); with
+/// `reading` (the edited account's last good metrics), a budget in another
+/// unit than its metric is refused (F-07) and a row without a unit is
+/// described in its metric's (F-11).
 pub fn check_budgets(
     provider: Provider,
-    budgets: &[cuotai_core::budget::Budget],
-    floors: &[cuotai_core::budget::Floor],
+    budgets: &[cuotai_core::budget::editor::BudgetRow],
+    floors: &[cuotai_core::budget::editor::FloorRow],
+    locale: &str,
     reading: Option<&[cuotai_core::Metric]>,
 ) -> BudgetCheck {
     BudgetCheck {
         targets: cuotai_core::budget::editor::targets(provider, "", "en-US"),
         floor_targets: cuotai_core::budget::editor::floor_targets(provider),
-        sentences: budgets
-            .iter()
-            .map(|budget| {
-                cuotai_core::budget::describe(budget, budget.unit.as_deref().unwrap_or_default())
-            })
-            .collect(),
-        problems: cuotai_core::budget::editor::check(provider, budgets, floors, reading),
+        check: cuotai_core::budget::editor::check_rows(provider, budgets, floors, locale, reading),
     }
 }
 
 /// PRD 0041 RF5.1: the budgets and floors the saved account carries: the
-/// dialog's rows, else the edited account's own (same provider), so an edit
-/// that does not touch the section keeps them. Rows are checked by the
-/// core before the save; the first problem is the error.
+/// dialog's rows (as typed, read in the dialog's language: F-05), else the
+/// edited account's own (same provider), so an edit that does not touch
+/// the section keeps them. Rows are checked by the core before the save;
+/// the first problem is the error, naming its field (F-10).
 fn with_budget_rows(
     mut account: cuotai_core::Account,
     existing: Option<&cuotai_core::Account>,
     input: &AccountInput,
 ) -> Result<cuotai_core::Account, String> {
+    use cuotai_core::budget::editor::{self, BudgetRow, FloorRow};
     let kept = existing.filter(|old| old.provider == account.provider);
-    account.budgets = match &input.budgets {
+    let locale = input.locale.as_deref().unwrap_or("en-US");
+    let budgets: Vec<BudgetRow> = match &input.budgets {
         Some(rows) => rows.clone(),
-        None => kept.map(|old| old.budgets.clone()).unwrap_or_default(),
+        None => kept
+            .map(|old| {
+                old.budgets
+                    .iter()
+                    .map(|budget| BudgetRow::from_budget(budget, locale))
+                    .collect()
+            })
+            .unwrap_or_default(),
     };
-    account.floors = match &input.floors {
+    let floors: Vec<FloorRow> = match &input.floors {
         Some(rows) => rows.clone(),
-        None => kept.map(|old| old.floors.clone()).unwrap_or_default(),
+        None => kept
+            .map(|old| {
+                old.floors
+                    .iter()
+                    .map(|floor| FloorRow::from_floor(floor, locale))
+                    .collect()
+            })
+            .unwrap_or_default(),
     };
-    if let Some(problem) =
-        cuotai_core::budget::problems(account.provider, &account.budgets, &account.floors)
-            .into_iter()
-            .next()
-    {
-        return Err(l10n_to_json(&problem.note()));
+    let checked = editor::check_rows(account.provider, &budgets, &floors, locale, None);
+    if let Some(problem) = checked.problems.into_iter().next() {
+        return Err(l10n_to_json(&problem.note));
     }
+    account.budgets = checked.budgets;
+    account.floors = checked.floors;
     Ok(account)
 }
 
@@ -7903,6 +7921,10 @@ pub fn tray_view() -> TrayView {
 mod budget_check_tests;
 
 #[cfg(test)]
+#[path = "budget_rules_tests.rs"]
+mod budget_rules_tests;
+
+#[cfg(test)]
 mod tests {
     /// PRD 0040 re-validation S-06: a desktop.json that had the live
     /// session off writes `live_sessions = false` to the TOML once.
@@ -7992,7 +8014,8 @@ mod tests {
             name: "A".into(),
             ..Default::default()
         };
-        let input = |budgets: Option<Vec<Budget>>| AccountInput {
+        use cuotai_core::budget::editor::BudgetRow;
+        let input = |budgets: Option<Vec<BudgetRow>>| AccountInput {
             index: Some(0),
             account_id: None,
             provider: Provider::OpenAiApi,
@@ -8014,6 +8037,7 @@ mod tests {
             budgets,
             floors: None,
             breakdown: None,
+            locale: Some("de".into()),
         };
         let kept = with_budget_rows(built.clone(), Some(&existing), &input(None)).unwrap();
         assert_eq!(kept.budgets, vec![budget.clone()]);
@@ -8022,10 +8046,30 @@ mod tests {
         assert!(cleared.budgets.is_empty());
         let bad = Budget {
             amount: 0.0,
-            ..budget
+            ..budget.clone()
         };
-        let error = with_budget_rows(built, Some(&existing), &input(Some(vec![bad]))).unwrap_err();
+        let error = with_budget_rows(
+            built.clone(),
+            Some(&existing),
+            &input(Some(vec![BudgetRow::from_budget(&bad, "de")])),
+        )
+        .unwrap_err();
         assert!(error.contains("budget.error.amount"), "{error}");
+        // F-05: the rows are read in the dialog's language.
+        let typed = |amount: &str| BudgetRow {
+            amount: amount.into(),
+            ..BudgetRow::from_budget(&budget, "de")
+        };
+        let saved = with_budget_rows(
+            built.clone(),
+            Some(&existing),
+            &input(Some(vec![typed("1.000,5")])),
+        )
+        .unwrap();
+        assert_eq!(saved.budgets[0].amount, 1000.5);
+        let error = with_budget_rows(built, Some(&existing), &input(Some(vec![typed("1,000")])))
+            .unwrap_err();
+        assert!(error.contains("budget.error.amount_ambiguous"), "{error}");
     }
 
     #[test]
@@ -9988,6 +10032,7 @@ mod tests {
             monogram: None,
             budgets: None,
             floors: None,
+            locale: None,
             breakdown: None,
         };
         let error = backend
@@ -10057,6 +10102,7 @@ mod tests {
             monogram: None,
             budgets: None,
             floors: None,
+            locale: None,
             breakdown: None,
         };
         let saved = input_account(&config, &input, None).unwrap();
@@ -10090,6 +10136,7 @@ mod tests {
             monogram: None,
             budgets: None,
             floors: None,
+            locale: None,
             breakdown: None,
         }
     }
