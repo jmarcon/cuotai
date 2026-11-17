@@ -79,7 +79,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -198,6 +203,7 @@
   "access.verified_month": "Проверено 1 месяц назад.",
   "access.verified_months": "Проверено {months} мес. назад.",
   "access.verified_recent": "Проверено в этом месяце.",
+  "account_edit.interval_aggregator_hint": "Агрегатор опрашивается не чаще чем раз в {min} с, поэтому интервал не может быть короче; пустое поле берёт общий интервал и повышает его до {min} с, если он короче.",
   "advice.best": "Лучшая сейчас",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} закончится ≈{at} · у {to} осталось {pct} %",
@@ -728,6 +734,7 @@
   "edit_error.group_invalid": "Группа должна состоять из 1–{max} строчных букв, цифр, - или _.",
   "edit_error.index_out_of_range": "Индекс {index} вне диапазона ({count}).",
   "edit_error.interval_invalid": "Недопустимый интервал.",
+  "edit_error.interval_aggregator_min": "Агрегатор опрашивается не чаще чем раз в {min} секунд: интервал должен быть от {min} до {max} секунд.",
   "edit_error.interval_range": "Интервал должен быть от {min} до {max} секунд.",
   "edit_error.interval_metered_min": "Этот провайдер берёт плату за каждый запрос: интервал должен быть от {min} до {max} секунд.",
   "edit_error.io": "Ошибка ввода-вывода в {path}: {detail}.",
@@ -756,6 +763,7 @@
   "edit_error.toml_int_range": "Значение «{label}» слишком велико для диапазона i64 в TOML.",
   "edit_error.config_breakdown": "Поле {field} указывает детализацию, которую эта учётная запись не может читать, или повторяет её; допустимые значения зависят от провайдера и режима.",
   "edit_error.breakdown_value": "Эта учётная запись не может детализировать итог по {value}.",
+  "edit_error.base_url_field": "{label}: введите http(s)://host[:port][/prefix] без пользователя, запроса и фрагмента. Обычный HTTP работает только на этом компьютере или, с параметром незашифрованного подключения в частной сети, в частной сети.",
   "edit_notice.option_replaced_for_auth_mode": "{field}: {value} недоступно при {auth_mode}; заменено на {replacement}. {reason}",
   "edit_notice.provider_switch_oauth": "При сохранении учётные данные OAuth записи {provider} будут удалены из хранилища.",
   "events.category.auth_required": "требуется аутентификация",
@@ -1424,6 +1432,7 @@
     "other": "{count} повторяющегося подключения опущены."
   },
   "note.aggregator.instance_truncated": "Показаны только первые 4000 лимитов этого экземпляра; остальные опущены.",
+  "note.aggregator.interval_raised": "Заданный интервал {configured} с повышен до {effective} с: агрегатор опрашивается не чаще чем раз в {effective} с.",
   "note.aggregator.metrics_truncated": "Показана только часть лимитов этого подключения; остальные опущены.",
   "note.alibaba_billing.balance_metadata_currency": "Валюта: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Валюта: {currency}. Текущий BillingCycle: {billing_cycle}.",
@@ -2208,6 +2217,7 @@
   "test.nine_router.password_required": "Этот экземпляр требует пароль панели; выберите «Пароль панели».",
   "test.nine_router.unreachable": "Указанный адрес недоступен.",
   "test.nine_router.untrusted_certificate": "Этот компьютер не доверяет сертификату экземпляра. Отпечаток SHA-256: {fingerprint}. Сверьте его на сервере, прежде чем доверять.",
+  "test.nine_router.variable_unset": "Переменная {name} не задана, поэтому пароль не отправлен. Задайте её или оставьте пароль пустым, если вход в панель отключён.",
   "text.countdown": "через {duration}",
   "text.countdown.now": "сейчас",
   "text.duration.compact.days": "{d} д",

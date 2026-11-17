@@ -64,6 +64,7 @@
     ],
     "overridable": [
       "access.*",
+      "account_edit.interval_aggregator_hint",
       "advice.*",
       "aggregators.*",
       "alerts.*",

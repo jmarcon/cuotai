@@ -41,7 +41,8 @@
       "confirm.certificate.new",
       "confirm.certificate.host",
       "confirm.certificate.checked",
-      "confirm.certificate.replace"
+      "confirm.certificate.replace",
+      "coreText.passwordUnset"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -709,6 +710,7 @@
   "coreText.queriedWithKey": "Kontingent mit dem API-Schlüssel des Kontos gelesen.",
   "coreText.queriedWithSession": "Kontingent mit der Websitzung des Kontos gelesen.",
   "coreText.projectOverride": "Das für dieses Konto festgelegte Projekt hat das erkannte ersetzt.",
+  "coreText.passwordUnset": "Das im Terminal eingerichtete Passwort ist für die App nicht verfügbar, daher wurde keines gesendet. Geben Sie es im Passwortfeld ein, oder lassen Sie es leer, wenn die Dashboard-Anmeldung aus ist.",
   "coreText.optionalSetting": "Mit einer weiteren Einstellung unter Bearbeiten gibt es mehr Details.",
   "coreText.perplexityComputer": "Nur die Nutzung von Perplexity Computer wird gezeigt; Sonar hat keinen Nutzungs-Endpunkt.",
   "coreText.keyRejected": "Der Anbieter hat den Schlüssel abgelehnt. Prüfen oder ersetzen Sie ihn unter Bearbeiten.",

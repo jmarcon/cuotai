@@ -486,6 +486,31 @@ impl Account {
         ))
     }
 
+    /// Re-validation V-04: the note of an aggregator whose interval (its
+    /// own, or `global_refresh_seconds` when it has none) is shorter than
+    /// the 120 s floor it is raised to; `None` otherwise.
+    pub fn aggregator_interval_note(
+        &self,
+        global_refresh_seconds: u64,
+    ) -> Option<crate::text::Localized> {
+        let configured = self.refresh_seconds.unwrap_or(global_refresh_seconds);
+        if !self.provider.is_aggregator() || configured >= Provider::AGGREGATOR_MIN_REFRESH_SECONDS
+        {
+            return None;
+        }
+        Some(crate::text::Localized::with_params(
+            "note.aggregator.interval_raised",
+            crate::text::params([
+                ("configured", crate::text::ParamValue::from(configured)),
+                (
+                    "effective",
+                    crate::text::ParamValue::from(Provider::AGGREGATOR_MIN_REFRESH_SECONDS),
+                ),
+            ]),
+            "The configured {configured} s interval was raised to {effective} s: an aggregator is read at most every {effective} s.",
+        ))
+    }
+
     /// The dynamic extension id for an extension-backed account.
     /// PRD 0028 RF7.1: the extension the user chose to replace this
     /// built-in account's query (`extension_override = "<id>"`).

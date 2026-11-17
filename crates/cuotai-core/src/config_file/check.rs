@@ -143,7 +143,9 @@ fn check_bytes_at(bytes: &[u8], identity: Option<&super::ConfigIdentity>) -> Con
 
 /// The advisories of a valid configuration: every aggregator account whose
 /// password or key would travel over plain HTTP on the private network
-/// (`allow_private_http`), with HTTPS and a pinned certificate offered.
+/// (`allow_private_http`), with HTTPS and a pinned certificate offered;
+/// then (re-validation V-04) every aggregator whose interval is raised to
+/// the 120 s floor.
 fn warnings(config: &crate::Config) -> Vec<ConfigDiagnostic> {
     config
         .accounts
@@ -165,6 +167,28 @@ fn warnings(config: &crate::Config) -> Vec<ConfigDiagnostic> {
                 path: Some(path),
             }
         })
+        .chain(
+            config
+                .accounts
+                .iter()
+                .enumerate()
+                .filter_map(|(index, account)| {
+                    let note = account.aggregator_interval_note(config.refresh_seconds)?;
+                    // The account's own interval, or the global one it inherits.
+                    let path = if account.refresh_seconds.is_some() {
+                        format!("accounts[{index}].refresh_seconds")
+                    } else {
+                        "refresh_seconds".to_owned()
+                    };
+                    Some(ConfigDiagnostic {
+                        kind: "aggregator_interval",
+                        line: None,
+                        column: None,
+                        note,
+                        path: Some(path),
+                    })
+                }),
+        )
         .collect()
 }
 
@@ -243,6 +267,30 @@ mod tests {
         assert!(!text.contains("192.168"), "{text}");
         let json = serde_json::to_value(&check).unwrap();
         assert_eq!(json["warnings"][0]["kind"], "private_http");
+    }
+
+    /// Re-validation V-04: an aggregator whose own or inherited interval
+    /// is below the 120 s floor gets a warning in a valid file.
+    #[test]
+    fn an_aggregator_interval_below_the_floor_is_a_warning() {
+        let check = check_bytes(
+            b"refresh_seconds = 60\n\n[[accounts]]\nname = \"Fast\"\nprovider = \"nine_router\"\nrefresh_seconds = 45\n\n[[accounts]]\nname = \"Inherits\"\nprovider = \"litellm\"\ncredential_env = \"LITELLM_API_KEY\"\n\n[[accounts]]\nname = \"Slow\"\nprovider = \"nine_router\"\nrefresh_seconds = 300\n\n[[accounts]]\nprovider = \"groq\"\ncredential_env = \"K\"\n",
+        );
+        assert!(check.valid, "{:?}", check.diagnostics);
+        let paths: Vec<_> = check
+            .warnings
+            .iter()
+            .map(|warning| (warning.kind, warning.path.as_deref().unwrap_or_default()))
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                ("aggregator_interval", "accounts[0].refresh_seconds"),
+                ("aggregator_interval", "refresh_seconds"),
+            ]
+        );
+        let text = check.warnings[0].note.resolve("en-US");
+        assert!(text.contains("45") && text.contains("120"), "{text}");
     }
 
     #[test]

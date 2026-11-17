@@ -1805,7 +1805,10 @@ impl Monitor {
                     )
                 }
             };
-        if let Some(note) = account.metered_interval_note() {
+        if let Some(note) = account
+            .metered_interval_note()
+            .or_else(|| account.aggregator_interval_note(self.config.refresh_seconds))
+        {
             notes.push(note.text().to_owned());
             notes_l10n.push(note);
         }

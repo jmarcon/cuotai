@@ -667,6 +667,7 @@
   "coreText.queriedWithKey": "Quota letta con la chiave API dell'account.",
   "coreText.queriedWithSession": "Quota letta con la sessione web dell'account.",
   "coreText.projectOverride": "Il progetto impostato per questo account ha sostituito quello rilevato.",
+  "coreText.passwordUnset": "La password configurata nel terminale non è disponibile per l'app, quindi non ne è stata inviata nessuna. Scrivila nel campo della password, oppure lascialo vuoto se l'accesso alla dashboard è disattivato.",
   "coreText.optionalSetting": "Altri dettagli sono disponibili con un'altra impostazione in Modifica.",
   "coreText.perplexityComputer": "Mostra solo l'uso di Perplexity Computer; Sonar non ha un endpoint di utilizzo.",
   "coreText.keyRejected": "Il provider ha rifiutato la chiave. Controllala o sostituiscila in Modifica.",

@@ -108,6 +108,8 @@ export const DESKTOP_WORDING = {
   "user_session.migrate.env_missing": w("coreText.migrateUnavailable", "The session set up in the terminal is not available to the app."),
   "user_session.migrate.nothing": w("coreText.migrateNothing", "This account has no session to move."),
   "secret_input.state.environment": w("dialog.secret.terminal", "Key set up in the terminal"),
+  // PRD 0036 re-validation V-03: 9router's Test connection names the unset password variable.
+  "test.nine_router.variable_unset": w("coreText.passwordUnset", "The password set up in the terminal is not available to the app, so none was sent. Type it in the password field, or leave it empty if the dashboard login is off."),
   // PRD 0046: the setup check and the restore's next steps, in the desktop's words.
   "doctor.account.env_set": w("coreText.doctorKeyTerminal", "Its key is set up in the terminal."),
   "doctor.account.env_missing": w("coreText.doctorKeyMissing", "No key is saved for this account."),

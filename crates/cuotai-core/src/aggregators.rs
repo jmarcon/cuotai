@@ -751,6 +751,52 @@ impl CertificateOffer {
     }
 }
 
+/// Re-validation V-13: how a front end shows a test result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TestTone {
+    /// Connected.
+    Ok,
+    /// Connected with a caveat, a certificate to check or a wait.
+    Warn,
+    /// Not connected: something to fix.
+    Error,
+}
+
+impl TestOutcome {
+    /// Re-validation V-13: the tone of this outcome.
+    pub fn tone(&self) -> TestTone {
+        match self {
+            TestOutcome::Connected { .. } => TestTone::Ok,
+            TestOutcome::LockedOut { .. }
+            | TestOutcome::UntrustedCertificate { .. }
+            | TestOutcome::CertificateChanged { .. } => TestTone::Warn,
+            _ => TestTone::Error,
+        }
+    }
+
+    /// Re-validation V-13: the form field at fault, in the editors' field
+    /// naming (`params.<key>` for a parameter, the slot for a secret);
+    /// `None` when no single field is (connected, or locked out).
+    pub fn field(&self) -> Option<&'static str> {
+        Some(match self {
+            TestOutcome::Connected { .. } | TestOutcome::LockedOut { .. } => return None,
+            TestOutcome::NotNineRouter
+            | TestOutcome::Unreachable
+            | TestOutcome::ListenerForeign { .. } => "params.base_url",
+            TestOutcome::PasswordWrong
+            | TestOutcome::PasswordRequired
+            | TestOutcome::VariableUnset { .. }
+            | TestOutcome::LoginRefused => crate::user_session::CREDENTIAL_SLOT,
+            TestOutcome::SessionRejected => crate::user_session::NINE_ROUTER_SSO_SLOT,
+            TestOutcome::UntrustedCertificate { .. } | TestOutcome::CertificateChanged { .. } => {
+                "params.tls_pin_sha256"
+            }
+            TestOutcome::CaFileUnreadable => "params.tls_ca_file",
+        })
+    }
+}
+
 /// Result of testing an aggregator connection before saving it (PRD 0036
 /// RF2.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -809,6 +855,21 @@ impl AggregatorTest {
             }
         }
         Self::new(outcome)
+    }
+
+    /// Re-validation V-13: the tone of the result; a version older than
+    /// the tested minimum connects with a caveat.
+    pub fn tone(&self) -> TestTone {
+        if self.message.id == "test.nine_router.connected_untested" {
+            TestTone::Warn
+        } else {
+            self.outcome.tone()
+        }
+    }
+
+    /// Re-validation V-13: the form field the result is about, if one.
+    pub fn field(&self) -> Option<&'static str> {
+        self.outcome.field()
     }
 
     /// True when the instance is reachable and authorized.
@@ -990,6 +1051,65 @@ mod tests {
                 .is_none()
         );
     }
+    /// Re-validation V-13: each outcome names its tone and the field it is
+    /// about, in the editors' field naming.
+    #[test]
+    fn test_outcomes_name_their_tone_and_field() {
+        let cases = [
+            (
+                TestOutcome::Connected {
+                    version: None,
+                    connections: 1,
+                },
+                TestTone::Ok,
+                None,
+            ),
+            (
+                TestOutcome::Unreachable,
+                TestTone::Error,
+                Some("params.base_url"),
+            ),
+            (
+                TestOutcome::NotNineRouter,
+                TestTone::Error,
+                Some("params.base_url"),
+            ),
+            (
+                TestOutcome::PasswordWrong,
+                TestTone::Error,
+                Some("credential_env"),
+            ),
+            (
+                TestOutcome::VariableUnset { name: "X".into() },
+                TestTone::Error,
+                Some("credential_env"),
+            ),
+            (
+                TestOutcome::SessionRejected,
+                TestTone::Error,
+                Some("auth_session_env"),
+            ),
+            (TestOutcome::LockedOut { seconds: 30 }, TestTone::Warn, None),
+            (
+                TestOutcome::CertificateChanged {
+                    fingerprint: "AB".into(),
+                },
+                TestTone::Warn,
+                Some("params.tls_pin_sha256"),
+            ),
+            (
+                TestOutcome::CaFileUnreadable,
+                TestTone::Error,
+                Some("params.tls_ca_file"),
+            ),
+        ];
+        for (outcome, tone, field) in cases {
+            let test = AggregatorTest::new(outcome.clone());
+            assert_eq!((test.tone(), test.field()), (tone, field), "{outcome:?}");
+        }
+        assert_eq!(serde_json::to_value(TestTone::Error).unwrap(), "error");
+    }
+
     use crate::model::MetricKind;
     use chrono::TimeZone;
 

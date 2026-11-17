@@ -101,7 +101,9 @@ pub fn suggest_env_for(
     editing: Option<usize>,
 ) -> String {
     let default = default_env(provider);
-    if default.is_empty() {
+    // Re-validation V-03: a 9router password is optional (the dashboard
+    // login may be off), so a new account suggests no variable.
+    if default.is_empty() || provider == Provider::NineRouter {
         return String::new();
     }
     let taken: std::collections::BTreeSet<&str> = config
@@ -630,6 +632,16 @@ pub struct IntervalBounds {
 /// prompts, placeholders and the per-field check of
 /// [`parse_refresh_seconds_for`] (the same floor `Config::validate` keeps).
 pub fn interval_bounds(provider: Provider) -> IntervalBounds {
+    // Re-validation V-04: an aggregator is read at most every 120 s; the
+    // editors refuse less, and say so where the interval is edited.
+    if provider.is_aggregator() {
+        return IntervalBounds {
+            min: Provider::AGGREGATOR_MIN_REFRESH_SECONDS,
+            max: MAX_REFRESH_SECONDS,
+            default_seconds: None,
+            effective_min: Provider::AGGREGATOR_MIN_REFRESH_SECONDS,
+        };
+    }
     if provider.is_metered() {
         IntervalBounds {
             min: Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS,
@@ -647,6 +659,20 @@ pub fn interval_bounds(provider: Provider) -> IntervalBounds {
     }
 }
 
+/// Re-validation V-04: the sentence shown beside the interval field of
+/// `provider` when it has a floor of its own the field does not show
+/// otherwise; `None` for the others (a metered provider has its own).
+pub fn interval_hint(provider: Provider) -> Option<crate::text::Localized> {
+    provider.is_aggregator().then(|| {
+        crate::text::Localized::with_param(
+            "account_edit.interval_aggregator_hint",
+            "min",
+            Provider::AGGREGATOR_MIN_REFRESH_SECONDS,
+            "An aggregator is read at most every {min} s, so the interval cannot be shorter; empty uses the global one, raised to {min} s if it is shorter.",
+        )
+    })
+}
+
 /// [`parse_refresh_seconds`] plus the provider's own floor: a provider
 /// billed per query refuses an override below
 /// `Provider::METERED_MIN_CONFIGURED_REFRESH_SECONDS` with a note worded for
@@ -659,6 +685,16 @@ pub fn parse_refresh_seconds_for(
     let seconds = parse_refresh_seconds(text)?;
     let bounds = interval_bounds(provider);
     match seconds {
+        Some(value) if value < bounds.min && provider.is_aggregator() => {
+            Err(crate::text::Localized::with_params(
+                "edit_error.interval_aggregator_min",
+                crate::text::params([
+                    ("min", crate::text::ParamValue::from(bounds.min)),
+                    ("max", crate::text::ParamValue::from(bounds.max)),
+                ]),
+                "An aggregator is read at most every {min} seconds: the interval must be between {min} and {max} seconds.",
+            ))
+        }
         Some(value) if value < bounds.min => Err(crate::text::Localized::with_params(
             "edit_error.interval_metered_min",
             crate::text::params([
@@ -2866,6 +2902,7 @@ pub fn build_account_with_secrets(
 
     validate_account_choice_params(*provider, &params, auth_mode)
         .map_err(|message| build_account_field_error("params", message))?;
+    check_aggregator_base(*provider, &params)?;
 
     let refresh_seconds = parse_refresh_seconds_for(*provider, interval_text)
         .map_err(|message| build_account_field_error("interval", message))?;
@@ -2997,6 +3034,44 @@ pub fn set_breakdown(
 /// offending widget without parsing the message; the note carries the
 /// stable RF8 id, structured params and the English fallback. Messages
 /// never echo user input.
+/// Re-validation V-11: an aggregator's address is checked as its own
+/// field, named by the field's label, so the editors show the error at
+/// that field (never as `params.base_url` in a document-wide message).
+fn check_aggregator_base(
+    provider: Provider,
+    params: &BTreeMap<String, String>,
+) -> Result<(), crate::edit_error::EditError> {
+    if !provider.is_aggregator() {
+        return Ok(());
+    }
+    let probe = Account {
+        provider,
+        params: params.clone(),
+        ..Account::default()
+    };
+    let valid = match provider {
+        Provider::LiteLlm => crate::providers::litellm::account_base(&probe).is_ok(),
+        _ => crate::providers::nine_router::account_base(&probe).is_ok(),
+    };
+    if valid {
+        return Ok(());
+    }
+    let english = field_descriptors(provider)
+        .iter()
+        .find(|field| field.key == "base_url")
+        .map_or("Address", |field| field.label);
+    let label = crate::text::Localized::fixed(field_label_id(provider, "base_url"), english);
+    Err(build_account_field_error(
+        "params.base_url",
+        crate::text::Localized::with_param(
+            "edit_error.base_url_field",
+            "label",
+            label,
+            "{label}: enter http(s)://host[:port][/prefix], without user, query or fragment. Plain HTTP works only on this computer or, with the unencrypted private-network option, on a private network.",
+        ),
+    ))
+}
+
 fn build_account_field_error(
     field: &'static str,
     note: crate::text::Localized,
@@ -3896,6 +3971,64 @@ mod tests {
             (300, 86_400, Some(3600))
         );
         assert_eq!(interval_bounds(Provider::OpenAiApi).default_seconds, None);
+    }
+
+    /// Re-validation V-03, V-04, V-11: a new 9router account suggests no
+    /// password variable; an aggregator's interval field has the 120 s
+    /// floor, a hint and its own error; an invalid address is an error of
+    /// the address field, named by its label.
+    #[test]
+    fn aggregator_drafts_have_no_suggested_password_a_floor_and_a_field_error() {
+        let config = config_with(Vec::new());
+        assert_eq!(suggest_env_for(Provider::NineRouter, &config, "", None), "");
+        assert_eq!(
+            suggest_env_for(Provider::LiteLlm, &config, "", None),
+            "LITELLM_API_KEY"
+        );
+        for provider in [Provider::NineRouter, Provider::LiteLlm] {
+            let bounds = interval_bounds(provider);
+            assert_eq!((bounds.min, bounds.effective_min), (120, 120));
+            let error = parse_refresh_seconds_for(provider, "60").unwrap_err();
+            assert_eq!(error.id, "edit_error.interval_aggregator_min");
+            assert_eq!(
+                parse_refresh_seconds_for(provider, "120").unwrap(),
+                Some(120)
+            );
+            let hint = interval_hint(provider).expect("a hint");
+            for locale in std::iter::once("en-US").chain(crate::text::catalog_locales()) {
+                assert!(hint.resolve(locale).contains("120"), "{locale}");
+            }
+        }
+        assert!(interval_hint(Provider::OpenAiApi).is_none());
+        let fields = [text_field("base_url", "", "http://192.0.2.10:20128")];
+        let draft = AccountDraft {
+            provider: Provider::NineRouter,
+            name: "Router",
+            credential: "",
+            auth_mode: AUTH_MODE_CREDENTIAL,
+            oauth_mode: false,
+            oauth_existing: None,
+            oauth_authorized: None,
+            oauth_login_params: BTreeMap::new(),
+            existing_params: None,
+            credential_params: None,
+            fields: &fields,
+            interval_text: "",
+            group_text: None,
+        };
+        let error = build_account(&draft, &config, None).unwrap_err();
+        assert_eq!(error.field(), Some("params.base_url"));
+        let note = error.l10n();
+        assert_eq!(note.id, "edit_error.base_url_field");
+        let english = note.resolve("en-US");
+        assert!(english.starts_with("9router address:"), "{english}");
+        for locale in crate::text::catalog_locales() {
+            let text = note.resolve(locale);
+            assert!(
+                !text.contains("params.base_url") && text.contains("9router"),
+                "{locale}: {text}"
+            );
+        }
     }
 
     #[test]

@@ -66,7 +66,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -185,6 +190,7 @@
   "access.verified_month": "1 个月前验证。",
   "access.verified_months": "{months} 个月前验证。",
   "access.verified_recent": "本月已验证。",
+  "account_edit.interval_aggregator_hint": "聚合器最多每 {min} 秒读取一次，因此间隔不能更短；留空则使用全局间隔，若其更短则提高到 {min} 秒。",
   "advice.best": "当前最佳",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} ≈{at} 用尽 · {to} 剩余 {pct}%",
@@ -670,6 +676,7 @@
   "edit_error.group_invalid": "分组必须为 1 到 {max} 个小写字母、数字、- 或 _。",
   "edit_error.index_out_of_range": "索引 {index} 超出范围（{count}）。",
   "edit_error.interval_invalid": "间隔无效。",
+  "edit_error.interval_aggregator_min": "聚合器最多每 {min} 秒读取一次：间隔必须在 {min} 到 {max} 秒之间。",
   "edit_error.interval_range": "间隔必须在 {min} 到 {max} 秒之间。",
   "edit_error.interval_metered_min": "此提供商按查询计费：间隔必须在 {min} 到 {max} 秒之间。",
   "edit_error.io": "{path} 发生 I/O 错误：{detail}。",
@@ -698,6 +705,7 @@
   "edit_error.toml_int_range": "{label} 超出 TOML 的 i64 范围。",
   "edit_error.config_breakdown": "字段 {field} 列出了此账户无法读取或重复的明细；允许的值取决于提供商及其模式。",
   "edit_error.breakdown_value": "此账户无法按 {value} 细分总计。",
+  "edit_error.base_url_field": "{label}：请输入 http(s)://host[:port][/prefix]，不能包含用户、查询或片段。未加密的 HTTP 仅在本机可用，或在开启“在私有网络中使用未加密连接”选项后于私有网络中可用。",
   "edit_notice.option_replaced_for_auth_mode": "{value} 不适用于使用 {auth_mode} 的 {field}。已选择 {replacement}。{reason}",
   "edit_notice.provider_switch_oauth": "保存时，{provider} 账户的 OAuth 凭据将从保险库中删除。",
   "events.category.auth_required": "需要认证",
@@ -1348,6 +1356,7 @@
     "other": "已省略 {count} 个重复的连接。"
   },
   "note.aggregator.instance_truncated": "仅显示此实例的前 4000 个限额；其余的已省略。",
+  "note.aggregator.interval_raised": "已将设置的间隔 {configured} 秒提高到 {effective} 秒：聚合器最多每 {effective} 秒读取一次。",
   "note.aggregator.metrics_truncated": "仅显示此连接的部分限额；其余的已省略。",
   "note.alibaba_billing.balance_metadata_currency": "币种：{currency}。",
   "note.alibaba_billing.balance_metadata_currency_cycle": "币种：{currency}。当前 BillingCycle：{billing_cycle}。",
@@ -2099,6 +2108,7 @@
   "test.nine_router.password_required": "此实例需要仪表板密码；请选择“仪表板密码”。",
   "test.nine_router.unreachable": "无法访问所填地址。",
   "test.nine_router.untrusted_certificate": "此电脑不信任实例的证书。SHA-256 指纹：{fingerprint}。信任前请在服务器上核对。",
+  "test.nine_router.variable_unset": "变量 {name} 未设置，因此没有发送密码。请设置该变量；如果面板登录已关闭，请将密码留空。",
   "text.countdown": "{duration}后",
   "text.countdown.now": "现在",
   "text.duration.compact.days": "{d}天",

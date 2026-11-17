@@ -47,7 +47,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -166,6 +171,7 @@
   "access.verified_month": "1개월 전에 확인했습니다.",
   "access.verified_months": "{months}개월 전에 확인했습니다.",
   "access.verified_recent": "이번 달에 확인했습니다.",
+  "account_edit.interval_aggregator_hint": "애그리게이터는 최소 {min}초 간격으로 읽으므로 간격을 더 짧게 할 수 없습니다. 비워 두면 전체 간격을 사용하며, 그보다 짧으면 {min}초로 올립니다.",
   "advice.best": "지금 최적",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from}은(는) ≈{at}에 소진 · {to}은(는) {pct}% 남음",
@@ -651,6 +657,7 @@
   "edit_error.group_invalid": "그룹은 소문자, 숫자, -, _로 1~{max}자여야 합니다.",
   "edit_error.index_out_of_range": "인덱스 {index}이(가) 범위를 벗어났습니다({count}).",
   "edit_error.interval_invalid": "올바르지 않은 간격입니다.",
+  "edit_error.interval_aggregator_min": "애그리게이터는 최소 {min}초 간격으로 읽습니다. 간격은 {min}초에서 {max}초 사이여야 합니다.",
   "edit_error.interval_range": "간격은 {min}초에서 {max}초 사이여야 합니다.",
   "edit_error.interval_metered_min": "이 제공업체는 조회마다 요금을 부과합니다. 간격은 {min}초에서 {max}초 사이여야 합니다.",
   "edit_error.io": "{path}에서 입출력 오류가 발생했습니다: {detail}.",
@@ -679,6 +686,7 @@
   "edit_error.toml_int_range": "{label}이(가) 너무 커서 TOML의 i64 범위를 벗어납니다.",
   "edit_error.config_breakdown": "{field} 필드에 이 계정이 읽을 수 없는 세부 내역이 있거나 중복되어 있습니다. 허용되는 값은 제공업체와 모드에 따라 다릅니다.",
   "edit_error.breakdown_value": "이 계정은 합계를 {value}별로 나눌 수 없습니다.",
+  "edit_error.base_url_field": "{label}: http(s)://host[:port][/prefix] 형식으로 입력하세요. 사용자, 쿼리, 프래그먼트는 쓸 수 없습니다. 암호화되지 않은 HTTP는 이 컴퓨터에서만, 또는 사설망에서 암호화되지 않은 연결 옵션을 켠 경우 사설망에서만 작동합니다.",
   "edit_notice.option_replaced_for_auth_mode": "{field}: {auth_mode}에서는 {value}을(를) 쓸 수 없어 {replacement}(으)로 바꿨습니다. {reason}",
   "edit_notice.provider_switch_oauth": "저장하면 {provider} 계정의 OAuth 자격 증명이 보관소에서 삭제됩니다.",
   "events.category.auth_required": "인증 필요",
@@ -1329,6 +1337,7 @@
     "other": "중복된 연결 {count}개를 생략했습니다."
   },
   "note.aggregator.instance_truncated": "이 인스턴스의 한도는 처음 4000개만 표시됩니다. 나머지는 생략되었습니다.",
+  "note.aggregator.interval_raised": "애그리게이터는 최소 {effective}초 간격으로 읽으므로 설정한 간격 {configured}초를 {effective}초로 올렸습니다.",
   "note.aggregator.metrics_truncated": "이 연결의 한도 중 일부만 표시됩니다. 나머지는 생략되었습니다.",
   "note.alibaba_billing.balance_metadata_currency": "통화: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "통화: {currency}. 현재 BillingCycle: {billing_cycle}.",
@@ -2080,6 +2089,7 @@
   "test.nine_router.password_required": "이 인스턴스에는 대시보드 비밀번호가 필요합니다. \"대시보드 비밀번호\"를 선택하세요.",
   "test.nine_router.unreachable": "입력한 주소에 연결할 수 없습니다.",
   "test.nine_router.untrusted_certificate": "이 컴퓨터가 인스턴스 인증서를 신뢰하지 않습니다. SHA-256 지문: {fingerprint}. 신뢰하기 전에 서버에서 확인하세요.",
+  "test.nine_router.variable_unset": "변수 {name}이(가) 설정되지 않아 비밀번호를 보내지 않았습니다. 변수를 설정하거나, 대시보드 로그인이 꺼져 있다면 비밀번호를 비워 두세요.",
   "text.countdown": "{duration} 후",
   "text.countdown.now": "지금",
   "text.duration.compact.days": "{d}일",

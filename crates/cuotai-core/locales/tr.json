@@ -28,7 +28,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -147,6 +152,7 @@
   "access.verified_month": "1 ay önce doğrulandı.",
   "access.verified_months": "{months} ay önce doğrulandı.",
   "access.verified_recent": "Bu ay doğrulandı.",
+  "account_edit.interval_aggregator_hint": "Bir toplayıcı en sık {min} sn'de bir okunur, bu yüzden aralık daha kısa olamaz; boş bırakılırsa genel aralık kullanılır, daha kısaysa {min} sn'ye yükseltilir.",
   "advice.best": "Şimdi en iyi",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} ≈{at} tükenir · {to} için %{pct} kaldı",
@@ -647,6 +653,7 @@
   "edit_error.group_invalid": "Grup 1 ile {max} küçük harf, rakam, - veya _ olmalıdır.",
   "edit_error.index_out_of_range": "{index} dizini aralık dışında ({count}).",
   "edit_error.interval_invalid": "Geçersiz aralık.",
+  "edit_error.interval_aggregator_min": "Bir toplayıcı en sık {min} saniyede bir okunur: aralık {min} ile {max} saniye arasında olmalıdır.",
   "edit_error.interval_range": "Aralık {min} ile {max} saniye arasında olmalıdır.",
   "edit_error.interval_metered_min": "Bu sağlayıcı her sorgu için ücret alır: aralık {min} ile {max} saniye arasında olmalıdır.",
   "edit_error.io": "{path} konumunda G/Ç hatası: {detail}.",
@@ -675,6 +682,7 @@
   "edit_error.toml_int_range": "{label}, TOML i64 aralığı için çok büyük.",
   "edit_error.config_breakdown": "{field} alanı bu hesabın okuyamadığı bir döküm listeliyor veya birini tekrarlıyor; izin verilen değerler sağlayıcıya ve moduna bağlıdır.",
   "edit_error.breakdown_value": "Bu hesap toplamını {value} bazında dökemez.",
+  "edit_error.base_url_field": "{label}: kullanıcı, sorgu veya parça olmadan http(s)://host[:port][/önek] girin. Düz HTTP yalnızca bu bilgisayarda ya da özel ağda şifresiz bağlantı seçeneğiyle özel bir ağda çalışır.",
   "edit_notice.option_replaced_for_auth_mode": "{value}, {auth_mode} ile {field} için kullanılamıyor. {replacement} seçildi. {reason}",
   "edit_notice.provider_switch_oauth": "Kaydettiğinizde {provider} hesabının OAuth kimlik bilgisi kasadan silinir.",
   "events.category.auth_required": "kimlik doğrulama gerekli",
@@ -1331,6 +1339,7 @@
     "other": "{count} yinelenen bağlantı dışarıda bırakıldı."
   },
   "note.aggregator.instance_truncated": "Bu örneğin yalnızca ilk 4000 sınırı gösteriliyor; kalanlar dışarıda bırakıldı.",
+  "note.aggregator.interval_raised": "Yapılandırılan {configured} sn aralığı {effective} sn'ye yükseltildi: bir toplayıcı en sık {effective} sn'de bir okunur.",
   "note.aggregator.metrics_truncated": "Bu bağlantının sınırlarının yalnızca bir kısmı gösteriliyor; kalanlar dışarıda bırakıldı.",
   "note.alibaba_billing.balance_metadata_currency": "Para birimi: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Para birimi: {currency}. Geçerli BillingCycle: {billing_cycle}.",
@@ -2093,6 +2102,7 @@
   "test.nine_router.password_required": "Bu örnek pano parolası gerektiriyor; \"Pano parolası\" seçeneğini seçin.",
   "test.nine_router.unreachable": "Verilen adrese ulaşılamadı.",
   "test.nine_router.untrusted_certificate": "Bu bilgisayar örneğin sertifikasına güvenmiyor. SHA-256 parmak izi: {fingerprint}. Güvenmeden önce sunucuda kontrol edin.",
+  "test.nine_router.variable_unset": "{name} değişkeni ayarlı değil, bu yüzden parola gönderilmedi. Değişkeni ayarlayın ya da pano girişi kapalıysa parolayı boş bırakın.",
   "text.countdown": "{duration} sonra",
   "text.countdown.now": "şimdi",
   "text.duration.compact.days": "{d}g",
