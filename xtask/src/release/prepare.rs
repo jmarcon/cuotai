@@ -945,6 +945,53 @@ pub fn today_utc() -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
+/// The changelog entries a pull request adds (PRD 0039 F-19): every
+/// `Changelog:` sentence of the non-merge commits in `base..HEAD`, by
+/// category, with the commits that skip an entry and their reasons. The CI
+/// job summary shows it on each pull request, so the wording is reviewed
+/// before the release renders it.
+pub fn pull_request_preview(repo: &Path, base: &str) -> Res<String> {
+    let commits = crate::commits::load(repo, &format!("{base}..HEAD"))?;
+    let mut by_category: std::collections::BTreeMap<crate::changelog::Category, Vec<String>> =
+        std::collections::BTreeMap::new();
+    let mut skipped = Vec::new();
+    for commit in &commits {
+        for entry in &commit.trailers.sentences {
+            by_category
+                .entry(commit.entry_category(entry))
+                .or_default()
+                .push(format!("- {} ({})", entry.text, commit.short()));
+        }
+        if let Some(reason) = &commit.trailers.skip {
+            skipped.push(format!("- {} {}: {reason}", commit.short(), commit.subject));
+        }
+    }
+    let mut out = format!(
+        "{} commit(s) in this pull request, {} changelog entr{}.\n",
+        commits.len(),
+        by_category.values().map(Vec::len).sum::<usize>(),
+        if by_category.values().map(Vec::len).sum::<usize>() == 1 {
+            "y"
+        } else {
+            "ies"
+        }
+    );
+    for (category, lines) in &by_category {
+        out.push_str(&format!(
+            "\n#### {}\n\n{}\n",
+            category.title(),
+            lines.join("\n")
+        ));
+    }
+    if !skipped.is_empty() {
+        out.push_str(&format!(
+            "\n#### No entry (Changelog: skip)\n\n{}\n",
+            skipped.join("\n")
+        ));
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

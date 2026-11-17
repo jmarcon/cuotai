@@ -72,6 +72,7 @@ jobs:
       code: ${{ steps.classify.outputs.code }}
       release_tooling: ${{ steps.classify.outputs.release_tooling }}
       gate_rules: ${{ steps.classify.outputs.gate_rules }}
+      reason: ${{ steps.classify.outputs.reason }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -174,6 +175,7 @@ jobs:
             echo "code=$code"
             echo "release_tooling=$tooling"
             echo "gate_rules=$gate"
+            echo "reason=$why"
           } >> "$GITHUB_OUTPUT"
           echo "code=$code release_tooling=$tooling gate_rules=$gate ($why)"
           {
@@ -185,8 +187,10 @@ jobs:
             echo "- reason: $why"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # No `name:`: GitHub then names each leg `test (<os>)`, and a skipped run
+  # (documentation-only change) shows `test` instead of the unexpanded
+  # `test (${{ matrix.os }})` (PRD 0039 F-19).
   test:
-    name: test (${{ matrix.os }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
@@ -651,9 +655,21 @@ jobs:
           {
             echo "### Unreleased on main"
             echo
-            echo '```markdown'
             cargo run -q -p xtask --locked -- changelog-draft
-            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # PRD 0039 F-19: the entries this pull request adds, rendered in the job
+      # summary, so their wording is reviewed before a release renders it.
+      - name: changelog entries of this pull request (job summary)
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Changelog entries of this pull request"
+            echo
+            cargo run -q -p xtask --locked -- changelog-draft --since "$BASE_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
       # The test matrix runs this too; it only needs its own step when the
       # matrix is skipped.
@@ -823,7 +839,11 @@ jobs:
       - name: Check the jobs this run waited for
         env:
           NEEDS: ${{ toJSON(needs) }}
+          CODE: ${{ needs.changes.outputs.code }}
+          REASON: ${{ needs.changes.outputs.reason }}
         run: |
           set -euo pipefail
+          # Why heavy jobs may show as skipped (PRD 0039 F-19).
+          echo "changes: code=${CODE:-unknown} (${REASON:-no reason recorded})"
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           echo "$NEEDS" | jq -e '.changes.result == "success" and all(.[]; .result == "success" or .result == "skipped")' > /dev/null
