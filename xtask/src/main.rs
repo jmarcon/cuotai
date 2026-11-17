@@ -89,6 +89,8 @@ SUBCOMMANDS:
   changelog-draft     Print the next version and its would-be section (PRD 0039 RF4.8)
     --repo PATH             repository root (default: .)
     --date YYYY-MM-DD       section date (default: today, UTC)
+    --since REF             instead: the entries of REF..HEAD only (a pull
+                            request's preview in the CI job summary)
 
   access-staleness    Warn about stale access evidence (PRD 0028 RF6.2)
     --repo PATH             repository root (default: .)
@@ -496,6 +498,16 @@ fn changelog_gate(opts: &Opts) -> Res<()> {
 
 fn changelog_draft(opts: &Opts) -> Res<()> {
     let repo = opts.path("repo").unwrap_or_else(|| PathBuf::from("."));
+    if let Some(since) = opts.get("since") {
+        if opts.get("date").is_some() {
+            return err("--since lists entries; it cannot be combined with --date");
+        }
+        print!(
+            "{}",
+            xtask::release::prepare::pull_request_preview(&repo, &since)?
+        );
+        return Ok(());
+    }
     let date = opts
         .get("date")
         .unwrap_or_else(xtask::release::prepare::today_utc);

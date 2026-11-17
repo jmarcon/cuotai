@@ -969,3 +969,42 @@ fn the_release_pr_checklist_comes_from_docs_releasing() {
         "{list}"
     );
 }
+
+#[test]
+fn a_pull_request_preview_lists_its_entries_by_category_and_its_skips() {
+    let (_d, repo) = repo();
+    let base = head(&repo);
+    let fix = commit(
+        &repo,
+        "fix(core): token and button\n\nChangelog: [Security] A token no longer leaks to the log.\nChangelog: The refresh button works again.",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let tooling = commit(
+        &repo,
+        "fix(xtask): faster gate\n\nChangelog: skip repository tooling, no change to the shipped product",
+        "xtask/src/lib.rs",
+        "// v2\n",
+    );
+    let preview = prepare::pull_request_preview(&repo, &base).unwrap();
+    let (f, t) = (short(&repo, &fix), short(&repo, &tooling));
+    assert!(preview.starts_with("2 commit(s) in this pull request, 2 changelog entries."));
+    assert!(
+        preview.contains(&format!(
+            "#### Fixed\n\n- The refresh button works again. ({f})"
+        )),
+        "{preview}"
+    );
+    assert!(
+        preview.contains(&format!(
+            "#### Security\n\n- A token no longer leaks to the log. ({f})"
+        )),
+        "{preview}"
+    );
+    assert!(
+        preview.contains(&format!(
+            "- {t} fix(xtask): faster gate: repository tooling, no change to the shipped product"
+        )),
+        "{preview}"
+    );
+}
