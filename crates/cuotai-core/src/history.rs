@@ -469,6 +469,24 @@ fn finite(value: Option<f64>) -> Option<f64> {
     value.filter(|v| v.is_finite())
 }
 
+/// The value a stored reading is read back as: its `used`, or its
+/// `remaining` when the reading is balance-shaped (no `used`, no `limit`
+/// and a finite `remaining`, the shape of a prepaid balance). `None` when
+/// the reading has neither. Every reader of points goes through this, so a
+/// balance is charted, summarized and budgeted like any other series;
+/// window grouping stays on `used`, so a balance never has windows.
+pub(crate) fn sample_value(
+    used: Option<f64>,
+    limit: Option<f64>,
+    remaining: Option<f64>,
+) -> Option<f64> {
+    if used.is_none() && limit.is_none() {
+        finite(remaining)
+    } else {
+        finite(used)
+    }
+}
+
 /// The serde name of a `kind`/`window` value (`quota`, `window_5h`, …).
 fn tag<T: serde::Serialize>(value: T) -> String {
     match serde_json::to_value(value) {
@@ -1162,8 +1180,8 @@ impl HistoryStore {
             return Ok(all);
         };
         let mut query = db.prepare(
-            "SELECT taken_at, used FROM samples
-             WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3 AND used IS NOT NULL
+            "SELECT taken_at, used, \"limit\", remaining FROM samples
+             WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3
              ORDER BY taken_at",
         )?;
         for (((account, metrics, now), spans), points) in readings.iter().zip(spans).zip(&mut all) {
@@ -1182,20 +1200,23 @@ impl HistoryStore {
                 };
                 *points = query
                     .query_map(rusqlite::params![id, millis(since), millis(*now)], |row| {
-                        Ok(Point {
-                            taken_at: instant(row.get(0)?)?,
-                            used: row.get(1)?,
-                        })
+                        Ok((
+                            instant(row.get(0)?)?,
+                            sample_value(row.get(1)?, row.get(2)?, row.get(3)?),
+                        ))
                     })?
-                    .filter(|point| point.as_ref().map_or(true, |p| p.used.is_finite()))
-                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                    .collect::<rusqlite::Result<Vec<_>>>()?
+                    .into_iter()
+                    .filter_map(|(taken_at, value)| value.map(|used| Point { taken_at, used }))
+                    .collect();
             }
         }
         Ok(all)
     }
 
     /// Samples of one metric within `range` (any `RangeBounds`, compared to
-    /// the millisecond) in time order. Samples without a finite `used` are
+    /// the millisecond) in time order, each valued by [`sample_value`]: a
+    /// balance reads back as its `remaining`. Samples with no value are
     /// left out.
     pub fn series(
         &self,
@@ -1203,15 +1224,28 @@ impl HistoryStore {
         metric_key: &str,
         range: impl RangeBounds<DateTime<Utc>>,
     ) -> Result<Vec<Point>, HistoryError> {
-        Ok(self
-            .samples(account, metric_key, range)?
+        let (start, end) = span(range);
+        let db = self.open()?;
+        let account_digest = series_digest(&db, &self.config_key, account)?;
+        let Some(id) = series_id(&db, &self.config_key, &account_digest, metric_key)? else {
+            return Ok(Vec::new());
+        };
+        let mut query = db.prepare(
+            "SELECT taken_at, used, \"limit\", remaining FROM samples
+             WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3
+             ORDER BY taken_at",
+        )?;
+        let rows = query
+            .query_map(rusqlite::params![id, start, end], |row| {
+                Ok((
+                    instant(row.get(0)?)?,
+                    sample_value(row.get(1)?, row.get(2)?, row.get(3)?),
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
             .into_iter()
-            .filter_map(|sample| {
-                finite(sample.used).map(|used| Point {
-                    taken_at: sample.taken_at,
-                    used,
-                })
-            })
+            .filter_map(|(taken_at, value)| value.map(|used| Point { taken_at, used }))
             .collect())
     }
 
@@ -2147,6 +2181,85 @@ credential_env = "GROQ_KEY_BETA"
         let latest = history.latest_at(&alpha, now).unwrap().unwrap();
         assert_eq!(latest.checked_at, now);
         assert_eq!(latest.metrics[0].metric.used, Some(10.0));
+    }
+
+    /// A prepaid balance as providers report it: only what is left.
+    fn balance(left: f64) -> Metric {
+        Metric {
+            billing: Default::default(),
+            scope: None,
+            label: "Credits".into(),
+            used: None,
+            limit: None,
+            remaining: Some(left),
+            unit: "credits".into(),
+            kind: MetricKind::Balance,
+            window: None,
+            period: None,
+            resets_at: None,
+            derived_from: None,
+            unlimited: false,
+        }
+    }
+
+    #[test]
+    fn sample_value_is_used_or_the_remaining_of_a_balance() {
+        assert_eq!(sample_value(Some(4.0), Some(10.0), Some(6.0)), Some(4.0));
+        assert_eq!(sample_value(Some(4.0), None, Some(6.0)), Some(4.0));
+        assert_eq!(sample_value(None, None, Some(-1.5)), Some(-1.5));
+        // A gauge without `used` is not a balance: nothing to read back.
+        assert_eq!(sample_value(None, Some(10.0), Some(6.0)), None);
+        assert_eq!(sample_value(None, None, None), None);
+        assert_eq!(sample_value(Some(f64::NAN), None, Some(6.0)), None);
+        assert_eq!(sample_value(None, None, Some(f64::INFINITY)), None);
+    }
+
+    #[test]
+    fn a_recorded_balance_is_read_back_but_never_windowed_or_paced() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("history.sqlite3");
+        let history = store(&db, CONFIG);
+        let alpha = first_account(config(CONFIG));
+        for (minutes, left) in [(0, 30.0), (20, 22.0), (40, 25.0)] {
+            assert_eq!(
+                history.record(&alpha, t0() + mins(minutes), &[balance(left)]),
+                Ok(1)
+            );
+        }
+        let key = metric_key(&balance(0.0));
+        let values = |points: &[Point]| points.iter().map(|p| p.used).collect::<Vec<_>>();
+
+        let series = history.series(&alpha, &key, ..).unwrap();
+        assert_eq!(values(&series), [30.0, 22.0, 25.0]);
+
+        let charted = history.account_history(&alpha, ..).unwrap();
+        let [metric] = charted.as_slice() else {
+            panic!("expected exactly one recorded series");
+        };
+        let trend = metric.trend().expect("the balance has points");
+        assert_eq!((trend.min, trend.max, trend.last.used), (22.0, 30.0, 25.0));
+        assert!(metric.windows.is_empty(), "a balance has no windows");
+
+        // The pace engine never reads a balance: it has no window to pace.
+        let now = t0() + mins(60);
+        assert_eq!(crate::pace::recent_since(&balance(25.0), now), None);
+        assert_eq!(
+            history.recent(&alpha, &[balance(25.0)], now),
+            Ok(vec![Vec::new()])
+        );
+
+        // Stats rhythm sums plan limits (quotas) only.
+        let query = crate::insights::RhythmQuery {
+            scope: Some(0),
+            metric: None,
+            range: crate::insights::RhythmRange::Last24h,
+            days_off: crate::insights::DaysOff::default(),
+        };
+        let rhythm =
+            crate::insights::rhythm(&history, std::slice::from_ref(&alpha), &query, now, &Utc)
+                .unwrap();
+        assert!(rhythm.metrics.is_empty(), "{:?}", rhythm.metrics);
+        assert!(rhythm.buckets.iter().all(|b| b.consumption.is_none()));
     }
 
     #[test]
