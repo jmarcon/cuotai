@@ -20,6 +20,9 @@ export const REGISTRY = [
 ];
 // registry:end
 
+// The whitespace Rust's `str::trim` removes (Unicode White_Space): unlike JS `trim()`, it keeps U+FEFF.
+const LOCALE_SPACE = /^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/g;
+
 /**
  * PRD 0035 RF1.3: the registry row of a raw language code (`zh_CN.UTF-8`, `in`, `fr-CA`), or null. The twin of
  * `cuotai_core::text::normalize` (and of the pre-paint copy in the HTML pages): strip an encoding and a modifier, accept
@@ -28,9 +31,11 @@ export const REGISTRY = [
  */
 export function normalizeLocale(raw, rows = REGISTRY) {
   if (typeof raw !== "string") return null;
-  const tags = raw.trim().split(/[.@]/)[0].split(/[-_]/);
-  const lang = (tags.shift() ?? "").toLowerCase();
-  if (!/^[a-z]{2,3}$/.test(lang)) return null;
+  const tags = raw.replace(LOCALE_SPACE, "").split(/[.@]/)[0].split(/[-_]/);
+  const first = tags.shift() ?? "";
+  // ASCII before lower-casing: "\u212Ao" (KELVIN SIGN) would otherwise lower-case to "ko".
+  if (!/^[A-Za-z]{2,3}$/.test(first)) return null;
+  const lang = first.toLowerCase();
   let script = null;
   let region = null;
   for (const tag of tags) {

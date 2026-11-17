@@ -434,86 +434,21 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
+    /// PRD 0035 RF1.3/RF1.4: every alias row, the codes the visual review
+    /// tested, and the inputs where the desktop twin used to differ
+    /// (`"\u{212a}o"` with a KELVIN SIGN, a leading U+FEFF). The same file
+    /// runs against `normalizeLocale` in `js/locale-registry.js` and the
+    /// `js/first-paint.js` copy (`scripts/test-i18n-infra-ui.mjs`). This
+    /// function is the reference: add a row here, then make the JS agree.
     #[test]
     fn normalize_follows_the_alias_table() {
-        let cases: &[(&str, Option<&str>)] = &[
-            ("zh", Some("zh-CN")),
-            ("zh-CN", Some("zh-CN")),
-            ("zh-SG", Some("zh-CN")),
-            ("zh-Hans", Some("zh-CN")),
-            ("zh-Hans-CN", Some("zh-CN")),
-            ("zh-Hans-SG", Some("zh-CN")),
-            ("zh-Hans-TW", Some("zh-CN")),
-            ("cmn-Hans-CN", Some("zh-CN")),
-            ("zh_CN.UTF-8", Some("zh-CN")),
-            ("zh-TW", None),
-            ("zh-HK", None),
-            ("zh-MO", None),
-            ("zh-Hant", None),
-            ("zh-Hant-TW", None),
-            ("zh-Hant-HK", None),
-            ("zh_TW.UTF-8", None),
-            ("hi", Some("hi-IN")),
-            ("hi-IN", Some("hi-IN")),
-            ("hi_IN.UTF-8", Some("hi-IN")),
-            ("id", Some("id-ID")),
-            ("id-ID", Some("id-ID")),
-            ("in", Some("id-ID")),
-            ("in-ID", Some("id-ID")),
-            ("id_ID.UTF-8", Some("id-ID")),
-            ("ms", None),
-            ("ms-MY", None),
-            ("fr", Some("fr")),
-            ("fr-FR", Some("fr")),
-            ("fr-CA", Some("fr")),
-            ("fr-BE", Some("fr")),
-            ("fr-CH", Some("fr")),
-            ("de", Some("de")),
-            ("de-DE", Some("de")),
-            ("de-AT", Some("de")),
-            ("de-CH", Some("de")),
-            ("de_DE@euro", Some("de")),
-            ("ja", Some("ja")),
-            ("ja-JP", Some("ja")),
-            ("ko", Some("ko")),
-            ("ko-KR", Some("ko")),
-            ("ru", Some("ru")),
-            ("ru-RU", Some("ru")),
-            ("ru-UA", Some("ru")),
-            ("tr", Some("tr")),
-            ("tr-TR", Some("tr")),
-            ("vi", Some("vi")),
-            ("vi-VN", Some("vi")),
-            ("pt", Some("pt-BR")),
-            ("pt-BR", Some("pt-BR")),
-            ("pt-PT", Some("pt-BR")),
-            ("pt_BR.UTF-8", Some("pt-BR")),
-            ("es", Some("es")),
-            ("es-AR", Some("es")),
-            ("es-419", Some("es")),
-            ("it", Some("it")),
-            ("it-CH", Some("it")),
-            ("en", Some("en-US")),
-            ("EN", Some("en-US")),
-            ("en-GB", Some("en-US")),
-            ("en-US", Some("en-US")),
-            ("est", None),
-            ("ita", None),
-            ("deu", None),
-            ("kor", None),
-            ("esu", None),
-            ("", None),
-            ("   ", None),
-            ("C", None),
-            ("POSIX", None),
-            ("pt BR; rm", None),
-            ("x-klingon", None),
-            ("123", None),
-        ];
-        for (raw, expected) in cases {
+        let cases: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(include_str!("vectors/normalize.json")).unwrap();
+        assert!(cases.len() > 100, "the vector file lost its rows");
+        for (raw, expected) in &cases {
             assert_eq!(
                 normalize(raw).map(|row| row.code),
-                *expected,
+                expected.as_str(),
                 "normalize({raw:?})"
             );
         }
