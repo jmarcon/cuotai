@@ -55,6 +55,10 @@ const ZOOM_PAGES = [
   ["zoom200-settings-data", "settings.html?page=data", 640, 360, {}],
   ["zoom200-settings-integrations", "settings.html?page=integrations", 640, 360, {}],
   ["zoom200-settings-cost", "settings.html?page=cost&cost", 640, 360, {}],
+  // PRD 0042 re-validation (M-07): the Sessions, Blocks and Projects tabs of Local cost › Sessions, blocks and projects.
+  ["zoom200-settings-cost-by-session", "settings.html?page=cost&cost&sub=cost-by", 640, 360, {}, '#cost-by [data-value="session"]'],
+  ["zoom200-settings-cost-by-block", "settings.html?page=cost&cost&sub=cost-by", 640, 360, {}, '#cost-by [data-value="block"]'],
+  ["zoom200-settings-cost-by-project", "settings.html?page=cost&cost&sub=cost-by", 640, 360, {}, '#cost-by [data-value="project"]'],
   ["zoom200-settings-cost-plans", `settings.html?page=cost&sub=cost-plans&${COST_PLANS}`, 640, 360, {}],
   ["zoom200-settings-extensions", "settings.html?page=extensions", 640, 360, {}],
   ["zoom200-settings-files", "settings.html?page=files", 640, 360, {}],
@@ -125,6 +129,20 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-cost", "settings.html?page=cost&cost", 640, 460, {}],
   ["settings-cost-paused", "settings.html?page=cost&cost&cost-paused", 640, 460, {}],
   ["main-cost", "index.html?cost", 1200, 820, {}],
+  // PRD 0042 re-validation (M-07): every tab of Local cost › Sessions, blocks and projects with the `?cost` demo (a
+  // half-unpriced live block, a block without a burn rate, a hidden project, a folder name), at the minimum size and
+  // wide, and the sub-page with every source off.
+  ["settings-cost-by-day", "settings.html?page=cost&cost&sub=cost-by", 640, 460, {}, '#cost-by [data-value="day"]'],
+  ["settings-cost-by-model", "settings.html?page=cost&cost&sub=cost-by", 640, 460, {}, '#cost-by [data-value="model"]'],
+  ["settings-cost-by-session", "settings.html?page=cost&cost&sub=cost-by", 640, 460, {}, '#cost-by [data-value="session"]'],
+  ["settings-cost-by-block", "settings.html?page=cost&cost&sub=cost-by", 640, 460, {}, '#cost-by [data-value="block"]'],
+  ["settings-cost-by-project", "settings.html?page=cost&cost&sub=cost-by", 640, 460, {}, '#cost-by [data-value="project"]'],
+  ["settings-cost-by-wide-day", "settings.html?page=cost&cost&sub=cost-by", 1000, 820, {}, '#cost-by [data-value="day"]'],
+  ["settings-cost-by-wide-model", "settings.html?page=cost&cost&sub=cost-by", 1000, 820, {}, '#cost-by [data-value="model"]'],
+  ["settings-cost-by-wide-session", "settings.html?page=cost&cost&sub=cost-by", 1000, 820, {}, '#cost-by [data-value="session"]'],
+  ["settings-cost-by-wide-block", "settings.html?page=cost&cost&sub=cost-by", 1000, 820, {}, '#cost-by [data-value="block"]'],
+  ["settings-cost-by-wide-project", "settings.html?page=cost&cost&sub=cost-by", 1000, 820, {}, '#cost-by [data-value="project"]'],
+  ["settings-cost-by-off", "settings.html?page=cost&sub=cost-by", 640, 460, {}, '#cost-by [data-value="block"]'],
   ["main-stats", "index.html", 1200, 820, { "cuotai.openView": "stats" }],
   ["tray-stats", "tray.html", 380, 600, {}, "[data-open-stats]"],
   // PRD 0026 re-validation (V-07, V-08): the 30-day range in the tray and in the narrow window, where day labels are
