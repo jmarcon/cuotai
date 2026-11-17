@@ -271,10 +271,10 @@
     },
     "LimitsSummary": {
       "type": "object",
-      "description": "PRD 0031 RF4.2: the cross-account digest a status bar reads.",
+      "description": "PRD 0031 RF4.2: the cross-account digest a status bar reads, over the entries with in_summary (PRD 0036 RF5.3: an aggregator counts through its active connections).",
       "required": ["worst_class", "tightest", "next_reset_at", "worst_incident"],
       "properties": {
-        "worst_class": { "anyOf": [{ "type": "null" }, { "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }], "description": "Most severe class: exhausted, then unmeasured, then available." },
+        "worst_class": { "anyOf": [{ "type": "null" }, { "enum": ["available", "exhausted", "unmeasured"] }, { "type": "string" }], "description": "Most severe class among the items: exhausted, then unmeasured, then available." },
         "tightest": {
           "anyOf": [
             { "type": "null" },
@@ -293,9 +293,9 @@
               }
             }
           ],
-          "description": "The account whose binding metric is the most consumed."
+          "description": "The item whose binding metric is the most consumed."
         },
-        "next_reset_at": { "type": ["string", "null"], "format": "date-time", "description": "Earliest future resets_at among the current reports' metrics." },
+        "next_reset_at": { "type": ["string", "null"], "format": "date-time", "description": "Earliest future resets_at among the items' current metrics." },
         "worst_incident": { "anyOf": [{ "type": "null" }, { "enum": ["operational", "degraded", "partial_outage", "major_outage", "maintenance", "unknown"] }, { "type": "string" }], "description": "Most severe non-stale provider state." }
       }
     },
@@ -330,6 +330,7 @@
           "description": "PRD 0031 RF4.1: the provider status, reduced to state and stale."
         },
         "parent": { "type": "string", "description": "The aggregator account's key, for one of its connections." },
+        "in_summary": { "type": "boolean", "description": "PRD 0036 RF5.3/RF7.2 (additive): the entry is an item of summary: a direct account, an active connection that is neither a duplicate nor kept in both places, or an aggregator account whose instance failed or has no active connection." },
         "failure": {
           "type": "object",
           "required": ["category"],

@@ -1282,6 +1282,10 @@ fn set_preference(app: AppHandle, key: String, value: serde_json::Value) -> Resu
     if key == "show_in_dock" {
         apply_dock_policy(&app);
     }
+    // PRD 0036 RF8.3 (V-05): Hidden also leaves aggregators out of the menu bar.
+    if key == "aggregators_in_all" {
+        tray_bar::redraw(&app, &settings::tray_prefs());
+    }
     let _ = app.emit("settings-changed", serde_json::json!({ "key": key }));
     Ok(())
 }

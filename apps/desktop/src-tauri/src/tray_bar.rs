@@ -149,18 +149,39 @@ fn effective(selection: &TraySelection, accounts: &[AccountView]) -> TraySelecti
 
 /// V-08/S-01: `accounts` without those switched off in the dashboard
 /// (`hidden`): the title, meters, figure, tooltip and label never show them.
-fn without_hidden(accounts: &[AccountView], hidden: &[String]) -> Vec<AccountView> {
-    accounts
+/// PRD 0036 (V-05): a connection follows its aggregator, and with
+/// "Aggregator connections in All: Hidden" (`no_aggregators`) every
+/// aggregator's items are left out.
+fn without_hidden(
+    accounts: &[AccountView],
+    hidden: &[String],
+    no_aggregators: bool,
+) -> Vec<AccountView> {
+    let shown: Vec<AccountView> = accounts
         .iter()
         .filter(|a| !hidden.contains(&a.key))
+        .filter(|a| {
+            a.parent
+                .as_ref()
+                .is_none_or(|parent| !hidden.contains(parent))
+        })
         .cloned()
-        .collect()
+        .collect();
+    if no_aggregators {
+        tray::without_aggregators(&shown)
+    } else {
+        shown
+    }
 }
 
 /// V-08: the current accounts the menu bar may show (dashboard order),
 /// hidden ones left out.
 pub fn visible_accounts() -> Vec<AccountView> {
-    without_hidden(&lock().accounts, &settings::hidden_accounts())
+    without_hidden(
+        &lock().accounts,
+        &settings::hidden_accounts(),
+        settings::aggregators_hidden(),
+    )
 }
 
 /// RF4.1 (V-05): the preview the Settings page shows, from the current
@@ -168,9 +189,10 @@ pub fn visible_accounts() -> Vec<AccountView> {
 pub fn preview(style: TrayStyle, selection: &TraySelection, colored: bool) -> Preview {
     let locale = current_locale();
     let hidden = settings::hidden_accounts();
+    let no_aggregators = settings::aggregators_hidden();
     let state = lock();
     let summary = summarize(
-        &without_hidden(&state.accounts, &hidden),
+        &without_hidden(&state.accounts, &hidden, no_aggregators),
         style,
         selection,
         &locale,
@@ -245,9 +267,10 @@ pub fn set_menu_tooltip(app: &AppHandle, text: String) {
 pub fn redraw(app: &AppHandle, prefs: &TrayPrefs) {
     let locale = current_locale();
     let hidden = settings::hidden_accounts();
+    let no_aggregators = settings::aggregators_hidden();
     let mut state = lock();
     let summary = summarize(
-        &without_hidden(&state.accounts, &hidden),
+        &without_hidden(&state.accounts, &hidden, no_aggregators),
         prefs.style,
         &prefs.selection(),
         &locale,
@@ -1333,6 +1356,42 @@ mod tests {
         }
     }
 
+    /// PRD 0036 (V-05): a connection follows its aggregator hidden in the
+    /// dashboard, and "Aggregator connections in All: Hidden" leaves every
+    /// aggregator item out of the menu bar.
+    #[test]
+    fn aggregator_items_follow_the_dashboard_and_the_all_setting() {
+        let mut accounts = work(Some(0.8));
+        accounts.push(AccountView {
+            key: "acc_r/a1".into(),
+            provider: "claude".into(),
+            provider_label: "Claude".into(),
+            name: "conn".into(),
+            remaining: Some(0.1),
+            parent: Some("acc_r".into()),
+            ..AccountView::default()
+        });
+        accounts.push(AccountView {
+            key: "acc_l".into(),
+            provider: "litellm".into(),
+            provider_label: "LiteLLM proxy".into(),
+            name: "gateway".into(),
+            stale: true,
+            ..AccountView::default()
+        });
+        let keys =
+            |shown: Vec<AccountView>| -> Vec<String> { shown.into_iter().map(|a| a.key).collect() };
+        assert_eq!(
+            keys(without_hidden(&accounts, &[], false)),
+            ["acc_a", "acc_r/a1", "acc_l"]
+        );
+        assert_eq!(
+            keys(without_hidden(&accounts, &["acc_r".to_owned()], false)),
+            ["acc_a", "acc_l"]
+        );
+        assert_eq!(keys(without_hidden(&accounts, &[], true)), ["acc_a"]);
+    }
+
     /// V-08/S-01: a hidden account is absent from the summary, the image and
     /// the tooltip, in every selection mode.
     #[test]
@@ -1348,7 +1407,7 @@ mod tests {
             ..AccountView::default()
         });
         let hidden = vec!["acc_old".to_owned()];
-        let shown = without_hidden(&accounts, &hidden);
+        let shown = without_hidden(&accounts, &hidden, false);
         for selection in [
             TraySelection::Auto,
             TraySelection::Custom(vec!["acc_old".into(), "acc_a".into()]),

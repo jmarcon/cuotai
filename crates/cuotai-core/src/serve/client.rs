@@ -131,7 +131,9 @@ pub fn limits_url(base: &str) -> Result<url::Url, ClientError> {
 }
 
 /// Read `/v1/limits` of the server at `base` with `token` (when the server
-/// requires one) and turn each account into the view `tray::summary` takes.
+/// requires one) and turn each item of its summary (PRD 0036 V-05: direct
+/// accounts and active connections, [`ServerAccount::in_summary`]) into the
+/// view `tray::summary` takes.
 pub async fn limits_views(
     base: &str,
     token: Option<&Token>,
@@ -139,6 +141,7 @@ pub async fn limits_views(
     Ok(limits_accounts(base, token)
         .await?
         .into_iter()
+        .filter(|account| account.in_summary)
         .map(|account| account.view)
         .collect())
 }
@@ -150,6 +153,9 @@ pub async fn limits_views(
 pub struct ServerAccount {
     pub view: AccountView,
     pub key: String,
+    /// PRD 0036 RF5.3 (V-05): the entry is an item of the server's summary
+    /// (`in_summary`; a server that predates the field counts every entry).
+    pub in_summary: bool,
 }
 
 /// [`limits_views`] with each account's legacy key.
@@ -245,12 +251,14 @@ async fn read_bounded(
     Ok(body)
 }
 
-/// The views of a `/v1/limits` body (schema 1), in its order. Unknown
+/// The views of a `/v1/limits` body (schema 1), in its order, for the
+/// items of its summary only ([`ServerAccount::in_summary`]). Unknown
 /// fields and values are ignored (open enums, PRD 0031 RF5); a body
 /// without `accounts` is incompatible.
 pub fn views_from_limits(limits: &Value) -> Result<Vec<AccountView>, ClientError> {
     Ok(accounts_from_limits(limits)?
         .into_iter()
+        .filter(|account| account.in_summary)
         .map(|account| account.view)
         .collect())
 }
@@ -264,10 +272,28 @@ pub fn accounts_from_limits(limits: &Value) -> Result<Vec<ServerAccount>, Client
         .get("accounts")
         .and_then(Value::as_array)
         .ok_or(ClientError::Incompatible)?;
+    let text = |account: &Value, key: &str| {
+        crate::text::strip_disguising(account.get(key).and_then(Value::as_str).unwrap_or_default())
+            .into_owned()
+    };
     Ok(accounts
         .iter()
         .map(|account| ServerAccount {
-            view: view(account),
+            view: AccountView {
+                // A connection names its aggregator by key; the view keeps
+                // the aggregator's id, which a selection uses.
+                parent: account.get("parent").and_then(Value::as_str).map(|key| {
+                    accounts
+                        .iter()
+                        .find(|other| other.get("key").and_then(Value::as_str) == Some(key))
+                        .map_or_else(
+                            || crate::text::strip_disguising(key).into_owned(),
+                            |other| text(other, "id"),
+                        )
+                }),
+                ..view(account)
+            },
+            in_summary: account.get("in_summary").and_then(Value::as_bool) != Some(false),
             key: crate::text::strip_disguising(
                 account
                     .get("key")
@@ -420,6 +446,34 @@ mod tests {
         assert_eq!(views[1].remaining, None);
         assert!(views[1].exhausted && views[1].stale);
         assert_eq!(views[1].provider_label, "some_future_provider");
+    }
+
+    /// PRD 0036 RF5.3 (V-05): the entries outside the summary (an
+    /// aggregator beside its connections, a duplicate) are not views; a
+    /// connection keeps its aggregator's id as `parent`.
+    #[test]
+    fn only_summary_items_become_views() {
+        let body = json!({
+            "schema": 1,
+            "accounts": [
+                {"id": "acc_d", "key": "claude:Main", "name": "Main", "provider": "claude",
+                 "class": "available", "stale": false, "binding": null, "in_summary": true},
+                {"id": "acc_r", "key": "nine_router:home", "name": "home", "provider": "nine_router",
+                 "class": "available", "stale": false, "binding": null, "in_summary": false},
+                {"id": "acc_r/a1", "key": "nine_router:home/a1", "name": "work", "provider": "claude",
+                 "class": "available", "stale": false, "binding": {"used_ratio": 0.4},
+                 "parent": "nine_router:home", "in_summary": true},
+                {"id": "acc_r/b2", "key": "nine_router:home/b2", "name": "dup", "provider": "claude",
+                 "class": "available", "stale": false, "binding": null,
+                 "parent": "nine_router:home", "in_summary": false}
+            ]
+        });
+        let views = views_from_limits(&body).unwrap();
+        let keys: Vec<&str> = views.iter().map(|v| v.key.as_str()).collect();
+        assert_eq!(keys, ["acc_d", "acc_r/a1"]);
+        assert_eq!(views[1].parent.as_deref(), Some("acc_r"));
+        let all = accounts_from_limits(&body).unwrap();
+        assert_eq!(all.len(), 4, "every entry stays nameable by --account");
     }
 
     /// S-04: OSC 0 (window title), OSC 52 (clipboard), CSI and bidi
