@@ -682,9 +682,7 @@ impl<F: Fn(&Metric, DateTime<Utc>) -> Vec<Point>> Baselines for F {
 
 /// Whether the target counts down (a prepaid balance): RF2.3.
 fn counts_down(target: &Metric) -> bool {
-    target.kind == MetricKind::Balance
-        || (target.used.filter(|v| v.is_finite()).is_none()
-            && target.remaining.filter(|v| v.is_finite()).is_some())
+    target.kind == MetricKind::Balance || target.is_balance_shaped()
 }
 
 /// The target's current value: `used`, or `remaining` for a balance.

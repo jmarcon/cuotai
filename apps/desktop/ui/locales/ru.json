@@ -52,7 +52,8 @@
       "confirm.certificate.replace",
       "coreText.passwordUnset",
       "metric.noCap",
-      "metric.full"
+      "metric.full",
+      "metric.exhaustedAmount"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -216,6 +217,7 @@
   "metric.balance": "Баланс: {amount}",
   "metric.usage": "Использование: {amount}",
   "metric.exhausted": "Исчерпано",
+  "metric.exhaustedAmount": "Исчерпано · {amount}",
   "metric.full": "Всё занято",
   "metric.noCap": "Без ограничения",
   "account.empty": "Учётные записи не настроены.",

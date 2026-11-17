@@ -54,7 +54,8 @@
       "confirm.certificate.replace",
       "coreText.passwordUnset",
       "metric.noCap",
-      "metric.full"
+      "metric.full",
+      "metric.exhaustedAmount"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -209,6 +210,7 @@
   "metric.balance": "잔액: {amount}",
   "metric.usage": "사용량: {amount}",
   "metric.exhausted": "소진됨",
+  "metric.exhaustedAmount": "소진됨 · {amount}",
   "metric.full": "모두 사용 중",
   "metric.noCap": "상한 없음",
   "account.empty": "설정된 계정이 없습니다.",

@@ -430,8 +430,8 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   const lib = await import("../apps/desktop/ui/js/lib.js");
   await i18n.setLocale("en-US");
   const uncapped = { label: "x", unit: "USD", used: 3, limit: null, remaining: null, kind: "usage", state: "available", ratio: null, uncapped: true, no_cap: false };
-  assert.equal(lib.textualMetric(uncapped), "Usage: 3 USD");
-  assert.equal(lib.textualMetric({ ...uncapped, unlimited: true }), "Usage: 3 USD · No cap");
+  assert.equal(lib.textualMetric(uncapped), "Usage: $3.00");
+  assert.equal(lib.textualMetric({ ...uncapped, unlimited: true }), "Usage: $3.00 · No cap");
   assert.equal(lib.textualMetric({ ...uncapped, used: null, unlimited: true }), "No cap");
   const full = { ...uncapped, limit: 1, used: 1, remaining: 0, state: "exhausted", uncapped: false };
   assert.equal(lib.isFullCounter(full), true);
@@ -443,4 +443,41 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
     assert.notEqual(i18n.t("metric.noCap"), "metric.noCap", code);
   }
   console.log("PASS: an uncapped metric says no cap when the provider stated it; a full usage counter is all in use");
+}
+
+// PRD 0038 F-03, F-13, F-14: a balance (only what is left) shows that amount with its sign, never "—" or "left"; at or
+// below zero it says "Exhausted · <amount>"; an ISO-currency amount reads as money, as in the TUI; a gauged quota and
+// a measured value keep their figures; the unit agrees with the figure printed before it.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  const text = (id, fallback, params = {}) => ({ id, params, fallback });
+  const credits = { label: "Credits", unit: "créditos", unit_text: text("metric.unit.credits", "credits"), used: null, limit: null, kind: "credits", ratio: null, no_cap: true };
+  const cline = { label: "Balance", unit: "USD", used: null, limit: null, kind: "balance", ratio: null, no_cap: true };
+  await i18n.setLocale("en-US");
+  assert.equal(lib.isBalanceShaped({ ...credits, remaining: 74.75 }), true);
+  assert.equal(lib.isBalanceShaped({ ...credits, remaining: 60, limit: 100 }), false, "a gauged quota");
+  assert.equal(lib.isBalanceShaped({ ...credits, remaining: 60, used: 40 }), false, "a measured value");
+  assert.equal(lib.isBalanceShaped({ ...credits, remaining: null }), false);
+  assert.equal(lib.fmtAmount({ ...credits, remaining: 74.75, state: "available", uncapped: true }), "74.75\u00a0credits");
+  assert.equal(lib.fmtAmount({ ...credits, remaining: 1, state: "available", uncapped: true }), "1\u00a0credit");
+  assert.equal(lib.textualMetric({ ...credits, remaining: 74.75, state: "available", uncapped: true }), "Balance: 74.75\u00a0credits");
+  assert.equal(lib.fmtAmount({ ...cline, remaining: 5, state: "available", uncapped: true }), "$5.00");
+  assert.equal(lib.textualMetric({ ...cline, remaining: 5, state: "available", uncapped: true }), "Balance: $5.00");
+  assert.equal(lib.fmtAmount({ ...cline, remaining: -2.5, state: "exhausted", uncapped: false }), "-$2.50");
+  assert.equal(lib.textualMetric({ ...cline, remaining: -2.5, state: "exhausted", uncapped: false }), "Exhausted · -$2.50");
+  assert.equal(lib.textualMetric({ ...credits, remaining: -1.5, state: "exhausted", uncapped: false }), "Exhausted · -1.5\u00a0credits");
+  // A full capped counter without a balance shape keeps the bare word.
+  assert.equal(lib.textualMetric({ ...credits, used: 10, remaining: null, state: "exhausted", uncapped: false }), "Exhausted");
+  // A gauged quota and a measured value keep their figures; money stays money.
+  assert.equal(lib.fmtAmount({ ...credits, used: 40, limit: 100, remaining: 60 }), "40 / 100\u00a0credits");
+  assert.equal(lib.fmtAmount({ ...cline, used: 4.5, limit: 10, remaining: 5.5 }), "$4.50 / $10.00");
+  assert.equal(lib.fmtAmount({ ...cline, used: 4.5, remaining: null }), "$4.50");
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    const out = lib.textualMetric({ ...cline, remaining: -2.5, state: "exhausted", uncapped: false });
+    assert.ok(!out.includes("metric.exhaustedAmount") && !out.includes("{amount}"), `${code}: ${out}`);
+    assert.ok(out.includes(lib.fmtMoney(-2.5, "USD")), `${code}: the amount: ${out}`);
+    for (const shown of [lib.fmtAmount({ ...credits, remaining: 74.75 }), out]) assert.ok(!shown.includes("—"), `${code}: ${shown}`);
+  }
+  console.log("PASS: a balance shows its amount with its sign, exhausted says how much, and money reads as money");
 }
