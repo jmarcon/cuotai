@@ -252,7 +252,7 @@
   "settings.kw.tray-style": "barra dei menu vassoio barra di stato titolo icona percentuale indicatori colore account ordine stile più stretto percentuale loghi misuratori icona titolo",
   "settings.kw.tray-colored": "barra dei menu vassoio barra di stato titolo icona percentuale indicatori colore account ordine colore colorato livelli",
   "settings.kw.tray-auto": "barra dei menu vassoio barra di stato titolo icona percentuale indicatori colore account ordine automatico selezione account ordine",
-  "settings.kw.agg-in-all": "9router connessioni aggregatore tutti elenco raggruppa nascondi",
+  "settings.kw.agg-in-all": "9router LiteLLM connessioni aggregatore tutti elenco raggruppa nascondi",
   "settings.kw.exhaustion": "esaurita vuota senza quota avviso",
   "settings.kw.recovery": "recuperata di nuovo disponibile avviso",
   "settings.kw.test": "provare notifica permesso inviare",

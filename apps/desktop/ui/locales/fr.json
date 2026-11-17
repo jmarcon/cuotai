@@ -575,7 +575,7 @@
   "settings.kw.tray-style": "barre des menus zone de notification barre d’état titre icône pourcentage jauges couleur comptes ordre style plus serrée logos",
   "settings.kw.tray-colored": "barre des menus zone de notification barre d’état titre icône pourcentage jauges couleur comptes ordre coloré niveaux",
   "settings.kw.tray-auto": "barre des menus zone de notification barre d’état titre icône pourcentage jauges couleur comptes ordre sélection automatique",
-  "settings.kw.agg-in-all": "9router connexions agrégateur tous liste groupe masquer",
+  "settings.kw.agg-in-all": "9router LiteLLM connexions agrégateur tous liste groupe masquer",
   "settings.kw.exhaustion": "épuisé vide plus de quota alerte",
   "settings.kw.recovery": "rétabli revenu de nouveau disponible alerte",
   "settings.kw.test": "test notification autorisation envoyer",

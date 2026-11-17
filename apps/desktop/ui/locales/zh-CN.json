@@ -307,7 +307,7 @@
   "settings.kw.tray-style": "菜单栏 托盘 状态栏 标题 图标 百分比 仪表 颜色 账户 顺序 样式 最紧 标志",
   "settings.kw.tray-colored": "菜单栏 托盘 状态栏 标题 图标 百分比 仪表 颜色 账户 顺序 彩色 级别",
   "settings.kw.tray-auto": "菜单栏 托盘 状态栏 标题 图标 百分比 仪表 颜色 账户 顺序 自动 选择",
-  "settings.kw.agg-in-all": "9router 连接 聚合器 全部 列表 分组 隐藏",
+  "settings.kw.agg-in-all": "9router LiteLLM 连接 聚合器 全部 列表 分组 隐藏",
   "settings.kw.exhaustion": "用尽 耗尽 额度 提醒",
   "settings.kw.recovery": "恢复 重新可用 提醒",
   "settings.kw.test": "测试 通知 权限 发送",

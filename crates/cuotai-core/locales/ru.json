@@ -149,7 +149,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -230,7 +231,7 @@
   "access.summary.copilot_quota": "Личная квота взаимодействий Copilot через внутренний интерфейс GitHub.",
   "access.summary.cursor_personal": "Сводка личной подписки Cursor через внутренний интерфейс сайта.",
   "access.summary.cursor_teams": "Расходы команды за цикл через Admin API Cursor.",
-  "access.summary.eleven_labs": "Читает использованные кредиты, лимит тарифа и ближайший сброс через документированный эндпоинт подписки ElevenLabs, а также дополнительное использование, если оно включено.",
+  "access.summary.eleven_labs": "Читает использованные кредиты, лимит тарифа, ближайший сброс и слоты голосов через документированный эндпоинт подписки ElevenLabs, а также дополнительное использование, если оно включено, название и статус тарифа и наличие неоплаченных счетов (без сумм).",
   "access.summary.extension": "Использование, сообщаемое локальным расширением, одобренным пользователем.",
   "access.summary.gemini_ai": "Ключ API AI Studio.",
   "access.summary.gemini_ai_cli": "Квота Gemini CLI через внутренний интерфейс Code Assist.",
@@ -1083,7 +1084,7 @@
   "field.copilot.query_mode.label": "Режим запроса",
   "field.copilot.query_mode.option.billing": "Документированный биллинг (по умолчанию)",
   "field.copilot.query_mode.option.quota": "Личная квота (по желанию, внутренний интерфейс)",
-  "field.eleven_labs.region.help": "default (по умолчанию): api.elevenlabs.io. us, eu, in и sg: эндпоинты резидентности данных; используйте эндпоинт региона записи.",
+  "field.eleven_labs.region.help": "По умолчанию: api.elevenlabs.io. us, eu, in и sg: эндпоинты резидентности данных; используйте регион вашей учётной записи.",
   "field.eleven_labs.region.label": "Регион данных",
   "field.eleven_labs.region.option.default": "По умолчанию (api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "Европейский союз (резидентность данных)",
@@ -1582,6 +1583,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs не сообщил лимит кредитов; показан только расход.",
   "note.eleven_labs.open_invoices": "ElevenLabs сообщает о неоплаченных счетах.",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs сообщил нечитаемую сумму дополнительного использования; расходы опущены.",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs сообщил сумму дополнительного использования в валюте, которую Cuotai не знает; расходы опущены.",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs сообщил потолок дополнительного использования, но не позволяет расширять лимит; дополнительное использование считается отключённым.",
   "note.eleven_labs.overage_unlimited": "У дополнительного использования нет потолка кредитов.",
   "note.eleven_labs.payg_not_reported": "Баланс Pay As You Go: этот эндпоинт его не сообщает.",

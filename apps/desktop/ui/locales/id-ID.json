@@ -251,7 +251,7 @@
   "settings.kw.tray-style": "bilah menu baki bilah status judul ikon persen meter warna urutan akun gaya paling ketat logo",
   "settings.kw.tray-colored": "bilah menu baki bilah status judul ikon persen meter warna urutan akun berwarna tingkat",
   "settings.kw.tray-auto": "bilah menu baki bilah status judul ikon persen meter warna urutan akun pilihan otomatis",
-  "settings.kw.agg-in-all": "koneksi 9router agregator semua daftar grup sembunyikan",
+  "settings.kw.agg-in-all": "koneksi 9router LiteLLM agregator semua daftar grup sembunyikan",
   "settings.kw.exhaustion": "habis kosong kehabisan kuota peringatan",
   "settings.kw.recovery": "pulih kembali tersedia lagi peringatan",
   "settings.kw.test": "uji notifikasi izin kirim",

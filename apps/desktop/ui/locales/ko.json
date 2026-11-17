@@ -303,7 +303,7 @@
   "settings.kw.tray-style": "메뉴 막대 트레이 상태 표시줄 제목 아이콘 퍼센트 미터 색상 계정 순서 스타일 가장 빠듯함 로고",
   "settings.kw.tray-colored": "메뉴 막대 트레이 상태 표시줄 제목 아이콘 퍼센트 미터 색상 계정 순서 컬러 단계",
   "settings.kw.tray-auto": "메뉴 막대 트레이 상태 표시줄 제목 아이콘 퍼센트 미터 색상 계정 순서 자동 선택",
-  "settings.kw.agg-in-all": "9router 연결 어그리게이터 전체 목록 그룹 숨기기",
+  "settings.kw.agg-in-all": "9router LiteLLM 연결 어그리게이터 전체 목록 그룹 숨기기",
   "settings.kw.exhaustion": "소진 고갈 할당량 초과 알림",
   "settings.kw.recovery": "복구 회복 다시 사용 가능 알림",
   "settings.kw.test": "테스트 알림 권한 보내기",

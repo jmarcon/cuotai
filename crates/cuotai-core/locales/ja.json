@@ -143,7 +143,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -224,7 +225,7 @@
   "access.summary.copilot_quota": "GitHub の内部インターフェースによる Copilot の個人のインタラクションのクォータ。",
   "access.summary.cursor_personal": "サイトの内部インターフェースによる Cursor の個人サブスクリプションの概要。",
   "access.summary.cursor_teams": "Cursor の Admin API によるチームのサイクル内の支出。",
-  "access.summary.eleven_labs": "ElevenLabs の公開されているサブスクリプションのエンドポイントから、使用済みクレジット、プランの上限、次回の更新を読み取ります。有効な場合は追加使用量も読み取ります。",
+  "access.summary.eleven_labs": "ElevenLabs の公開されているサブスクリプションのエンドポイントから、使用済みクレジット、プランの上限、次回の更新、ボイス枠を読み取ります。有効な場合は追加使用量も読み取り、プラン名と状態、未払いの請求書の有無（金額なし）も読み取ります。",
   "access.summary.extension": "ユーザーが承認したローカルの拡張機能が報告する使用量。",
   "access.summary.gemini_ai": "AI Studio の API キー。",
   "access.summary.gemini_ai_cli": "Code Assist の内部インターフェースによる Gemini CLI のクォータ。",
@@ -1023,7 +1024,7 @@
   "field.copilot.query_mode.label": "照会モード",
   "field.copilot.query_mode.option.billing": "公開されている請求（既定）",
   "field.copilot.query_mode.option.quota": "個人クォータ（オプトイン、内部インターフェース）",
-  "field.eleven_labs.region.help": "default（既定）：api.elevenlabs.io。us、eu、in、sg：データ所在地のエンドポイント。アカウントのリージョンのものを使用してください。",
+  "field.eleven_labs.region.help": "既定：api.elevenlabs.io。us、eu、in、sg：データ所在地のエンドポイント。ご自身のアカウントのリージョンを使用してください。",
   "field.eleven_labs.region.label": "データのリージョン",
   "field.eleven_labs.region.option.default": "既定（api.elevenlabs.io）",
   "field.eleven_labs.region.option.eu": "欧州連合（データ所在地）",
@@ -1513,6 +1514,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs がクレジットの上限を報告しませんでした。消費量のみ表示します。",
   "note.eleven_labs.open_invoices": "ElevenLabs が未払いの請求書を報告しています。",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs が報告した追加使用の金額を読み取れないため、費用は省略しました。",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs が Cuotai の知らない通貨で追加使用の金額を報告したため、費用は省略しました。",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs は追加使用の上限を報告しましたが、上限の拡張を許可していないため、追加使用はオフとして扱いました。",
   "note.eleven_labs.overage_unlimited": "追加使用にクレジットの上限はありません。",
   "note.eleven_labs.payg_not_reported": "Pay As You Go の残高：このエンドポイントでは報告されません。",

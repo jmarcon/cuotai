@@ -116,7 +116,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -197,7 +198,7 @@
   "access.summary.copilot_quota": "GitHub के आंतरिक इंटरफ़ेस से Copilot के इंटरैक्शन का निजी कोटा।",
   "access.summary.cursor_personal": "साइट के आंतरिक इंटरफ़ेस से Cursor की निजी सदस्यता का सार।",
   "access.summary.cursor_teams": "Cursor की Admin API से चक्र में टीम का खर्च।",
-  "access.summary.eleven_labs": "ElevenLabs के दस्तावेज़ीकृत सदस्यता एंडपॉइंट से इस्तेमाल हुए क्रेडिट, प्लान की सीमा और अगला नवीनीकरण, साथ में चालू होने पर अतिरिक्त उपयोग।",
+  "access.summary.eleven_labs": "ElevenLabs के दस्तावेज़ीकृत सदस्यता एंडपॉइंट से इस्तेमाल हुए क्रेडिट, प्लान की सीमा, अगला नवीनीकरण और आवाज़ के स्लॉट, साथ में चालू होने पर अतिरिक्त उपयोग, प्लान का नाम और स्थिति, और क्या बकाया इनवॉइस हैं (राशि के बिना)।",
   "access.summary.extension": "उपयोगकर्ता द्वारा मंज़ूर किए स्थानीय एक्सटेंशन से मिला उपयोग।",
   "access.summary.gemini_ai": "AI Studio की API कुंजी।",
   "access.summary.gemini_ai_cli": "Code Assist के आंतरिक इंटरफ़ेस से Gemini CLI का कोटा।",
@@ -1014,7 +1015,7 @@
   "field.copilot.query_mode.label": "जाँच का मोड",
   "field.copilot.query_mode.option.billing": "दस्तावेज़ीकृत बिलिंग (डिफ़ॉल्ट)",
   "field.copilot.query_mode.option.quota": "निजी कोटा (वैकल्पिक, आंतरिक इंटरफ़ेस)",
-  "field.eleven_labs.region.help": "default (डिफ़ॉल्ट): api.elevenlabs.io। us, eu, in और sg: डेटा-निवास के एंडपॉइंट; खाते के रीजन वाला इस्तेमाल करें।",
+  "field.eleven_labs.region.help": "डिफ़ॉल्ट: api.elevenlabs.io। us, eu, in और sg: डेटा-निवास के एंडपॉइंट; अपने खाते का रीजन इस्तेमाल करें।",
   "field.eleven_labs.region.label": "डेटा का रीजन",
   "field.eleven_labs.region.option.default": "डिफ़ॉल्ट (api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "यूरोपीय संघ (डेटा निवास)",
@@ -1507,6 +1508,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs ने क्रेडिट की सीमा नहीं बताई; केवल खपत दिखाई जाती है।",
   "note.eleven_labs.open_invoices": "ElevenLabs बकाया इनवॉइस बताता है।",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs ने अतिरिक्त उपयोग की ऐसी राशि लौटाई जो पढ़ी नहीं जा सकती; लागत छोड़ दी गई।",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs ने अतिरिक्त उपयोग की राशि ऐसी मुद्रा में बताई जिसे Cuotai नहीं जानता; लागत छोड़ दी गई।",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs ने अतिरिक्त उपयोग की ऊपरी सीमा बताई, पर सीमा बढ़ाने की अनुमति नहीं देता; अतिरिक्त उपयोग को बंद माना गया।",
   "note.eleven_labs.overage_unlimited": "अतिरिक्त उपयोग की क्रेडिट की कोई ऊपरी सीमा नहीं है।",
   "note.eleven_labs.payg_not_reported": "Pay As You Go बैलेंस: इस एंडपॉइंट से नहीं बताया गया।",

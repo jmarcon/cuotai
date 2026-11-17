@@ -304,10 +304,12 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                 .filter(|v| v.is_finite() && *v >= 0.0),
             _ => None,
         };
+        // A `null` (or non-text) nested currency falls back to the
+        // subscription's top-level one (PRD 0037 S-02).
         let currency = overage
             .get("currency")
-            .or_else(|| body.get("currency"))
             .and_then(Value::as_str)
+            .or_else(|| body.get("currency").and_then(Value::as_str))
             .map(str::to_ascii_lowercase)
             .filter(|c| CURRENCIES.contains(&c.as_str()));
         match (amount, currency) {
@@ -330,6 +332,13 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                 .overage(),
             ),
             (Some(_), Some(_)) => {}
+            // A readable amount in a currency Cuotai does not know (or none
+            // at all) is omitted with its own note, not as "unreadable".
+            (Some(amount), None) if enabled || amount > 0.0 => notes.push(
+                "note.eleven_labs.overage_currency_unknown",
+                "ElevenLabs reported the extra-usage amount in a currency Cuotai does not know; the cost was omitted.",
+            ),
+            (Some(_), None) => {}
             _ if overage.get("amount").is_some_and(|v| !v.is_null()) => notes.push(
                 "note.eleven_labs.overage_amount_unreadable",
                 "ElevenLabs reported an unreadable extra-usage amount; the cost was omitted.",
@@ -784,6 +793,32 @@ mod tests {
         assert!(metric(&data, "Créditos extras usados").is_none());
         let cost = metric(&data, "Custo do uso extra").unwrap();
         assert_eq!((cost.used, cost.unit.as_str()), (Some(2.5), "EUR"));
+    }
+
+    /// PRD 0037 S-02: a `null` nested currency uses the top-level one; an
+    /// unknown currency omits the cost with its own note.
+    #[tokio::test]
+    async fn overage_currency_falls_back_and_unknown_has_its_own_note() {
+        let mut body = base(10000, 10000);
+        body["currency"] = json!("gbp");
+        body["current_overage"] = json!({"amount": "2.50", "currency": null});
+        let data = ok(body).await;
+        let cost = metric(&data, "Custo do uso extra").unwrap();
+        assert_eq!((cost.used, cost.unit.as_str()), (Some(2.5), "GBP"));
+
+        let mut body = base(10000, 10000);
+        body["current_overage"] = json!({"amount": "2.50", "currency": "xyz"});
+        let data = ok(body).await;
+        assert!(metric(&data, "Custo do uso extra").is_none());
+        let found = ids(&data);
+        assert!(found.contains(&"note.eleven_labs.overage_currency_unknown"));
+        assert!(!found.contains(&"note.eleven_labs.overage_amount_unreadable"));
+
+        // Nothing to report: a zero amount with extra usage off.
+        let mut body = base(10000, 10000);
+        body["current_overage"] = json!({"amount": "0.00", "currency": "xyz"});
+        let data = ok(body).await;
+        assert!(!ids(&data).contains(&"note.eleven_labs.overage_currency_unknown"));
     }
 
     #[tokio::test]

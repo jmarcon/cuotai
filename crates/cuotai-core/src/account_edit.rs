@@ -1643,7 +1643,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
     const ELEVEN_LABS: [FieldDescriptor; 1] = [FieldDescriptor::choice(
         "region",
         "Data region",
-        "default (default): api.elevenlabs.io. us, eu, in and sg: data-residency endpoints; use the one of the account's region.",
+        "Default: api.elevenlabs.io. us, eu, in and sg: data-residency endpoints; use your account's region.",
         &[
             ChoiceOptionDescriptor::new("default", "Default (api.elevenlabs.io)"),
             ChoiceOptionDescriptor::new("us", "United States (api.us.elevenlabs.io)"),

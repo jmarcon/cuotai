@@ -100,7 +100,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -181,7 +182,7 @@
   "access.summary.copilot_quota": "Hạn mức tương tác cá nhân của Copilot qua giao diện nội bộ của GitHub.",
   "access.summary.cursor_personal": "Tóm tắt gói đăng ký cá nhân của Cursor qua giao diện nội bộ của trang web.",
   "access.summary.cursor_teams": "Chi tiêu của nhóm trong chu kỳ qua Admin API của Cursor.",
-  "access.summary.eleven_labs": "Đọc tín dụng đã dùng, giới hạn gói và lần đặt lại tiếp theo từ endpoint đăng ký có tài liệu của ElevenLabs, cộng với mức sử dụng thêm khi được bật.",
+  "access.summary.eleven_labs": "Đọc tín dụng đã dùng, giới hạn gói, lần đặt lại tiếp theo và số chỗ giọng nói từ endpoint đăng ký có tài liệu của ElevenLabs, cộng với mức sử dụng thêm khi được bật, tên và trạng thái gói, và việc có hóa đơn chưa thanh toán hay không (không kèm số tiền).",
   "access.summary.extension": "Mức sử dụng do một tiện ích mở rộng cục bộ được người dùng phê duyệt báo cáo.",
   "access.summary.gemini_ai": "Khóa API AI Studio.",
   "access.summary.gemini_ai_cli": "Hạn mức của Gemini CLI qua giao diện nội bộ của Code Assist.",
@@ -980,7 +981,7 @@
   "field.copilot.query_mode.label": "Chế độ truy vấn",
   "field.copilot.query_mode.option.billing": "Thanh toán có tài liệu (mặc định)",
   "field.copilot.query_mode.option.quota": "Hạn mức cá nhân (opt-in, giao diện nội bộ)",
-  "field.eleven_labs.region.help": "default (mặc định): api.elevenlabs.io. us, eu, in và sg: endpoint lưu trú dữ liệu; hãy dùng endpoint của khu vực tài khoản.",
+  "field.eleven_labs.region.help": "Mặc định: api.elevenlabs.io. us, eu, in và sg: endpoint lưu trú dữ liệu; hãy dùng khu vực của tài khoản bạn.",
   "field.eleven_labs.region.label": "Khu vực dữ liệu",
   "field.eleven_labs.region.option.default": "Mặc định (api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "Liên minh châu Âu (lưu trú dữ liệu)",
@@ -1470,6 +1471,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs không báo giới hạn tín dụng; chỉ hiện mức tiêu thụ.",
   "note.eleven_labs.open_invoices": "ElevenLabs báo có hóa đơn chưa thanh toán.",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs báo một khoản sử dụng thêm không đọc được; chi phí đã bị bỏ qua.",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs báo khoản sử dụng thêm bằng một loại tiền tệ Cuotai không biết; chi phí đã bị bỏ qua.",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs báo một mức trần sử dụng thêm nhưng không cho phép mở rộng giới hạn; mức sử dụng thêm được coi là tắt.",
   "note.eleven_labs.overage_unlimited": "Mức sử dụng thêm không có mức trần tín dụng.",
   "note.eleven_labs.payg_not_reported": "Số dư Pay As You Go: endpoint này không báo.",

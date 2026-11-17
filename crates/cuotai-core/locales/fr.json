@@ -1016,7 +1016,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1097,7 +1098,7 @@
   "access.summary.copilot_quota": "Quota personnel d’interactions Copilot via l’interface interne de GitHub.",
   "access.summary.cursor_personal": "Résumé de l’abonnement personnel Cursor via l’interface interne du site.",
   "access.summary.cursor_teams": "Dépenses de l’équipe sur le cycle via l’Admin API de Cursor.",
-  "access.summary.eleven_labs": "Lit les crédits utilisés, la limite du forfait et le prochain renouvellement sur le point d’accès d’abonnement documenté d’ElevenLabs, plus l’utilisation supplémentaire quand elle est activée.",
+  "access.summary.eleven_labs": "Lit les crédits utilisés, la limite du forfait, le prochain renouvellement et les emplacements de voix sur le point d’accès d’abonnement documenté d’ElevenLabs, plus l’utilisation supplémentaire quand elle est activée, le nom et l’état du forfait, et la présence de factures ouvertes (sans montants).",
   "access.summary.extension": "Utilisation indiquée par une extension locale approuvée par l’utilisateur.",
   "access.summary.gemini_ai": "Clé API AI Studio.",
   "access.summary.gemini_ai_cli": "Quota du Gemini CLI via l’interface interne de Code Assist.",
@@ -1914,7 +1915,7 @@
   "field.copilot.query_mode.label": "Mode de requête",
   "field.copilot.query_mode.option.billing": "Facturation documentée (par défaut)",
   "field.copilot.query_mode.option.quota": "Quota personnel (à activer, interface interne)",
-  "field.eleven_labs.region.help": "default (par défaut) : api.elevenlabs.io. us, eu, in et sg : points d’accès de résidence des données ; utilisez celui de la région du compte.",
+  "field.eleven_labs.region.help": "Par défaut : api.elevenlabs.io. us, eu, in et sg : points d’accès de résidence des données ; utilisez la région de votre compte.",
   "field.eleven_labs.region.label": "Région des données",
   "field.eleven_labs.region.option.default": "Par défaut (api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "Union européenne (résidence des données)",
@@ -2407,6 +2408,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs n’a pas indiqué la limite de crédits ; seule la consommation est affichée.",
   "note.eleven_labs.open_invoices": "ElevenLabs indique des factures ouvertes.",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs a indiqué un montant d’utilisation supplémentaire illisible ; le coût a été omis.",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs a indiqué le montant d’utilisation supplémentaire dans une devise que Cuotai ne connaît pas ; le coût a été omis.",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs a indiqué un plafond d’utilisation supplémentaire, mais n’autorise pas l’extension de la limite ; l’utilisation supplémentaire a été traitée comme désactivée.",
   "note.eleven_labs.overage_unlimited": "L’utilisation supplémentaire n’a pas de plafond de crédits.",
   "note.eleven_labs.payg_not_reported": "Solde Pay As You Go : non indiqué par ce point d’accès.",

@@ -303,7 +303,7 @@
   "settings.kw.tray-style": "メニューバー トレイ ステータスバー タイトル アイコン パーセント メーター 色 アカウント 順序 スタイル 最も厳しい ロゴ",
   "settings.kw.tray-colored": "メニューバー トレイ ステータスバー タイトル アイコン パーセント メーター 色 アカウント 順序 カラー レベル",
   "settings.kw.tray-auto": "メニューバー トレイ ステータスバー タイトル アイコン パーセント メーター 色 アカウント 順序 自動 選択",
-  "settings.kw.agg-in-all": "9router 接続 アグリゲーター すべて 一覧 グループ 非表示",
+  "settings.kw.agg-in-all": "9router LiteLLM 接続 アグリゲーター すべて 一覧 グループ 非表示",
   "settings.kw.exhaustion": "上限到達 空 クォータ切れ アラート",
   "settings.kw.recovery": "回復 復帰 再び利用可能 アラート",
   "settings.kw.test": "テスト 通知 許可 送信",

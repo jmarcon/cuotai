@@ -61,6 +61,10 @@ for (const { code } of i18n.LOCALES) {
   assert.ok(search(rows, word(sample, 0).toUpperCase()).some((r) => r.key === "refresh"), `${code}: refresh not found by its label`);
   assert.deepEqual(search(rows, "   "), []);
   assert.deepEqual(search(rows, "zzqxjv"), []);
+  // PRD 0036 RF8: the aggregator row is found by either aggregator's name.
+  for (const q of ["9router", "LiteLLM", "litellm"]) {
+    assert.ok(search(rows, q).some((r) => r.key === "agg-in-all"), `${code}: "${q}" does not find agg-in-all`);
+  }
   const hits = search(rows, "dark");
   if (code === "en-US") assert.ok(hits.some((r) => r.key === "mode"), "en-US: dark finds the mode row");
   const grouped = resultsHtml(search(rows, fold(sample.label).split(" ")[0]));

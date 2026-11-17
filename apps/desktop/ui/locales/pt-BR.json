@@ -252,7 +252,7 @@
   "settings.kw.tray-style": "barra de menus bandeja barra de status título ícone porcentagem medidores cor contas ordem estilo mais apertada percentual logos medidores ícone título",
   "settings.kw.tray-colored": "barra de menus bandeja barra de status título ícone porcentagem medidores cor contas ordem cor colorido níveis",
   "settings.kw.tray-auto": "barra de menus bandeja barra de status título ícone porcentagem medidores cor contas ordem automático seleção contas ordem",
-  "settings.kw.agg-in-all": "9router conexões agregador todas lista agrupar ocultar",
+  "settings.kw.agg-in-all": "9router LiteLLM conexões agregador todas lista agrupar ocultar",
   "settings.kw.exhaustion": "esgotada vazia sem cota alerta",
   "settings.kw.recovery": "recuperada disponível de novo alerta",
   "settings.kw.test": "testar notificação permissão enviar",

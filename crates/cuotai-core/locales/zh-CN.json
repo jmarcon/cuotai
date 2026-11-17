@@ -136,7 +136,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -217,7 +218,7 @@
   "access.summary.copilot_quota": "通过 GitHub 内部接口获取 Copilot 的个人交互额度。",
   "access.summary.cursor_personal": "通过网站内部接口获取 Cursor 个人订阅摘要。",
   "access.summary.cursor_teams": "通过 Cursor Admin API 获取团队在本周期的支出。",
-  "access.summary.eleven_labs": "从 ElevenLabs 公开的订阅接口读取已用积分、套餐限额和下次续订时间，启用时还包括额外用量。",
+  "access.summary.eleven_labs": "从 ElevenLabs 公开的订阅接口读取已用积分、套餐限额、下次续订时间和语音槽位，启用时还包括额外用量，以及套餐名称和状态、是否有未结发票（不含金额）。",
   "access.summary.extension": "由用户批准的本地扩展报告的用量。",
   "access.summary.gemini_ai": "AI Studio API 密钥。",
   "access.summary.gemini_ai_cli": "通过 Code Assist 内部接口获取 Gemini CLI 额度。",
@@ -1016,7 +1017,7 @@
   "field.copilot.query_mode.label": "查询模式",
   "field.copilot.query_mode.option.billing": "公开的计费接口（默认）",
   "field.copilot.query_mode.option.quota": "个人额度（选用，内部接口）",
-  "field.eleven_labs.region.help": "default（默认）：api.elevenlabs.io。us、eu、in 和 sg：数据驻留接口；请使用账户所在区域的接口。",
+  "field.eleven_labs.region.help": "默认：api.elevenlabs.io。us、eu、in 和 sg：数据驻留接口；请使用账户所在的区域。",
   "field.eleven_labs.region.label": "数据区域",
   "field.eleven_labs.region.option.default": "默认（api.elevenlabs.io）",
   "field.eleven_labs.region.option.eu": "欧盟（数据驻留）",
@@ -1506,6 +1507,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs 未报告积分限额；只显示消耗。",
   "note.eleven_labs.open_invoices": "ElevenLabs 报告有未结发票。",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs 报告的额外用量金额无法读取；已省略费用。",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs 以 Cuotai 不认识的货币报告了额外用量金额；已省略费用。",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs 报告了额外用量上限，但不允许扩展限额；额外用量视为已关闭。",
   "note.eleven_labs.overage_unlimited": "额外用量没有积分上限。",
   "note.eleven_labs.payg_not_reported": "Pay As You Go 余额：此接口未报告。",
