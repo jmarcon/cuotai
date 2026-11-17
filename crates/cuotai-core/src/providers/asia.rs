@@ -192,6 +192,7 @@ async fn minimax_balance_at(
                 period: Some("saldo atual".into()),
                 resets_at: None,
                 derived_from: None,
+                unlimited: false,
             },
             Metric {
                 billing: Default::default(),
@@ -206,6 +207,7 @@ async fn minimax_balance_at(
                 window: None,
                 resets_at: None,
                 derived_from: None,
+                unlimited: false,
             },
             Metric {
                 billing: Default::default(),
@@ -220,6 +222,7 @@ async fn minimax_balance_at(
                 kind: MetricKind::Credits,
                 window: None,
                 derived_from: None,
+                unlimited: false,
             },
             Metric {
                 billing: Default::default(),
@@ -234,6 +237,7 @@ async fn minimax_balance_at(
                 window: None,
                 resets_at: None,
                 derived_from: None,
+                unlimited: false,
             },
             Metric {
                 billing: Default::default(),
@@ -248,6 +252,7 @@ async fn minimax_balance_at(
                 window: None,
                 resets_at: None,
                 derived_from: None,
+                unlimited: false,
             },
         ],
         notes,
@@ -318,6 +323,7 @@ async fn kimi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
             period: Some("saldo atual".into()),
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         });
     };
     add(

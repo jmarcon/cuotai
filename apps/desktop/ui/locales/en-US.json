@@ -157,6 +157,8 @@
   "metric.balance": "Balance: {amount}",
   "metric.usage": "Usage: {amount}",
   "metric.exhausted": "Exhausted",
+  "metric.full": "All in use",
+  "metric.noCap": "No cap",
   "account.empty": "No accounts configured.",
   "account.enable": "Show in dashboard",
   "account.disable": "Hide from dashboard",

@@ -536,6 +536,7 @@ fn metric(label: impl Into<String>, kind: MetricKind, unit: &str) -> Metric {
         billing: Default::default(),
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 

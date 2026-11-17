@@ -4458,6 +4458,7 @@ mod tests {
             period: None,
             resets_at: Some(resets_at),
             derived_from: None,
+            unlimited: false,
         };
         let text = metric_text(&metric);
         assert!(text.contains(&local_time(resets_at)), "{text}");

@@ -23,6 +23,7 @@ fn limit(label: &str, used: f64, resets_in: TimeDelta) -> Metric {
         period: None,
         resets_at: Some(now() + resets_in),
         derived_from: None,
+        unlimited: false,
     }
 }
 

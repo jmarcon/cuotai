@@ -442,6 +442,7 @@ impl Violations {
             period: period?,
             resets_at: resets_at?,
             derived_from: None,
+            unlimited: false,
         })
     }
 

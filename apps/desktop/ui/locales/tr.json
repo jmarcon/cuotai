@@ -160,6 +160,8 @@
   "metric.balance": "Bakiye: {amount}",
   "metric.usage": "Kullanım: {amount}",
   "metric.exhausted": "Tükendi",
+  "metric.full": "Tümü kullanımda",
+  "metric.noCap": "Üst sınır yok",
   "account.empty": "Yapılandırılmış hesap yok.",
   "account.enable": "Panoda göster",
   "account.disable": "Panodan gizle",

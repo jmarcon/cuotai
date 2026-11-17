@@ -9,7 +9,10 @@
       "history.window.renews",
       "once.renews",
       "dashboard.detail.pools",
-      "dashboard.hint.more_pools"
+      "dashboard.hint.more_pools",
+      "dashboard.metric.no_cap",
+      "dashboard.metric.full",
+      "once.cycle_ends"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -211,8 +214,10 @@
   "dashboard.incident.unavailable": "Trang trạng thái không khả dụng",
   "dashboard.metric.balance_exhausted": "số dư đã hết",
   "dashboard.metric.exhausted": "đã hết",
+  "dashboard.metric.full": "đã dùng hết",
   "dashboard.metric.no_data": "không có dữ liệu",
   "dashboard.metric.no_limit": "chưa báo giới hạn",
+  "dashboard.metric.no_cap": "không giới hạn",
   "dashboard.metric.remaining": " còn {percent}",
   "dashboard.models.many": "{n} mô hình",
   "dashboard.models.none": "không có mô hình",
@@ -344,6 +349,7 @@
   "once.sub.plan": "gói {plan}",
   "once.breakdown": "  Chi tiết:",
   "once.breakdown.more": "    … thêm {count} mục trong phần chi tiết",
+  "once.cycle_ends": "Kết thúc chu kỳ: {at}",
   "report.copy_only": "Liên kết đã điền sẵn quá dài để mở; hãy sao chép văn bản phía trên vào một issue mới:",
   "report.footer": "Cuotai không gửi gì · o mở trong trình duyệt · ↑↓ cuộn · Esc quay lại",
   "report.healthy": "Lưu ý: tài khoản đã trả lời bình thường; chỉ báo cáo nếu giá trị có vẻ sai.",

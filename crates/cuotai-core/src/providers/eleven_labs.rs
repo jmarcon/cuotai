@@ -253,6 +253,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
         billing: Default::default(),
         scope: None,
         derived_from: None,
+        unlimited: false,
     }];
 
     // Extra usage (RF5).
@@ -289,6 +290,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                 billing: Default::default(),
                 scope: None,
                 derived_from: None,
+                unlimited: cap.is_none(),
             }
             .overage(),
         );
@@ -323,6 +325,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                     billing: Default::default(),
                     scope: None,
                     derived_from: None,
+                    unlimited: false,
                 }
                 .overage(),
             ),
@@ -382,6 +385,7 @@ fn parse(value: &Value, source: &'static str) -> Result<Data, QueryError> {
                 billing: Default::default(),
                 scope: None,
                 derived_from: None,
+                unlimited: false,
             });
         }
     }
@@ -675,6 +679,7 @@ mod tests {
             (extra.used, extra.limit, extra.remaining),
             (Some(5000.0), Some(5000.0), Some(0.0))
         );
+        assert!(!extra.unlimited);
 
         let mut body = base(12000, 10000);
         body["max_credit_limit_extension"] = json!("unlimited");
@@ -685,6 +690,8 @@ mod tests {
             (extra.used, extra.limit, extra.remaining),
             (Some(2000.0), None, None)
         );
+        assert!(extra.unlimited, "the provider stated no cap");
+        assert!(!metric(&data, "Créditos do plano").unwrap().unlimited);
         assert!(ids(&data).contains(&"note.eleven_labs.overage_unlimited"));
     }
 

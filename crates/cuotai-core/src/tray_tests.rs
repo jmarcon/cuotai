@@ -326,6 +326,7 @@ fn a_report_with_active_extra_usage_is_on_extra() {
         billing: Billing::Overage,
         scope: None,
         derived_from: None,
+        unlimited: false,
     };
     let report = Report {
         account_id: None,
@@ -641,6 +642,7 @@ mod units {
             period: None,
             resets_at: Some(later(90)),
             derived_from: None,
+            unlimited: false,
         }
     }
 

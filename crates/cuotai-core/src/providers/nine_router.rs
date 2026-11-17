@@ -562,6 +562,7 @@ pub(crate) fn parse_usage(value: &Value) -> Result<UsageOutcome, QueryError> {
                 .and_then(|text| DateTime::parse_from_rfc3339(text.trim()).ok())
                 .map(|at| at.with_timezone(&Utc)),
             derived_from: None,
+            unlimited: false,
         });
     }
     if parsed.metrics.is_empty() && !parsed.limit_reached && quotas.is_none() {
@@ -1265,6 +1266,7 @@ async fn read_usage(
                     period: None,
                     resets_at: None,
                     derived_from: None,
+                    unlimited: false,
                 });
             }
             let notes = usage.notes();

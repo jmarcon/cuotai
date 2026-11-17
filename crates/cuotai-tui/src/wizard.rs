@@ -2574,6 +2574,22 @@ impl Wizard {
         lines
     }
 
+    /// V-13 (PRD 0037 review): the Review line of a choice parameter, by
+    /// the field's and the option's labels instead of the raw `key = value`;
+    /// `None` for a text field or a value no option carries.
+    fn choice_label(&self, key: &str, value: &str) -> Option<String> {
+        let field = self.fields.iter().find(|field| field.key == key)?;
+        let FieldKind::Choice { options, .. } = &field.kind else {
+            return None;
+        };
+        let option = options.iter().find(|option| option.value == value)?;
+        Some(format!(
+            "  {}: {}",
+            field.label,
+            option_label(self.provider, field.key, option)
+        ))
+    }
+
     fn summary_lines(&self, path: &Path) -> Vec<Line<'static>> {
         let dim = Style::default().fg(DRACULA_COMMENT);
         let mut lines = vec![
@@ -2643,11 +2659,25 @@ impl Wizard {
                 Span::styled(status, Style::default().fg(color)),
             ]));
             for field in &self.login_fields {
-                lines.push(Line::from(format!(
-                    "  {} = {}",
-                    field.option.key,
-                    crate::ui::safe(&field.value())
-                )));
+                // V-13: a choice shows the option the person picked, by label.
+                lines.push(Line::from(match &field.kind {
+                    LoginFieldKind::Choice { selected } => format!(
+                        "  {}: {}",
+                        crate::ui::resolve_l10n(&field.option.label),
+                        field
+                            .option
+                            .choices
+                            .as_ref()
+                            .and_then(|choices| choices.get(*selected))
+                            .map(|choice| crate::ui::resolve_l10n(&choice.label))
+                            .unwrap_or_default()
+                    ),
+                    LoginFieldKind::Text(_) => format!(
+                        "  {} = {}",
+                        field.option.key,
+                        crate::ui::safe(&field.value())
+                    ),
+                }));
             }
             lines.push(Line::from(Span::styled(
                 if mode.credential_store == LoginCredentialStore::CuotaiVault {
@@ -2700,7 +2730,10 @@ impl Wizard {
                         dim,
                     )));
                     for (key, value) in &account.params {
-                        lines.push(Line::from(format!("  {key} = {}", crate::ui::safe(value))));
+                        lines.push(Line::from(match self.choice_label(key, value) {
+                            Some(line) => line,
+                            None => format!("  {key} = {}", crate::ui::safe(value)),
+                        }));
                     }
                 }
                 lines.push(Line::from(vec![
@@ -5332,6 +5365,34 @@ mod tests {
     /// PRD 0045 RF6.3: the review lists the breakdowns the draft offers
     /// with their extra requests; a digit toggles one, an edit keeps the
     /// saved ones and an account without any says why.
+    /// V-13 (PRD 0037 review): the Review names a choice parameter's option
+    /// by its label, never the raw `key = value`.
+    #[test]
+    fn the_review_shows_a_choice_by_its_option_label() {
+        let mut acc = account("Voices", "ELEVENLABS_API_KEY");
+        acc.provider = Provider::ElevenLabs;
+        acc.params.insert("region".into(), "eu".into());
+        let config = Config {
+            accounts: vec![acc],
+            ..Config::default()
+        };
+        // The field labels are resolved when the wizard is built.
+        let summary = crate::l10n::with_locale("en-US", || {
+            let mut wiz = Wizard::new(&config, Some(0));
+            wiz.step = Step::Summary;
+            wiz.summary_lines(Path::new("cuotai.toml"))
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+        assert!(
+            summary.contains("  Data region: European Union (data residency)"),
+            "{summary}"
+        );
+        assert!(!summary.contains("region = eu"), "{summary}");
+    }
+
     #[test]
     fn the_review_toggles_the_offered_breakdowns() {
         let mut acc = account("OpenAI", "OPENAI_ADMIN_KEY");

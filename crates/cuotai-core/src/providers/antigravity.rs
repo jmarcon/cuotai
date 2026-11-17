@@ -473,6 +473,7 @@ fn build_model_metric(label: String, entry: &QuotaEntry) -> Metric {
         period: Some("5h".into()),
         resets_at: entry.reset_at,
         derived_from: None,
+        unlimited: false,
     }
 }
 

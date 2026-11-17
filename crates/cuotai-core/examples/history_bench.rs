@@ -47,6 +47,7 @@ fn metrics(tick: i64) -> Vec<Metric> {
                 billing: Default::default(),
                 scope: None,
                 derived_from: None,
+                unlimited: false,
             }
         })
         .collect()

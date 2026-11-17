@@ -42,7 +42,9 @@
       "confirm.certificate.host",
       "confirm.certificate.checked",
       "confirm.certificate.replace",
-      "coreText.passwordUnset"
+      "coreText.passwordUnset",
+      "metric.noCap",
+      "metric.full"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -200,6 +202,8 @@
   "metric.balance": "Guthaben: {amount}",
   "metric.usage": "Nutzung: {amount}",
   "metric.exhausted": "Erschöpft",
+  "metric.full": "Alle belegt",
+  "metric.noCap": "Ohne Obergrenze",
   "account.empty": "Keine Konten konfiguriert.",
   "account.enable": "Im Dashboard zeigen",
   "account.disable": "Im Dashboard ausblenden",

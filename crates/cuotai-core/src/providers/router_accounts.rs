@@ -102,6 +102,7 @@ fn qoder_metric(
         period: Some("ciclo de quota Qoder".into()),
         resets_at,
         derived_from: None,
+        unlimited: false,
     }))
 }
 
@@ -420,6 +421,7 @@ async fn ollama(
                 None
             },
             derived_from: None,
+            unlimited: false,
         });
     }
     if metrics.is_empty() {

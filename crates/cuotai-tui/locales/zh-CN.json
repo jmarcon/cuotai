@@ -10,7 +10,10 @@
       "wizard.budgets.prompt",
       "wizard.name.help_required",
       "dashboard.detail.pools",
-      "dashboard.hint.more_pools"
+      "dashboard.hint.more_pools",
+      "dashboard.metric.no_cap",
+      "dashboard.metric.full",
+      "once.cycle_ends"
     ]
   },
   "about.brazil": "特别感谢：由巴西人创建的项目",
@@ -212,8 +215,10 @@
   "dashboard.incident.unavailable": "状态页面不可用",
   "dashboard.metric.balance_exhausted": "余额已用尽",
   "dashboard.metric.exhausted": "已用尽",
+  "dashboard.metric.full": "已全部占用",
   "dashboard.metric.no_data": "无数据",
   "dashboard.metric.no_limit": "未报告限额",
+  "dashboard.metric.no_cap": "无上限",
   "dashboard.metric.remaining": " 剩余 {percent}",
   "dashboard.models.many": "{n} 个模型",
   "dashboard.models.none": "无模型",
@@ -345,6 +350,7 @@
   "once.sub.plan": "套餐 {plan}",
   "once.breakdown": "  明细：",
   "once.breakdown.more": "    … 另有 {count} 项见详情",
+  "once.cycle_ends": "周期结束：{at}",
   "report.copy_only": "预填链接过长，无法打开；请将上面的文本复制到新的 issue 中：",
   "report.footer": "Cuotai 不发送任何内容 · o 在浏览器中打开 · ↑↓ 滚动 · Esc 返回",
   "report.healthy": "注意：该账户响应正常；仅当数值看起来不对时才报告。",

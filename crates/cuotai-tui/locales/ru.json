@@ -15,7 +15,10 @@
       "wizard.interval.help_metered",
       "wizard.interval.prompt_metered",
       "dashboard.detail.pools",
-      "dashboard.hint.more_pools"
+      "dashboard.hint.more_pools",
+      "dashboard.metric.no_cap",
+      "dashboard.metric.full",
+      "once.cycle_ends"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -235,8 +238,10 @@
   "dashboard.incident.unavailable": "Страница статуса недоступна",
   "dashboard.metric.balance_exhausted": "баланс исчерпан",
   "dashboard.metric.exhausted": "исчерпано",
+  "dashboard.metric.full": "всё занято",
   "dashboard.metric.no_data": "нет данных",
   "dashboard.metric.no_limit": "лимит не указан",
+  "dashboard.metric.no_cap": "без ограничения",
   "dashboard.metric.remaining": " осталось {percent}",
   "dashboard.models.many": "моделей: {n}",
   "dashboard.models.none": "нет моделей",
@@ -371,6 +376,7 @@
   "once.sub.plan": "тариф {plan}",
   "once.breakdown": "  Детализация:",
   "once.breakdown.more": "    … ещё {count} в подробностях",
+  "once.cycle_ends": "Цикл завершится: {at}",
   "report.copy_only": "Заполненная ссылка слишком длинная, чтобы её открыть; скопируйте текст выше в новый issue:",
   "report.footer": "Cuotai ничего не отправляет · o открыть в браузере · ↑↓ прокрутка · Esc назад",
   "report.healthy": "Примечание: учётная запись ответила нормально; сообщайте, только если значения выглядят неверными.",

@@ -169,6 +169,7 @@ fn quota_metric(
         period: period.map(str::to_owned),
         resets_at,
         derived_from: None,
+        unlimited: false,
     })
 }
 
@@ -899,6 +900,7 @@ fn zed_data(user: &Value) -> Data {
                     period: Some("ciclo de assinatura".into()),
                     resets_at: reset_at,
                     derived_from: None,
+                    unlimited: true,
                 });
                 notes.push(
                     "note.router_sessions.zed.edit_predictions_unlimited",
@@ -919,6 +921,7 @@ fn zed_data(user: &Value) -> Data {
                     period: Some("ciclo de assinatura".into()),
                     resets_at: reset_at,
                     derived_from: None,
+                    unlimited: false,
                 });
             }
             ZedLimit::Unknown => {
@@ -963,6 +966,7 @@ billing: Default::default(), scope: None,
                     window: Some(MetricWindow::Other),
                     resets_at: reset_at,
                     derived_from: None,
+                    unlimited: true,
                 });
                 notes.push(
                     "note.router_sessions.zed.hosted_requests_unlimited",
@@ -982,6 +986,7 @@ billing: Default::default(), scope: None,
                     window: Some(MetricWindow::Other),
                     resets_at: reset_at,
                     derived_from: None,
+                    unlimited: false,
                 });
             }
             // limit {limited:0}/0/null on Pro/Student means token billing,
@@ -2096,7 +2101,10 @@ mod tests {
                 "plan": {
                     "plan_v3": "zed_pro",
                     "subscriptionPeriod": {"endedAt": "2026-08-01T00:00:00Z"},
-                    "usage": {"editPredictions": {"used": 999, "limit": "unlimited"}}
+                    "usage": {
+                        "editPredictions": {"used": 999, "limit": "unlimited"},
+                        "modelRequests": {"used": 3, "limit": {"unlimited": true}}
+                    }
                 }
             })))
             .mount(&server)
@@ -2109,11 +2117,13 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(data.metrics.len(), 1);
+        assert_eq!(data.metrics.len(), 2);
         let metric = &data.metrics[0];
         assert_eq!(metric.used, Some(999.0));
         assert_eq!(metric.limit, None);
         assert_eq!(metric.remaining, None);
+        // PRD 0037 RF5: the provider stated the absence of a cap.
+        assert!(data.metrics.iter().all(|m| m.unlimited));
         assert_eq!(
             metric.resets_at.unwrap().to_rfc3339(),
             "2026-08-01T00:00:00+00:00"

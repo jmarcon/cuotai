@@ -1045,6 +1045,11 @@ pub struct Metric {
     /// provider reported. Serialized as `derived: true` plus `derived_from`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub derived_from: Option<DerivedFrom>,
+    /// PRD 0037 RF5: the provider stated there is no cap (ElevenLabs
+    /// "unlimited", a Kimchi budget of 0, Zed unlimited), as opposed to a
+    /// limit it did not report. Not part of the metric's identity.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unlimited: bool,
 }
 
 /// PRD 0041 RF2.1: what a derived (budget) metric follows.
@@ -1066,7 +1071,7 @@ impl Serialize for Metric {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use crate::metric_text::metric_text;
         use serde::ser::SerializeStruct;
-        let mut out = serializer.serialize_struct("Metric", 16)?;
+        let mut out = serializer.serialize_struct("Metric", 17)?;
         out.serialize_field("label", &self.label)?;
         out.serialize_field("label_text", &metric_text(&self.label))?;
         out.serialize_field("used", &self.used)?;
@@ -1098,6 +1103,11 @@ impl Serialize for Metric {
                 out.skip_field("derived")?;
                 out.skip_field("derived_from")?;
             }
+        }
+        if self.unlimited {
+            out.serialize_field("unlimited", &true)?;
+        } else {
+            out.skip_field("unlimited")?;
         }
         out.end()
     }
@@ -1249,6 +1259,7 @@ impl Metric {
             billing: Billing::Included,
             scope: None,
             derived_from: None,
+            unlimited: false,
         }
     }
 
@@ -1448,6 +1459,22 @@ pub struct Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0037 RF5: `unlimited` is additive: written only when the provider
+    /// stated it, read back as `false` when absent.
+    #[test]
+    fn unlimited_is_serialized_only_when_stated() {
+        let mut metric = Metric::usage("Extra", 2.0, "credits", MetricKind::Usage, None);
+        let plain = serde_json::to_value(&metric).unwrap();
+        assert!(plain.get("unlimited").is_none(), "{plain}");
+        let back: Metric = serde_json::from_value(plain).unwrap();
+        assert!(!back.unlimited);
+        metric.unlimited = true;
+        let stated = serde_json::to_value(&metric).unwrap();
+        assert_eq!(stated["unlimited"], true);
+        let back: Metric = serde_json::from_value(stated).unwrap();
+        assert!(back.unlimited);
+    }
 
     /// PRD 0037 S-03: `-0.0` passes the adapters' non-negative filters; the
     /// boundary stores it as zero in metrics and sub-reports alike.

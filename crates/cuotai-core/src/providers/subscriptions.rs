@@ -881,6 +881,7 @@ async fn windsurf(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Da
         period: Some("ciclo de cobrança".into()),
         resets_at: cycle_end,
         derived_from: None,
+        unlimited: false,
     });
 
     // addOnCreditsAvailable is the cycle allocation (recomputed at the start of each cycle),

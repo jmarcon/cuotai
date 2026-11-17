@@ -21,6 +21,7 @@ fn spend(used: f64, window: Option<MetricWindow>, resets_at: Option<DateTime<Utc
         billing: Billing::Included,
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 
@@ -38,6 +39,7 @@ fn balance(left: f64) -> Metric {
         billing: Billing::Included,
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 
@@ -580,6 +582,7 @@ fn quota(used: f64, window: MetricWindow, resets_at: DateTime<Utc>) -> Metric {
         billing: Billing::Included,
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 

@@ -3,14 +3,14 @@
 // main.js so the card's summary renders (and is tested) without the window.
 import { t, te } from "./i18n.js";
 import {
-  billingOverage, cardPace, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, metricName, paceHtml, paceLineLabel, paceOf, renewedText, renewedWindowsOf,
+  billingOverage, cardPace, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, isFullCounter, metricName, paceHtml, paceLineLabel, paceOf, renewedText, renewedWindowsOf,
   resetsText, summaryOf, windowsOf,
 } from "./lib.js";
 import { expectedLeft, extraColumnHtml, figureHtml, meterHtml } from "./components.js";
 
 /** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
 const cardMeter = (m, pct, stale, name = metricName(m)) =>
-  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m), name });
+  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m), role: isFullCounter(m) ? "warn" : null, name });
 /** One limit of a card (mockup 10): the micro label with the "Binding" tag, the figure with its unit below, the
  *  meter, then "Resets 20:32 · in 2h 11m" once, under the bar. Counts ("15 / 1,000") are in the tooltip. */
 function limitColumn(r, label, m, pct, stale) {
@@ -19,7 +19,8 @@ function limitColumn(r, label, m, pct, stale) {
   const reset = resetsText(m);
   return `<div class="win${binding ? " binding" : ""}" title="${esc(`${metricName(m)} · ${fmtAmount(m)}`)}">
     <div class="win-top"><span class="win-name">${esc(label)}</span>${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
-    ${exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale })}
+    ${isFullCounter(m) ? figureHtml(t("metric.full"), "", { role: "warn", cls: "left wordfig", dim: stale })
+      : exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale })}
     ${cardMeter(m, pct, stale, label)}
     <div class="win-reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</div></div>`;
 }

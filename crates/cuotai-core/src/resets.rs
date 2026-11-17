@@ -951,6 +951,7 @@ mod tests {
             period: None,
             resets_at,
             derived_from: None,
+            unlimited: false,
         }
     }
 

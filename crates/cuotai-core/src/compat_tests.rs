@@ -142,6 +142,7 @@ fn metric(used: f64) -> crate::Metric {
         period: Some("5h".into()),
         resets_at: Some(t0() + chrono::TimeDelta::hours(5)),
         derived_from: None,
+        unlimited: false,
     }
 }
 

@@ -157,6 +157,8 @@
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Penggunaan: {amount}",
   "metric.exhausted": "Habis",
+  "metric.full": "Semua terpakai",
+  "metric.noCap": "Tanpa batas atas",
   "account.empty": "Belum ada akun yang dikonfigurasi.",
   "account.enable": "Tampilkan di dasbor",
   "account.disable": "Sembunyikan dari dasbor",

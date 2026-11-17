@@ -73,6 +73,7 @@ async fn kimchi_at(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
         period: None,
         resets_at: None,
         derived_from: None,
+        unlimited: false,
     }];
     let mut notes = credits_notes(&credits);
 
@@ -335,6 +336,7 @@ fn push_budget_metric(
         period: Some(period.into()),
         resets_at: Some(resets_at),
         derived_from: None,
+        unlimited: limit.is_none(),
     });
 }
 
@@ -717,6 +719,9 @@ mod tests {
         assert_eq!(metrics[0].limit, None);
         assert_eq!(metrics[0].remaining, None);
         assert_eq!(metrics[1].remaining, Some(-2.0));
+        // PRD 0037 RF5: a zero budget is the official client's "no cap".
+        assert!(metrics[0].unlimited);
+        assert!(!metrics[1].unlimited);
     }
 }
 

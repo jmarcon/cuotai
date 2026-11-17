@@ -28,6 +28,7 @@ fn quota(used: f64) -> Metric {
         period: None,
         resets_at: Some(window()),
         derived_from: None,
+        unlimited: false,
     }
 }
 

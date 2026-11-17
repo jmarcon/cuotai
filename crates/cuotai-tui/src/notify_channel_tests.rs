@@ -51,6 +51,7 @@ fn reading(checked_at: DateTime<Utc>, used: f64) -> Report {
             period: None,
             resets_at: Some(at(20, 0)),
             derived_from: None,
+            unlimited: false,
         }],
         notes: Vec::new(),
         notes_l10n: Vec::new(),

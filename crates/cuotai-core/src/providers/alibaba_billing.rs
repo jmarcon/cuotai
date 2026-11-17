@@ -572,6 +572,7 @@ async fn fetch_balance(
             period: Some("saldo atual".into()),
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         },
         cash_metric: Metric {
             billing: Default::default(),
@@ -586,6 +587,7 @@ async fn fetch_balance(
             period: Some("saldo atual".into()),
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         },
         // CreditAmount is a credit **limit** (cap), not a spent balance:
         // we model it as `limit` to reflect the benefit's ceiling.
@@ -602,6 +604,7 @@ async fn fetch_balance(
             period: Some("saldo atual".into()),
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         },
         notes,
         notes_l10n,

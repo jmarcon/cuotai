@@ -793,6 +793,7 @@ mod tests {
             period: None,
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         }
     }
 

@@ -157,6 +157,8 @@
   "metric.balance": "Saldo: {amount}",
   "metric.usage": "Uso: {amount}",
   "metric.exhausted": "Esgotado",
+  "metric.full": "Tudo em uso",
+  "metric.noCap": "Sem teto",
   "account.empty": "Nenhuma conta configurada.",
   "account.enable": "Ativar no painel",
   "account.disable": "Desativar no painel",

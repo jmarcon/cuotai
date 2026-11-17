@@ -273,6 +273,7 @@ mod tests {
                 period: None,
                 resets_at: None,
                 derived_from: None,
+                unlimited: false,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),
