@@ -367,7 +367,8 @@ impl FeedStore {
         (readings, unreadable)
     }
 
-    /// RF1.2: the newest valid reading of `source` (by `written_at`).
+    /// RF1.2: the newest valid reading of `source` (by `written_at`),
+    /// whatever windows it carries; an account shows [`account_reading`].
     pub fn latest(&self, source: FeedSource, now: DateTime<Utc>) -> Option<FeedReading> {
         self.scan(source, now).0.into_iter().next()
     }
@@ -439,6 +440,105 @@ fn read_file(path: &Path) -> Option<FeedReading> {
     }
     let bytes = std::fs::read(path).ok()?;
     serde_json::from_slice(&bytes).ok()
+}
+
+/// The windows a source can report, in the order an account shows them.
+fn window_ids(source: FeedSource) -> &'static [WindowId] {
+    match source {
+        FeedSource::ClaudeCode => &[WindowId::FiveHour, WindowId::SevenDay, WindowId::SpendLimit],
+        FeedSource::CodexCli => &[WindowId::Primary, WindowId::Secondary],
+    }
+}
+
+/// RF3.4/RF4.1 (PRD 0040 re-validation V-02): what an account fed by one
+/// source shows, merged window by window from every recent session.
+///
+/// Each window comes from the newest valid reading that carries it with its
+/// reset still ahead, so a newer session that has not reported its limits
+/// yet (a new Claude Code window before its first API response, a Codex
+/// session without a `token_count`) never hides the windows an older
+/// session reported. A window past its reset is dropped in the older
+/// readings too (they carry the same reset), so RF3.3 holds.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AccountReading {
+    /// The merged reading: the windows as above, the session and agent
+    /// version of the newest reading, and `written_at` set to the **oldest**
+    /// time among the readings used (the honest measurement time of the
+    /// report; the newest reading's time when no window is known).
+    pub reading: FeedReading,
+    /// When each window of [`Self::reading`] was written, in its order.
+    pub window_times: Vec<(WindowId, DateTime<Utc>)>,
+}
+
+impl AccountReading {
+    /// Merge `readings` (one source, any order) as of `now`; `None` when no
+    /// reading is valid.
+    pub fn merge(readings: &[FeedReading], now: DateTime<Utc>) -> Option<Self> {
+        let mut valid: Vec<&FeedReading> = readings
+            .iter()
+            .filter(|reading| reading.is_valid(now))
+            .collect();
+        valid.sort_by_key(|reading| std::cmp::Reverse(reading.written_at));
+        let newest = *valid.first()?;
+        valid.retain(|reading| reading.source == newest.source);
+        let mut windows = Vec::new();
+        let mut window_times = Vec::new();
+        for &id in window_ids(newest.source) {
+            let found = valid.iter().find_map(|reading| {
+                reading
+                    .window(id)
+                    .filter(|window| window.resets_at().is_none_or(|at| at > now))
+                    .map(|window| (window, reading.written_at))
+            });
+            if let Some((window, at)) = found {
+                windows.push(window.clone());
+                window_times.push((id, at));
+            }
+        }
+        let as_of = window_times
+            .iter()
+            .map(|(_, at)| *at)
+            .min()
+            .unwrap_or(newest.written_at);
+        Some(Self {
+            reading: FeedReading {
+                written_at: as_of,
+                windows,
+                ..newest.clone()
+            },
+            window_times,
+        })
+    }
+
+    /// The oldest time among the readings used (the report's `as_of`).
+    pub fn as_of(&self) -> DateTime<Utc> {
+        self.reading.written_at
+    }
+
+    /// When the window `id` was written, when the account shows it.
+    pub fn window_written_at(&self, id: WindowId) -> Option<DateTime<Utc>> {
+        self.window_times
+            .iter()
+            .find(|(window, _)| *window == id)
+            .map(|(_, at)| *at)
+    }
+
+    /// The newest time a limit window was written: a hybrid account uses
+    /// the feed only when this is recent, so a session without limits never
+    /// decides it. `None` without any window.
+    pub fn newest_window_at(&self) -> Option<DateTime<Utc>> {
+        self.window_times.iter().map(|(_, at)| *at).max()
+    }
+}
+
+/// RF3.4 (V-02): the merged reading of `source` from the store (see
+/// [`AccountReading`]); `None` when the store holds no valid reading.
+pub fn account_reading(
+    store: &FeedStore,
+    source: FeedSource,
+    now: DateTime<Utc>,
+) -> Option<AccountReading> {
+    AccountReading::merge(&store.sessions(source, now), now)
 }
 
 /// RF3.1/RF4.2: how an account with a feed mode is read.

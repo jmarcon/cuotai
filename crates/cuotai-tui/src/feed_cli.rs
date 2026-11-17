@@ -65,19 +65,34 @@ pub(crate) async fn run_feed(print: bool, setup: bool, line: &LineOptions, local
         return 1;
     };
     if print {
-        println!("{}", compose(Some(&reading), line, locale).await);
+        let shown = with_account_windows(Some(reading));
+        println!("{}", compose(shown.as_ref(), line, locale).await);
     }
     0
+}
+
+/// RF5.1 (V-02): the stdin reading (when there is one) with Claude's
+/// windows merged from every recent session, so a new Claude Code window
+/// that has not reported its limits yet keeps the account's windows.
+fn with_account_windows(own: Option<feed::FeedReading>) -> Option<feed::FeedReading> {
+    let now = Utc::now();
+    let mut readings = FeedStore::in_data_dir()
+        .map(|store| store.sessions(FeedSource::ClaudeCode, now))
+        .unwrap_or_default();
+    // The stdin reading counts even when it could not be stored.
+    readings.extend(own.iter().cloned());
+    let account = feed::AccountReading::merge(&readings, now);
+    statusline::line_reading(own.as_ref(), account.as_ref())
 }
 
 /// RF5: store the stdin reading (when there is one) and print the line.
 pub(crate) async fn run_statusline(line: &LineOptions, locale: &str) -> u8 {
     let reading = if std::io::stdin().is_terminal() {
-        // Run by hand: no input, the newest stored reading stands in.
-        FeedStore::in_data_dir().and_then(|store| store.latest(FeedSource::ClaudeCode, Utc::now()))
+        // Run by hand: no input, the stored readings stand in.
+        with_account_windows(None)
     } else {
         match read_and_store(locale) {
-            Some(reading) => Some(reading),
+            Some(reading) => with_account_windows(Some(reading)),
             None => return 1,
         }
     };

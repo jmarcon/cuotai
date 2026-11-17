@@ -596,6 +596,136 @@ async fn the_hybrid_mode_uses_a_recent_feed_and_falls_back_otherwise() {
     assert_ne!(report.status, Status::Ready);
 }
 
+// ------------------------------------------- V-02: per-window merge
+
+/// A Claude Code session that has not reported its limits yet.
+fn windowless(session: &str, at: DateTime<Utc>) -> FeedReading {
+    let mut reading = claude::parse(NO_RATE_LIMITS.as_bytes(), at).unwrap();
+    reading.session.digest = session_digest(session);
+    reading
+}
+
+/// V-02: a newer session without limits keeps the account's windows (and
+/// the status line's), and a hybrid account whose only fresh reading has
+/// no limits falls back to the query.
+#[tokio::test]
+async fn a_newer_session_without_limits_keeps_the_windows() {
+    let current = Utc::now();
+    let (_dir, store) = self::store();
+    let older = current - TimeDelta::minutes(3);
+    store.write(&reading("a", older), current).unwrap();
+    store
+        .write(&windowless("b", current - TimeDelta::minutes(1)), current)
+        .unwrap();
+    let report = monitor(FED, store.dir()).refresh().await.reports.remove(0);
+    assert_eq!(report.status, Status::Ready, "{:?}", report.notes);
+    assert_eq!(report.metrics.len(), 3, "A's windows are kept");
+    assert_eq!(report.as_of, Some(older), "measured when A spoke");
+    assert!(!report
+        .notes_l10n
+        .iter()
+        .any(|n| n.id == "note.claude_code.window_absent"));
+
+    // The status line of the new window: its own context, A's windows.
+    let own = windowless("b", current);
+    let account =
+        AccountReading::merge(&store.sessions(FeedSource::ClaudeCode, current), current).unwrap();
+    assert_eq!(account.window_written_at(WindowId::FiveHour), Some(older));
+    let shown = statusline::line_reading(Some(&own), Some(&account)).unwrap();
+    let text = statusline::compose(
+        Some(&shown),
+        &[],
+        current,
+        |t| t.format("%H:%M").to_string(),
+        None,
+        "en-US",
+    )
+    .text;
+    assert!(text.starts_with("5h 24% · Wk 41%"), "{text}");
+    assert!(text.ends_with("ctx 3%"), "{text}");
+
+    // Hybrid: a fresh windowless reading never decides; the query answers
+    // (here it lacks its token, which proves the fallback ran).
+    for with_old_windows in [false, true] {
+        let (_dir, store) = self::store();
+        if with_old_windows {
+            store
+                .write(&reading("a", current - TimeDelta::minutes(20)), current)
+                .unwrap();
+        }
+        store
+            .write(&windowless("b", current - TimeDelta::seconds(30)), current)
+            .unwrap();
+        let report = monitor(HYBRID, store.dir())
+            .refresh()
+            .await
+            .reports
+            .remove(0);
+        assert_ne!(report.source, "feed:claude_code", "{with_old_windows}");
+        assert_ne!(report.status, Status::Ready);
+    }
+}
+
+/// V-02: the newest session carries the five-hour window only; the weekly
+/// window comes from an older session, and `as_of` is the older time.
+#[test]
+fn a_window_missing_from_the_newest_session_comes_from_an_older_one() {
+    let current = now();
+    let older = current - TimeDelta::minutes(30);
+    let both = reading("a", older);
+    let mut five_only = reading("b", current - TimeDelta::minutes(1));
+    five_only
+        .windows
+        .retain(|window| window.id == WindowId::FiveHour);
+    five_only.windows[0].used_pct = 50.0;
+    let account = AccountReading::merge(&[five_only.clone(), both.clone()], current).unwrap();
+    let five = account.reading.window(WindowId::FiveHour).unwrap();
+    assert_eq!(five.used_pct, 50.0, "the newest five-hour window");
+    assert_eq!(
+        account.reading.window(WindowId::SevenDay),
+        both.window(WindowId::SevenDay)
+    );
+    assert_eq!(
+        account.window_written_at(WindowId::FiveHour),
+        Some(five_only.written_at)
+    );
+    assert_eq!(account.window_written_at(WindowId::SevenDay), Some(older));
+    assert_eq!(account.as_of(), older);
+    assert_eq!(account.newest_window_at(), Some(five_only.written_at));
+    assert_eq!(account.reading.session, five_only.session, "newest session");
+}
+
+/// V-02/RF3.3: a window past its reset in the older reading stays absent;
+/// it is not brought back by the merge.
+#[test]
+fn a_window_past_its_reset_in_an_older_reading_stays_absent() {
+    let current = now();
+    let mut old = reading("a", current - TimeDelta::hours(6));
+    for window in &mut old.windows {
+        if window.id == WindowId::FiveHour {
+            window.resets_at = Some(current.timestamp() - 60);
+        }
+    }
+    let mut newer = reading("b", current - TimeDelta::minutes(1));
+    newer
+        .windows
+        .retain(|window| window.id == WindowId::SevenDay);
+    let account = AccountReading::merge(&[old.clone(), newer.clone()], current).unwrap();
+    assert_eq!(account.reading.window(WindowId::FiveHour), None);
+    assert_eq!(
+        account.reading.window(WindowId::SevenDay),
+        newer.window(WindowId::SevenDay)
+    );
+    assert_eq!(
+        account.reading.window(WindowId::SpendLimit),
+        old.window(WindowId::SpendLimit)
+    );
+    let (metrics, _) = crate::providers::agent_feed::metrics(&account.reading, current);
+    assert!(metrics
+        .iter()
+        .all(|m| m.window != Some(crate::MetricWindow::Window5h)));
+}
+
 #[test]
 fn pace_and_alerts_work_on_fed_windows() {
     let current = Utc::now();
@@ -644,6 +774,11 @@ fn count(rate_limits: &str) -> String {
     )
 }
 
+/// The newest Codex CLI reading below `roots` at [`now`].
+fn codex_newest(roots: &[PathBuf]) -> Result<Option<FeedReading>, codex::CodexError> {
+    codex::readings(roots, now()).map(|readings| readings.into_iter().next())
+}
+
 fn codex_home(lines: &[String]) -> (tempfile::TempDir, Vec<PathBuf>) {
     let home = tempfile::tempdir().unwrap();
     let day = home.path().join("sessions/2026/10/25");
@@ -672,7 +807,7 @@ fn codex_logs_with_two_windows_give_both() {
         )),
     ];
     let (_home, roots) = codex_home(&lines);
-    let reading = codex::latest(&roots).unwrap().unwrap();
+    let reading = codex_newest(&roots).unwrap().unwrap();
     assert_eq!(reading.source, FeedSource::CodexCli);
     assert_eq!(
         reading.written_at,
@@ -714,7 +849,12 @@ fn a_codex_log_dated_in_the_future_gives_no_reading() {
     ];
     let (_home, roots) = codex_home(&lines);
     let written = Utc.with_ymd_and_hms(2026, 10, 25, 13, 5, 0).unwrap();
-    let latest = |now| crate::providers::agent_feed::codex_latest(&roots, now).unwrap();
+    let latest = |now| {
+        crate::providers::agent_feed::codex_readings(&roots, now)
+            .unwrap()
+            .into_iter()
+            .next()
+    };
     assert_eq!(latest(written).unwrap().written_at, written);
     assert!(latest(written - TimeDelta::seconds(30)).is_some(), "skew");
     assert_eq!(latest(written - TimeDelta::minutes(10)), None);
@@ -727,7 +867,7 @@ fn codex_logs_with_one_window_leave_the_other_absent() {
         count(r#"{"primary":{"used_percent":7.0,"window_minutes":300},"secondary":null}"#),
     ];
     let (_home, roots) = codex_home(&lines);
-    let reading = codex::latest(&roots).unwrap().unwrap();
+    let reading = codex_newest(&roots).unwrap().unwrap();
     assert_eq!(reading.windows.len(), 1);
     let (_, absent) = crate::providers::agent_feed::metrics(&reading, reading.written_at);
     assert!(absent);
@@ -743,12 +883,12 @@ fn an_unknown_codex_shape_is_refused() {
         let lines = [META.to_owned(), count(shape)];
         let (_home, roots) = codex_home(&lines);
         assert_eq!(
-            codex::latest(&roots),
+            codex_newest(&roots),
             Err(codex::CodexError::UnknownShape),
             "{shape}"
         );
         assert!(matches!(
-            crate::providers::agent_feed::codex_latest(&roots, now()),
+            crate::providers::agent_feed::codex_readings(&roots, now()),
             Err(error) if error.note.id == crate::providers::SCHEMA_NOTE
         ));
     }
@@ -758,7 +898,105 @@ fn an_unknown_codex_shape_is_refused() {
 fn codex_logs_without_rate_limits_give_nothing() {
     let lines = [META.to_owned(), TURN.to_owned(), MESSAGE.to_owned()];
     let (_home, roots) = codex_home(&lines);
-    assert_eq!(codex::latest(&roots), Ok(None));
+    assert_eq!(codex_newest(&roots), Ok(None));
+}
+
+/// One Codex CLI log named `name`, modified `minutes_ago` before the real
+/// clock (the reader keeps the logs modified within the retention).
+fn codex_log(home: &Path, name: &str, lines: &[String], minutes_ago: u64) {
+    let day = home.join("sessions/2026/10/25");
+    std::fs::create_dir_all(&day).unwrap();
+    let path = day.join(format!("rollout-2026-10-25T13-00-00-{name}.jsonl"));
+    std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+    let modified = std::time::SystemTime::now() - std::time::Duration::from_secs(minutes_ago * 60);
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_modified(modified)
+        .unwrap();
+}
+
+fn codex_meta(session: &str) -> String {
+    META.replace("codex-session-1", session)
+}
+
+/// V-02: four newer logs without a `token_count` (sessions that have not
+/// reported their limits) no longer hide an older log's windows.
+#[test]
+fn newer_codex_logs_without_limits_do_not_hide_an_older_reading() {
+    let home = tempfile::tempdir().unwrap();
+    let both = count(
+        r#"{"primary":{"used_percent":12.5,"window_minutes":300,"resets_in_seconds":3600},"secondary":{"used_percent":40.0,"window_minutes":10080,"resets_in_seconds":86400}}"#,
+    );
+    codex_log(home.path(), "old", &[codex_meta("old"), both], 60);
+    for index in 0..4 {
+        let name = format!("new{index}");
+        codex_log(
+            home.path(),
+            &name,
+            &[codex_meta(&name), TURN.to_owned(), MESSAGE.to_owned()],
+            index,
+        );
+    }
+    let roots = vec![home.path().join("sessions")];
+    let readings = codex::readings(&roots, now()).unwrap();
+    assert_eq!(readings.len(), 1);
+    assert_eq!(readings[0].session.digest, session_digest("old"));
+    let account = AccountReading::merge(&readings, now()).unwrap();
+    assert_eq!(account.reading.windows.len(), 2);
+    // A log modified more than a day ago is not read.
+    let stale = tempfile::tempdir().unwrap();
+    codex_log(
+        stale.path(),
+        "old",
+        &[
+            codex_meta("old"),
+            count(r#"{"primary":{"used_percent":1.0}}"#),
+        ],
+        26 * 60,
+    );
+    let roots = vec![stale.path().join("sessions")];
+    assert_eq!(codex::readings(&roots, Utc::now()), Ok(Vec::new()));
+}
+
+/// V-02: the newest event carries one window; the other comes from an
+/// older log instead of disappearing.
+#[test]
+fn a_one_window_codex_event_keeps_the_other_window_of_an_older_log() {
+    let home = tempfile::tempdir().unwrap();
+    let both = count(
+        r#"{"primary":{"used_percent":12.5,"window_minutes":300,"resets_in_seconds":3600},"secondary":{"used_percent":40.0,"window_minutes":10080,"resets_in_seconds":86400}}"#,
+    );
+    codex_log(home.path(), "old", &[codex_meta("old"), both], 60);
+    let primary_only = count(
+        r#"{"primary":{"used_percent":20.0,"window_minutes":300,"resets_in_seconds":3600},"secondary":null}"#,
+    )
+    .replace("13:05:00", "13:30:00");
+    codex_log(home.path(), "new", &[codex_meta("new"), primary_only], 1);
+    let roots = vec![home.path().join("sessions")];
+    let readings = codex::readings(&roots, now()).unwrap();
+    assert_eq!(readings.len(), 2, "stopped once both windows were found");
+    let account = AccountReading::merge(&readings, now()).unwrap();
+    assert_eq!(
+        account.reading.window(WindowId::Primary).unwrap().used_pct,
+        20.0
+    );
+    assert_eq!(
+        account
+            .reading
+            .window(WindowId::Secondary)
+            .unwrap()
+            .used_pct,
+        40.0
+    );
+    assert_eq!(
+        account.as_of(),
+        Utc.with_ymd_and_hms(2026, 10, 25, 13, 5, 0).unwrap()
+    );
+    assert_eq!(account.reading.session.digest, session_digest("new"));
+    let (_, absent) = crate::providers::agent_feed::metrics(&account.reading, now());
+    assert!(!absent);
 }
 
 #[cfg(unix)]
@@ -770,7 +1008,7 @@ fn the_codex_reader_never_follows_a_link_outside_its_roots() {
     let (home, roots) = codex_home(&[META.to_owned()]);
     std::os::unix::fs::symlink(&foreign, home.path().join("sessions/rollout-link.jsonl")).unwrap();
     std::os::unix::fs::symlink(outside.path(), home.path().join("sessions/linked-dir")).unwrap();
-    assert_eq!(codex::latest(&roots), Ok(None));
+    assert_eq!(codex_newest(&roots), Ok(None));
 }
 
 #[test]
