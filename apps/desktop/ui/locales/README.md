@@ -67,9 +67,10 @@ To ship a registered language:
    line in the `tui_catalogs!` table of `crates/cuotai-tui/src/l10n.rs`.
 3. Add `apps/desktop/ui/locales/<code>.json` with every id of `en-US.json`
    (the UI source).
-4. Set the row's `status` to `shipped`, then regenerate the desktop's copies
-   of the registry (the static copy in `js/locale-registry.js` and the
-   pre-paint lists of the three HTML pages):
+4. Set the row's `status` to `shipped`, then regenerate the desktop's two
+   generated copies of the registry, the static copy in
+   `js/locale-registry.js` and the pre-paint list in `js/first-paint.js`
+   (the external script the three HTML pages load):
    `CUOTAI_REGENERATE_LOCALES=1 cargo test -p cuotai-core locale_registry_copies`.
 
 `_meta.name` of each catalog is the registry endonym. Values are strings or,
