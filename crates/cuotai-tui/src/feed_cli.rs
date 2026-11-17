@@ -9,7 +9,7 @@
 //! the composition are the core's (`cuotai_core::feed`); this module only
 //! reads standard input and picks the other accounts.
 
-use std::io::{IsTerminal, Read, Write};
+use std::io::{BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -43,15 +43,116 @@ pub(crate) fn install_panic_hook() {
     }));
 }
 
-/// Standard input, at most one byte over the limit (so an oversized input
-/// is detected without reading all of it).
-fn read_stdin() -> std::io::Result<Vec<u8>> {
+/// RF2.3 (re-validation S-04): how long the commands wait for standard
+/// input before they give up, so a writer that never sends nothing (or
+/// never closes) cannot hold the agent's prompt.
+const STDIN_DEADLINE: Duration = Duration::from_millis(250);
+
+/// The exit code of a silent standard input: nothing on stdout, one fixed
+/// line on stderr.
+pub(crate) const EXIT_STDIN_TIMEOUT: u8 = 3;
+
+/// What reading standard input gave.
+#[derive(Debug)]
+enum StdinRead {
+    Input(Vec<u8>),
+    Failed,
+    TimedOut,
+}
+
+/// Standard input up to the end of its first JSON value, read on a
+/// thread that gets `deadline` (S-04). The thread stays blocked on a
+/// silent input until the process exits.
+fn read_stdin(deadline: Duration) -> StdinRead {
+    read_within(std::io::stdin(), deadline)
+}
+
+fn read_within<R: std::io::Read + Send + 'static>(reader: R, deadline: Duration) -> StdinRead {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let spawned = std::thread::Builder::new()
+        .name("feed-stdin".into())
+        .spawn(move || {
+            let mut reader = std::io::BufReader::new(reader);
+            let _ = sender.send(first_value(&mut reader, feed::MAX_INPUT + 1));
+        });
+    if spawned.is_err() {
+        return StdinRead::Failed;
+    }
+    match receiver.recv_timeout(deadline) {
+        Ok(Ok(input)) => StdinRead::Input(input),
+        Ok(Err(_)) => StdinRead::Failed,
+        Err(_) => StdinRead::TimedOut,
+    }
+}
+
+/// The bytes of the first JSON value of `reader`, at most `limit` (so an
+/// oversized input is detected without reading all of it). An object or
+/// an array ends at its closing bracket, whatever follows it; any other
+/// start is read to the end (the parser refuses it).
+fn first_value(reader: &mut impl BufRead, limit: usize) -> std::io::Result<Vec<u8>> {
     let mut input = Vec::new();
-    std::io::stdin()
-        .lock()
-        .take(feed::MAX_INPUT as u64 + 1)
-        .read_to_end(&mut input)?;
-    Ok(input)
+    let mut depth = 0usize;
+    let mut started = false;
+    let mut in_string = false;
+    let mut escaped = false;
+    loop {
+        let chunk = match reader.fill_buf() {
+            Ok(chunk) => chunk,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
+        if chunk.is_empty() {
+            return Ok(input);
+        }
+        let mut used = 0;
+        let mut done = false;
+        for &byte in chunk {
+            used += 1;
+            input.push(byte);
+            if input.len() >= limit {
+                done = true;
+                break;
+            }
+            if in_string {
+                match byte {
+                    _ if escaped => escaped = false,
+                    b'\\' => escaped = true,
+                    b'"' => in_string = false,
+                    _ => {}
+                }
+                continue;
+            }
+            match byte {
+                b'{' | b'[' => {
+                    started = true;
+                    depth += 1;
+                }
+                b'}' | b']' if depth > 0 => {
+                    depth -= 1;
+                    if depth == 0 {
+                        done = true;
+                        break;
+                    }
+                }
+                b'"' if started => in_string = true,
+                b' ' | b'\t' | b'\r' | b'\n' => {}
+                _ if !started => started = true,
+                _ => {}
+            }
+        }
+        reader.consume(used);
+        if done {
+            return Ok(input);
+        }
+    }
+}
+
+fn read_timeout(locale: &str) -> &'static str {
+    crate::l10n::tr_in(
+        locale,
+        "feed.read_timeout",
+        "No status-line input arrived in time.",
+    )
 }
 
 /// RF2.1/RF2.2: read, store, and (with `print`) compose. Exit `0` on a
@@ -72,8 +173,9 @@ pub(crate) async fn run_feed(
     if forget {
         return run_forget(locale);
     }
-    let Some(reading) = read_and_store(locale) else {
-        return 1;
+    let reading = match read_and_store(locale) {
+        Ok(reading) => reading,
+        Err(code) => return code,
     };
     if print {
         let shown = with_account_windows(Some(reading));
@@ -127,8 +229,8 @@ pub(crate) async fn run_statusline(line: &LineOptions, locale: &str) -> u8 {
         with_account_windows(None)
     } else {
         match read_and_store(locale) {
-            Some(reading) => with_account_windows(Some(reading)),
-            None => return 1,
+            Ok(reading) => with_account_windows(Some(reading)),
+            Err(code) => return code,
         }
     };
     println!("{}", compose(reading.as_ref(), line, locale).await);
@@ -136,24 +238,30 @@ pub(crate) async fn run_statusline(line: &LineOptions, locale: &str) -> u8 {
 }
 
 /// Parse standard input and write the feed file. A write failure is
-/// reported on stderr only and never fails the agent's footer.
-fn read_and_store(locale: &str) -> Option<feed::FeedReading> {
-    let now = Utc::now();
-    let input = match read_stdin() {
-        Ok(input) => input,
-        Err(_) => {
+/// reported on stderr only and never fails the agent's footer. `Err` is
+/// the exit code: `1` for a malformed input, [`EXIT_STDIN_TIMEOUT`] for a
+/// silent one.
+fn read_and_store(locale: &str) -> Result<feed::FeedReading, u8> {
+    let input = match read_stdin(STDIN_DEADLINE) {
+        StdinRead::Input(input) => input,
+        StdinRead::TimedOut => {
+            eprintln!("cuotai: {}", read_timeout(locale));
+            return Err(EXIT_STDIN_TIMEOUT);
+        }
+        StdinRead::Failed => {
             eprintln!(
                 "cuotai: {}",
                 claude::ParseError::Malformed.l10n().resolve(locale)
             );
-            return None;
+            return Err(1);
         }
     };
+    let now = Utc::now();
     let reading = match claude::parse(&input, now) {
         Ok(reading) => reading,
         Err(error) => {
             eprintln!("cuotai: {}", error.l10n().resolve(locale));
-            return None;
+            return Err(1);
         }
     };
     match FeedStore::in_data_dir() {
@@ -164,7 +272,7 @@ fn read_and_store(locale: &str) -> Option<feed::FeedReading> {
         }
         None => eprintln!("cuotai: {}", write_failed(locale)),
     }
-    Some(reading)
+    Ok(reading)
 }
 
 fn write_failed(locale: &str) -> &'static str {
@@ -305,4 +413,52 @@ fn print_setup(locale: &str) {
     println!("{intro}\n\n{}\n", claude::SETTINGS_SNIPPET);
     println!("{chained}\n\n{}\n", claude::CHAINED_SNIPPET);
     println!("{docs}");
+}
+
+#[cfg(test)]
+mod stdin_tests {
+    use super::*;
+
+    /// S-04: a complete object is read without waiting for the writer to
+    /// close standard input.
+    #[test]
+    fn the_first_object_is_read_while_the_writer_stays_open() {
+        let (reader, mut writer) = std::io::pipe().unwrap();
+        writer
+            .write_all(br#"{"a":"}{\"","b":[1,{"c":2}]} {"next":1}"#)
+            .unwrap();
+        let started = std::time::Instant::now();
+        let StdinRead::Input(input) = read_within(reader, Duration::from_secs(5)) else {
+            panic!("no input");
+        };
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert_eq!(input, br#"{"a":"}{\"","b":[1,{"c":2}]}"#);
+        drop(writer);
+    }
+
+    /// S-04: a writer that sends nothing gives up after the deadline.
+    #[test]
+    fn a_silent_input_times_out() {
+        let (reader, writer) = std::io::pipe().unwrap();
+        let started = std::time::Instant::now();
+        assert!(matches!(
+            read_within(reader, Duration::from_millis(100)),
+            StdinRead::TimedOut
+        ));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        drop(writer);
+    }
+
+    /// An oversized or a non-object input is still read to its bound or
+    /// its end, so the parser can refuse it.
+    #[test]
+    fn the_reader_is_bounded_and_reads_other_inputs_to_the_end() {
+        let big = format!("{{\"a\":\"{}\"}}", "x".repeat(100));
+        let mut cursor = std::io::Cursor::new(big.into_bytes());
+        assert_eq!(first_value(&mut cursor, 10).unwrap().len(), 10);
+        let mut cursor = std::io::Cursor::new(b"  not json at all".to_vec());
+        assert_eq!(first_value(&mut cursor, 100).unwrap(), b"  not json at all");
+        let mut cursor = std::io::Cursor::new(b"\n {\"k\":1}\n".to_vec());
+        assert_eq!(first_value(&mut cursor, 100).unwrap(), b"\n {\"k\":1}");
+    }
 }

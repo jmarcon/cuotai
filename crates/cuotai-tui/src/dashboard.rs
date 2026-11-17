@@ -3219,6 +3219,17 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     {
         lines.extend(live_lines(block, now));
     }
+    // RF1.3 (re-validation S-07): files of the feed that were ignored.
+    if let Some(note) = view
+        .live
+        .get(account_index)
+        .and_then(cuotai_core::feed::live::LiveBlock::unreadable_note)
+    {
+        lines.push(Line::from(Span::styled(
+            format!("  {}", resolve_l10n(&note)),
+            Style::default().fg(YELLOW),
+        )));
+    }
     // PRD 0010 RF5: a failed query with a preserved reading lists the old
     // metrics under an explicit stale line with their original age; the
     // current report's notes below still carry the cause of the failure.
@@ -3830,6 +3841,7 @@ mod tests {
         let block = LiveBlock {
             sessions: vec![session(8.0), session(95.0)],
             more: 1,
+            unreadable: 0,
         };
         let text: Vec<String> = crate::l10n::with_locale("en-US", || {
             live_lines(&block, now)

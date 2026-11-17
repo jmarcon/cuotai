@@ -29,6 +29,7 @@ impl Fixture {
             data_override: Ok(None),
             data_root: Some(self.dir.path().join("data")),
             metered_dir: Some(self.dir.path().join("os-local").join("metered")),
+            feed_dir: Some(self.dir.path().join("data").join("feed")),
             desktop_settings: Some(self.dir.path().join("desktop.json")),
             port,
             version: "9.9.9".into(),
@@ -536,4 +537,30 @@ fn a_cuotai_file_open_to_others_warns_by_id() {
         CheckStatus::Ok,
         "narrower is fine"
     );
+}
+
+/// PRD 0040 RF1.3 (re-validation S-07): ignored agent feed files are
+/// counted, without their content, and only read.
+#[test]
+fn unreadable_feed_files_are_counted() {
+    let fixture = Fixture::new(Some(TWO_ACCOUNTS));
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert!(report.checks.iter().all(|check| check.id != "feed.files"));
+    let dir = fixture.dir.path().join("data/feed/claude_code");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("planted.json"),
+        br#"{"schema":1,"PLANTED-SECRET":"#,
+    )
+    .unwrap();
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "feed.files"), CheckStatus::Warn);
+    let check = report.checks.iter().find(|c| c.id == "feed.files").unwrap();
+    assert_eq!(&*check.title.id, "feed.health.unreadable");
+    assert_eq!(
+        check.title.resolve("en-US"),
+        "1 unreadable feed file ignored."
+    );
+    assert!(!serde_json::to_string(&report).unwrap().contains("PLANTED"));
+    assert!(dir.join("planted.json").exists(), "the doctor only reads");
 }

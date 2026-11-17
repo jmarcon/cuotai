@@ -253,6 +253,7 @@
   "extensions.secret.where": "मान केवल सिस्टम वॉल्ट में रहता है और केवल एक्सटेंशन के एनवायरनमेंट तक पहुँचता है।",
   "extensions.title": " एक्सटेंशन ",
   "feed.setup.chained": "अपनी स्टेटस लाइन स्क्रिप्ट रखने के लिए, उसे इस तरह जोड़ें:",
+  "feed.read_timeout": "स्टेटस लाइन का कोई इनपुट समय पर नहीं आया।",
   "feed.forget.failed": "Claude Code की सहेजी गई रीडिंग मिटाई नहीं जा सकीं।",
   "feed.setup.docs": "विवरण और गोपनीयता कथन: docs/integrations/claude-code.md",
   "feed.setup.intro": "इसे ~/.claude/settings.json में जोड़ें (Cuotai इसे कभी आपके लिए संपादित नहीं करता):",

@@ -136,6 +136,9 @@ pub struct Inputs {
     pub data_root: Option<PathBuf>,
     /// PRD 0033 re-validation M-4: the metered records' fixed folder.
     pub metered_dir: Option<PathBuf>,
+    /// PRD 0040 RF1.3 (re-validation S-07): the agent feed's folder, whose
+    /// ignored files the doctor counts.
+    pub feed_dir: Option<PathBuf>,
     /// The desktop app's `desktop.json`.
     pub desktop_settings: Option<PathBuf>,
     /// The local server port to probe (bound and released at once).
@@ -180,6 +183,7 @@ impl Inputs {
             data_override: crate::data_dir::check_override(),
             data_root: crate::data_dir::root(),
             metered_dir: crate::metered_record::Store::default_dir(),
+            feed_dir: crate::feed::FeedStore::in_data_dir().map(|store| store.dir().to_path_buf()),
             desktop_settings: dirs::config_dir().map(|dir| dir.join("cuotai").join("desktop.json")),
             port: 6738,
             version: crate::build_info::display_version(),
@@ -711,6 +715,14 @@ fn check_serve_token(root: Option<&Path>) -> Check {
 /// of billed queries (AWS Bedrock). One-shot commands do not query a
 /// metered account while it cannot be used, so the doctor names it.
 /// Nothing is created or written here.
+/// PRD 0040 RF1.3 (re-validation S-07): a warning when agent feed files
+/// were ignored (truncated, tampered, out of contract); nothing otherwise.
+/// It only reads the folder.
+fn check_feed(dir: Option<&Path>, now: DateTime<Utc>) -> Option<Check> {
+    let note = crate::feed::FeedStore::at(dir?).health(now).note()?;
+    Some(Check::new("feed.files", CheckStatus::Warn, note))
+}
+
 fn check_metered(dir: Option<&Path>) -> Check {
     let title = Localized::with_param(
         "doctor.title.metered",
@@ -1281,6 +1293,7 @@ pub fn run(inputs: &Inputs) -> Report {
     checks.push(check_ledger(root));
     checks.push(check_serve_token(root));
     checks.push(check_metered(inputs.metered_dir.as_deref()));
+    checks.extend(check_feed(inputs.feed_dir.as_deref(), inputs.now));
     checks.push(check_port(inputs.port));
     checks.extend(check_cost_sources(inputs));
     checks.extend(check_channels(inputs));

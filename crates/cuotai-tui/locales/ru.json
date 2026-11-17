@@ -23,7 +23,8 @@
       "once.renewal_due",
       "feed.forget.failed",
       "wizard.login.choose",
-      "wizard.login.confirm"
+      "wizard.login.confirm",
+      "feed.read_timeout"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -286,6 +287,7 @@
   "extensions.secret.where": "Значение хранится только в системном хранилище и попадает лишь в окружение расширения.",
   "extensions.title": " Расширения ",
   "feed.setup.chained": "Чтобы сохранить свой скрипт строки состояния, подключите его цепочкой:",
+  "feed.read_timeout": "Ввод строки состояния не поступил вовремя.",
   "feed.forget.failed": "Не удалось стереть сохранённые показания Claude Code.",
   "feed.setup.docs": "Подробности и заявление о конфиденциальности: docs/integrations/claude-code.md",
   "feed.setup.intro": "Добавьте это в ~/.claude/settings.json (Cuotai никогда не меняет файл за вас):",
