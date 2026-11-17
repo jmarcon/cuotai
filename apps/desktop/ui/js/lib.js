@@ -2325,6 +2325,73 @@ if (DEMO_LIVE > 0) {
 const demoFeedBanners = () => (DEMO_QUERY.has("feed-banner") ? [{ source: "claude_code", provider: "claude", query_mode: "claude_code",
   text: coreNote("feed.banner.claude_code", "Claude Code is sending readings; add a Claude account fed by Claude Code."),
   action: coreNote("feed.banner.add", "Add account") }] : []);
+// PRD 0041 re-validation (F-23): `?budget` adds the budget and floor states, shaped like the backend's views
+// (`metric_view`, `report_view`): a spend account with a monthly budget and its allowance, a budget over its limit, a
+// partial budget (part of its period unrecorded: `partial`, its used value is a lower bound), a budget in another
+// currency than its metric (the core's note names both) and a usage metric that offers Set a budget…; a nearly used
+// budget whose allowance reads "less than"; a balance with two floors; and a balance below a quarter of its floor.
+// Every text is the core's (id, params, English fallback); the demo only carries them.
+if (DEMO_QUERY.has("budget")) {
+  const money = (v, currency = "USD") => demoMoney(v, currency);
+  const usd = demoText("metric.verbatim", "USD");
+  const monthEnd = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString(); })();
+  const monthStart = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString(); })();
+  const spendLabel = demoText("metric.verbatim", "Spending this month");
+  const budgetOf = demoText("metric.label.budget_of", "Budget · Spending this month", { label: spendLabel });
+  const spendM = (used) => ({ label: "Gasto no mês", label_text: spendLabel, used, limit: null, remaining: null, unit: "USD", unit_text: usd,
+    kind: "spend", window: "monthly", period: null, resets_at: monthEnd, state: "available", ratio: null, uncapped: true, no_cap: false,
+    budget_draft: { kind: "spend", label_contains: "Spending this month", amount: 0, unit: "USD", period: "monthly" } });
+  const budgetM = ({ label = "Orçamento · Gasto no mês", label_text = budgetOf, used, limit, unit = "USD", window = "monthly", resetH, allowance = null,
+    partial = false, budget = 0 }) => ({
+    label, label_text, used, limit, remaining: used == null ? null : Math.max(0, limit - used), unit, unit_text: demoText("metric.verbatim", unit),
+    kind: "quota", window, period: monthStart, resets_at: resetH == null ? monthEnd : h(resetH), billing: "included", derived: true,
+    derived_from: { kind: "spend", label: "Gasto no mês", budget, ...(partial ? { partial: true } : {}) }, ...(partial ? { partial: true } : {}),
+    state: used == null ? "unmeasured" : used >= limit ? "exhausted" : "available", ratio: used == null ? null : Math.max(0, (limit - used) / limit),
+    uncapped: false, no_cap: false, budget_badge: demoText("budget.badge", "Your budget"), ...(allowance ? { allowance } : {}) });
+  const usageM = { label: "Requests today", label_text: demoText("metric.verbatim", "Requests today"), used: 1200, limit: null, remaining: null,
+    unit: "requests", unit_text: demoText("metric.verbatim", "requests"), kind: "usage", window: "daily", period: null, resets_at: h(10),
+    state: "available", ratio: null, uncapped: true, no_cap: false,
+    budget_draft: { kind: "usage", label_contains: "Requests today", amount: 0, unit: "requests", period: "daily" } };
+  const named = (id, fallback, params) => coreNote(id, fallback, { budget: "Budget · Spending this month", ...params });
+  const spendAcc = { ...dr("budget@example.com", "open_ai_api", [
+      budgetM({ used: 45, limit: 50, allowance: coreNote("pace.allowance.budget_day_recent_amount", "≈ $0.38/day left in the budget · recently $1.20/day",
+        { value: money(0.38), recent: money(1.2) }) }),
+      budgetM({ label: "Team cap", label_text: demoText("metric.verbatim", "Team cap"), used: 31, limit: 30, window: "weekly", resetH: 5 * 24, budget: 1 }),
+      budgetM({ label: "Daily cap", label_text: demoText("metric.verbatim", "Daily cap"), used: 2.1, limit: 3, window: "daily", resetH: 14, partial: true, budget: 2 }),
+      budgetM({ label: "Euro cap", label_text: demoText("metric.verbatim", "Euro cap"), used: null, limit: 40, unit: "EUR", budget: 3 }),
+      spendM(45), usageM]),
+    ...coreNotes([
+      named("note.budget.partial", "Daily cap: part of this period's use was not recorded, so at least this much was used.", { budget: "Daily cap" }),
+      named("note.budget.unit_mismatch_named", "Euro cap: the metric is reported in USD and this budget is in EUR, so it cannot count.",
+        { budget: "Euro cap", metric_unit: "USD", budget_unit: "EUR" }),
+    ]),
+    // The TOML rows the account dialog opens with (`get_account`).
+    demo_budgets: [
+      { kind: "spend", amount: 50, unit: "USD", period: "monthly" },
+      { kind: "spend", amount: 30, unit: "USD", period: "weekly", starts: "monday", label: "Team cap" },
+      { kind: "spend", amount: 3, unit: "USD", period: "daily", label: "Daily cap" },
+      { kind: "spend", amount: 40, unit: "EUR", period: "monthly", label: "Euro cap" },
+    ] };
+  const lowAcc = { ...dr("budget-low@example.com", "open_ai_api", [
+      budgetM({ used: 49.995, limit: 50, allowance: coreNote("pace.allowance.budget_day_less", "less than $0.01/day left in the budget", { value: money(0.01) }) }),
+      spendM(49.995)]),
+    demo_budgets: [{ kind: "spend", amount: 50, unit: "USD", period: "monthly" }] };
+  const bal = (left) => ({ label: "Saldo", label_text: demoText("metric.verbatim", "Balance"), used: null, limit: null, remaining: left, unit: "USD",
+    unit_text: usd, kind: "balance", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false,
+    offers_floor: true });
+  const cred = { label: "Créditos", label_text: demoText("metric.verbatim", "Credits"), used: null, limit: null, remaining: 74.75, unit: "credits",
+    unit_text: demoText("metric.verbatim", "credits"), kind: "credits", window: null, period: null, resets_at: null, state: "available", ratio: null,
+    uncapped: true, no_cap: false, offers_floor: true, budget_draft: { kind: "credits", label_contains: "Credits", amount: 0, unit: "credits", period: "monthly" } };
+  const floor = (left, amount, role) => ({ label: "Saldo", label_text: demoText("metric.verbatim", "Balance"), left, amount, unit: "USD", role,
+    chip: role === "ok" ? null : coreNote("budget.floor.chip", `Balance low · ${money(left).fallback} left`, { left: money(left) }),
+    line: coreNote("budget.floor.line", `Floor ${money(amount).fallback} · ${money(left).fallback} left`, { floor: money(amount), left: money(left) }) });
+  // Two floors on one balance: the higher one warns, the lower one is only a line.
+  const floorAcc = { ...dr("floor@example.com", "open_router", [{ ...bal(7.5), offers_floor: false }, cred]), floors: [floor(7.5, 10, "warn"), floor(7.5, 5, "ok")],
+    demo_floors: [{ kind: "balance", amount: 10, unit: "USD" }, { kind: "balance", amount: 5, unit: "USD" }] };
+  const badAcc = { ...dr("floor-bad@example.com", "kimi", [{ ...bal(2), offers_floor: false }]), floors: [floor(2, 10, "bad")],
+    demo_floors: [{ amount: 10, unit: "USD" }] };
+  demoFirst.push(spendAcc, lowAcc, floorAcc, badAcc);
+}
 demoReports.unshift(...demoFirst);
 // The core's binding of a demo connection: its most consumed quota (demo only; the app gets it from the core).
 const demoConnectionBinding = (c) => {
@@ -2343,6 +2410,96 @@ const demoName = (name) => {
   if (numbered) return t("demo.account.numbered", { n: numbered[1] });
   return DEMO_NAMES[name] ? t(DEMO_NAMES[name]) : name;
 };
+// ---- PRD 0041 re-validation (F-05, F-07, F-10, F-11, F-25): the demo's mirror of `budget::editor::check_rows` ----
+const DEMO_FIELD_LABELS = { kind: "Metric", amount: "Amount", unit: "Unit", period: "Period", starts: "Starts", label: "Name",
+  label_contains: "Label contains", row: "Breakdown row" };
+const demoFieldLabel = (path) => {
+  if (path === "budgets") return demoText("budget.field.budgets", "Budgets");
+  if (path === "floors") return demoText("budget.field.floors", "Balance floors");
+  const key = path.split(".").pop();
+  return DEMO_FIELD_LABELS[key] ? demoText(`budget.field.${key}`, DEMO_FIELD_LABELS[key]) : demoText("metric.verbatim", path);
+};
+/** The core's `text::number::parse_amount`, reduced: `{ value }`, `{ ambiguous: [whole, decimal] }` or `{}` (not an amount). */
+function demoParseAmount(text) {
+  const t = String(text ?? "").trim();
+  const spaced = /[   ]/.test(t);
+  const c = t.replace(/[   ]/g, "");
+  if (!/^-?[\d.,]+$/.test(c)) return {};
+  const seps = c.match(/[.,]/g) ?? [];
+  const num = (int, frac) => { const v = Number(`${int || "0"}${frac ? `.${frac}` : ""}`); return Number.isFinite(v) ? { value: v } : {}; };
+  if (!seps.length) return num(c, "");
+  const last = Math.max(c.lastIndexOf("."), c.lastIndexOf(","));
+  const [int, frac] = [c.slice(0, last), c.slice(last + 1)];
+  if (seps.length === 1) {
+    if (frac.length === 3 && !spaced && /[1-9]/.test(int)) {
+      return { ambiguous: [Number(int + frac), Number(`${int}.${frac}`)] };
+    }
+    return num(int, frac);
+  }
+  const decimal = c[last];
+  const both = new Set(seps).size === 2;
+  if (both && seps.filter((x) => x === decimal).length !== 1) return {};
+  const groups = (both ? int : c).split(/[.,]/);
+  if (groups.slice(1).some((g) => g.length !== 3)) return {};
+  return both ? num(groups.join(""), frac) : num(groups.join(""), "");
+}
+/** The core's `amount_input`: the UI language's decimal sign, no grouping, a fourth digit after exactly three. */
+const demoAmountInput = (v, locale) => {
+  const plain = v.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 });
+  const [int, frac] = plain.split(".");
+  if (!frac) return int;
+  const decimal = new Intl.NumberFormat(locale).formatToParts(1.5).find((p) => p.type === "decimal")?.value ?? ".";
+  return `${int}${decimal}${frac.length === 3 ? `${frac}0` : frac}`;
+};
+const DEMO_TARGET_KINDS = { spend: "spend", account: "spend", usage: "usage", credits: "credits" };
+function demoCheckBudgets({ index = null, budgets = [], floors = [], locale = "en-US" }) {
+  const reading = index == null ? null : demoReports[index]?.metrics.filter((m) => !m.derived) ?? null;
+  const metricOf = (row) => reading?.find((m) => m.kind === DEMO_TARGET_KINDS[row.target]) ?? null;
+  const problems = [];
+  const push = (field, rule, id, fallback, params = {}) => {
+    const label = demoFieldLabel(field);
+    problems.push({ field, rule, note: demoText(id, fallback.replace("{field}", label.fallback), { field: label, ...params }) });
+  };
+  if (budgets.length > 8) push("budgets", "too_many", "budget.error.too_many", "{field}: an account can have at most 8 budgets and 4 floors.");
+  if (floors.length > 4) push("floors", "too_many", "budget.error.too_many", "{field}: an account can have at most 8 budgets and 4 floors.");
+  const amounts = (list, rows) => rows.forEach((row, i) => {
+    const field = `${list}[${i}].amount`;
+    const read = demoParseAmount(row.amount);
+    if (read.ambiguous) {
+      const [whole, decimal] = read.ambiguous.map((v) => demoAmountInput(v, locale));
+      const text = String(row.amount).trim();
+      push(field, "amount_ambiguous", "budget.error.amount_ambiguous", `{field}: ${text} could be ${whole} or ${decimal}. Type ${whole} or ${decimal} instead.`,
+        { text, whole, decimal });
+    } else if (!(read.value > 0 && read.value <= 1e9)) {
+      push(field, "amount", "budget.error.amount", "{field}: the amount must be greater than 0 and at most 1,000,000,000.");
+    }
+  });
+  amounts("budgets", budgets);
+  amounts("floors", floors);
+  budgets.forEach((row, i) => {
+    const unit = String(row.unit ?? "").trim();
+    const m = metricOf(row);
+    if (unit && m && !reading.some((x) => x.kind === m.kind && x.unit.toLowerCase() === unit.toLowerCase())) {
+      push(`budgets[${i}].unit`, "unit_mismatch", "budget.error.unit_mismatch",
+        `{field}: the metric is reported in ${m.unit} and this budget is in ${unit}; set it in ${m.unit}.`, { metric_unit: m.unit, budget_unit: unit });
+    }
+  });
+  const units = budgets.map((row) => metricOf(row)?.unit ?? null);
+  const sentences = budgets.map((row, i) => {
+    const unit = String(row.unit ?? "").trim() || units[i] || "";
+    const value = demoParseAmount(row.amount).value ?? 0;
+    const amount = /^[A-Z]{3}$/.test(unit) ? demoMoney(value, unit) : `${value} ${unit}`.trim();
+    const shown = typeof amount === "string" ? amount : amount.fallback;
+    const PERIOD = { daily: "a day, from midnight", weekly: "a week, starting on {start}", monthly: "a month, starting on day {start}", window: "over the provider's own cycle" };
+    const start = row.period === "weekly" ? demoText(`budget.weekday.${row.start ?? "monday"}`, (row.start ?? "monday").replace(/^./, (x) => x.toUpperCase()))
+      : row.period === "monthly" ? String(row.start ?? 1) : null;
+    const startText = typeof start === "string" ? start : start?.fallback;
+    return demoText(`budget.describe.${row.period}`, `Cuotai will show a Budget quota of ${shown} ${PERIOD[row.period].replace("{start}", startText ?? "")}.`,
+      { amount, ...(start ? { start } : {}) });
+  });
+  return { targets: ["spend", "usage", "credits", "account"], floor_targets: ["any", "balance", "credits"], problems, sentences, units };
+}
+
 const demoView = () => {
   const now = new Date().toISOString();
   const reports = demoReports.map((r, index) => {
@@ -3475,6 +3632,8 @@ const demo = {
       fields: r.provider === "eleven_labs" ? [{ key: "region", text: null, choice: Math.max(0, DEMO_ELEVEN_REGIONS.findIndex(([value]) => value === r.demo_region)) }]
         : [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
+      // PRD 0041: the account's budgets and floors as the TOML holds them (`?budget`).
+      budgets: r.demo_budgets ?? [], floors: r.demo_floors ?? [],
       credential_stored: true, secret_states: states,
       vault_migration: sessionOffer ? [{ slot: "platform_session_env", label,
         consent: { id: "secret_input.migrate.consent", params: { label },
@@ -4018,22 +4177,24 @@ const demo = {
     c.last = { at: new Date().toISOString(), outcome: "delivered", status: 200 };
     return { outcome: "delivered", status: 200 };
   },
-  // Demo: the core's checks, reduced to the amount rule and the monthly sentence.
-  check_budgets: async ({ budgets, floors }) => ({
-    targets: ["spend", "usage", "credits", "account"],
-    floor_targets: ["any", "balance", "credits"],
-    sentences: budgets.map((b) => ({ id: "budget.describe.monthly", params: { amount: `${b.amount} ${b.unit ?? ""}`.trim(), start: "1" }, fallback: `Cuotai will show a Budget quota of ${b.amount} a month, starting on day 1.` })),
-    problems: [...budgets.map((b, i) => ["budgets", i, b]), ...floors.map((f, i) => ["floors", i, f])]
-      .filter(([, , row]) => !(row.amount > 0 && row.amount <= 1e9))
-      .map(([list, i]) => ({ field: `${list}[${i}].amount`, note: { id: "budget.error.amount", params: { field: `${list}[${i}].amount` }, fallback: `${list}[${i}].amount: the amount must be greater than 0 and at most 1,000,000,000.` } })),
-  }),
+  // Demo: the core's `check_budgets` (PRD 0041 RF5.1, F-05, F-07, F-10, F-11) on the rows as typed, reduced to the
+  // amount, ambiguous amount, unit mismatch and too-many rules; same answer shape (problems with field, rule and a
+  // note naming the field's label; the sentences; each row's metric unit from the account's reading).
+  check_budgets: async (args) => demoCheckBudgets(args),
   // Demo: no history, so no strip; `?strip` shows the 24-hour strip of the first account (PRD 0043 RF4.2).
   hourly_strip: async () => (DEMO_QUERY.has("strip") ? { name: "Claude", rhythm: demoRhythm(false).last_24h } : null),
-  // Demo: a draft with the reference line only (no plan price in the demo).
-  budget_suggestion: async () => ({
-    budget: { kind: "spend", amount: 0, unit: "USD", period: "monthly" },
-    reference: { id: "budget.reference.last_30_days", params: { amount: "$38.20" }, fallback: "Last 30 days: $38.20" },
-  }),
+  // Demo: the core's suggestion for the metric `label` of account `index`: its draft and, for a spend or usage metric,
+  // the "Last 30 days" reference line (no plan price in the demo). Unknown account or metric: the core's invalid index.
+  budget_suggestion: async ({ index, label }) => {
+    const m = demoReports[index]?.metrics.find((x) => x.label === label && !x.derived);
+    if (!m) throw JSON.stringify(demoL10n("models.error.invalid_index", {}, "Account does not exist in this configuration."));
+    const budget = m.budget_draft ?? { kind: m.kind === "credits" ? "credits" : m.kind === "usage" ? "usage" : "spend", label_contains: m.label_text?.fallback ?? m.label,
+      amount: 0, unit: m.unit, period: "monthly" };
+    const reference = ["spend", "usage"].includes(m.kind)
+      ? { id: "budget.reference.last_30_days", params: { amount: m.unit === "USD" ? demoMoney(38.2) : `38.2 ${m.unit}` }, fallback: `Last 30 days: ${m.unit === "USD" ? "$38.20" : `38.2 ${m.unit}`}` }
+      : null;
+    return { budget, ...(reference ? { reference } : {}) };
+  },
   history_size: async () => (demoSettings.historyErased.has("all") ? 4096 : 1887437),
   account_history: demoHistory,
   stats: demoStats,
