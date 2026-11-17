@@ -890,9 +890,14 @@ async fn activity(
     outcome
 }
 
-/// A name that is safe to show: no control characters, bounded length.
+/// A name that is safe to show: no control, direction or format characters
+/// ([`crate::text::is_disguising`]), bounded length.
 fn clean_name(name: &str) -> String {
-    let name: String = name.chars().filter(|c| !c.is_control()).take(60).collect();
+    let name: String = name
+        .chars()
+        .filter(|c| !crate::text::is_disguising(*c))
+        .take(60)
+        .collect();
     name.trim().to_string()
 }
 
@@ -1733,6 +1738,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(first.metrics.len(), later.metrics.len());
+    }
+
+    /// PRD 0038 re-validation (S-02): a model or provider name loses its
+    /// control, direction and format characters before it becomes a label
+    /// or a scope.
+    #[test]
+    fn names_lose_direction_and_format_characters() {
+        assert_eq!(clean_name(" gpt\u{202E}-4o\u{2066}\u{1b} "), "gpt-4o");
     }
 
     #[test]
