@@ -164,6 +164,8 @@ await sourceSurface("secret", "account-dialog.js", ["secretRowHtml"]);
 await sourceSurface("extension-consent", "extensions-dialog.js", ["consent"]);
 await sourceSurface("extension-secrets", "extensions-dialog.js", ["secrets"]);
 await sourceSurface("pack-active", "settings/general.js", ["packActiveHtml"]);
+// S-03: the "user pack · file" marker of the language selector.
+await sourceSurface("pack-marker", "lib.js", ["packMarkHtml", "packMarkText"]);
 
 // askDialog and each of its callers' words.
 const common = await import("../apps/desktop/ui/js/settings/common.js");

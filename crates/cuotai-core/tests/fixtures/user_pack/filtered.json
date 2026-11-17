@@ -28,17 +28,70 @@
     }
   },
   {
+    "input": "{\"_meta\":{\"name\":\"Deutsch\"},\"tray.ok\":\"Tout va bien\"}",
+    "name": "fr.json",
+    "output": {
+      "code": "fr",
+      "digest": "c41bd6c6ebe2b2956966fb45a4a6ff3abc853e44386ad54f76a4af3c0cf44b16",
+      "file": "fr.json",
+      "flag": null,
+      "ignored": [],
+      "label": "Français",
+      "messages": {
+        "tray.ok": "Tout va bien"
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"Français\"},\"tray.ok\":\"OK\"}",
+    "name": "xx.json",
+    "output": {
+      "code": "xx",
+      "digest": "454eb693e4f6eb803e5aa27b0d27939fe5152e0852f20f7f44dded62eb9933a4",
+      "file": "xx.json",
+      "flag": null,
+      "ignored": [],
+      "label": "xx",
+      "messages": {
+        "tray.ok": "OK"
+      }
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"English\"},\"tray.ok\":\"Nope\"}",
+    "name": "en-US.json",
+    "output": {
+      "refused": "reservedCode"
+    }
+  },
+  {
+    "input": "{\"_meta\":{\"name\":\"English (UK)\"},\"tray.ok\":\"All fine, mate\"}",
+    "name": "en-GB.json",
+    "output": {
+      "code": "en-GB",
+      "digest": "247c5b59da84009e69dcaa0c0ba4221358809650482f5964fae8f4136af759be",
+      "file": "en-GB.json",
+      "flag": null,
+      "ignored": [],
+      "label": "English",
+      "messages": {
+        "tray.ok": "All fine, mate"
+      }
+    }
+  },
+  {
     "input": "{\"_meta\":{\"name\":\"Langue\"},\"dialog.copyFailed\":{\"other\":\"a\\nb\",\"one\":\"a\\nb\",\"few\":\"<token>\",\"other\":\"日本語のテキスト\"},\"extensions.consent.risk\":\"a\\nb\",\"oauth_error.store.sqlite_dev_only\":\"<token>\",\"quota.count\":\"Ünïcödé · {name}\",\"settings.page.general\":\"Tout va bien\"}",
     "name": "fr.json",
     "output": {
       "code": "fr",
       "digest": "b373f8ef0a18f88263c12b56e83eb5d739237feecd4bddf018a0224786e557d5",
+      "file": "fr.json",
       "flag": null,
       "ignored": [
         "extensions.consent.risk",
         "oauth_error.store.sqlite_dev_only"
       ],
-      "label": "Langue",
+      "label": "Français",
       "messages": {
         "dialog.copyFailed": {
           "few": "<token>",
@@ -112,6 +165,7 @@
     "output": {
       "code": "xx",
       "digest": "8adb65597f4f64462561f149dbcfbb145a3a0d2ede2d25e3ff081151cf1523ac",
+      "file": "xx.json",
       "flag": null,
       "ignored": [],
       "label": "Langue",
@@ -126,6 +180,7 @@
     "output": {
       "code": "sr-Latn-RS",
       "digest": "d56ba4029cfe4c56acf1dcac0770d8d64ddb0d92f88e9bccab5e4fbbd41b32be",
+      "file": "sr-Latn-RS.json",
       "flag": null,
       "ignored": [
         "credential_help.alibaba_cloud",
@@ -141,6 +196,7 @@
     "output": {
       "code": "nl",
       "digest": "33099af1c337fd3afb8bd890fce3b6f7622f2aff85e43ceee42aee603a256622",
+      "file": "nl.json",
       "flag": null,
       "ignored": [
         "hooks.error.command"
@@ -157,9 +213,10 @@
     "output": {
       "code": "fr",
       "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "file": "fr.json",
       "flag": null,
       "ignored": [],
-      "label": "Langue",
+      "label": "Français",
       "messages": {}
     }
   },
@@ -169,6 +226,7 @@
     "output": {
       "code": "nl",
       "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "file": "nl.json",
       "flag": null,
       "ignored": [],
       "label": "Langue",
@@ -181,9 +239,10 @@
     "output": {
       "code": "de-CH-1996",
       "digest": "25e10fcf81f25ed49ed217d0cd508f27d88ec7ece3f677c15af9e6fd6280b38e",
+      "file": "de-CH-1996.json",
       "flag": null,
       "ignored": [],
-      "label": "Langue",
+      "label": "Deutsch",
       "messages": {
         "dialog.copyFailed": "😀",
         "metric.label.balance_organization": {
@@ -208,9 +267,10 @@
     "output": {
       "code": "de-CH-1996",
       "digest": "a4016a918d5134e7fc9e81a581f1814a86e1701aac170b13394d0cf50c383052",
+      "file": "de-CH-1996.json",
       "flag": null,
       "ignored": [],
-      "label": "Langue",
+      "label": "Deutsch",
       "messages": {
         "cost.plan.single": "a\nb",
         "dialog.copyFailed": "😀",
@@ -228,13 +288,14 @@
     "output": {
       "code": "fr",
       "digest": "24f713f4ed29c9735791ace03ebd926023adeb9aa63f4c4acfdf913a84149f16",
+      "file": "fr.json",
       "flag": "BR",
       "ignored": [
         "dialog.deleteTitle",
         "edit_error.toml_int_range",
         "user_session.slot.secret"
       ],
-      "label": "Langue",
+      "label": "Français",
       "messages": {
         "models.search": {
           "other": "R&D",
@@ -250,6 +311,7 @@
     "output": {
       "code": "xx",
       "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "file": "xx.json",
       "flag": null,
       "ignored": [],
       "label": "Langue",
@@ -262,12 +324,13 @@
     "output": {
       "code": "pt-PT",
       "digest": "957b54f78d18e9418a6723e53eb7f219482d613780ec0850a0c5faf33e9faf91",
+      "file": "pt-PT.json",
       "flag": "BR",
       "ignored": [
         "access.risk.undocumented",
         "settings.vault.confirm"
       ],
-      "label": "Langue",
+      "label": "Português",
       "messages": {
         "sort.custom": {
           "few": "Tout va bien",
@@ -283,6 +346,7 @@
     "output": {
       "code": "sr-Latn-RS",
       "digest": "6084539c35a2ecf022635e8dbdf31983691d7f3634417327264b465838b0f083",
+      "file": "sr-Latn-RS.json",
       "flag": null,
       "ignored": [
         "dialog.deleteTitle",
@@ -300,9 +364,10 @@
     "output": {
       "code": "de-CH-1996",
       "digest": "df1d6fdf94b59b673cd4f85569dd0c7a220d73e0a10edccea0291d99295bb25c",
+      "file": "de-CH-1996.json",
       "flag": "BR",
       "ignored": [],
-      "label": "Langue",
+      "label": "Deutsch",
       "messages": {}
     }
   },
@@ -312,6 +377,7 @@
     "output": {
       "code": "sr-Latn-RS",
       "digest": "195ef907dcef38b49aa228fb3b68e5dfa5f18f41b3139030d52cba0958b2c84b",
+      "file": "sr-Latn-RS.json",
       "flag": null,
       "ignored": [
         "dialog.deleteTitle",
@@ -327,6 +393,7 @@
     "output": {
       "code": "sr-Latn-RS",
       "digest": "e1ed58129539a59a3d66ac6e9cd3eacbb7e4c5b1c4cb003c0eb49c3a176daec7",
+      "file": "sr-Latn-RS.json",
       "flag": null,
       "ignored": [
         "credential_help.alibaba_cloud",
@@ -342,9 +409,10 @@
     "output": {
       "code": "de-CH-1996",
       "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "file": "de-CH-1996.json",
       "flag": null,
       "ignored": [],
-      "label": "Langue",
+      "label": "Deutsch",
       "messages": {}
     }
   },
@@ -354,6 +422,7 @@
     "output": {
       "code": "nl",
       "digest": "a2d4a9fd382850614dcc9601a6acd92b6cb610a5530db513d27807c5ddafe4e2",
+      "file": "nl.json",
       "flag": null,
       "ignored": [],
       "label": "Langue",
@@ -366,6 +435,7 @@
     "output": {
       "code": "nl",
       "digest": "46a9f9b432cd6b24f8bcdf2fa81cf06956431b6c7eab719af3cb35124cff154e",
+      "file": "nl.json",
       "flag": null,
       "ignored": [
         "confirm.cancel",

@@ -44,6 +44,7 @@ function addLocale(item) {
   const { name, code, label, flag, digest, messages } = item;
   const ignored = Array.isArray(item.ignored) ? item.ignored.length : 0;
   if (typeof code !== "string" || code.length > 35 || !LOCALE_RE.test(code) || !isIntlTag(code)) throw new Skip("invalidCode");
+  if (code.toLowerCase() === "en-us") throw new Skip("reservedCode");
   if (typeof label !== "string" || !label.trim() || [...label].length > 48) throw new Skip("invalidMeta");
   if (flag != null && (typeof flag !== "string" || !FLAG_RE.test(flag))) throw new Skip("invalidMeta");
   const out = {};
@@ -54,13 +55,13 @@ function addLocale(item) {
     if (typeof v !== "string" && !plural) throw new Skip("invalidValue");
     out[id] = typeof v === "string" ? v : { ...v };
   }
-  registerLocale(code, label, out, flag ?? undefined);
+  registerLocale(code, label, out, flag ?? undefined, typeof name === "string" ? name : `${code}.json`);
   userContent.locales.push({ name, code, label, flag: flag ?? null, digest, ignored, messages: out });
   return code;
 }
 
 export async function loadUserContent() {
-  if (!T) return userContent; // browser (demo): no user folder
+  if (!T) return demoPack(); // browser (demo): no user folder
   let raw;
   try { raw = await T.core.invoke("load_user_content"); } catch { return userContent; }
   userContent.dir = raw.dir;
@@ -85,6 +86,21 @@ export async function loadUserContent() {
     const digest = raw.locales.find((l) => l?.name === e.name)?.digest;
     if (typeof digest === "string") e.key = `${digest}:${e.name}`;
   }
+  return userContent;
+}
+
+// Browser demo only, with `?pack` in the address: a Dutch pack as the shell would send it (the core's label, a safe
+// file name, one dropped protected id), so the UI checks can render the selector marker, the Settings › General line
+// and the notice. Nothing is read from disk.
+function demoPack() {
+  if (!/[?&]pack(=|&|$)/.test(globalThis.location?.search ?? "")) return userContent;
+  const item = { name: "nl.json", code: "nl", label: "Nederlands", flag: "nl", digest: "0".repeat(64), ignored: ["serve.banner"],
+    messages: { "lang.label": "Taal", "settings.page.general": "Algemeen", "settings.lang.desc": "De taal van het venster en de meldingen.",
+      "common.refresh": "Vernieuwen", "common.add": "Account toevoegen" } };
+  userContent.locales = [];
+  addLocale(item);
+  userContent.errors = [{ kind: "locale", name: item.name, reason: "protected", count: 1, key: `${item.digest}:${item.name}` }];
+  try { localStorage.setItem("cuotai.userLocales", JSON.stringify([item.code])); } catch {}
   return userContent;
 }
 
