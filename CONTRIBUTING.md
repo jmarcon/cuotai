@@ -97,22 +97,35 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 - Semantic commits: `type(scope): subject`, with the subject and the body written in **English**.
 - A user-visible commit carries its changelog entry as a trailer, `Changelog: <one sentence for the user>.` (or `Changelog: skip <reason>`), plus `Refs: PRD 0006 RF2` and `BREAKING CHANGE: <migration>` when they apply.
 - A `refactor` or `chore` that changes `crates/` or `apps/` carries a `Changelog:` sentence too when users see the change, or `Changelog: skip <reason>`. A skip reason says in at least three words why no user sees a change, for example `test-only change`, `internal refactor, no behaviour change` or `fixes the previous commit of this pull request`; generic reasons such as `n/a`, `internal`, `minor` or `integration fix` are refused. The release commit lists every skipped commit with its reason.
-- A sentence is plain text: no HTML, Markdown links, raw URLs or invisible characters, one sentence per `Changelog:` line, and flags, paths and field names in backticks (`--watch`, `cuotai.toml`, `remaining_ratio`).
+- A sentence starts with a capital letter, ends with a period, has no `PRD` reference or commit hash (the release adds both) and stays within 600 characters. It is plain text: no HTML, Markdown links, raw URLs or invisible characters, one sentence per `Changelog:` line, and flags, paths and field names in backticks (`--watch`, `cuotai.toml`, `remaining_ratio`).
 - An entry lands under the category of its commit type (`feat` → Added, `fix` → Fixed). To choose another, prefix the sentence: `Changelog: [Security] A token no longer leaks to the log.` (Added, Changed, Deprecated, Removed, Fixed or Security). A `Changelog-Category: <name>` trailer still works for a commit with a single sentence; with several sentences, or together with prefixes, the commit gate refuses it, because it would apply to every sentence.
 - Do **not** change any version or `CHANGELOG.md`: both are produced at release time and CI rejects them in a normal commit. The full rules are in "How to deliver a change" and "Versioning, Commits & Changelog" in [`AGENTS.md`](AGENTS.md). Check your commits locally with `cargo xtask changelog-gate --base origin/main --head HEAD`.
 - Keep pull requests focused and small enough to review.
 
 ## Releasing
 
-Releases are prepared by the owner (PRD 0039) and published by a tag through
-`.github/workflows/release.yml` (PRD 0021):
+A release happens when the owner asks for one. The owner, or an agent under
+the "Release & tag rules for agents" of [`AGENTS.md`](AGENTS.md), prepares
+it (PRD 0039), and a tag publishes it through
+`.github/workflows/release.yml` (PRD 0021). Nobody names the version:
+`release prepare` computes it from the commits. A release is stable unless
+the owner asks for a release candidate.
 
 ```sh
 cargo xtask changelog-draft                         # what the next release would contain
 cargo xtask release prepare --dry-run               # next version, section and diffs
-cargo xtask release prepare --branch                # release commit on release/vX.Y.Z
-cargo xtask release tag --rc                        # after the merge; owner, or an agent on request
+cargo xtask release prepare --branch --trailer 'Co-Authored-By: …'
+                                                    # release commit on release/vX.Y.Z and the PR body file
+gh pr create … --body-file <path>                   # release prepare prints the exact command
+cargo xtask release edit <hash>#<n> --text '…'      # reword an entry on the release branch
+cargo xtask release tag                             # after the merge; --rc only when the owner asks for an rc
 ```
+
+The PR body file holds the bump rationale, the wording edits, the skipped
+commits with their reasons, the section and the manual desktop checklist.
+Wording is fixed only with `release edit`, which records a
+`Changelog-Entry:` trailer; CI checks the release commit line by line
+against a re-render, so a hand edit of `CHANGELOG.md` fails.
 
 The full procedure, the dry run (**Actions → Release → Run workflow**, which
 builds everything and publishes nothing), the signing secrets and the fork
