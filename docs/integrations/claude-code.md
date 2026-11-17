@@ -79,7 +79,7 @@ Reads the status-line JSON on standard input (like `--feed`), stores it and prin
 - An exhausted other account says when it returns: `Codex 0% until 14:30`.
 - The spend limit and the session cost use your language's money format (`$314.12/$500.00`, `314,12 $/500,00 $` in German).
 - `--account ID` limits the other accounts. Like `--status-line`, it takes an account's id, its key or a name no other account has; a value that names no single account is reported on stderr (with the ids) and the command exits `1`. Claude accounts are left out (their windows come from the feed).
-- `--max-width N` drops the context share first, then the other account, then cuts Claude's windows with "…".
+- `--max-width N` drops whole parts, never a piece of one: the context share first, then the other account, then Claude's reset time, then Claude's windows from the last; the age of an old reading is never dropped from a part that stays.
 - Colour only with `--color`, on a terminal, with `NO_COLOR` unset.
 
 Both commands read standard input up to the end of the first JSON object, and wait for it at most a quarter of a second: a writer that sends nothing, or never closes its end, cannot hold Claude Code's prompt.
