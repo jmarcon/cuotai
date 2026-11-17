@@ -727,6 +727,23 @@ impl Report {
         self.session_expires_at = crate::instant::plausible(self.session_expires_at);
     }
 
+    /// PRD 0037 S-03: store a figure of minus zero as zero, in the metrics,
+    /// the sub-reports and the breakdown rows (the only figure-bearing parts
+    /// of a report), so `--json`, the export and every view show 0.
+    pub fn normalize_figures(&mut self) {
+        for metric in &mut self.metrics {
+            metric.normalize_figures();
+        }
+        for sub in &mut self.sub_reports {
+            sub.normalize_figures();
+        }
+        for row in &mut self.breakdown {
+            for metric in &mut row.metrics {
+                metric.normalize_figures();
+            }
+        }
+    }
+
     /// PRD 0023 re-validation (S-01): drop control characters and bidi
     /// overrides ([`crate::text::is_disguising`]) from every metric's label,
     /// unit and period, here and in the sub-reports, so no provider or
@@ -1139,6 +1156,19 @@ impl Metric {
         self.resets_at = crate::instant::plausible(self.resets_at);
     }
 
+    /// [`Report::normalize_figures`] for one metric: `-0.0` becomes `0.0`
+    /// (it passes every non-negative filter, so adapters keep it).
+    pub fn normalize_figures(&mut self) {
+        for figure in [&mut self.used, &mut self.limit, &mut self.remaining]
+            .into_iter()
+            .flatten()
+        {
+            if *figure == 0.0 {
+                *figure = 0.0;
+            }
+        }
+    }
+
     /// [`Report::strip_disguising_text`] for one metric.
     pub fn strip_disguising_text(&mut self) {
         fn strip(text: &mut String) {
@@ -1348,6 +1378,13 @@ impl SubReport {
         self.as_of = crate::instant::plausible(self.as_of);
     }
 
+    /// [`Report::normalize_figures`] for one sub-report.
+    pub fn normalize_figures(&mut self) {
+        for metric in &mut self.metrics {
+            metric.normalize_figures();
+        }
+    }
+
     /// [`Report::strip_disguising_text`] for one sub-report: its metrics,
     /// notes, and (as defence in depth; adapters clean them today) its
     /// label, upstream slug and plan.
@@ -1411,6 +1448,73 @@ pub struct Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0037 S-03: `-0.0` passes the adapters' non-negative filters; the
+    /// boundary stores it as zero in metrics and sub-reports alike.
+    #[test]
+    fn minus_zero_figures_are_stored_as_zero() {
+        let mut metric = Metric::usage("Credits", -0.0, "credits", MetricKind::Credits, None);
+        metric.limit = Some(-0.0);
+        metric.remaining = Some(-0.0);
+        let mut sub = SubReport {
+            id: "s".into(),
+            upstream: "u".into(),
+            provider: None,
+            label: "l".into(),
+            status: Status::Ready,
+            metrics: vec![metric.clone()],
+            notes_l10n: Vec::new(),
+            checked_at: Utc::now(),
+            as_of: None,
+            enabled_upstream: None,
+            duplicate_of: None,
+            plan: None,
+            via: None,
+            identity: None,
+        };
+        sub.metrics[0].used = Some(-1.5);
+        let row_metric = metric.clone();
+        let mut report = Report {
+            account_id: None,
+            diagnostic: None,
+            account: "a".into(),
+            provider: Provider::ElevenLabs,
+            checked_at: Utc::now(),
+            status: Status::Ready,
+            metrics: vec![metric],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: vec![sub],
+            as_of: None,
+            overage_hint: None,
+            breakdown: vec![crate::BreakdownRow {
+                scope: crate::model::ScopeKind::Key,
+                id: "k".into(),
+                label: "k".into(),
+                metrics: vec![row_metric],
+                truncated: false,
+                notes: Vec::new(),
+            }],
+        };
+        report.normalize_figures();
+        let figures = |m: &Metric| [m.used, m.limit, m.remaining];
+        for figure in figures(&report.metrics[0]).into_iter().flatten() {
+            assert!(figure == 0.0 && figure.is_sign_positive());
+        }
+        for figure in figures(&report.breakdown[0].metrics[0])
+            .into_iter()
+            .flatten()
+        {
+            assert!(figure == 0.0 && figure.is_sign_positive(), "breakdown row");
+        }
+        let sub = &report.sub_reports[0].metrics[0];
+        assert_eq!(sub.used, Some(-1.5), "only minus zero changes");
+        assert!(sub.limit.unwrap().is_sign_positive());
+        let json = serde_json::to_string(&report).unwrap();
+        assert!(!json.contains("-0.0"), "{json}");
+    }
 
     /// PRD 0023 re-validation (S-01): controls and bidi overrides leave
     /// labels, units and periods; visible text is kept.
