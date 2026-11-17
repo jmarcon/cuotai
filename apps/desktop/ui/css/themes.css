@@ -432,6 +432,11 @@ svg.i {
   background: var(--surface);
   box-shadow: var(--shadow-dialog);
 }
+/* DS-CMP-SEL-2: a menu that does not fit below its button opens upward (lib.js measures it on opening). */
+.lang-menu.up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
 .lang-menu button,
 .lang-list button {
   display: flex;

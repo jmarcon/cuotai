@@ -3,7 +3,8 @@
 // the sub-page, switch the schedule on, add an interval (focus lands on its first time field), type a time, remove
 // it (focus returns to the weekday's Add button), repeat the schedule on every day, and reach the three-interval
 // limit. It then opens Report a problem and What's new, whose content loads after they open, and checks where focus
-// lands. Exits 1 on the first step that needs a mouse. Run from the repository root; needs Chrome (see README).
+// lands, and drives the language, theme and sort menus (open, arrows, Home/End, type-ahead, choose, Esc). Exits 1 on
+// the first step that needs a mouse. Run from the repository root; needs Chrome (see README).
 import assert from "node:assert/strict";
 import { launch } from "./driver.mjs";
 
@@ -244,7 +245,79 @@ try {
   await eq(`import("./js/lib.js").then((m) => m.getSettings()).then((s) => s.quiet.days.mon[2])`, { from: "13:00", to: "14:00" }, "the next free hour is proposed");
   await eq(`document.querySelector('[data-quiet-add="mon"]').disabled`, true, "no fourth interval");
   ok("a typed duplicate is refused, tied to its field, and put back on leaving it");
-  console.log("PASS: the quiet-hours weekday editor, the loading dialogs, a refused value and a search result work from the keyboard");
+
+  // 14. PRD 0035 re-validation V35-01 (DS-CMP-SEL-2, RF3.3): the language, theme and sort menus work from the keyboard.
+  //     Enter opens the menu and focus lands on the checked item once the window is drawn again; ArrowDown, End and a
+  //     typed letter move inside it (type-ahead by endonym, folded: "T" reaches Türkçe); Enter chooses, and Esc closes
+  //     with focus back on the button. The demo's Settings window is 860 × 640 (`settings_window.rs`).
+  const key = async (name, code) => {
+    for (const type of ["rawKeyDown", "keyUp"]) await browser.send("Input.dispatchKeyEvent", { type, key: name, code: name, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code });
+    await sleep(120);
+  };
+  const focusedItem = () => browser.evaluate(`document.activeElement?.closest('[role=menu]') ? document.activeElement.textContent.trim() : "(" + (document.activeElement?.className || document.activeElement?.tagName) + ")"`);
+  const itemIs = async (expected, step) => assert.equal(await focusedItem(), expected, `${step}: focus is on ${await focusedItem()}`);
+  await browser.open("settings.html?page=general", { w: 860, h: 640, scale: 1 });
+  await until(`!!document.querySelector('[data-lang-toggle]')`, "the language field is drawn");
+  await browser.evaluate(`document.querySelector('[data-lang-toggle]').focus()`);
+  await browser.press("Enter");
+  await until(`document.activeElement?.closest('.lang-field [role=menu]')`, "Enter opens the language menu and focus moves into it");
+  await itemIs("English", "the checked language has focus");
+  await browser.press("ArrowDown");
+  await itemIs("Español", "ArrowDown moves to the next language");
+  await key("End", 35);
+  await eq(`document.activeElement.getAttribute('aria-disabled')`, null, "End lands on an enabled language");
+  await eq(`(() => { const all = [...document.querySelectorAll('.lang-field [role=menuitemradio]:not([aria-disabled=true])')]; return all.indexOf(document.activeElement) === all.length - 1; })()`, true, "End goes to the last language");
+  await key("Home", 36);
+  await eq(`document.activeElement === document.querySelector('.lang-field [role=menuitemradio]:not([aria-disabled=true])')`, true, "Home goes to the first language");
+  await browser.press("ArrowUp");
+  await eq(`(() => { const all = [...document.querySelectorAll('.lang-field [role=menuitemradio]:not([aria-disabled=true])')]; return all.indexOf(document.activeElement) === all.length - 1; })()`, true, "ArrowUp on the first language wraps to the last");
+  await browser.press("T");
+  await itemIs("Türkçe", "typing T jumps to Türkçe");
+  await browser.press("Enter");
+  await until(`document.documentElement.lang === "tr"`, "Enter chooses Türkçe");
+  await until(`document.activeElement?.matches('[data-lang-toggle]')`, "focus returns to the language field after choosing");
+  await browser.press("Enter");
+  await until(`document.activeElement?.closest('.lang-field [role=menu]')`, "the menu opens again");
+  await itemIs("Türkçe", "the new choice is the checked item");
+  await browser.press("Escape");
+  await until(`document.querySelector('.lang-field [role=menu]').hidden`, "Esc closes the language menu");
+  await until(`document.activeElement?.matches('[data-lang-toggle]')`, "Esc gives focus back to the language field");
+  ok("the language menu works from the keyboard");
+
+  await browser.open("settings.html?page=general", { w: 860, h: 640, scale: 1, theme: "dracula" });
+  await until(`!!document.querySelector('[data-theme-toggle]')`, "the theme field is drawn");
+  await browser.evaluate(`document.querySelector('[data-theme-toggle]').focus()`);
+  await browser.press("Enter");
+  await until(`document.activeElement?.closest('.theme-menu')`, "Enter opens the theme menu and focus moves into it");
+  await eq(`document.activeElement.getAttribute('aria-checked')`, "true", "the checked theme has focus");
+  await browser.press("ArrowDown");
+  await eq(`document.activeElement.getAttribute('aria-checked')`, "false", "ArrowDown moves to another theme");
+  await browser.press("Escape");
+  await until(`document.activeElement?.matches('[data-theme-toggle]')`, "Esc gives focus back to the theme field");
+  ok("the theme menu works from the keyboard");
+
+  await browser.open("index.html", { w: 1200, h: 820, scale: 1 });
+  await until(`!!document.querySelector('[data-sort-toggle]')`, "the sort button is drawn");
+  await browser.evaluate(`document.querySelector('[data-sort-toggle]').focus()`);
+  await browser.press("Enter");
+  await until(`document.activeElement?.closest('.sortmenu [role=menu]')`, "Enter opens the sort menu and focus moves into it");
+  await eq(`document.activeElement.dataset.sort`, "custom", "the checked order has focus");
+  await browser.press("ArrowDown");
+  await eq(`document.activeElement.dataset.sort`, "binding", "ArrowDown moves to the next order");
+  await key("End", 35);
+  await eq(`document.activeElement.dataset.sort`, "pct-desc", "End goes to the last order");
+  await browser.press("ArrowDown");
+  await eq(`document.activeElement.dataset.sort`, "custom", "ArrowDown on the last order wraps to the first");
+  await browser.press("ArrowUp");
+  await browser.press(" ");
+  await until(`import("./js/lib.js").then((m) => m.currentSort() === "pct-desc")`, "Space chooses the order");
+  await until(`document.activeElement?.matches('[data-sort-toggle]')`, "focus returns to the sort button after choosing");
+  await browser.press("Enter");
+  await until(`document.activeElement?.closest('.sortmenu [role=menu]')`, "the sort menu opens again");
+  await browser.press("Escape");
+  await until(`document.activeElement?.matches('[data-sort-toggle]')`, "Esc gives focus back to the sort button");
+  ok("the sort menu works from the keyboard");
+  console.log("PASS: the quiet-hours weekday editor, the loading dialogs, a refused value, a search result and the language, theme and sort menus work from the keyboard");
 } catch (error) {
   console.error(error.message ?? error);
   process.exitCode = 1;

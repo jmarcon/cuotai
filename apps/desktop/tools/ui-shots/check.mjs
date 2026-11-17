@@ -88,6 +88,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-winxp-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "light" }],
   ["main-winxp-dark", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "dark" }],
   ["settings-general", "settings.html?page=general", 640, 460, {}],
+  // PRD 0035 re-validation V35-15 (DS-CMP-SEL-2): the open language menu stays inside the window, at the minimum and at
+  // the default Settings size (`settings_window.rs`).
+  ["settings-general-lang-open", "settings.html?page=general", 640, 460, {}, "[data-lang-toggle]"],
+  ["settings-general-lang-open-default", "settings.html?page=general", 860, 640, {}, "[data-lang-toggle]"],
   ["settings-dashboard", "settings.html?page=dashboard", 640, 460, {}],
   ["settings-alerts", "settings.html?page=alerts", 640, 460, {}],
   // PRD 0032 re-validation R-03: the quiet-hours sub-page with the demo's schedule on (weekday rows, two intervals on
@@ -223,6 +227,8 @@ const PAGE_JS = `(() => {
     if (box && box !== e && !ok(e)) { const br = box.getBoundingClientRect(); if (own.some((x) => x.right > br.right + 1 || x.left < br.left - 1)) out.push({ kind: "spills-container", ok: false, sel: sel(e) + " in " + sel(box), text: text.slice(0, 40) }); }
   }
   // PRD 0029 re-validation (V-01): an element carrying \`hidden\` is never drawn, whatever its class's \`display\` says.
+  // An open menu (language, sort, theme) lies entirely inside the window: it opens upward or shrinks when needed.
+  for (const m of document.querySelectorAll(".lang-menu:not([hidden])")) { const r = m.getBoundingClientRect(); if (r.width && (r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth)) out.push({ kind: "menu-outside-window", ok: false, sel: sel(m), text: [r.top, r.bottom, r.left, r.right].map(Math.round).join(" ") }); }
   for (const e of document.querySelectorAll("[hidden]")) if (e.checkVisibility()) out.push({ kind: "hidden-shown", ok: false, sel: sel(e) + (e.id ? "#" + e.id : ""), text: (e.textContent || "").trim().slice(0, 40) });
   for (const s of document.querySelectorAll(".rc > .stl")) if (s.getBoundingClientRect().height > 22) out.push({ kind: "status-line-taller-than-one-line", ok: false, sel: sel(s), text: s.textContent.trim().slice(0, 50) });
   // The local-cost row's title and its "estimate" mark stay on one line each; only the values may wrap.
