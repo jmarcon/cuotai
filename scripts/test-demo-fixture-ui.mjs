@@ -188,5 +188,44 @@ for (const [search, count] of [["?live=1", 1], ["?live=0", 0], ["", 0]]) {
   assert.deepEqual(liveView.feed_banners, [], "no banner without `?feed-banner`");
   assert.ok(!liveView.reports.some((r) => r.source.startsWith("feed:")), "no fed account without `?feed`");
 }
-console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set; the agent-fed accounts, live sessions, banner and Claude form");
+// PRD 0041 re-validation (F-23, F-25): `?budget` gives the budget, floor and allowance states, and the demo's
+// `check_budgets` answers like the core's: text rows read as typed, each problem at its field with its rule and a note
+// naming the field's label, and each row's metric unit from the account's reading.
+globalThis.location = { search: "?budget" };
+const budgetLib = await import("../apps/desktop/ui/js/lib.js?budget");
+const budgetView = await budgetLib.getView();
+assert.deepEqual(budgetView.reports.slice(0, 4).map((r) => `${r.provider}:${r.account}`), [
+  "open_ai_api:budget@example.com", "open_ai_api:budget-low@example.com", "open_router:floor@example.com", "kimi:floor-bad@example.com",
+]);
+const [spendAcc, lowAcc, floorAcc, badAcc] = budgetView.reports;
+const budgets = spendAcc.metrics.filter((m) => m.derived);
+assert.equal(budgets.length, 4, "four budgets on the spend account");
+assert.ok(budgets.every((m) => m.kind === "quota" && m.budget_badge?.id === "budget.badge" && m.derived_from), "budgets are the person's quotas");
+assert.ok(budgets.some((m) => m.state === "exhausted" && !m.allowance), "a budget over its limit has no allowance");
+assert.ok(budgets.some((m) => m.partial === true && m.derived_from.partial === true && m.used != null), "a partial budget keeps a lower-bound used");
+assert.ok(budgets.some((m) => m.unit === "EUR" && m.used == null), "a budget in another currency is not counted");
+assert.deepEqual(spendAcc.notes_l10n.map((n) => n.id), ["note.budget.partial", "note.budget.unit_mismatch_named"]);
+assert.deepEqual(spendAcc.notes_l10n[1].params, { budget: "Euro cap", metric_unit: "USD", budget_unit: "EUR" });
+assert.ok(spendAcc.metrics.some((m) => !m.derived && m.budget_draft), "a metric offers Set a budget…");
+assert.equal(lowAcc.metrics[0].allowance.id, "pace.allowance.budget_day_less", "the less-than allowance");
+assert.deepEqual(floorAcc.floors.map((f) => [f.label, f.amount, f.role, !!f.chip]), [["Saldo", 10, "warn", true], ["Saldo", 5, "ok", false]], "two floors on one balance");
+assert.equal(badAcc.floors[0].role, "bad");
+assert.ok(floorAcc.metrics.some((m) => m.offers_floor), "a balance offers Set a floor…");
+const row = (amount, unit = "USD", target = "spend") => ({ target, amount, unit, period: "monthly", start: null, filter: "", label: "", row: null });
+const spendIndex = budgetView.reports.indexOf(spendAcc);
+let check = await budgetLib.checkBudgets(spendIndex, "open_ai_api", [row("1.000,50"), row("1,000"), row("40", "EUR"), row("")], [{ target: "any", amount: "1.500", unit: "", filter: "" }], "de");
+assert.deepEqual(check.problems.map((p) => [p.field, p.rule]), [
+  ["budgets[1].amount", "amount_ambiguous"], ["budgets[3].amount", "amount"], ["floors[0].amount", "amount_ambiguous"], ["budgets[2].unit", "unit_mismatch"],
+]);
+assert.equal(check.problems[0].note.params.field.id, "budget.field.amount", "the note names the field's label");
+assert.deepEqual([check.problems[0].note.params.whole, check.problems[0].note.params.decimal], ["1000", "1"]);
+assert.deepEqual(check.problems[2].note.params.decimal, "1,5", "the readings are written for the dialog's language");
+assert.deepEqual(check.units, ["USD", "USD", "USD", "USD"], "each row's metric unit from the reading");
+check = await budgetLib.checkBudgets(null, "open_ai_api", [row("50", "")], [], "en-US");
+assert.deepEqual([check.problems, check.units], [[], [null]], "a new account has no reading");
+const suggestion = await budgetLib.budgetSuggestion(spendIndex, "Requests today");
+assert.equal(suggestion.budget.kind, "usage");
+assert.equal(suggestion.reference.id, "budget.reference.last_30_days");
+await assert.rejects(budgetLib.budgetSuggestion(spendIndex, "Nope"), "an unknown metric is the core's invalid index");
+console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set; the agent-fed accounts, live sessions, banner and Claude form; the budget, floor and allowance set and the budget check");
 process.exit(0); // the shared modules keep a BroadcastChannel open

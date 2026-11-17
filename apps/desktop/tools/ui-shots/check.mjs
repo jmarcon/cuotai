@@ -214,6 +214,14 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["details-openrouter-negative", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::negative@example.com"] [data-details]'],
   ["details-openrouter-limited", "index.html?openrouter", 1200, 820, {}, '.card[data-card="open_router::limited@example.com"] [data-details]'],
   ["dialog-add-openrouter", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="open_router"]']],
+  // PRD 0041 re-validation (F-23): budgets, floors and the allowance (`?budget`): a monthly budget with its allowance, one
+  // over its limit, a partial one, one in another currency than its metric, a "less than" allowance, two floors on one
+  // balance and one at a quarter of its floor; then Set a budget… and Set a floor… with the editor's rows.
+  ["details-budget", "index.html?budget", 1200, 820, {}, '.card[data-card="open_ai_api::budget@example.com"] [data-details]'],
+  ["details-floor", "index.html?budget", 1200, 820, {}, '.card[data-card="open_router::floor@example.com"] [data-details]'],
+  ["main-budget", "index.html?budget", 1200, 820, {}],
+  ["dialog-budget", "index.html?budget", 1200, 820, {}, ['.card[data-card="open_ai_api::budget@example.com"] [data-details]', "[data-set-budget]"]],
+  ["dialog-floor", "index.html?budget", 1200, 820, {}, ['.card[data-card="open_router::floor@example.com"] [data-details]', "[data-set-floor]"]],
   // PRD 0040 re-validation (V-10): agent-fed accounts. A Claude account fed by Claude Code beside a hybrid one that fell
   // back to the query, a reading two hours old, no reading yet beside a Codex CLI log in an unknown shape, and a single
   // window (the week unknown, not zero); the live session block with 1, 5 and 7 sessions ("and 2 more"); the unbound
