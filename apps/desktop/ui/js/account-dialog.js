@@ -143,7 +143,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const form = dlg.querySelector("form");
   // PRD 0041 RF5.1: the person's budgets and floors (the core checks every row; untouched, the account keeps its own).
   const budgetsEditor = mountBudgets(dlg.querySelector("#budgets-host"), {
-    provider, budgets: existing?.budgets ?? [], floors: existing?.floors ?? [], budgetDraft, budgetHint, floorDraft,
+    index, provider, budgets: existing?.budgets ?? [], floors: existing?.floors ?? [], budgetDraft, budgetHint, floorDraft,
   });
   const dyn = dlg.querySelector("#dyn");
   const dynAuth = dlg.querySelector("#dyn-auth");

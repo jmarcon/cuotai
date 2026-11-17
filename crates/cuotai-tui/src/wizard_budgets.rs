@@ -43,6 +43,10 @@ pub(super) struct BudgetStep {
     editing: Option<usize>,
     /// The typed filter of the metric picker (RF5.2 type-to-filter).
     filter: String,
+    /// F-07: the metrics of the edited account's last good reading, so a
+    /// budget in another unit than its metric is refused; `None` for a new
+    /// account or before any reading.
+    reading: Option<Vec<cuotai_core::Metric>>,
 }
 
 pub(super) struct Colors {
@@ -63,6 +67,23 @@ impl BudgetStep {
         step
     }
 
+    /// F-07: check the rows against `metrics`, the edited account's last
+    /// good reading.
+    pub(super) fn with_reading(mut self, metrics: Option<Vec<cuotai_core::Metric>>) -> Self {
+        self.reading = metrics;
+        self
+    }
+
+    /// Every problem of the rows for `provider` (RF1.2, F-07).
+    fn problems(&self, provider: Provider) -> Vec<editor::RowProblem> {
+        editor::check(
+            provider,
+            &self.budgets(),
+            &self.floors(),
+            self.reading.as_deref(),
+        )
+    }
+
     /// The budgets the draft saves.
     pub(super) fn budgets(&self) -> Vec<Budget> {
         self.budgets.iter().map(BudgetRow::to_budget).collect()
@@ -75,9 +96,10 @@ impl BudgetStep {
 
     /// The first problem of the rows for `provider` (RF1.2), localized.
     pub(super) fn problem(&self, provider: Provider) -> Option<Localized> {
-        budget::problems(provider, &self.budgets(), &self.floors())
-            .first()
-            .map(budget::BudgetError::note)
+        self.problems(provider)
+            .into_iter()
+            .next()
+            .map(|problem| problem.note)
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -320,7 +342,7 @@ impl BudgetStep {
         let accent = Style::default().fg(colors.accent);
         let dim = Style::default().fg(colors.dim);
         let bad = Style::default().fg(colors.bad);
-        let problems = budget::problems(provider, &self.budgets(), &self.floors());
+        let problems = self.problems(provider);
         let mut lines = vec![
             Line::from(Span::styled(
                 tr(
@@ -676,6 +698,36 @@ mod tests {
         // Enter in the list is the wizard's (next step).
         assert_eq!(step.handle_key(key(KeyCode::Enter), provider), None);
         assert_eq!(step.handle_key(key(KeyCode::Esc), provider), None);
+    }
+
+    /// F-07: with the account's last reading, a budget in another
+    /// currency than its metric is refused, naming both.
+    #[test]
+    fn a_budget_in_another_currency_than_the_reading_is_refused() {
+        let provider = Provider::OpenAiApi;
+        let spend = cuotai_core::Metric::usage(
+            "Gasto no mês",
+            10.0,
+            "USD",
+            cuotai_core::MetricKind::Spend,
+            None,
+        );
+        let mut step = BudgetStep::default().with_reading(Some(vec![spend]));
+        step.handle_key(key(KeyCode::Char('a')), provider);
+        step.handle_key(key(KeyCode::Down), provider);
+        typed(&mut step, "50", provider);
+        step.handle_key(key(KeyCode::Down), provider);
+        typed(&mut step, "EUR", provider);
+        let note = step.problem(provider).expect("refused");
+        assert_eq!(note.id, "budget.error.unit_mismatch");
+        let text = note.resolve("en-US");
+        assert!(text.contains("USD") && text.contains("EUR"), "{text}");
+        // In the metric's own currency the row passes.
+        let mut clear = key(KeyCode::Char('u'));
+        clear.modifiers = KeyModifiers::CONTROL;
+        step.handle_key(clear, provider);
+        typed(&mut step, "USD", provider);
+        assert!(step.problem(provider).is_none());
     }
 
     #[test]

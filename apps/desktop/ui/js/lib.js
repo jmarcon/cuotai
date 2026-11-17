@@ -319,7 +319,7 @@ export const channelSetEnabled = (id, on) => call("channel_set_enabled", { id, o
 export const channelRemove = (id) => call("channel_remove", { id });
 export const channelTest = (id) => call("channel_test", { id });
 // PRD 0041 RF5.1: the core's live sentences and problems of the dialog's budget and floor rows.
-export const checkBudgets = (provider, budgets, floors) => call("check_budgets", { provider, budgets, floors });
+export const checkBudgets = (index, provider, budgets, floors) => call("check_budgets", { index, provider, budgets, floors });
 /** PRD 0041 RF6: the draft of "Set a budget…" (plan-price prefill, "Last 30 days" line) for one metric; saves nothing. */
 export const budgetSuggestion = (index, label) => call("budget_suggestion", { index, label });
 /** PRD 0043 RF4.2: the last 24 hours of the account the menu-bar strip follows (`null` without history). */

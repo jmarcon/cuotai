@@ -383,6 +383,15 @@ impl RefreshCycle {
         }
     }
 
+    /// PRD 0041 F-07: the latest `Ready` reading of `index` (the current
+    /// one, else the last good one), whose metrics the budget editors
+    /// check a draft's units against. `None` before any good reading.
+    pub fn latest_ready(&self, index: usize) -> Option<&Report> {
+        self.account_report(index)
+            .filter(|report| report.status == Status::Ready)
+            .or_else(|| self.last_good_report(index))
+    }
+
     /// PRD 0033 re-validation V-16/R-3: [`Self::last_good_report`] as every
     /// front end must show it at `now`: windows whose reset has passed
     /// (an aggregator's connections included) collapse to "renewed",

@@ -190,7 +190,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -1540,9 +1542,9 @@
   "note.budget.provider_month": "{budget}：プロバイダーの請求月で集計しました。別のタイムゾーンで始まる場合があります。",
   "note.budget.target_missing": "{budget}：この予算が追うメトリクスがこの測定にありません。",
   "note.budget.topup_detected": "{budget}：チャージを検出しました。使用量には含めません。",
-  "note.budget.unit_mismatch": "{budget}：メトリクスが別の単位で報告されているため、この予算は集計できません。",
   "note.budget.partial": "{budget}：この期間の使用量の一部が記録されていないため、少なくともこの量を使用しています。",
   "note.budget.negative": "{budget}：この期間のメトリクスが差し引きでクレジットになっているため、この予算では集計できません。",
+  "note.budget.unit_mismatch_named": "{budget}：メトリクスは {metric_unit} で報告され、この予算は {budget_unit} のため、集計できません。",
   "note.claude_code.answered_by_api": "Claude の照会で取得しました。Claude Code からの新しい測定値がありません。",
   "note.claude_code.answered_by_feed": "Claude Code 自身のステータスラインで取得しました（ネットワーク要求なし）。",
   "note.claude_code.fed": "Claude Code の文書化されたステータスラインからのフィードです。ネットワーク要求もトークンの再利用もありません。",
@@ -2760,6 +2762,7 @@
   "budget.error.row": "{field}：内訳の行の予算には kind、行のスコープ（key、virtual_key、project、workspace、team）とその id が必要で、内訳に対応したプロバイダーである必要があります。",
   "budget.error.duplicate_floor": "{field}：同じ残高を同じ金額で見守る下限がすでにあります。",
   "budget.error.duplicate_label": "{field}：このアカウントには同じ名前の予算がすでにあります。",
+  "budget.error.unit_mismatch": "{field}：メトリクスは {metric_unit} で報告され、この予算は {budget_unit} です。{metric_unit} で指定してください。",
   "budget.period_since": "{day}から",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{month}/{day} {time}",

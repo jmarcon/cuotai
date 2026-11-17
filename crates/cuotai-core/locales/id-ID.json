@@ -145,7 +145,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1495,9 +1497,9 @@
   "note.budget.provider_month": "{budget}: dihitung pada bulan tagihan penyedia, yang mungkin dimulai di zona waktu lain.",
   "note.budget.target_missing": "{budget}: metrik yang diikuti anggaran ini tidak ada dalam pembacaan ini.",
   "note.budget.topup_detected": "{budget}: isi ulang terdeteksi; tidak dihitung sebagai penggunaan.",
-  "note.budget.unit_mismatch": "{budget}: metrik dilaporkan dalam satuan lain, jadi anggaran ini tidak bisa menghitung.",
   "note.budget.partial": "{budget}: sebagian penggunaan periode ini tidak tercatat, jadi setidaknya sebanyak ini telah digunakan.",
   "note.budget.negative": "{budget}: metrik menunjukkan kredit bersih pada periode ini, jadi anggaran ini tidak bisa menghitungnya.",
+  "note.budget.unit_mismatch_named": "{budget}: metrik dilaporkan dalam {metric_unit} dan anggaran ini dalam {budget_unit}, jadi anggaran ini tidak bisa menghitung.",
   "note.claude_code.answered_by_api": "Dijawab oleh kueri Claude: tidak ada pembacaan terbaru dari Claude Code.",
   "note.claude_code.answered_by_feed": "Dijawab oleh baris status Claude Code sendiri (tanpa permintaan jaringan).",
   "note.claude_code.fed": "Diumpan oleh baris status Claude Code yang terdokumentasi: tanpa permintaan jaringan, tanpa memakai ulang token.",
@@ -2715,6 +2717,7 @@
   "budget.error.row": "{field}: anggaran pada baris rincian memerlukan kind, cakupan baris (key, virtual_key, project, workspace, atau team) dan id-nya, pada penyedia yang menawarkan rincian.",
   "budget.error.duplicate_floor": "{field}: batas bawah lain sudah memantau saldo yang sama dengan jumlah yang sama.",
   "budget.error.duplicate_label": "{field}: anggaran lain di akun ini sudah memakai label ini.",
+  "budget.error.unit_mismatch": "{field}: metrik dilaporkan dalam {metric_unit} dan anggaran ini dalam {budget_unit}; atur dalam {metric_unit}.",
   "budget.period_since": "sejak {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",

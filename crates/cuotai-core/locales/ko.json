@@ -164,7 +164,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -1514,9 +1516,9 @@
   "note.budget.provider_month": "{budget}: 다른 시간대에서 시작할 수 있는 제공업체의 청구 월 기준으로 집계했습니다.",
   "note.budget.target_missing": "{budget}: 이 예산이 추적하는 지표가 이번 측정에 없습니다.",
   "note.budget.topup_detected": "{budget}: 충전이 감지되었습니다. 사용량으로 계산하지 않습니다.",
-  "note.budget.unit_mismatch": "{budget}: 지표가 다른 단위로 보고되어 이 예산을 집계할 수 없습니다.",
   "note.budget.partial": "{budget}: 이 기간 사용량의 일부가 기록되지 않아 최소한 이만큼 사용했습니다.",
   "note.budget.negative": "{budget}: 이 기간 지표가 순 크레딧을 나타내므로 이 예산으로 집계할 수 없습니다.",
+  "note.budget.unit_mismatch_named": "{budget}: 지표는 {metric_unit}(으)로 보고되고 이 예산은 {budget_unit}(이)라 집계할 수 없습니다.",
   "note.claude_code.answered_by_api": "Claude 조회로 답했습니다. Claude Code의 최근 측정값이 없습니다.",
   "note.claude_code.answered_by_feed": "Claude Code 자체 상태 표시줄로 답했습니다(네트워크 요청 없음).",
   "note.claude_code.fed": "Claude Code의 문서화된 상태 표시줄이 공급합니다. 네트워크 요청도 토큰 재사용도 없습니다.",
@@ -2734,6 +2736,7 @@
   "budget.error.row": "{field}: 세부 내역 행의 예산에는 kind, 행의 범위(key, virtual_key, project, workspace 또는 team)와 그 id가 필요하며, 세부 내역을 제공하는 제공업체여야 합니다.",
   "budget.error.duplicate_floor": "{field}: 같은 잔액을 같은 금액으로 지켜보는 다른 하한선이 이미 있습니다.",
   "budget.error.duplicate_label": "{field}: 이 계정에 같은 이름의 예산이 이미 있습니다.",
+  "budget.error.unit_mismatch": "{field}: 지표는 {metric_unit}(으)로 보고되고 이 예산은 {budget_unit}입니다. {metric_unit}(으)로 지정하세요.",
   "budget.period_since": "{day}부터",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{month}/{day} {time}",

@@ -560,7 +560,6 @@
       "note.budget.provider_month",
       "note.budget.target_missing",
       "note.budget.topup_detected",
-      "note.budget.unit_mismatch",
       "note.claude_code.answered_by_api",
       "note.claude_code.fed",
       "note.claude_code.no_feed",
@@ -1063,7 +1062,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -2434,9 +2435,9 @@
   "note.budget.provider_month": "{budget} : compté sur le mois de facturation du fournisseur, qui peut commencer dans un autre fuseau horaire.",
   "note.budget.target_missing": "{budget} : la métrique suivie par ce budget manque dans cette lecture.",
   "note.budget.topup_detected": "{budget} : une recharge a été détectée ; elle ne compte pas comme consommation.",
-  "note.budget.unit_mismatch": "{budget} : la métrique est fournie dans une autre unité, ce budget ne peut donc pas compter.",
   "note.budget.partial": "{budget} : une partie de la consommation de cette période n’a pas été enregistrée, donc au moins ce montant a été consommé.",
   "note.budget.negative": "{budget} : la métrique affiche un crédit net sur cette période ; ce budget ne peut donc pas la compter.",
+  "note.budget.unit_mismatch_named": "{budget} : la métrique est fournie en {metric_unit} et ce budget est en {budget_unit}, il ne peut donc pas compter.",
   "note.claude_code.answered_by_api": "Réponse de la requête Claude : aucune mesure récente de Claude Code.",
   "note.claude_code.answered_by_feed": "Réponse de la ligne d’état de Claude Code (aucune requête réseau).",
   "note.claude_code.fed": "Alimenté par la ligne d’état documentée de Claude Code : aucune requête réseau, aucun jeton réutilisé.",
@@ -3687,6 +3688,7 @@
   "budget.error.row": "{field} : un budget sur une ligne de la ventilation a besoin d'un kind, de la portée de la ligne (key, virtual_key, project, workspace ou team) et de son id, chez un fournisseur qui propose des ventilations.",
   "budget.error.duplicate_floor": "{field} : un autre plancher surveille déjà le même solde au même montant.",
   "budget.error.duplicate_label": "{field} : un autre budget de ce compte porte déjà ce libellé.",
+  "budget.error.unit_mismatch": "{field} : la métrique est fournie en {metric_unit} et ce budget est en {budget_unit}. Indiquez-le en {metric_unit}.",
   "budget.period_since": "depuis {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",

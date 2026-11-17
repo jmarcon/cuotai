@@ -835,13 +835,27 @@ async fn budget_suggestion(
     b.budget_suggestion(index, &label, plan).await
 }
 
+/// F-07: `index` is the edited account (`None` for a new one); its last
+/// good reading lets the core refuse a budget in another unit than its
+/// metric. Runs off the UI thread.
 #[tauri::command]
-fn check_budgets(
+async fn check_budgets(
+    b: Shared<'_>,
+    index: Option<usize>,
     provider: Provider,
     budgets: Vec<cuotai_core::budget::Budget>,
     floors: Vec<cuotai_core::budget::Floor>,
-) -> backend::BudgetCheck {
-    backend::check_budgets(provider, &budgets, &floors)
+) -> Result<backend::BudgetCheck, String> {
+    let reading = match index {
+        Some(index) => b.budget_reading(index, provider).await,
+        None => None,
+    };
+    Ok(backend::check_budgets(
+        provider,
+        &budgets,
+        &floors,
+        reading.as_deref(),
+    ))
 }
 
 #[tauri::command]

@@ -12,8 +12,8 @@
 //! a budget exists only after the person saves the form.
 
 use super::{
-    recent_reference, Budget, BudgetError, BudgetKind, BudgetPeriod, BudgetScope, BudgetStart,
-    Floor, FloorKind, WeekdayName,
+    recent_reference, Budget, BudgetError, BudgetKind, BudgetPeriod, BudgetRule, BudgetScope,
+    BudgetStart, Floor, FloorKind, WeekdayName,
 };
 use crate::cost::PlanSetting;
 use crate::model::{Metric, MetricKind, Provider};
@@ -329,9 +329,80 @@ impl FloorRow {
     }
 }
 
+/// One problem of an editor's draft rows: the field path relative to the
+/// account (`budgets[1].amount`), the rule and its localized text.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RowProblem {
+    pub field: String,
+    pub rule: BudgetRule,
+    pub note: Localized,
+}
+
+impl RowProblem {
+    fn of(problem: BudgetError) -> Self {
+        Self {
+            note: problem.note(),
+            rule: problem.rule,
+            field: problem.field,
+        }
+    }
+}
+
+/// RF5.1 and F-07: every problem of the draft rows of an account of
+/// `provider` ([`super::problems`]), then, when the account's last reading
+/// is known (`reading`, its metrics), each budget whose own unit its metric
+/// does not report ("the metric is reported in USD and this budget is in
+/// EUR"). The editors block the save on any of them.
+pub fn check(
+    provider: crate::model::Provider,
+    budgets: &[Budget],
+    floors: &[Floor],
+    reading: Option<&[Metric]>,
+) -> Vec<RowProblem> {
+    let mut out: Vec<RowProblem> = super::problems(provider, budgets, floors)
+        .into_iter()
+        .map(RowProblem::of)
+        .collect();
+    let Some(metrics) = reading else {
+        return out;
+    };
+    for (i, budget) in budgets.iter().enumerate() {
+        let field = format!("budgets[{i}].unit");
+        if budget.row.is_some() || out.iter().any(|problem| problem.field == field) {
+            continue;
+        }
+        let (Some(metric), Some(unit)) = (
+            super::unit_mismatch(budget, metrics),
+            budget.unit.as_deref(),
+        ) else {
+            continue;
+        };
+        out.push(RowProblem {
+            note: unit_mismatch_note(ParamValue::Text(field.clone()), &metric.unit, unit),
+            rule: BudgetRule::UnitMismatch,
+            field,
+        });
+    }
+    out
+}
+
+/// F-07: "the metric is reported in USD and this budget is in EUR; set it
+/// in USD", naming the offending `field`.
+fn unit_mismatch_note(field: ParamValue, metric_unit: &str, budget_unit: &str) -> Localized {
+    Localized::with_params(
+        "budget.error.unit_mismatch",
+        params([
+            ("field", field),
+            ("metric_unit", ParamValue::Text(metric_unit.to_owned())),
+            ("budget_unit", ParamValue::Text(budget_unit.to_owned())),
+        ]),
+        "{field}: the metric is reported in {metric_unit} and this budget is in {budget_unit}; set it in {metric_unit}.",
+    )
+}
+
 /// The first problem of row `index` of `list` (`"budgets"` or `"floors"`)
 /// among `problems` (paths relative to the account), as its note.
-pub fn row_problem(problems: &[BudgetError], list: &str, index: usize) -> Option<Localized> {
+pub fn row_problem(problems: &[RowProblem], list: &str, index: usize) -> Option<Localized> {
     let prefix = format!("{list}[{index}]");
     problems
         .iter()
@@ -342,7 +413,7 @@ pub fn row_problem(problems: &[BudgetError], list: &str, index: usize) -> Option
                     .strip_prefix(&prefix)
                     .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
         })
-        .map(BudgetError::note)
+        .map(|problem| problem.note.clone())
 }
 
 /// RF6: what **Set a budget…** opens with.
@@ -395,6 +466,10 @@ pub fn suggest(metric: &Metric, plan: Option<&PlanSetting>, recent: &[Point]) ->
         reference,
     }
 }
+
+#[cfg(test)]
+#[path = "budget_editor_unit_tests.rs"]
+mod unit_tests;
 
 #[cfg(test)]
 mod tests {
@@ -502,15 +577,15 @@ mod tests {
                 ..BudgetRow::default().to_budget()
             },
         ];
-        let problems = super::super::problems(Provider::OpenAiApi, &budgets, &[]);
+        let problems = check(Provider::OpenAiApi, &budgets, &[], None);
         assert!(row_problem(&problems, "budgets", 0).is_some());
         assert!(row_problem(&problems, "budgets", 1).is_none());
         assert!(row_problem(&problems, "floors", 0).is_none());
         // budgets[1] is not budgets[10].
-        let ten = vec![BudgetError {
+        let ten = vec![RowProblem::of(BudgetError {
             field: "budgets[10].amount".into(),
             rule: super::super::BudgetRule::Amount,
-        }];
+        })];
         assert!(row_problem(&ten, "budgets", 1).is_none());
     }
 
