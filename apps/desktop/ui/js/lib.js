@@ -2263,19 +2263,28 @@ const DEMO_FEED = new Set((DEMO_QUERY.get("feed") ?? "").split(",").filter(Boole
 const demoFed = (account, metrics, notes, extra = {}) => ({ ...dr(account, "claude", metrics), ...coreNotes(notes), source: "feed:claude_code",
   checked_at: ago(0), demo_access: "claude_code", demo_level: "official", ...extra });
 const FED_NOTE = coreNote("note.claude_code.fed", "Fed by Claude Code's documented status line: no network request, no token reuse.");
+// PRD 0040 re-validation V-09: the core's `provenance` of a ready fed report, aged from when Claude Code wrote it.
+const demoAgeNote = (min) => min < 1 ? coreNote("freshness.age.now", "now")
+  : min < 60 ? coreNote("freshness.age.minutes", `${min} min ago`, { n: String(min) })
+  : coreNote("freshness.age.hours", `${Math.floor(min / 60)} h ago`, { n: String(Math.floor(min / 60)) });
+const demoProvenance = (min) => {
+  const age = demoAgeNote(min);
+  return coreNote("feed.provenance.claude_code", `From Claude Code · ${age.fallback}`, { age });
+};
+const DEMO_FELL_BACK = coreNote("feed.provenance.api", "From the Claude query: no recent agent reading", { provider: "Claude" });
 const demoFedWindows = () => [dm("session (5h)", 23, 100, 2.5, "quota", "window_5h", "%"), dm("weekly (7d)", 41, 100, 70, "quota", "weekly", "%")];
 const demoFeedFirst = [];
 if (DEMO_FEED.has("fresh")) {
-  const fed = demoFed("fed@example.com", demoFedWindows(), [FED_NOTE], { data_as_of: null, measured_at: ago(1) });
+  const fed = demoFed("fed@example.com", demoFedWindows(), [FED_NOTE], { data_as_of: null, measured_at: ago(1), provenance: demoProvenance(1) });
   const hybrid = { ...dr("hybrid@example.com", "claude", demoFedWindows()), ...coreNotes([coreNote("note.claude_code.answered_by_api",
-    "Answered by the Claude query: no recent reading from Claude Code.")]), demo_access: "claude_code_or_api", demo_level: "official", plan: "Pro" };
+    "Answered by the Claude query: no recent reading from Claude Code.")]), demo_access: "claude_code_or_api", demo_level: "official", plan: "Pro", provenance: DEMO_FELL_BACK };
   demoFeedFirst.push(fed, hybrid);
   for (const r of [fed, hybrid]) { DEMO_BINDINGS.set(r, [1, 0]); DEMO_WINDOWS.set(r, [0, 1]); }
 }
 if (DEMO_FEED.has("stale")) {
   // Queried now, the reading two hours old: the backend's `measured_at` is when Claude Code wrote it, and the reading
   // is presented as stale.
-  const stale = demoFed("stale@example.com", demoFedWindows(), [FED_NOTE], { freshness: "stale", data_as_of: ago(120), measured_at: ago(120) });
+  const stale = demoFed("stale@example.com", demoFedWindows(), [FED_NOTE], { freshness: "stale", data_as_of: ago(120), measured_at: ago(120), provenance: demoProvenance(120) });
   demoFeedFirst.push(stale);
   DEMO_BINDINGS.set(stale, [1, 0]);
   DEMO_WINDOWS.set(stale, [0, 1]);
@@ -2290,7 +2299,8 @@ if (DEMO_FEED.has("invalid")) {
 }
 if (DEMO_FEED.has("one-window")) {
   const one = demoFed("one-window@example.com", [demoFedWindows()[0]], [FED_NOTE, coreNote("note.claude_code.window_absent",
-    "Claude Code drops a window once it resets and sends it again after the next prompt; until then it is unknown, not zero.")]);
+    "Claude Code drops a window once it resets and sends it again after the next prompt; until then it is unknown, not zero.")],
+    { provenance: demoProvenance(0) });
   demoFeedFirst.push(one);
   DEMO_BINDINGS.set(one, [0, 0]);
   DEMO_WINDOWS.set(one, [0]);
@@ -3251,8 +3261,12 @@ const demoElevenSchema = () => ({ credential_kind: "env", default_env: "ELEVENLA
 // mode (`visible_fields`).
 const demoClaudeChoice = (key, options) => options.map(([value, text], index) => ({ id: `field.claude.${key}.option.${value}`, index, value,
   label: dl(`field.claude.${key}.option.${value}`, text) }));
+// PRD 0040 re-validation (V-06, G10): the source decides the credential; Fed by Claude Code needs none
+// (`credential_for().needed`), the query and the hybrid need the key or the sign-in.
+const demoClaudeVariants = () => [["api", true], ["claude_code", false], ["claude_code_or_api", true]].map(([value, needed]) => ({ key: "query_mode", value,
+  credential: { default_env: "CLAUDE_OAUTH_TOKEN", key_page_slot: "credential_env", key_page: null, label: DEMO_KEY_INPUT.label, help: DEMO_KEY_INPUT.help, needed } }));
 const demoClaudeFields = () => [
-  { id: "field.claude.query_mode", key: "query_mode", label: dl("field.claude.query_mode.label", "Source"), decides_credential: false, required: false,
+  { id: "field.claude.query_mode", key: "query_mode", label: dl("field.claude.query_mode.label", "Source"), decides_credential: true, required: false,
     help: dl("field.claude.query_mode.help", "Query (default): the internal interface with your Claude token. Fed by Claude Code: Claude Code's documented status line, no network request and no token reuse (needs the status line, see docs). Claude Code, else the query: the status line while it is recent, otherwise the query."),
     options: demoClaudeChoice("query_mode", [["api", "Query (default)"], ["claude_code", "Fed by Claude Code"], ["claude_code_or_api", "Claude Code, else the query"]]) },
   { id: "field.claude.feed", key: "feed", label: dl("field.claude.feed.label", "Live session"), decides_credential: false, required: false,
@@ -3418,7 +3432,7 @@ const demo = {
     session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
     // PRD 0040 re-validation (V-10): Claude's Source and Live session fields as `form_schema(Provider::Claude)` builds
     // them, and the feed-only mode in which the form asks for no credential (`feed_only`).
-    ...(provider === "claude" ? { feed_only: { key: "query_mode", choice: 1 }, preselect: [] } : {}),
+    ...(provider === "claude" ? { feed_only: { key: "query_mode", choice: 1 }, preselect: [], credential_variants: demoClaudeVariants() } : {}),
     fields: provider === "claude" ? demoClaudeFields() : [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
   visible_fields: async ({ provider, choices, authMode }) => provider === "kiro"

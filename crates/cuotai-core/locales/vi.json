@@ -131,7 +131,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -938,6 +941,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "và {n} phiên khác",
   "feed.live.title": "Phiên trực tiếp",
+  "feed.provenance.api": "Từ truy vấn {provider}: không có số đo gần đây của tác tử",
+  "feed.provenance.claude_code": "Từ Claude Code · {age}",
+  "feed.provenance.codex_cli": "Từ nhật ký Codex CLI · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, ví dụ 2026-09. Để trống thì chỉ truy vấn số dư. Hóa đơn tổng hợp mọi sản phẩm của tài khoản đám mây, không chỉ AI.",
   "field.alibaba_cloud.billing_cycle.label": "Hóa đơn hằng tháng (không bắt buộc)",
   "field.alibaba_cloud.region.help": "Quốc tế hoặc Trung Quốc đại lục; tương ứng với tài khoản thanh toán Alibaba.",

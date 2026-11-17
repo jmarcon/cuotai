@@ -148,7 +148,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -955,6 +958,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "외 {n}개",
   "feed.live.title": "실시간 세션",
+  "feed.provenance.api": "{provider} 조회에서: 최근 에이전트 측정값 없음",
+  "feed.provenance.claude_code": "Claude Code에서 · {age}",
+  "feed.provenance.codex_cli": "Codex CLI 로그에서 · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, 예: 2026-09. 비우면 잔액만 조회합니다. 청구서는 AI뿐 아니라 클라우드 계정의 모든 제품을 합산합니다.",
   "field.alibaba_cloud.billing_cycle.label": "월별 청구서(선택)",
   "field.alibaba_cloud.region.help": "국제 또는 중국 본토이며 Alibaba 결제 계정에 해당하는 쪽입니다.",

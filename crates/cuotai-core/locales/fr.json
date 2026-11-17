@@ -1047,7 +1047,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1872,6 +1875,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "et {n} de plus",
   "feed.live.title": "Session en direct",
+  "feed.provenance.api": "De la requête {provider} : aucun relevé récent de l’agent",
+  "feed.provenance.claude_code": "Depuis Claude Code · {age}",
+  "feed.provenance.codex_cli": "Des journaux de Codex CLI · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, par ex. 2026-09. Vide n’interroge que le solde. La facture regroupe tous les produits du cloud, pas seulement l’IA.",
   "field.alibaba_cloud.billing_cycle.label": "Facture mensuelle (facultatif)",
   "field.alibaba_cloud.region.help": "International ou Chine continentale ; correspond au compte de facturation d’Alibaba.",

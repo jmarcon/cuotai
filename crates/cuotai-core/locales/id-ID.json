@@ -129,7 +129,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -936,6 +939,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "dan {n} lainnya",
   "feed.live.title": "Sesi langsung",
+  "feed.provenance.api": "Dari kueri {provider}: tidak ada pembacaan agen terbaru",
+  "feed.provenance.claude_code": "Dari Claude Code · {age}",
+  "feed.provenance.codex_cli": "Dari log Codex CLI · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, mis. 2026-09. Kosong hanya mengueri saldo. Tagihan mengagregasi semua produk akun cloud, bukan hanya AI.",
   "field.alibaba_cloud.billing_cycle.label": "Tagihan bulanan (opsional)",
   "field.alibaba_cloud.region.help": "Internasional atau Tiongkok daratan; sesuai dengan akun penagihan Alibaba.",

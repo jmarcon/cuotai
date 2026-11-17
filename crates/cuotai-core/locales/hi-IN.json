@@ -147,7 +147,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -972,6 +975,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "और {n} अन्य",
   "feed.live.title": "लाइव सत्र",
+  "feed.provenance.api": "{provider} क्वेरी से: एजेंट की कोई हालिया रीडिंग नहीं",
+  "feed.provenance.claude_code": "Claude Code से · {age}",
+  "feed.provenance.codex_cli": "Codex CLI के लॉग से · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, जैसे 2026-09। खाली होने पर केवल बैलेंस जाँचा जाता है। बिल में क्लाउड खाते के सभी उत्पाद जुड़ते हैं, केवल AI नहीं।",
   "field.alibaba_cloud.billing_cycle.label": "मासिक बिल (वैकल्पिक)",
   "field.alibaba_cloud.region.help": "अंतरराष्ट्रीय या मुख्य भूमि चीन; Alibaba के बिलिंग खाते के अनुरूप।",

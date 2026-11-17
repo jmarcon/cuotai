@@ -828,3 +828,48 @@ pub fn valid_binding(
         }
     }
 }
+
+/// PRD 0040 RF3.4/RF6.1 (re-validation V-09): where `report`'s figures came
+/// from, for a card's status line, the TUI card, the details and `--once`:
+/// "From Claude Code · 3 min ago" or "From Codex CLI's logs · …" for an
+/// agent-fed reading (aged from when the agent wrote it, at `now`), and
+/// "From the Claude query: no recent agent reading" for a hybrid account
+/// that fell back to its query. `None` for every other report, and for one
+/// that is not ready (its figures are not shown as current).
+pub fn provenance(report: &crate::Report, now: DateTime<Utc>) -> Option<Localized> {
+    if report.status != crate::Status::Ready {
+        return None;
+    }
+    if let Some(slug) = report.source.strip_prefix(REPORT_SOURCE_PREFIX) {
+        let age = crate::freshness::age_label(crate::freshness::age(
+            crate::freshness::reading_time(report),
+            now,
+        ));
+        let (id, fallback) = match FeedSource::from_slug(slug)? {
+            FeedSource::ClaudeCode => ("feed.provenance.claude_code", "From Claude Code · {age}"),
+            FeedSource::CodexCli => ("feed.provenance.codex_cli", "From Codex CLI's logs · {age}"),
+        };
+        return Some(Localized::with_param(
+            id,
+            "age",
+            ParamValue::l10n(age),
+            fallback,
+        ));
+    }
+    let fell_back = report.notes_l10n.iter().any(|note| {
+        matches!(
+            &*note.id,
+            "note.claude_code.answered_by_api"
+                | "note.codex_cli.answered_by_api"
+                | "note.codex_cli.answered_by_api_no_consent"
+        )
+    });
+    fell_back.then(|| {
+        Localized::with_param(
+            "feed.provenance.api",
+            "provider",
+            report.provider.label(),
+            "From the {provider} query: no recent agent reading",
+        )
+    })
+}

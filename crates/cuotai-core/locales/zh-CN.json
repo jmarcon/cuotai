@@ -167,7 +167,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -974,6 +977,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "以及另外 {n} 个",
   "feed.live.title": "实时会话",
+  "feed.provenance.api": "来自 {provider} 查询：无近期代理读数",
+  "feed.provenance.claude_code": "来自 Claude Code · {age}",
+  "feed.provenance.codex_cli": "来自 Codex CLI 日志 · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM，例如 2026-09。留空则只查询余额。账单汇总云上所有产品，不仅是 AI。",
   "field.alibaba_cloud.billing_cycle.label": "月度账单（可选）",
   "field.alibaba_cloud.region.help": "国际站或中国内地；对应 Alibaba 的计费账户。",

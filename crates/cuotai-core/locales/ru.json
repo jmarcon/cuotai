@@ -180,7 +180,10 @@
       "freshness.age.compact.days",
       "tray.stale",
       "tray.stale_suffix",
-      "feed.line.left_exhausted"
+      "feed.line.left_exhausted",
+      "feed.provenance.api",
+      "feed.provenance.claude_code",
+      "feed.provenance.codex_cli"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1041,6 +1044,9 @@
   "feed.live.model": "{model}",
   "feed.live.more": "и ещё {n}",
   "feed.live.title": "Текущий сеанс",
+  "feed.provenance.api": "Из запроса {provider}: нет свежих данных агента",
+  "feed.provenance.claude_code": "Из Claude Code · {age}",
+  "feed.provenance.codex_cli": "Из журналов Codex CLI · {age}",
   "field.alibaba_cloud.billing_cycle.help": "YYYY-MM, например 2026-09. Пусто — запрашивается только баланс. Счёт объединяет все продукты облачной записи, а не только ИИ.",
   "field.alibaba_cloud.billing_cycle.label": "Месячный счёт (необязательно)",
   "field.alibaba_cloud.region.help": "Международный регион или материковый Китай; соответствует расчётной учётной записи Alibaba.",
