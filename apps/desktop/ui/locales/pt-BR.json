@@ -1068,7 +1068,6 @@
   "settings.costBy.providerReset": "Janela do provedor: reinicia às {at}",
   "settings.costBy.liveTitle": "Bloco ativo · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} decorridos, faltam {left}",
-  "settings.costBy.noRate": "Ritmo de consumo: ainda não há solicitações recentes suficientes.",
   "settings.costBy.localEstimate": "Estimativa local: os blocos são calculados a partir dos seus logs, não lidos do provedor.",
   "settings.costBy.active": "Ativo",
   "settings.costBy.closed": "Encerrado",

@@ -36,7 +36,6 @@
       "cost.disclosure.extracted_v2",
       "cost.error.unknown_breakdown",
       "cost.live.line_unknown",
-      "cost.live.rate_missing",
       "cost.project.hidden_saved",
       "diagnostics.startup_failed",
       "doctor.config.valid",
@@ -212,7 +211,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -612,8 +616,14 @@
   "cost.live.line_unknown": "このブロック：{tokens} トークン、費用不明 · {rate} トークン/分",
   "cost.live.projection": "このペースなら {at} までに ≈ {cost}",
   "cost.live.window": "{source} · ローカル推定 {window} · 経過 {elapsed}、残り {left}",
-  "cost.live.rate_missing": "消費ペース：最近のリクエストがまだ足りません（直近 {minutes} 分で {requests} 件）。",
   "cost.live.none": "{source}: アクティブなブロックはありません。",
+  "cost.live.line_partial": "このブロック ≈ {cost} + {unknown} トークンの費用は不明 · {rate} トークン/分",
+  "cost.live.projection_partial": "このペースなら {at} までに ≈ {cost} + 約 {unknown} トークンの費用は不明",
+  "cost.live.projection_tokens": "このペースなら {at} までに ≈ {tokens} トークン。大半は価格が不明なため、費用は予測しません",
+  "cost.live.rate_few": {
+    "other": "消費ペース：直近 {minutes} 分で {min} 件以上のリクエストが必要です（現在 {count} 件）。"
+  },
+  "cost.live.rate_young": "消費ペース：ブロックは {elapsed} 前に始まりました。{min} 分必要です。",
   "cost.project.labelled": "{label}",
   "cost.project.name": "プロジェクト {short}",
   "cost.project.none": "プロジェクトなし",

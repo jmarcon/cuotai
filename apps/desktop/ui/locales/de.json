@@ -1125,7 +1125,6 @@
   "settings.costBy.providerReset": "Anbieterfenster: Zurücksetzung um {at}",
   "settings.costBy.liveTitle": "Aktiver Block · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} vergangen, {left} übrig",
-  "settings.costBy.noRate": "Verbrauchsrate: noch nicht genug aktuelle Anfragen.",
   "settings.costBy.localEstimate": "Lokale Schätzung: Blöcke werden aus Ihren Logs berechnet, nicht vom Anbieter gelesen.",
   "settings.costBy.active": "Aktiv",
   "settings.costBy.closed": "Abgeschlossen",

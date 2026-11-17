@@ -1032,7 +1032,7 @@ pub(crate) fn source_rows(
         rows.push((Row::Aside, line));
     }
     rows.extend(plans.iter().map(|plan| (Row::Amount, plan.text.clone())));
-    // PRD 0042 RF6.2: the active block, only with a burn rate.
+    // PRD 0042 RF6.2: the active block, its rate or why it has none.
     if let Some(live) = summary
         .live
         .iter()
@@ -1040,6 +1040,7 @@ pub(crate) fn source_rows(
     {
         rows.extend(live.line.iter().map(|line| (Row::Amount, line.clone())));
         rows.extend(live.projection.iter().map(|p| (Row::Amount, p.clone())));
+        rows.extend(live.rate_missing.iter().map(|r| (Row::Note, r.clone())));
     }
     if !usage.period.models.is_empty() {
         rows.push((Row::Heading, cost::by_model_heading(span)));
@@ -1321,9 +1322,8 @@ fn live_text(blocks: &[cost::LiveBlock], on: &[SourceId], locale: &str) -> Strin
             "  {}\n",
             safe(&live.block.estimate.line(cost::local_estimate_text()))
         );
-        match &live.line {
-            Some(line) => out += &format!("  {}\n", safe(line)),
-            None => out += &format!("  {}\n", safe(&cost::live_rate_missing_text())),
+        for text in live.line.iter().chain(&live.rate_missing) {
+            out += &format!("  {}\n", safe(text));
         }
         if let Some(projection) = &live.projection {
             out += &format!("  {}\n", safe(projection));

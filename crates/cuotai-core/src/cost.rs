@@ -55,9 +55,9 @@ mod worker;
 pub use breakdown::{
     block_hours_text, block_line, blocks, by_empty_text, by_heading, duration_text,
     folder_hint_text, hidden_saved_text, hidden_text, label_saved_text, live, live_none_text,
-    live_rate_missing_text, live_window_text, local_estimate_text, more_text, project_name,
-    projects, provider_window_text, sessions, unknown_breakdown, BlockPage, BlockSummary,
-    Breakdown, LiveBlock, ProjectPage, ProjectSummary, ProviderWindow, SessionPage, SessionSummary,
+    live_window_text, local_estimate_text, more_text, project_name, projects, provider_window_text,
+    sessions, unknown_breakdown, BlockPage, BlockSummary, Breakdown, LiveBlock, ProjectPage,
+    ProjectSummary, ProjectionKind, ProviderWindow, SessionPage, SessionSummary,
     BURN_WINDOW_MINUTES,
 };
 pub use estimate::{estimate, estimate_notice, Estimate, ModelEstimate, Usd};

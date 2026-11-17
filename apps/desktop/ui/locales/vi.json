@@ -1097,7 +1097,6 @@
   "settings.costBy.providerReset": "Cửa sổ của nhà cung cấp: đặt lại lúc {at}",
   "settings.costBy.liveTitle": "Khối đang diễn ra · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · đã qua {elapsed}, còn {left}",
-  "settings.costBy.noRate": "Tốc độ tiêu thụ: chưa đủ yêu cầu gần đây.",
   "settings.costBy.localEstimate": "Ước tính cục bộ: các khối được tính từ nhật ký của bạn, không đọc từ nhà cung cấp.",
   "settings.costBy.active": "Đang diễn ra",
   "settings.costBy.closed": "Đã đóng",

@@ -185,7 +185,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -594,8 +599,15 @@
   "cost.live.line_unknown": "यह ब्लॉक: {tokens} टोकन, लागत अज्ञात · {rate} टोकन/मिनट",
   "cost.live.projection": "इस दर से {at} तक ≈ {cost}",
   "cost.live.window": "{source} · स्थानीय अनुमान {window} · {elapsed} बीते, {left} शेष",
-  "cost.live.rate_missing": "खपत दर: अभी पर्याप्त हाल के अनुरोध नहीं ({requests}, पिछले {minutes} मिनट में)।",
   "cost.live.none": "{source}: कोई सक्रिय ब्लॉक नहीं।",
+  "cost.live.line_partial": "यह ब्लॉक ≈ {cost} + {unknown} टोकन की अज्ञात लागत · {rate} टोकन/मिनट",
+  "cost.live.projection_partial": "इस दर से {at} तक ≈ {cost} + लगभग {unknown} टोकन की अज्ञात लागत",
+  "cost.live.projection_tokens": "इस दर से {at} तक ≈ {tokens} टोकन; इनमें से ज़्यादातर की कोई ज्ञात कीमत नहीं है, इसलिए लागत का अनुमान नहीं लगाया गया",
+  "cost.live.rate_few": {
+    "one": "खपत दर: पिछले {minutes} मिनट में कम से कम {min} अनुरोध चाहिए; अभी तक {count}।",
+    "other": "खपत दर: पिछले {minutes} मिनट में कम से कम {min} अनुरोध चाहिए; अभी तक {count}।"
+  },
+  "cost.live.rate_young": "खपत दर: ब्लॉक {elapsed} पहले शुरू हुआ; इसके लिए {min} मिनट चाहिए।",
   "cost.project.labelled": "{label}",
   "cost.project.name": "प्रोजेक्ट {short}",
   "cost.project.none": "कोई प्रोजेक्ट नहीं",

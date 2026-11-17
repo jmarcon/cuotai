@@ -1121,7 +1121,6 @@
   "settings.costBy.providerReset": "提供商窗口：{at} 重置",
   "settings.costBy.liveTitle": "进行中的时段块 · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · 已过 {elapsed}，剩余 {left}",
-  "settings.costBy.noRate": "消耗速度：近期请求还不够。",
   "settings.costBy.localEstimate": "本地估算：时段块根据本地日志计算，并非从提供商读取。",
   "settings.costBy.active": "进行中",
   "settings.costBy.closed": "已结束",

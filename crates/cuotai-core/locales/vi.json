@@ -169,7 +169,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -569,8 +574,14 @@
   "cost.live.line_unknown": "Khối này: {tokens} token, chưa rõ chi phí · {rate} token/phút",
   "cost.live.projection": "Với tốc độ này ≈ {cost} vào {at}",
   "cost.live.window": "{source} · ước tính cục bộ {window} · đã qua {elapsed}, còn {left}",
-  "cost.live.rate_missing": "Tốc độ tiêu thụ: chưa đủ yêu cầu gần đây ({requests} trong {minutes} phút qua).",
   "cost.live.none": "{source}: không có khối đang hoạt động.",
+  "cost.live.line_partial": "Khối này ≈ {cost} + chi phí chưa rõ của {unknown} token · {rate} token/phút",
+  "cost.live.projection_partial": "Với tốc độ này ≈ {cost} + chi phí chưa rõ của khoảng {unknown} token vào {at}",
+  "cost.live.projection_tokens": "Với tốc độ này ≈ {tokens} token vào {at}; phần lớn chưa có giá đã biết nên không dự báo chi phí",
+  "cost.live.rate_few": {
+    "other": "Tốc độ tiêu thụ: cần ít nhất {min} yêu cầu trong {minutes} phút qua; hiện có {count}."
+  },
+  "cost.live.rate_young": "Tốc độ tiêu thụ: khối bắt đầu {elapsed} trước; cần {min} phút.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Dự án {short}",
   "cost.project.none": "Không có dự án",

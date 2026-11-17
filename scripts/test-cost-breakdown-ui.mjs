@@ -103,6 +103,32 @@ const noRate = { ...usage, live: usage.live.map((l) => ({ ...l, line: null, proj
 assert.equal(liveLineHtml(claude, noRate), "");
 assert.ok(!costCardHtml(claude, { ...usage, live: [] }).includes("data-cost-live"));
 
+// PRD 0042 re-validation H-01/M-08: a half-unpriced live block keeps its unknown cost on the card and the Blocks tab
+// (the core's texts, never money the desktop formats), projects tokens only, and a block without a burn rate says why.
+{
+  const loc = (id, params, fallback) => ({ id, params, fallback });
+  const partialLine = loc("cost.live.line_partial", { cost: { id: "amount.money", params: { value: "1.8", currency: "USD" }, fallback: "$1.80" }, unknown: "600K", rate: "120K" },
+    "This block ≈ $1.80 + unknown cost of 600K tokens · 120K tok/min");
+  const tokens = loc("cost.live.projection_tokens", { tokens: "30M", at: "16:00" },
+    "At this rate ≈ 30M tokens by 16:00; most of them have no known price, so no cost is projected");
+  const half = { ...usage, live: usage.live.map((l) => ({ ...l, line: partialLine, projection: tokens, projected_block_cost: null,
+    unknown_tokens: 600000, projected_tokens: 30000000, projected_unknown_tokens: 15000000, projection_kind: "tokens" })) };
+  const card = liveLineHtml(claude, half);
+  assert.match(card, /\+ unknown cost of 600K tokens/, "the card line names the unknown cost");
+  assert.match(card, /no cost is projected/, "the tooltip carries the tokens projection");
+  const page = await lib.costBreakdown("block");
+  const live = page.live.map((l) => ({ ...l, line: partialLine, projection: tokens, projected_block_cost: null, projection_kind: "tokens" }));
+  const tab = breakdownPanelHtml("block", { ...page, live });
+  assert.match(tab, /\+ unknown cost of 600K tokens/, "the Blocks tab names the unknown cost");
+  assert.match(tab, /data-cost-projection>At this rate ≈ 30M tokens/);
+  const why = loc("cost.live.rate_few", { min: "3", minutes: "10", count: "2" }, "Burn rate: needs at least 3 requests in the last 10 minutes; 2 so far.");
+  const waiting = page.live.map((l) => ({ ...l, line: null, projection: null, burn_rate_tokens_per_min: null, rate_missing: why }));
+  const slow = breakdownPanelHtml("block", { ...page, live: waiting });
+  assert.match(slow, /data-cost-rate>Burn rate: needs at least 3 requests in the last 10 minutes; 2 so far\./, "the core's reason");
+  assert.ok(!slow.includes("data-cost-projection"), "no projection without a rate");
+  assert.equal(liveLineHtml(claude, { ...usage, live: waiting }), "", "the card stays quiet without a rate");
+}
+
 // S-02: an unreadable index shows its note in the card and the tray line, never nothing (as when off).
 {
   const { costLineHtml } = await import("../apps/desktop/ui/js/cost.js");

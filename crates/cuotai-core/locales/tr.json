@@ -167,7 +167,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -576,8 +581,15 @@
   "cost.live.line_unknown": "Bu blok: {tokens} token, maliyet bilinmiyor · {rate} token/dk",
   "cost.live.projection": "Bu hızla {at} itibarıyla ≈ {cost}",
   "cost.live.window": "{source} · yerel tahmin {window} · {elapsed} geçti, {left} kaldı",
-  "cost.live.rate_missing": "Tüketim hızı: henüz yeterli yakın tarihli istek yok (son {minutes} dakikada {requests}).",
   "cost.live.none": "{source}: etkin blok yok.",
+  "cost.live.line_partial": "Bu blok ≈ {cost} + {unknown} token için bilinmeyen maliyet · {rate} token/dk",
+  "cost.live.projection_partial": "Bu hızla {at} itibarıyla ≈ {cost} + yaklaşık {unknown} token için bilinmeyen maliyet",
+  "cost.live.projection_tokens": "Bu hızla {at} itibarıyla ≈ {tokens} token; çoğunun bilinen bir fiyatı yok, bu yüzden maliyet öngörülmüyor",
+  "cost.live.rate_few": {
+    "one": "Tüketim hızı: son {minutes} dakikada en az {min} istek gerekiyor; şu ana kadar {count}.",
+    "other": "Tüketim hızı: son {minutes} dakikada en az {min} istek gerekiyor; şu ana kadar {count}."
+  },
+  "cost.live.rate_young": "Tüketim hızı: blok {elapsed} önce başladı; {min} dakika gerekiyor.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Proje {short}",
   "cost.project.none": "Proje yok",

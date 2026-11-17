@@ -644,9 +644,14 @@
         "elapsed_minutes": { "type": "integer", "minimum": 0 },
         "left_minutes": { "type": "integer", "minimum": 0 },
         "burn_rate_tokens_per_min": { "type": ["number", "null"], "minimum": 0, "description": "Over the last 10 minutes; null under 3 requests or 3 minutes." },
-        "projected_block_cost": { "type": ["number", "null"], "minimum": 0, "description": "USD by the block's end at the current rate; null without a rate, before 20% of the block, or when nothing is priced." },
-        "line": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
-        "projection": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] }
+        "projected_block_cost": { "type": ["number", "null"], "minimum": 0, "description": "USD of the priced part by the block's end at the current rate; null without a rate, before 20% of the block, or when projection_kind is tokens." },
+        "line": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }], "description": "The block so far with its rate; it names the cost of tokens without a known price as '+ unknown cost of N tokens'." },
+        "projection": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Localized" }] },
+        "unknown_tokens": { "type": "integer", "minimum": 0, "description": "The block's tokens so far without a known price." },
+        "projected_tokens": { "type": "integer", "minimum": 0, "description": "Every token by the block's end at the current rate; absent without a projection." },
+        "projected_unknown_tokens": { "type": "integer", "minimum": 0, "description": "The part of projected_tokens without a known price; absent without a projection." },
+        "projection_kind": { "anyOf": [{ "enum": ["money", "money_partial", "tokens"] }, { "type": "string" }], "description": "Money when every projected token is priced, money_partial under half unpriced, tokens (no money) at half or more; absent without a projection." },
+        "rate_missing": { "$ref": "#/$defs/Localized", "description": "Why there is no burn rate yet (too few recent requests, with the count, or a block younger than 3 minutes); absent with a rate." }
       }
     },
     "CostProject": {

@@ -99,8 +99,9 @@ export function costLineHtml(sc, summary) {
   return v ? `<p class="cost-line" data-local-cost="${esc(sc.source)}">${icon("dollar")}<span>${te("cost.line", v)}</span></p>` : "";
 }
 
-/** PRD 0042 RF6.2: "This block ≈ $4.10 · 38K tok/min" (the core's text) under the local usage, with the honest-data
- *  suffix and the projection in the tooltip; nothing while the active block has no burn rate. */
+/** PRD 0042 RF6.2: "This block ≈ $4.10 · 38K tok/min" (the core's text, with "+ unknown cost of N tokens" for the
+ *  part without a price) under the local usage, the projection in the tooltip; nothing while the active block has no
+ *  burn rate. The core formats every amount: the desktop adds no money of its own. */
 export function liveLineHtml(sc, summary) {
   const live = (summary?.live ?? []).find((l) => l.block.source === sc.source);
   if (!live?.line) return "";

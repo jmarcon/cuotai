@@ -1053,7 +1053,6 @@
   "settings.costBy.providerReset": "Jendela penyedia: direset pukul {at}",
   "settings.costBy.liveTitle": "Blok aktif · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} berlalu, sisa {left}",
-  "settings.costBy.noRate": "Laju pemakaian: belum cukup permintaan terbaru.",
   "settings.costBy.localEstimate": "Perkiraan lokal: blok dihitung dari log Anda, tidak dibaca dari penyedia.",
   "settings.costBy.active": "Aktif",
   "settings.costBy.closed": "Selesai",

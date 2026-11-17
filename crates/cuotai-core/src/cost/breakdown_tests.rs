@@ -158,7 +158,7 @@ fn the_burn_rate_needs_three_requests_and_three_minutes() {
 }
 
 #[test]
-fn an_unpriced_block_has_no_projection_and_never_shows_zero() {
+fn an_unpriced_block_has_no_money_projection_and_never_shows_zero() {
     let prices = Prices::embedded();
     let zone = DayZone::Fixed(FixedOffset::east_opt(0).unwrap());
     let mut rows = vec![
@@ -174,6 +174,7 @@ fn an_unpriced_block_has_no_projection_and_never_shows_zero() {
     assert_eq!(block.estimate.total, None);
     let summary = live(block, &rows, at(12, 0), &prices, zone);
     assert_eq!(summary.projected_block_cost, None);
+    assert_eq!(summary.projection_kind, Some(ProjectionKind::Tokens));
     let line = summary.line.unwrap().resolve("en-US");
     assert!(
         line.contains("unknown cost") && !line.contains("$0"),

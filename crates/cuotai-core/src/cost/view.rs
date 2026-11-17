@@ -671,6 +671,36 @@ pub fn compact_tokens(count: u64) -> String {
     }
 }
 
+/// PRD 0042 H-01: which of the four cost texts an amount takes, so every
+/// line (a labelled amount, the live block, its projection) words the
+/// usage without a known price the same way and never counts it as zero.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum CostPart {
+    /// No token at all: "no usage".
+    None,
+    /// Tokens and none of them priced: "unknown cost".
+    Unknown,
+    /// "≈ {cost} + unknown cost of {unknown} tokens".
+    Partial { cost: Localized, unknown: String },
+    /// "≈ {cost}".
+    Priced { cost: Localized },
+}
+
+/// The cost part of an amount: `cost` (the priced part), the `unknown`
+/// tokens it leaves out and every token. Money is always [`Usd::money`]
+/// (`amount.money`, rendered in the reader's locale).
+pub(crate) fn cost_part(cost: Option<Usd>, unknown: &Tokens, tokens: &Tokens) -> CostPart {
+    match cost {
+        _ if tokens.total() == 0 => CostPart::None,
+        None => CostPart::Unknown,
+        Some(cost) if unknown.total() > 0 => CostPart::Partial {
+            cost: cost.money(),
+            unknown: compact_tokens(unknown.total()),
+        },
+        Some(cost) => CostPart::Priced { cost: cost.money() },
+    }
+}
+
 /// RF4.2: one labelled amount for a terminal: `Hoje: 1.2M tokens · $3.40`,
 /// with the part without a known price named ("cost unknown"), never
 /// counted as zero.
@@ -682,34 +712,33 @@ pub fn usage_line(
 ) -> Localized {
     let label = label.into();
     let count = compact_tokens(tokens.total());
-    let hidden = compact_tokens(unknown.total());
-    match cost {
-        _ if tokens.total() == 0 => Localized::with_params(
+    match cost_part(cost, unknown, tokens) {
+        CostPart::None => Localized::with_params(
             "cost.line.none",
             params([("label", label)]),
             "{label}: no usage",
         ),
-        None => Localized::with_params(
+        CostPart::Unknown => Localized::with_params(
             "cost.line.unknown",
             params([("label", label), ("tokens", count.as_str().into())]),
             "{label}: {tokens} tokens · unknown cost",
         ),
-        Some(cost) if unknown.total() > 0 => Localized::with_params(
+        CostPart::Partial { cost, unknown } => Localized::with_params(
             "cost.line.partial",
             params([
                 ("label", label),
                 ("tokens", count.as_str().into()),
-                ("cost", ParamValue::l10n(cost.money())),
-                ("unknown", hidden.as_str().into()),
+                ("cost", ParamValue::l10n(cost)),
+                ("unknown", unknown.as_str().into()),
             ]),
             "{label}: {tokens} tokens · {cost} + unknown cost of {unknown} tokens",
         ),
-        Some(cost) => Localized::with_params(
+        CostPart::Priced { cost } => Localized::with_params(
             "cost.line.priced",
             params([
                 ("label", label),
                 ("tokens", count.as_str().into()),
-                ("cost", ParamValue::l10n(cost.money())),
+                ("cost", ParamValue::l10n(cost)),
             ]),
             "{label}: {tokens} tokens · {cost}",
         ),

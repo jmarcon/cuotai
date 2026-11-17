@@ -190,7 +190,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -599,8 +604,15 @@
   "cost.live.line_unknown": "Dieser Block: {tokens} Token, Kosten unbekannt · {rate} Tok./Min.",
   "cost.live.projection": "Bei diesem Tempo ≈ {cost} bis {at}",
   "cost.live.window": "{source} · lokale Schätzung {window} · {elapsed} vergangen, {left} übrig",
-  "cost.live.rate_missing": "Verbrauchsrate: noch nicht genug aktuelle Anfragen ({requests} in den letzten {minutes} Minuten).",
   "cost.live.none": "{source}: kein aktiver Block.",
+  "cost.live.line_partial": "Dieser Block ≈ {cost} + unbekannte Kosten für {unknown} Tokens · {rate} Tok./Min.",
+  "cost.live.projection_partial": "Bei diesem Tempo ≈ {cost} + unbekannte Kosten für etwa {unknown} Tokens bis {at}",
+  "cost.live.projection_tokens": "Bei diesem Tempo ≈ {tokens} Tokens bis {at}; für die meisten ist kein Preis bekannt, daher werden keine Kosten hochgerechnet",
+  "cost.live.rate_few": {
+    "one": "Verbrauchsrate: braucht mindestens {min} Anfragen in den letzten {minutes} Minuten; bisher {count}.",
+    "other": "Verbrauchsrate: braucht mindestens {min} Anfragen in den letzten {minutes} Minuten; bisher {count}."
+  },
+  "cost.live.rate_young": "Verbrauchsrate: Der Block hat vor {elapsed} begonnen; sie braucht {min} Minuten.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Projekt {short}",
   "cost.project.none": "Kein Projekt",

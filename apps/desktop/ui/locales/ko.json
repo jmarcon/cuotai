@@ -1117,7 +1117,6 @@
   "settings.costBy.providerReset": "제공업체 창: {at}에 초기화",
   "settings.costBy.liveTitle": "진행 중인 블록 · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} 경과, {left} 남음",
-  "settings.costBy.noRate": "소비 속도: 최근 요청이 아직 부족합니다.",
   "settings.costBy.localEstimate": "로컬 추정: 블록은 로그에서 계산하며 제공업체에서 읽지 않습니다.",
   "settings.costBy.active": "진행 중",
   "settings.costBy.closed": "종료",
