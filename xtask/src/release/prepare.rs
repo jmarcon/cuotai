@@ -178,6 +178,8 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
         }
     }
 
+    warnings.extend(near_duplicates(&commits));
+
     // The section (RF4.2/RF4.6).
     let changelog = work.read("CHANGELOG.md")?;
     let v = version.to_string();
@@ -404,6 +406,42 @@ pub fn idle_status(repo: &Path) -> Res<String> {
             base.describe()
         ),
     })
+}
+
+/// The first five words of a sentence, lowercased, when it has five.
+fn opening(sentence: &str) -> Option<String> {
+    let words: Vec<String> = sentence
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .take(5)
+        .map(str::to_lowercase)
+        .collect();
+    (words.len() == 5).then(|| words.join(" "))
+}
+
+/// A warning for every pair of sentences of the range that open with the
+/// same five words (F-16): probably the same change told twice, worth a
+/// look in the release PR. Never an error.
+fn near_duplicates(commits: &[(commits::Commit, String)]) -> Vec<String> {
+    let mut seen: Vec<(String, &str, &str)> = Vec::new();
+    let mut out = Vec::new();
+    for (commit, short) in commits {
+        for entry in &commit.trailers.sentences {
+            let Some(key) = opening(&entry.text) else {
+                continue;
+            };
+            if let Some((_, other_short, other)) = seen.iter().find(|(k, _, _)| *k == key) {
+                out.push(format!(
+                    "{other_short} \"{other}\" and {short} \"{}\" start with the same five \
+                     words: check they are not the same change told twice",
+                    entry.text
+                ));
+            } else {
+                seen.push((key, short, &entry.text));
+            }
+        }
+    }
+    out
 }
 
 /// The release commit message (RF4.5), with every skip-CI marker

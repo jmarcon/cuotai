@@ -689,9 +689,66 @@ pub fn lint_sentence(sentence: &str) -> Vec<String> {
 
 /// [`lint_sentence`] where `applies(id)` says whether a check that was added
 /// after the cutover applies to this commit (the commit gate scopes them
-/// with `RULES_SINCE`). The ids are `ui-path`.
+/// with `RULES_SINCE`). The ids are `ui-path` and `code-format`.
 pub fn lint_sentence_with(sentence: &str, applies: &dyn Fn(&str) -> bool) -> Vec<String> {
     let mut problems = Vec::new();
+    // Every entry is shown on GitHub (Markdown), in the TUI and in the
+    // desktop dialog: anything that renders differently in one of them is
+    // refused. Code spans render literally everywhere, so the markup checks
+    // read the text outside them.
+    let invisible: Vec<String> = sentence
+        .chars()
+        .filter(|c| is_invisible(*c))
+        .map(|c| format!("U+{:04X}", c as u32))
+        .collect();
+    if !invisible.is_empty() {
+        problems.push(format!(
+            "sentence '{}' contains invisible, control or direction characters ({}): \
+             write plain text",
+            sentence.escape_debug(),
+            invisible.join(", ")
+        ));
+    }
+    let prose = outside_code_spans(sentence);
+    if has_markup_tag(&prose) {
+        problems.push(format!(
+            "sentence '{sentence}' contains an HTML tag or comment: entries are plain text \
+             (a lone '<' is fine; wrap code in backticks)"
+        ));
+    }
+    if prose.contains("](") || prose.contains("![") {
+        problems.push(format!(
+            "sentence '{sentence}' contains a Markdown link or image: entries are plain text"
+        ));
+    }
+    let lower = sentence.to_ascii_lowercase();
+    if ["http://", "https://", "www."]
+        .iter()
+        .any(|link| lower.contains(link))
+    {
+        problems.push(format!(
+            "sentence '{sentence}' contains a link: name the place in words (the docs, \
+             Settings › About) instead"
+        ));
+    }
+    if has_second_sentence(&prose) {
+        problems.push(format!(
+            "sentence '{sentence}' holds two sentences: write one 'Changelog:' line per change"
+        ));
+    }
+    if applies("code-format") {
+        let bare = bare_code_tokens(&prose);
+        if !bare.is_empty() {
+            problems.push(format!(
+                "sentence '{sentence}' names {} outside backticks: write flags, paths and field \
+                 names as code (`--watch`, `cuotai.toml`, `remaining_ratio`)",
+                bare.iter()
+                    .map(|t| format!("'{t}'"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+    }
     if !sentence.chars().next().is_some_and(|c| c.is_uppercase()) {
         problems.push(format!(
             "sentence '{sentence}' must start with a capital letter"
@@ -726,6 +783,113 @@ pub fn lint_sentence_with(sentence: &str, applies: &dyn Fn(&str) -> bool) -> Vec
         ));
     }
     problems
+}
+
+/// Unicode `Cc` and `Cf` characters: C0/C1 controls, zero-width characters,
+/// bidirectional embeddings, overrides and isolates, and the other format
+/// characters (soft hyphen, word joiner, BOM, tag characters…).
+fn is_invisible(c: char) -> bool {
+    c.is_control()
+        || matches!(
+            c as u32,
+            0x00AD
+                | 0x0600..=0x0605
+                | 0x061C
+                | 0x06DD
+                | 0x070F
+                | 0x0890..=0x0891
+                | 0x08E2
+                | 0x180E
+                | 0x200B..=0x200F
+                | 0x202A..=0x202E
+                | 0x2060..=0x2064
+                | 0x2066..=0x206F
+                | 0xFEFF
+                | 0xFFF9..=0xFFFB
+                | 0x110BD
+                | 0x110CD
+                | 0x13430..=0x1343F
+                | 0x1BCA0..=0x1BCA3
+                | 0x1D173..=0x1D17A
+                | 0xE0001
+                | 0xE0020..=0xE007F
+        )
+}
+
+/// `sentence` with every backtick code span replaced by a space.
+fn outside_code_spans(sentence: &str) -> String {
+    let mut out = String::new();
+    let mut inside = false;
+    for c in sentence.chars() {
+        if c == '`' {
+            inside = !inside;
+            out.push(' ');
+        } else if !inside {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// `<b>`, `</p>`, `<!-- … -->`: a `<` followed by a letter, `/` or `!`.
+fn has_markup_tag(text: &str) -> bool {
+    text.match_indices('<').any(|(at, _)| {
+        text[at + 1..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '/' || c == '!')
+    })
+}
+
+/// `[.!?]`, spaces, then a capital letter before the end of the sentence.
+fn has_second_sentence(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    (0..chars.len()).any(|i| {
+        if !matches!(chars[i], '.' | '!' | '?') {
+            return false;
+        }
+        let spaces = chars[i + 1..].iter().take_while(|c| **c == ' ').count();
+        spaces > 0 && chars.get(i + 1 + spaces).is_some_and(|c| c.is_uppercase())
+    })
+}
+
+/// Tokens of plain prose that are code by their shape: a flag (`--watch`),
+/// a path (`/v1/limits`, `~/.config`, `./cuotai.toml`), a file with a
+/// configuration or source extension (`cuotai.toml`), or a snake_case name
+/// (`remaining_ratio`). Kept narrow so ordinary words never match.
+fn bare_code_tokens(prose: &str) -> Vec<String> {
+    const EXTENSIONS: [&str; 10] = [
+        ".toml", ".json", ".yml", ".yaml", ".rs", ".sh", ".md", ".sqlite3", ".env", ".plist",
+    ];
+    let mut out = Vec::new();
+    for raw in prose.split_whitespace() {
+        let token = raw
+            .trim_start_matches(['(', '"', '\'', '[', '{'])
+            .trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '"', '\'', ']', '}']);
+        let letter_after = |prefix: &str| {
+            token
+                .strip_prefix(prefix)
+                .and_then(|rest| rest.chars().next())
+                .is_some_and(|c| c.is_ascii_alphabetic())
+        };
+        let flag = letter_after("--");
+        let path = letter_after("/") || letter_after("~/") || letter_after("./");
+        let lower = token.to_ascii_lowercase();
+        let file = EXTENSIONS
+            .iter()
+            .any(|ext| lower.len() > ext.len() && lower.ends_with(ext));
+        let snake = token.contains('_')
+            && token.split('_').all(|part| {
+                !part.is_empty()
+                    && part
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+            });
+        if (flag || path || file || snake) && !out.iter().any(|t: &String| t == token) {
+            out.push(token.to_string());
+        }
+    }
+    out
 }
 
 /// `Settings > About` or `Settings → About`: a word, the separator, then a
@@ -1138,5 +1302,77 @@ mod tests {
         assert_eq!(lint_sentence("Open Settings → Integration now.").len(), 1);
         assert!(lint_sentence("Open Settings › About to see it.").is_empty());
         assert!(lint_sentence("Alerts fire when used > 90 percent.").is_empty());
+    }
+
+    fn one_problem(sentence: &str, needle: &str) {
+        let found = lint_sentence(sentence);
+        assert_eq!(found.len(), 1, "{sentence}: {found:?}");
+        assert!(found[0].contains(needle), "{sentence}: {found:?}");
+    }
+
+    #[test]
+    fn invisible_and_direction_characters_are_refused() {
+        for c in [
+            '\u{200B}',
+            '\u{202E}',
+            '\u{2066}',
+            '\u{FEFF}',
+            '\u{1B}',
+            '\u{00AD}',
+            '\u{E0041}',
+        ] {
+            one_problem(&format!("A{c}b works."), "invisible");
+        }
+        let found = lint_sentence("A\u{202E}b works.");
+        assert!(found[0].contains("U+202E"), "{found:?}");
+        assert!(
+            found[0].contains("\\u{202e}"),
+            "escaped, not raw: {found:?}"
+        );
+        assert!(lint_sentence("Ünïcode and emoji 🎉 stay fine.").is_empty());
+    }
+
+    #[test]
+    fn markup_links_and_two_sentences_are_refused() {
+        one_problem("A <img src=x> shows.", "HTML tag");
+        one_problem("A</b> shows.", "HTML tag");
+        one_problem("A<!-- hidden --> shows.", "HTML tag");
+        one_problem("See [the docs](docs) now.", "Markdown link");
+        one_problem("A ![logo] shows.", "Markdown link or image");
+        one_problem("See https://example.com now.", "link");
+        one_problem("See www.example.com now.", "link");
+        one_problem("Two sentences. In one trailer.", "two sentences");
+        one_problem("Really? Yes it works.", "two sentences");
+        // A lone '<', a comparison or code spans are fine.
+        assert!(lint_sentence("Channel labels with \"&\" or \"<\" show as typed.").is_empty());
+        assert!(lint_sentence("Alerts fire below < 5 percent.").is_empty());
+        assert!(lint_sentence("The `--account <name>` option works.").is_empty());
+        assert!(lint_sentence("Version 1.2 is faster, e.g. on start.").is_empty());
+    }
+
+    #[test]
+    fn code_must_be_in_backticks_where_the_check_applies() {
+        one_problem("The --watch option refreshes.", "'--watch'");
+        one_problem("The /v1/limits endpoint reports more.", "'/v1/limits'");
+        one_problem("Edit cuotai.toml by hand.", "'cuotai.toml'");
+        one_problem("The remaining_ratio field is new.", "'remaining_ratio'");
+        assert!(lint_sentence("The `--watch` option and `remaining_ratio` work.").is_empty());
+        // Ordinary prose is not code.
+        for fine in [
+            "Read-only mode and sign-in work -- even offline.",
+            "Usage and/or cost show in 1/2 the time.",
+            "Node.js users and the README page are unaffected.",
+        ] {
+            assert!(
+                lint_sentence(fine).is_empty(),
+                "{fine}: {:?}",
+                lint_sentence(fine)
+            );
+        }
+        // Older commits are exempt.
+        assert!(
+            lint_sentence_with("The --watch option refreshes.", &|id| id != "code-format")
+                .is_empty()
+        );
     }
 }
