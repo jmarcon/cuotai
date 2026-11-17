@@ -29,6 +29,8 @@ pub struct EditOutcome {
     pub section: String,
     /// The amended commit.
     pub sha: String,
+    /// The release PR body, written again with the new wording.
+    pub pr_body: std::path::PathBuf,
 }
 
 /// Trailer keys `release prepare` writes itself; every other trailer of the
@@ -160,12 +162,14 @@ pub fn run(repo: &Path, edit: EntryEdit) -> Res<EditOutcome> {
             &amended[..7]
         ))
     })?;
+    let pr_body = prepare::write_pr_body(repo, &outcome)?;
     Ok(EditOutcome {
         version,
         edits,
         replaced,
         section: outcome.section,
         sha: amended,
+        pr_body,
     })
 }
 

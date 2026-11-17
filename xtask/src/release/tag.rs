@@ -91,7 +91,9 @@ pub fn run(repo: &Path, rc: bool, main_ref: &str) -> Res<Tagged> {
     let today = super::prepare::today_utc();
     if date != today {
         eprintln!(
-            "warning: the CHANGELOG section of {version} is dated {date}, but today (UTC) is {today}; the release page will show {date}"
+            "warning: the CHANGELOG section of {version} is dated {date}, but today (UTC) is {today}; the release page will show {date}. \
+             To show today's date, stop here and prepare a refresh first: \
+             `cargo xtask release prepare --refresh --branch --date {today}`, merge its pull request, then tag"
         );
     }
     let message = message(&tag, &version, &date, &body);

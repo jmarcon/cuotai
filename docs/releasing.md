@@ -38,9 +38,17 @@ on demand by the owner (PRD 0039 D8):
    rows of `0000_control.md`; then it runs `release-check` and
    `changelog-check` and commits `chore(release): X.Y.Z`. It never pushes,
    tags or opens a pull request. `--version X.Y.Z` overrides the computed
-   version upward (recorded as `Version-Override:`).
+   version upward (recorded as `Version-Override:`). `--trailer "Key: value"`
+   (repeatable) adds a trailer such as the session's `Co-Authored-By:` to
+   the release commit, so it needs no amend; an e-mail address in it must be
+   a noreply one. `--branch` also writes the release PR body to
+   `$(git rev-parse --git-path cuotai-release-pr-body.md)`: the bump
+   rationale, the wording edits, the commits skipped with their reasons, the
+   section, and the [manual desktop checklist](#manual-desktop-checklist-per-release)
+   under "After publication, by a person (not a merge condition)".
 3. **Release PR.** `git push -u origin release/vX.Y.Z`, then
-   `gh pr create --base main --head release/vX.Y.Z --title "chore(release): X.Y.Z" --body "$(git log -1 --format=%b)"`.
+   `gh pr create --base main --head release/vX.Y.Z --title "chore(release): X.Y.Z" --body-file "$(git rev-parse --git-path cuotai-release-pr-body.md)"`
+   (`release prepare` prints this command with the path).
    CI runs `release-preflight` with `release prepare --check`. From the
    release after 0.86.7, that check is **line by line**: it re-runs
    `release prepare` against the parent commit (with the version of the

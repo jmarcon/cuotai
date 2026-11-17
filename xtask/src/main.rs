@@ -111,6 +111,10 @@ SUBCOMMANDS:
     --date YYYY-MM-DD       section date (default: today, UTC)
     --dry-run               print the version, rationale and diffs; write nothing
     --branch                commit 'chore(release): X.Y.Z' on a new release/vX.Y.Z
+                            and write the release PR body to
+                            $(git rev-parse --git-path cuotai-release-pr-body.md)
+    --trailer 'Key: value'  add a trailer to the release commit (repeat), e.g. the
+                            session's Co-Authored-By; e-mail addresses must be noreply
     --refresh               re-render the prepared version's section (after an rc)
     --check                 verify a release commit instead (RF4.7)
     --rev REF               commit checked by --check (default: HEAD)
@@ -588,7 +592,7 @@ fn release(args: &[String]) -> Res<()> {
     let (allowed_flags, allowed_options): (&[&str], &[&str]) = match action.as_str() {
         "prepare" => (
             &["--dry-run", "--branch", "--refresh", "--check"],
-            &["repo", "version", "date", "rev"],
+            &["repo", "version", "date", "rev", "trailer"],
         ),
         "tag" => (&["--rc"], &["repo", "main"]),
         other => {
@@ -620,7 +624,7 @@ fn release(args: &[String]) -> Res<()> {
                 "--check verifies a release commit; it cannot be combined with {bad}"
             ));
         }
-        if let Some(bad) = ["version", "date"]
+        if let Some(bad) = ["version", "date", "trailer"]
             .into_iter()
             .find(|k| opts.0.contains_key(*k))
         {
@@ -708,8 +712,10 @@ fn release_edit(args: &[String]) -> Res<()> {
         println!("  Changelog-Entry: {edit}");
     }
     println!(
-        "\n{}\nrelease check passed. Push the release branch again: git push --force-with-lease",
-        outcome.section
+        "\n{}\nrelease check passed; the release PR body in {} has the new wording.\nPush the release branch again: git push --force-with-lease\nand update the PR body: gh pr edit --body-file \"{}\"",
+        outcome.section,
+        outcome.pr_body.display(),
+        outcome.pr_body.display()
     );
     Ok(())
 }
@@ -786,7 +792,7 @@ fn release_prepare(repo: &Path, opts: &Opts, flag: &dyn Fn(&str) -> bool) -> Res
         refresh: flag("--refresh"),
         verify_lockfiles: true,
         edits: None,
-        trailers: Vec::new(),
+        trailers: opts.all("trailer"),
     };
     if options.dry_run && options.branch {
         return err("--dry-run and --branch exclude each other");
@@ -831,10 +837,18 @@ fn release_prepare(repo: &Path, opts: &Opts, flag: &dyn Fn(&str) -> bool) -> Res
         outcome.changes.len()
     );
     match &outcome.branch {
-        Some(branch) => println!(
-            "committed on {branch}. Next:\n  git push -u origin {branch}\n  gh pr create --base main --head {branch} --title \"chore(release): {v}\" --body \"$(git log -1 --format=%b)\"\nAfter the rebase-merge: git switch main && git pull --ff-only && cargo xtask release tag --rc",
-            v = outcome.version
-        ),
+        Some(branch) => {
+            let body = outcome
+                .pr_body
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+            println!(
+                "committed on {branch}; the release PR body is in {body}. Next:\n  git push -u origin {branch}\n  gh pr create --base main --head {branch} --title \"chore(release): {v}\" --body-file \"{body}\"\nAfter the rebase-merge: git switch main && git pull --ff-only, then {hint}",
+                v = outcome.version,
+                hint = xtask::release::prepare::TAG_HINT
+            )
+        }
         None => println!(
             "review the changes, then commit them as 'chore(release): {}' (or rerun with --branch)",
             outcome.version

@@ -267,7 +267,7 @@ fn check_rejects_incomplete_or_inconsistent_releases() {
         (
             "leftover token",
             |text, _| text.to_string(),
-            "still has 1 'vNEXT'",
+            "docs/later.md:1: a 'vNEXT' token is left; run `cargo xtask release prepare --refresh`",
         ),
     ];
     for (name, edit, expected) in cases {
@@ -611,6 +611,34 @@ fn release_flags_are_checked_per_action() {
             "only valid with --check",
         ),
         (vec!["release", "publish"], "unknown release action"),
+        (
+            vec!["release", "prepare", "--check", "--trailer", "A: b"],
+            "cannot be combined with --trailer",
+        ),
+        (
+            vec!["release", "tag", "--trailer", "A: b"],
+            "does not accept --trailer",
+        ),
+        (
+            vec!["release", "edit", "--text", "Words."],
+            "usage: cargo xtask release edit",
+        ),
+        (
+            vec![
+                "release",
+                "edit",
+                "abcdef1#1",
+                "--text",
+                "Words.",
+                "--rev",
+                "x",
+            ],
+            "does not accept --rev",
+        ),
+        (
+            vec!["release", "edit", "abcdef1#1", "--text", "Words."],
+            "is not a release commit",
+        ),
     ] {
         let mut full = args.clone();
         full.extend(["--repo", path.as_str()]);
@@ -841,4 +869,103 @@ fn the_release_commit_lists_every_skipped_commit_with_its_reason() {
         "{message}"
     );
     xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
+}
+
+#[test]
+fn prepare_takes_trailers_and_writes_the_release_pr_body() {
+    let (_d, repo) = repo();
+    write_file(
+        &repo,
+        "docs/releasing.md",
+        "# Releasing\n\n## Manual desktop checklist per release\n\nBefore announcing:\n\n- [ ] Open the app on macOS.\n- [ ] Re-check [`docs/platforms.md`](platforms.md) and the\n  [rollback drill](#rollback-drill).\n\n## Rollback drill\n\n- [ ] Not this one.\n",
+    );
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "docs: releasing"]);
+    let (feat, _) = feature_and_fix(&repo);
+    commit(
+        &repo,
+        "test(core): cover sorting\n\nChangelog: skip test-only change, nothing ships",
+        "crates/cuotai-core/src/lib.rs",
+        "// v5\n",
+    );
+
+    // Refused trailers: a personal address, a key the release writes, no key.
+    for (trailer, needle) in [
+        (
+            "Co-Authored-By: Someone <someone@example.com>",
+            "s***@example.com",
+        ),
+        ("Changelog: Something.", "cannot set 'Changelog:'"),
+        ("version-override: 9.9.9", "cannot set 'Version-Override:'"),
+        ("no key here", "not 'Key: value'"),
+        ("Bad Key: x", "not 'Key: value'"),
+    ] {
+        let mut opts = options(false, true);
+        opts.trailers = vec![trailer.to_string()];
+        let error = prepare::run(&repo, &opts).unwrap_err().to_string();
+        assert!(error.contains(needle), "{trailer}: {error}");
+        assert!(
+            !error.contains("someone@"),
+            "the address is masked: {error}"
+        );
+    }
+    assert!(git(&repo, &["status", "--porcelain"]).trim().is_empty());
+
+    let mut opts = options(false, true);
+    opts.trailers = vec![
+        "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>".into(),
+        "Reviewed-By: Example <1+example@users.noreply.github.com>".into(),
+    ];
+    let outcome = prepare::run(&repo, &opts).unwrap().unwrap();
+    let message = git(&repo, &["log", "-1", "--format=%B"]);
+    assert!(
+        message.trim_end().ends_with(
+            "Changelog: skip release commit\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nReviewed-By: Example <1+example@users.noreply.github.com>"
+        ),
+        "{message}"
+    );
+    release::check_release(&repo, "HEAD").unwrap();
+    xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
+
+    let path = outcome.pr_body.expect("the body is written with --branch");
+    let expected_path = git(
+        &repo,
+        &["rev-parse", "--git-path", "cuotai-release-pr-body.md"],
+    );
+    assert!(path.ends_with(expected_path.trim()), "{}", path.display());
+    let body = std::fs::read_to_string(&path).unwrap();
+    let f = short(&repo, &feat);
+    for needle in [
+        "## Release 0.80.0\n\nminor bump from 0.79.0 at ".to_string(),
+        "### Bump rationale\n\n- minor: ".to_string(),
+        "### Wording edits\n\nNone. Fix wording with `cargo xtask release edit".to_string(),
+        "### Skipped with a reason (no entry)\n\n- ".to_string(),
+        "test-only change, nothing ships".to_string(),
+        format!("### Changelog section\n\n### [0.80.0] - {DATE}\n\n#### Added\n\n- You can sort accounts by name (PRD 0001 RF2; {f})."),
+        "## After publication, by a person (not a merge condition)\n\n- [ ] Open the app on macOS.\n- [ ] Re-check [`docs/platforms.md`](docs/platforms.md) and the\n  [rollback drill](docs/releasing.md#rollback-drill).\n".to_string(),
+    ] {
+        assert!(body.contains(&needle), "{needle}\n---\n{body}");
+    }
+    assert!(!body.contains("Not this one"), "{body}");
+
+    // The next step is the stable tag unless the owner asked for an rc.
+    let idle = prepare::idle_status(&repo).unwrap();
+    assert!(
+        idle.contains("`cargo xtask release tag` (add `--rc` only when the owner asked for an rc)"),
+        "{idle}"
+    );
+}
+
+#[test]
+fn the_release_pr_checklist_comes_from_docs_releasing() {
+    let doc =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/releasing.md"))
+            .unwrap();
+    let list = prepare::checklist(&doc).expect("docs/releasing.md has the checklist");
+    assert!(list.matches("- [ ] ").count() >= 5, "{list}");
+    assert!(list.contains("](docs/platforms.md)"), "{list}");
+    assert!(
+        list.contains("](docs/releasing.md#rollback-drill)"),
+        "{list}"
+    );
 }
