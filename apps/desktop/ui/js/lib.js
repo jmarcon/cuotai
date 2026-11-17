@@ -2042,6 +2042,81 @@ if (DEMO_QUERY.has("overage")) {
     DEMO_WINDOWS.set(r, windows);
   }
 }
+// PRD 0037 re-validation (V-09): `?eleven` swaps the demo accounts for an ElevenLabs set shaped like the adapter's
+// reports (`providers::eleven_labs`: raw labels and units with the core's texts, its note ids): a normal plan, extra
+// usage armed, active, at its cap and with no cap (`unlimited`), a plan whose limit was not reported, the disabled free
+// plan with its zero limit (exhausted, PRD 0037 RF3), a reset already past at the reading (renewal due, RF4), a key
+// without the subscription permission, a changed response, and an EU account during an incident on its own status
+// page beside a US account on the operational one (one status per source, RF9). example.com identities only.
+if (DEMO_QUERY.has("eleven")) {
+  // The core's `metrics::classify_metric` of each metric, with the explicit zero allowance of a quota (RF3).
+  const metric = (label, labelId, english, unit, unitText, fields) => {
+    const { used = null, limit = null, remaining = null } = fields;
+    const zero = limit === 0 && remaining === 0 && fields.kind === "quota";
+    const cap = limit > 0 ? limit : null;
+    const state = used == null && remaining == null ? { state: "unmeasured" }
+      : zero || (remaining != null && remaining <= 0) ? { state: "exhausted", no_cap: cap == null }
+        : cap != null && used >= cap ? { state: "exhausted", no_cap: false }
+          : cap != null ? { state: "available", ratio: Math.min(1, Math.max(0, (cap - used) / cap)), uncapped: false }
+            : { state: "available", ratio: 0, uncapped: true };
+    return { label, label_text: demoText(labelId, english), unit, ...(unitText ? { unit_text: unitText } : {}), used, limit, remaining,
+      period: null, billing: "included", scope: null, derived_from: null, unlimited: false, no_cap: false, ...fields, ...state };
+  };
+  const CREDITS = demoText("metric.unit.credits", "credits");
+  const credits = (used, limit, resetH = 300) => metric("Créditos do plano", "metric.label.plan_credits", "Plan credits", "créditos", CREDITS,
+    { used, limit, remaining: limit == null ? null : Math.max(0, limit - used), kind: "quota", window: "monthly", resets_at: h(resetH) });
+  const extraCredits = (used, cap) => metric("Créditos extras usados", "metric.label.extra_credits_used", "Extra credits used", "créditos", CREDITS,
+    { used, limit: cap, remaining: cap == null ? null : Math.max(0, cap - used), kind: "usage", window: "monthly", resets_at: h(300), billing: "overage", unlimited: cap == null });
+  const extraCost = (amount) => metric("Custo do uso extra", "metric.label.extra_usage_cost", "Extra usage cost", "USD", null,
+    { used: amount, kind: "spend", window: "monthly", resets_at: h(300), billing: "overage" });
+  const voices = (used, limit) => metric("Vozes personalizadas", "metric.label.voices_custom", "Custom voices", "vozes", demoText("metric.unit.voices", "voices"),
+    { used, limit, remaining: Math.max(0, limit - used), kind: "usage", window: null, resets_at: null });
+  const SOURCE = coreNote("note.eleven_labs.source", "Read with GET /v1/user/subscription using the API key; the query does not generate audio.");
+  const PAYG = coreNote("note.eleven_labs.payg_not_reported", "Pay As You Go balance: not reported by this endpoint.");
+  const tier = (name) => coreNote("note.eleven_labs.tier", `Plan reported by ElevenLabs: ${name}.`, { tier: name });
+  const notes = (...extra) => coreNotes([SOURCE, ...extra, PAYG]);
+  const fixed = (id, fallback) => ({ id, params: {}, fallback });
+  // The core's `overage::assess` of each report: the headline is the money metric (the cost, which has no cap), and an
+  // extra-credit counter at its cap escalates it to "cap reached".
+  const overage = (state, spent) => {
+    const onExtra = (id, lead) => ({ id, params: { amount: demoMoney(spent) }, fallback: `${lead} $${spent.toFixed(2)}` });
+    const text = state === "active" ? onExtra("overage.on_extra", "On extra ·")
+      : state === "cap_reached" ? fixed("overage.cap_reached", "Extra budget used up") : fixed("overage.armed", "Extra usage on · nothing spent");
+    const summary = state === "active" ? onExtra("overage.limit_hit_on_extra", "Limit hit · on extra") : text;
+    return { state, spent, unit: "USD", currency: "USD", cap: null, cycle_ends_at: h(300), text, summary, caveat: null };
+  };
+  const report = (account, metrics, extra = {}) => ({ ...dr(account, "eleven_labs", metrics), demo_region: "default", ...extra });
+  const failed = (account, status, list, extra = {}) => ({ ...dr(account, "eleven_labs", [], list.map((n) => n.fallback), status), notes_l10n: list, class: "unmeasured", demo_region: "default", ...extra });
+  const drift = { id: "diagnostic.schema_drift", params: { path: "character_count", expected: "number", found: "missing" }, fallback: "The provider changed character_count (number → missing)." };
+  const eleven = [
+    [report("voice@example.com", [credits(41200, 100000), voices(3, 10)], notes(tier("creator"))), [0, 0], [0]],
+    [report("armed@example.com", [credits(88000, 100000), extraCredits(0, 20000), extraCost(0), voices(1, 10)], { ...notes(tier("pro")), overage: overage("armed", 0) }), [0, 1], [0]],
+    [report("active@example.com", [credits(100000, 100000), extraCredits(3000, 20000), extraCost(4.2)],
+      { ...notes(tier("pro")), class: "exhausted", overage: overage("active", 4.2) }), [0, 2], [0]],
+    [report("capped@example.com", [credits(100000, 100000), extraCredits(20000, 20000), extraCost(28)],
+      { ...notes(tier("pro")), class: "exhausted", overage: overage("cap_reached", 28) }), [0, 3], [0]],
+    [report("unlimited@example.com", [credits(500000, 500000), extraCredits(64000, null), extraCost(89.6)],
+      { ...notes(tier("scale"), coreNote("note.eleven_labs.overage_unlimited", "Extra usage has no credit cap.")), class: "exhausted", overage: overage("active", 89.6) }), [0, 4], [0]],
+    [report("nolimit@example.com", [credits(42000, null)],
+      notes(coreNote("note.eleven_labs.limit_missing", "ElevenLabs did not report the credit limit; only consumption is shown."))), [null, 5], null],
+    [report("free@example.com", [credits(0, 0, 200), voices(0, 3)],
+      { ...notes(tier("free"), coreNote("note.eleven_labs.status.free_disabled", "The ElevenLabs free plan is disabled; the credits shown may no longer be usable.")),
+        class: "exhausted" }), [0, 6], [0]],
+    [report("renewal@example.com", [credits(100000, 100000, -2)], { ...notes(tier("creator")), class: "exhausted" }), [0, 7], [0]],
+    [failed("scope@example.com", "authentication_error", [coreNote("note.eleven_labs.scope_missing",
+      "The key is valid but may not read the subscription; check its restriction (and, for Enterprise, its IP allow-list or workspace).")]), [null, 8], null],
+    [failed("drift@example.com", "error", [fixed("query.schema", "Response is incompatible with the query interface; no value was estimated."), drift],
+      { drift: { heading: fixed("diagnostic.what_changed", "What changed"), sentence: drift, paths: [{ path: "character_count", expected: "number", found: "missing" }],
+        privacy: fixed("diagnostic.values_never_recorded", "Values are never recorded.") } }), [null, 9], null],
+    [report("eu@example.com", [credits(12500, 100000), voices(2, 10)], { ...notes(tier("creator")), demo_region: "eu" }), [0, 10], [0]],
+    [report("us@example.com", [credits(30000, 100000)], { ...notes(tier("creator")), demo_region: "us" }), [0, 11], [0]],
+  ];
+  demoReports.splice(0, demoReports.length, ...eleven.map(([r]) => r));
+  for (const [r, binding, windows] of eleven) {
+    DEMO_BINDINGS.set(r, binding);
+    if (windows) DEMO_WINDOWS.set(r, windows);
+  }
+}
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
 // `?paste-session`: the core offers the MiMo account a new paste, so the card and the details show Paste session.
 if (DEMO_QUERY.has("paste-session")) for (const r of demoReports) if (r.provider === "xiaomi_mimo") r.paste_session = true;
@@ -2257,7 +2332,11 @@ function demoHooksView() {
 const DEMO_STATUS = new URLSearchParams(location.search).get("status");
 const DEMO_STATUS_HOSTS = { claude: "status.claude.com", anthropic_api: "status.claude.com", chat_gpt: "status.openai.com",
   copilot: "www.githubstatus.com", groq: "groqstatus.com", mini_max: "status.minimax.io", kimi: "status.moonshot.cn",
-  cursor: "status.cursor.com", windsurf: "status.windsurf.com", grok: "status.x.ai" };
+  cursor: "status.cursor.com", windsurf: "status.windsurf.com", grok: "status.x.ai", eleven_labs: "status.elevenlabs.io" };
+// PRD 0037 re-validation (V-01, V-09): ElevenLabs has one status page per region (`incidents::source_for`), so each
+// account reads its own source; the demo plays an incident on the EU page only.
+const DEMO_ELEVEN_SOURCES = { default: "united-states", us: "united-states", eu: "eu", in: "india", sg: "singapore" };
+const DEMO_ELEVEN_INCIDENTS = { eu: ["partial_outage", "Elevated error rates on the API (EU)", "https://status.elevenlabs.io/eu/incidents/demo5", 0.6] };
 const DEMO_STATE_EN = { operational: "Operational", degraded: "Degraded performance", partial_outage: "Partial outage",
   major_outage: "Major outage", maintenance: "Under maintenance", unknown: "Unknown status" };
 const DEMO_INCIDENTS = {
@@ -2272,8 +2351,9 @@ function demoIncident(r) {
   const host = DEMO_STATUS_HOSTS[r.provider];
   if (!demoSettings.statusQueries || !host) return null;
   const offline = DEMO_STATUS === "offline";
-  const [state, title, url, startedH] = offline ? ["unknown"] : DEMO_INCIDENTS[r.provider] ?? ["operational"];
-  return { provider: r.provider, state, label: dl(`incident.state.${state}`, DEMO_STATE_EN[state]), page_url: `https://${host}/`,
+  const source = r.provider === "eleven_labs" ? DEMO_ELEVEN_SOURCES[r.demo_region ?? "default"] : null;
+  const [state, title, url, startedH] = offline ? ["unknown"] : (source ? DEMO_ELEVEN_INCIDENTS[source] : DEMO_INCIDENTS[r.provider]) ?? ["operational"];
+  return { provider: r.provider, source, state, label: dl(`incident.state.${state}`, DEMO_STATE_EN[state]), page_url: `https://${host}/${source ?? ""}`,
     incident: title ? { title, started_at: h(-startedH), url } : null, read_at: offline ? null : ago(2), stale: offline };
 }
 // ponytail: demo mirror of `alerts::eligible` and of an active alert (a capped quota at or above the lowest
@@ -2383,7 +2463,7 @@ const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(locati
   custom: null, config: null, generation: 1, historyRecording: true, historyEpoch: 0, historyErased: new Set(), sessionMigrated: new Set(), sessionForgotten: new Set(),
   notify: { enabled: false, lead_minutes: 0, when: "used", include_other: false, off_accounts: [], private: true, days_off: ["sat", "sun"], limit_changes: false, digest: { enabled: false, weekday: 0, hour: 9 } },
   quiet: demoQuiet(), missedSeen: new Set(),
-  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null, detect: { enabled: new URLSearchParams(location.search).get("detect") === "ask" ? null : true, dismissed: [] },
+  alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null || DEMO_QUERY.has("eleven"), detect: { enabled: new URLSearchParams(location.search).get("detect") === "ask" ? null : true, dismissed: [] },
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: DEMO_SERVE_TAKEN ? "cuotai_demo_taken" : null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
@@ -2989,6 +3069,19 @@ const demoBedrockSchema = () => {
       help: dl("field.aws_bedrock.cli_path.help", "Empty = Cuotai looks for aws in PATH and in the usual install folders. Set the full path of the aws program only when it is installed elsewhere."),
       required: false, options: null }] };
 };
+// PRD 0037 re-validation (V-09): the ElevenLabs form as the backend's `form_schema` builds it: the typed API key (its
+// variable, its key page) and the data region choice with the core's ids (`account_edit::field_descriptors`).
+const DEMO_ELEVEN_REGIONS = [["default", "Default (api.elevenlabs.io)"], ["us", "United States (api.us.elevenlabs.io)"], ["eu", "European Union (data residency)"],
+  ["in", "India (data residency)"], ["sg", "Singapore (data residency)"]];
+const demoElevenSchema = () => ({ credential_kind: "env", default_env: "ELEVENLABS_API_KEY", aggregator: false,
+  credential_help: dl("credential_help.eleven_labs", "Use an ElevenLabs API key. Restrict it to the permission that reads the account's subscription (it does not need text-to-speech access) and, if you use several workspaces, pick the key of the workspace you want to watch. Cuotai stores only the variable name."),
+  interval: { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
+  secret_inputs: [{ ...DEMO_KEY_INPUT, default_env: "ELEVENLABS_API_KEY", key_page: "https://elevenlabs.io/app/api/api-keys" }],
+  terminal_only_fields: [], preselect: [], login: { modes: [], unsupported_reason: null }, sessions: [], session_notice: null,
+  fields: [{ id: "field.eleven_labs.region", key: "region", label: dl("field.eleven_labs.region.label", "Data region"),
+    help: dl("field.eleven_labs.region.help", "default (default): api.elevenlabs.io. us, eu, in and sg: data-residency endpoints; use the one of the account's region."),
+    required: false, options: DEMO_ELEVEN_REGIONS.map(([value, text], index) => ({ id: `field.eleven_labs.region.option.${value}`, index, value,
+      label: dl(`field.eleven_labs.region.option.${value}`, text) })) }] });
 // PRD 0036 re-validation (V-12): the 9router and LiteLLM forms as the backend's `form_schema` builds them (captured from
 // `form_schema(Provider::NineRouter | LiteLlm)`): `aggregator: true` (Test connection before the first save), the
 // address, filter and TLS fields with the core's ids, and the vault password / pasted session or the proxy key.
@@ -3113,7 +3206,7 @@ const demo = {
     };
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
-  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : DEMO_AGG_FIELDS[provider] ? demoAggregatorSchema(provider) : ({ credential_kind: "env",
+  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : provider === "eleven_labs" ? demoElevenSchema() : DEMO_AGG_FIELDS[provider] ? demoAggregatorSchema(provider) : ({ credential_kind: "env",
     interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 } : { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
     secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
       help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
@@ -3125,7 +3218,7 @@ const demo = {
              { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
   visible_fields: async ({ provider, authMode }) => provider === "kiro"
     ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
-    : provider === "aws_bedrock" ? ["cli_path"] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
+    : provider === "aws_bedrock" ? ["cli_path"] : provider === "eleven_labs" ? ["region"] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
   field_choices: async ({ provider, choices, authMode }) => {
     const schema = provider === "kiro" ? demoKiroSchema() : await demo.form_schema({ provider });
     return schema.fields.filter((field) => field.options).map((field) => {
@@ -3153,7 +3246,9 @@ const demo = {
     const states = [{ slot: "credential_env", source: "vault", label: dl("secret_input.state.vault", "Saved in the system vault") },
       ...(r.provider === "xiaomi_mimo" ? [{ slot: "platform_session_env", source, label: dl(`secret_input.state.${source}`, source) }] : [])];
     return { name: r.account, provider: r.provider, credential: "",
-      interval: "", group: "", account_id: demoAccountId(index), monogram: demoSettings.monograms[demoAccountId(index)] ?? "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {}, fields: [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
+      interval: "", group: "", account_id: demoAccountId(index), monogram: demoSettings.monograms[demoAccountId(index)] ?? "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {},
+      fields: r.provider === "eleven_labs" ? [{ key: "region", text: null, choice: Math.max(0, DEMO_ELEVEN_REGIONS.findIndex(([value]) => value === r.demo_region)) }]
+        : [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
       credential_stored: true, secret_states: states,
       vault_migration: sessionOffer ? [{ slot: "platform_session_env", label,

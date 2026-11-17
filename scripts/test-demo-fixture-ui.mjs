@@ -66,5 +66,43 @@ assert.deepEqual((await aggLib.formSchema("nine_router")).fields.map((f) => f.ke
   ["base_url", "allow_private_http", "include", "exclude", "hidden", "dedup", "show_both", "tls_ca_file", "tls_pin_sha256"]);
 assert.deepEqual((await aggLib.formSchema("litellm")).secret_inputs.map((s) => [s.slot, s.required]), [["credential_env", true]]);
 assert.equal((await aggLib.testAggregator({ provider: "nine_router", fields: [] })).message.id, "query.nine_router.locked", "`?aggtest=locked`");
-console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms");
+
+// PRD 0037 re-validation (V-09): `?eleven` swaps the accounts for the ElevenLabs set, with the core's shapes and ids.
+globalThis.location = { search: "?eleven" };
+const elLib = await import("../apps/desktop/ui/js/lib.js?eleven");
+const el = await elLib.getView();
+const byAccount = Object.fromEntries(el.reports.map((r) => [r.account.split("@")[0], r]));
+assert.deepEqual(el.reports.map((r) => r.account), ["voice", "armed", "active", "capped", "unlimited", "nolimit", "free", "renewal", "scope", "drift", "eu", "us"]
+  .map((name) => `${name}@example.com`), "the ElevenLabs set, example.com identities only");
+assert.ok(el.reports.every((r) => r.provider === "eleven_labs"), "ElevenLabs accounts only");
+assert.deepEqual(["armed", "active", "capped", "unlimited"].map((k) => byAccount[k].overage.state), ["armed", "active", "cap_reached", "active"], "extra-usage states");
+assert.equal(byAccount.voice.overage, undefined, "a plan without extra usage has no overage");
+const extra = byAccount.unlimited.metrics.find((m) => m.billing === "overage" && m.kind === "usage");
+assert.ok(extra.unlimited && extra.limit == null && extra.uncapped, "the extra-credit counter states no cap");
+assert.ok(byAccount.capped.metrics.some((m) => m.billing === "overage" && m.limit > 0 && m.used >= m.limit), "an extra-credit counter at its cap");
+assert.equal(byAccount.nolimit.binding, null, "no binding without a reported limit");
+assert.ok(byAccount.nolimit.notes_l10n.some((n) => n.id === "note.eleven_labs.limit_missing"));
+const zero = byAccount.free.metrics[0];
+assert.deepEqual([zero.limit, zero.remaining, zero.state, byAccount.free.class, byAccount.free.binding.reason], [0, 0, "exhausted", "exhausted", "exhausted"], "a zero limit is exhausted (RF3)");
+assert.ok(byAccount.renewal.binding.renewal_due && byAccount.renewal.binding.blocked_until == null, "a reset past at the reading is a renewal due (RF4)");
+assert.equal(byAccount.renewal.metrics[0].resets_label.id, "metric.renewal_due");
+assert.deepEqual([byAccount.scope.status, byAccount.scope.notes_l10n[0].id], ["authentication_error", "note.eleven_labs.scope_missing"]);
+assert.deepEqual([byAccount.drift.status, byAccount.drift.drift.paths[0].path], ["error", "character_count"], "the changed response names its path");
+// One status per source (RF9): the EU page has the incident, the US page none; each links its own sub-page.
+assert.deepEqual([byAccount.eu.incident.source, byAccount.eu.incident.state, byAccount.eu.incident.page_url], ["eu", "partial_outage", "https://status.elevenlabs.io/eu"]);
+assert.deepEqual([byAccount.us.incident.source, byAccount.us.incident.state, byAccount.us.incident.incident, byAccount.us.incident.page_url],
+  ["united-states", "operational", null, "https://status.elevenlabs.io/united-states"]);
+assert.ok(el.reports.filter((r) => r !== byAccount.eu).every((r) => r.incident.state === "operational"), "the EU incident stays on the EU account");
+// Every text the set shows is a core id the shipped catalogs carry (the labels, units and notes the adapter writes).
+const { readFileSync } = await import("node:fs");
+const core = JSON.parse(readFileSync(new URL("../crates/cuotai-core/locales/de.json", import.meta.url), "utf8"));
+const ids = new Set(el.reports.flatMap((r) => [...(r.notes_l10n ?? []).map((n) => n.id), ...r.metrics.flatMap((m) => [m.label_text?.id, m.unit_text?.id])]).filter(Boolean));
+for (const id of ids) assert.ok(id in core, `core catalog id ${id}`);
+const elSchema = await elLib.formSchema("eleven_labs");
+assert.deepEqual([elSchema.credential_kind, elSchema.default_env, elSchema.secret_inputs[0].key_page], ["env", "ELEVENLABS_API_KEY", "https://elevenlabs.io/app/api/api-keys"]);
+assert.deepEqual(elSchema.fields.map((f) => [f.id, f.label.id]), [["field.eleven_labs.region", "field.eleven_labs.region.label"]]);
+assert.deepEqual(elSchema.fields[0].options.map((o) => o.id), ["default", "us", "eu", "in", "sg"].map((v) => `field.eleven_labs.region.option.${v}`));
+for (const o of elSchema.fields[0].options) assert.ok(o.label.id in core, `core catalog id ${o.label.id}`);
+assert.deepEqual(await elLib.visibleFields("eleven_labs", {}, "credential"), ["region"]);
+console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form");
 process.exit(0); // the shared modules keep a BroadcastChannel open

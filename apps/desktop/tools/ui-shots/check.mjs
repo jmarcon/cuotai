@@ -191,7 +191,15 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // details, never a past "blocked until".
   ["main-renewal-due", "index.html?renewal-due", 1200, 820, {}],
   ["tray-renewal-due", "tray.html?renewal-due", 380, 600, {}],
-  ["details-renewal-due", "index.html?renewal-due", 1200, 820, {}, '.card[data-card="claude::renewal@example.com"] [data-details]'],
+  ["details-renewal-due", "index.html?renewal-due", 1200, 820, {}, '.card[data-card="claude::renewal@example.com"] [data-details]'],  // PRD 0037 re-validation (V-09): the ElevenLabs set (extra usage armed, active, capped and with no cap, a missing
+  // limit, the zero-limit free plan, a renewal due, a key without permission, a changed response, the EU incident beside
+  // the operational US page), its details and tray rows, and the Add account form with the core's region choice.
+  ["main-eleven", "index.html?eleven", 1200, 820, {}],
+  ["main-eleven-narrow", "index.html?eleven", 520, 820, {}],
+  ["tray-eleven", "tray.html?eleven", 380, 600, {}],
+  ["details-eleven", "index.html?eleven", 1200, 820, {}, '.card[data-card="eleven_labs::unlimited@example.com"] [data-details]'],
+  ["details-eleven-incident", "index.html?eleven", 1200, 820, {}, '.card[data-card="eleven_labs::eu@example.com"] [data-details]'],
+  ["dialog-add-eleven", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="eleven_labs"]']],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [
