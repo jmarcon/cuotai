@@ -212,7 +212,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2841,6 +2842,7 @@
     "other": "{count} 天前设置"
   },
   "cost.error.rate_too_small": "汇率太小：至少使用 0.000001。",
+  "cost.error.label_characters": "标签不能包含不可见字符或方向字符。",
   "cost.block.sessions": {
     "other": "{count} 个会话"
   },

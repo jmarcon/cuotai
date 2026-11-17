@@ -192,7 +192,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2879,6 +2880,7 @@
     "other": "{count} दिन पहले तय"
   },
   "cost.error.rate_too_small": "दर बहुत छोटी है: कम से कम 0.000001 इस्तेमाल करें।",
+  "cost.error.label_characters": "लेबल में अदृश्य या दिशा बदलने वाले वर्ण नहीं हो सकते।",
   "cost.block.sessions": {
     "one": "{count} सत्र",
     "other": "{count} सत्र"

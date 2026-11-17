@@ -220,7 +220,12 @@ fn normalized_dir(cwd: &str) -> Option<String> {
 pub(crate) fn folder_name(cwd: &str) -> Option<String> {
     let normalized = normalized_dir(cwd)?;
     let last = normalized.rsplit('/').next().unwrap_or_default();
-    let clean: String = last.chars().filter(|c| !c.is_control()).take(64).collect();
+    // S-05: no control, direction or other invisible character.
+    let clean: String = last
+        .chars()
+        .filter(|c| !crate::text::is_hidden(*c))
+        .take(64)
+        .collect();
     (!clean.trim().is_empty()).then_some(clean)
 }
 

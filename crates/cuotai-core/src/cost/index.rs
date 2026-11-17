@@ -360,16 +360,29 @@ pub const MAX_LABEL_CHARS: usize = 48;
 pub const MIN_PREFIX: usize = 4;
 
 /// A label as stored: trimmed, 1 to [`MAX_LABEL_CHARS`] characters, no
-/// control characters.
+/// control, direction or other invisible character
+/// ([`crate::text::is_hidden`], PRD 0042 re-validation S-05). The CLI,
+/// the desktop and the backup import all go through it.
 fn clean_label(label: &str) -> Result<String, CostError> {
     let label = label.trim();
-    if label.is_empty()
-        || label.chars().count() > MAX_LABEL_CHARS
-        || label.chars().any(char::is_control)
-    {
+    if label.is_empty() || label.chars().count() > MAX_LABEL_CHARS {
         return Err(CostError::InvalidLabel);
     }
+    if label.chars().any(crate::text::is_hidden) {
+        return Err(CostError::LabelCharacters);
+    }
     Ok(label.to_owned())
+}
+
+/// A label or folder name read back from the index without its
+/// [`crate::text::is_hidden`] characters (S-05: values stored before the
+/// filter existed); `None` when nothing visible is left.
+fn shown(value: Option<String>) -> Option<String> {
+    let value = value?;
+    match crate::text::strip_hidden(&value) {
+        std::borrow::Cow::Borrowed(_) => Some(value),
+        std::borrow::Cow::Owned(clean) => (!clean.trim().is_empty()).then_some(clean),
+    }
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -1358,8 +1371,8 @@ impl CostIndex {
         let rows = query.query_map([], |row| {
             Ok(ProjectRow {
                 project: row.get(0)?,
-                label: row.get(1)?,
-                folder_hint: row.get(2)?,
+                label: shown(row.get(1)?),
+                folder_hint: shown(row.get(2)?),
                 first_seen: row.get::<_, Option<i64>>(3)?.map(instant_of),
                 last_seen: row.get::<_, Option<i64>>(4)?.map(instant_of),
                 hidden: row.get::<_, i64>(5)? != 0,
@@ -1374,8 +1387,14 @@ impl CostIndex {
             return Ok(Default::default());
         };
         let mut query = db.prepare("SELECT session, label FROM session_labels")?;
-        let rows = query.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
-        Ok(rows.collect::<Result<_, _>>()?)
+        let rows = query.query_map([], |row| Ok((row.get(0)?, shown(row.get(1)?))))?;
+        let mut labels = std::collections::BTreeMap::new();
+        for row in rows {
+            if let (session, Some(label)) = row? {
+                labels.insert(session, label);
+            }
+        }
+        Ok(labels)
     }
 
     /// The one digest of `target` that starts with `prefix` (at least

@@ -32,6 +32,7 @@ const lib = await import("../apps/desktop/ui/js/lib.js");
 const { costCardHtml, liveLineHtml } = await import("../apps/desktop/ui/js/cost.js");
 const { breakdownHtml, breakdownPanelHtml } = await import("../apps/desktop/ui/js/settings/cost-breakdown.js");
 const { costHtml } = await import("../apps/desktop/ui/js/settings/cost.js");
+const { l10nError } = await import("../apps/desktop/ui/js/settings/common.js");
 await i18n.initI18n();
 await i18n.setLocale("en-US");
 
@@ -74,6 +75,13 @@ assert.match(breakdownPanelHtml("session", await lib.costBreakdown("session")), 
   assert.ok(!html.includes("&amp;amp;"), "a name is escaped twice");
 }
 await assert.rejects(lib.costSetLabel("session", sessions.sessions[0].session, "x".repeat(49)));
+// PRD 0042 re-validation S-05: a label with a direction override is refused with the core's own error, shown as the toast.
+await assert.rejects(lib.costSetLabel("session", sessions.sessions[0].session, "Client\u202eX"), (e) => {
+  const err = JSON.parse(e);
+  assert.equal(err.id, "cost.error.label_characters");
+  assert.match(l10nError(e), /invisible or direction/);
+  return true;
+});
 let projects = await lib.costBreakdown("project");
 const first = projects.projects[0];
 await lib.costSetLabel("project", first.project, "Client work");

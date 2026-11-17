@@ -307,6 +307,62 @@ fn strip_disguising_drops_controls_overrides_and_marks() {
     );
 }
 
+/// Whether `c` is a control (`Cc`) or format (`Cf`) character: besides
+/// [`is_disguising`], the bidi marks, zero-width characters,
+/// the byte-order mark, invisible operators, interlinear annotation and
+/// tag characters. None of them is visible text in a note, a label or a
+/// folder name (PRD 0042 re-validation S-05).
+pub fn is_hidden(c: char) -> bool {
+    crate::text::is_disguising(c)
+        || matches!(
+            c,
+            '\u{00AD}'
+                | '\u{0600}'..='\u{0605}'
+                | '\u{061C}'
+                | '\u{06DD}'
+                | '\u{070F}'
+                | '\u{0890}'..='\u{0891}'
+                | '\u{08E2}'
+                | '\u{180E}'
+                | '\u{200B}'..='\u{200F}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{206A}'..='\u{206F}'
+                | '\u{FEFF}'
+                | '\u{FFF9}'..='\u{FFFB}'
+                | '\u{110BD}'
+                | '\u{110CD}'
+                | '\u{13430}'..='\u{1343F}'
+                | '\u{1BCA0}'..='\u{1BCA3}'
+                | '\u{1D173}'..='\u{1D17A}'
+                | '\u{E0001}'
+                | '\u{E0020}'..='\u{E007F}'
+        )
+}
+
+/// `text` without its [`is_hidden`] characters (PRD 0042 re-validation
+/// S-05): for a stored label or folder name that reaches a page or JSON.
+pub fn strip_hidden(text: &str) -> std::borrow::Cow<'_, str> {
+    if text.chars().any(is_hidden) {
+        std::borrow::Cow::Owned(text.chars().filter(|c| !is_hidden(*c)).collect())
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn strip_hidden_drops_format_characters_too() {
+    assert!(matches!(
+        strip_hidden("Client work"),
+        std::borrow::Cow::Borrowed("Client work")
+    ));
+    assert_eq!(
+        strip_hidden("Cli\u{202e}ent\u{200b} \u{feff}wo\u{e0041}rk\u{1b}\u{2066}"),
+        "Client work"
+    );
+    assert!(is_hidden('\u{202e}') && is_hidden('\u{200d}') && !is_hidden('é'));
+}
+
 /// `text` with every [`is_disguising`] character written visibly as
 /// `\u{…}` (its code point in hex) instead of stripped, so a listing shows
 /// exactly what a name, a path or a value holds and no line can be forged

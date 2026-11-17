@@ -176,7 +176,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2805,6 +2806,7 @@
     "other": "đặt cách đây {count} ngày"
   },
   "cost.error.rate_too_small": "Tỷ giá quá nhỏ: hãy dùng ít nhất 0.000001.",
+  "cost.error.label_characters": "Nhãn không được chứa ký tự ẩn hoặc ký tự chỉ hướng.",
   "cost.block.sessions": {
     "other": "{count} phiên"
   },

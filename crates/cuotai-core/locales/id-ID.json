@@ -174,7 +174,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2803,6 +2804,7 @@
     "other": "ditetapkan {count} hari lalu"
   },
   "cost.error.rate_too_small": "Kurs terlalu kecil: gunakan minimal 0.000001.",
+  "cost.error.label_characters": "Label tidak boleh berisi karakter tak terlihat atau karakter arah.",
   "cost.block.sessions": {
     "other": "{count} sesi"
   },

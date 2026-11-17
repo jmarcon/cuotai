@@ -394,9 +394,13 @@ pub enum CostError {
     /// PRD 0030 L-01: a positive rate below the smallest one kept.
     #[error("The rate is too small: use at least 0.000001.")]
     RateTooSmall,
-    /// PRD 0042 RF2.2/RF4.2: an empty, too long or control-character label.
+    /// PRD 0042 RF2.2/RF4.2: an empty or too long label.
     #[error("A label has 1 to 48 characters.")]
     InvalidLabel,
+    /// PRD 0042 re-validation S-05: a label with a control, direction or
+    /// other invisible character.
+    #[error("A label cannot contain invisible or direction characters.")]
+    LabelCharacters,
     /// PRD 0042 RF2.2/RF4.2: no session or project starts with the prefix.
     #[error("No session or project starts with that prefix (at least 4 hexadecimal characters).")]
     UnknownPrefix,
@@ -449,6 +453,9 @@ impl CostError {
                 index::MAX_LABEL_CHARS as u64,
                 "A label has 1 to {max} characters.",
             ),
+            Self::LabelCharacters => {
+                Localized::fixed("cost.error.label_characters", self.to_string())
+            }
             Self::UnknownPrefix => Localized::with_param(
                 "cost.error.unknown_prefix",
                 "min",
