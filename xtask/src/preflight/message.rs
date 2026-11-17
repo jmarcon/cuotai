@@ -1,8 +1,11 @@
 //! The commit-message half of the preflight: the `commit-msg` hook checks a
 //! message before its commit exists, with the rules of the commit gate
-//! ([`crate::changelog_gate::check_message`]), and `--push` applies the two
-//! rules the gate leaves to the author (identity and the skip marker in the
-//! whole message) to the commits of the range.
+//! ([`crate::changelog_gate::check_message`]), plus the author and committer
+//! that `git commit` is about to record. `--push` checks the identity and
+//! the skip marker of the commits of the range early (`commit-policy`). The
+//! CI commit gate applies the same two rules (rule 6 over the whole message,
+//! rule 9 for author, committer and co-authors), so neither is left to the
+//! opt-in hooks.
 
 use std::path::Path;
 
@@ -58,14 +61,24 @@ fn bracketed(text: &str) -> Option<&str> {
 /// Problems of a message as a whole. GitHub honors the skip marker anywhere
 /// in a commit message, and a co-author is an identity too.
 pub fn message_problems(commit: &Commit) -> Vec<String> {
+    skip_marker_problem(commit)
+        .into_iter()
+        .chain(co_author_problems(commit))
+        .collect()
+}
+
+/// The skip marker anywhere in the message (subject, body or trailers).
+pub fn skip_marker_problem(commit: &Commit) -> Option<String> {
+    commits::has_skip_marker(&commit.message).then(|| {
+        "the message carries GitHub's skip marker, which skips every workflow: write \
+         \"the skip marker\" instead"
+            .to_string()
+    })
+}
+
+/// Every `Co-Authored-By:` trailer uses a noreply address.
+pub fn co_author_problems(commit: &Commit) -> Vec<String> {
     let mut out = Vec::new();
-    if commits::has_skip_marker(&commit.message) {
-        out.push(
-            "the message carries GitHub's skip marker, which skips every workflow: write \
-             \"the skip marker\" instead"
-                .to_string(),
-        );
-    }
     for (key, value) in &commit.trailers.all {
         if key.eq_ignore_ascii_case("Co-Authored-By") {
             match bracketed(value) {
@@ -149,11 +162,14 @@ pub fn check_file(repo: &Path, file: &Path) -> Res<()> {
     .iter()
     .map(ToString::to_string)
     .collect();
-    problems.extend(message_problems(&commit));
-    problems.extend(identity_problems(
-        &pending_email(repo, "GIT_AUTHOR_IDENT")?,
-        &pending_email(repo, "GIT_COMMITTER_IDENT")?,
-    ));
+    problems.extend(
+        identity_problems(
+            &pending_email(repo, "GIT_AUTHOR_IDENT")?,
+            &pending_email(repo, "GIT_COMMITTER_IDENT")?,
+        )
+        .into_iter()
+        .map(|p| format!("rule 9: {p}")),
+    );
     if problems.is_empty() {
         return Ok(());
     }
@@ -170,14 +186,12 @@ pub fn check_range(repo: &Path, base: &str, head: &str) -> Res<usize> {
     let commits = commits::load(repo, &format!("{base}..{head}"))?;
     let mut problems = Vec::new();
     for commit in &commits {
-        let identity = git::run(
-            repo,
-            &["log", "-1", "--format=%ae%x1f%ce", commit.sha.as_str()],
-        )?;
-        let (author, committer) = identity.trim().split_once('\u{1f}').unwrap_or(("", ""));
         let found = message_problems(commit)
             .into_iter()
-            .chain(identity_problems(author, committer));
+            .chain(identity_problems(
+                &commit.author_email,
+                &commit.committer_email,
+            ));
         problems.extend(found.map(|p| format!("{} {}: {p}", commit.short(), commit.subject)));
     }
     if problems.is_empty() {

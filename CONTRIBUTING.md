@@ -42,7 +42,7 @@ git config core.hooksPath .githooks
 
 The hooks call `cargo xtask preflight`, which you can also run by hand:
 
-- `--commit` (`pre-commit`, seconds): formatting, `changelog-check`, the privacy test and `actionlint`, only for what is staged. The `commit-msg` hook checks the message format, the trailers and the noreply identity.
+- `--commit` (`pre-commit`, seconds): formatting, `changelog-check`, the privacy test and `actionlint`, only for what is staged. The `commit-msg` hook checks the message format, the trailers and the noreply identity; the CI commit gate applies the same rules, including GitHub's skip marker anywhere in the message and the noreply address of the author, the committer and every co-author.
 - `--push` (`pre-push`, 2 to 10 minutes or more): what CI would run for your diff against `origin/main`.
 - `--full`: everything with no filter, before a release.
 

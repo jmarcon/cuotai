@@ -14,10 +14,13 @@
 //!    with `Changelog-Edit:` may correct released prose);
 //! 5. a release commit changes only the release file set and passes
 //!    `release prepare --check`;
-//! 6. no trailer carries a skip-CI marker;
+//! 6. the message carries no skip-CI marker anywhere (GitHub honours it in
+//!    the subject and the body too);
 //! 7. each sentence passes a light lint;
 //! 8. every `Refs:` reference is well formed and its plan requirement
-//!    exists.
+//!    exists;
+//! 9. author, committer and every `Co-Authored-By:` use a noreply address
+//!    (AGENTS.md, "Commit identity"); a failure masks the address.
 //!
 //! A check added after the cutover would fail commits written before it,
 //! which nobody can fix: history is never rewritten. [`RULES_SINCE`] names,
@@ -59,6 +62,7 @@ pub enum Rule {
     SkipMarker,
     Sentence,
     Refs,
+    Identity,
 }
 
 impl Rule {
@@ -74,6 +78,7 @@ impl Rule {
             Rule::SkipMarker => "6",
             Rule::Sentence => "7",
             Rule::Refs => "8",
+            Rule::Identity => "9",
         }
     }
 
@@ -302,6 +307,15 @@ pub fn footer(rules: &BTreeSet<Rule>) -> String {
                 .to_string(),
         );
     }
+    if rules.contains(&Rule::Identity) {
+        lines.push(
+            "Rule 9: set the repository's user.email to your GitHub noreply address, then \
+             `git commit --amend --reset-author --no-edit` (or `git rebase --exec 'git commit \
+             --amend --reset-author --no-edit' origin/main`); fix a co-author line by amending \
+             the message."
+                .to_string(),
+        );
+    }
     if rules.contains(&Rule::Release) {
         lines.push(
             "Rule 5: prepare the release commit again with `cargo xtask release prepare \
@@ -439,17 +453,16 @@ pub fn check_message(
             ));
         }
     }
-    // Rule 6.
-    for (key, value) in &commit.trailers.all {
-        if commits::has_skip_marker(&format!("{key}: {value}")) {
-            out.push(Problem::new(
-                Rule::SkipMarker,
-                format!(
-                    "trailer '{key}' carries a skip-CI marker, which would skip CI on the release PR"
-                ),
-            ));
-        }
+    // Rule 6, anywhere in the message.
+    if let Some(problem) = crate::preflight::message::skip_marker_problem(commit) {
+        out.push(Problem::new(Rule::SkipMarker, problem));
     }
+    // Rule 9, the co-authors (author and committer need the commit object).
+    out.extend(
+        crate::preflight::message::co_author_problems(commit)
+            .into_iter()
+            .map(|p| Problem::new(Rule::Identity, p)),
+    );
     // Rule 7.
     let applies = |check: &str| scope.applies(check);
     for sentence in &commit.trailers.sentences {
@@ -484,6 +497,12 @@ fn check_commit(
     scope: &Scope,
 ) -> Res<Vec<Problem>> {
     let mut out = check_message(commit, files, plans, scope);
+    // Rule 9.
+    out.extend(
+        crate::preflight::message::identity_problems(&commit.author_email, &commit.committer_email)
+            .into_iter()
+            .map(|p| Problem::new(Rule::Identity, p)),
+    );
     if commit.release_version().is_none() {
         // Rule 4.
         for change in version_changes(repo, &commit.sha, files)? {
@@ -720,11 +739,12 @@ mod tests {
             Rule::SkipMarker,
             Rule::Sentence,
             Rule::Refs,
+            Rule::Identity,
         ]
         .iter()
         .map(|rule| rule.label())
         .collect();
-        assert_eq!(labels, ["1", "2", "2b", "3", "4", "5", "6", "7", "8"]);
+        assert_eq!(labels, ["1", "2", "2b", "3", "4", "5", "6", "7", "8", "9"]);
         let refs = problems("fix(core): a", "Changelog: A fix.\nRefs: something");
         assert_eq!(refs.len(), 1, "{refs:?}");
         assert!(refs[0].starts_with("rule 8: "), "{refs:?}");

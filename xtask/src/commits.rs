@@ -452,6 +452,10 @@ pub struct Commit {
     pub trailers: Trailers,
     /// Trailer problems (lowercase keys, missing reasons…).
     pub problems: Vec<TrailerProblem>,
+    /// The author and committer addresses ([`load`] fills them; empty for
+    /// a message parsed on its own).
+    pub author_email: String,
+    pub committer_email: String,
 }
 
 impl Commit {
@@ -464,6 +468,8 @@ impl Commit {
             header: parse_header(subject),
             trailers,
             problems,
+            author_email: String::new(),
+            committer_email: String::new(),
         }
     }
 
@@ -686,7 +692,7 @@ pub fn load(repo: &Path, range: &str) -> Res<Vec<Commit>> {
             "log",
             "--no-merges",
             "--reverse",
-            "--format=%H%x1f%s%x1f%B%x1e",
+            "--format=%H%x1f%ae%x1f%ce%x1f%s%x1f%B%x1e",
             range,
         ],
     )?;
@@ -698,12 +704,17 @@ pub fn load(repo: &Path, range: &str) -> Res<Vec<Commit>> {
         }
         let mut fields = record.split('\u{1f}');
         let sha = fields.next().unwrap_or_default().trim();
+        let author = fields.next().unwrap_or_default();
+        let committer = fields.next().unwrap_or_default();
         let subject = fields.next().unwrap_or_default();
         let message = fields.next().unwrap_or_default();
         if sha.is_empty() {
             continue;
         }
-        out.push(Commit::parse(sha, subject, message));
+        let mut commit = Commit::parse(sha, subject, message);
+        commit.author_email = author.to_string();
+        commit.committer_email = committer.to_string();
+        out.push(commit);
     }
     Ok(out)
 }
