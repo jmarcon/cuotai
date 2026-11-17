@@ -1,9 +1,9 @@
 // The summary of a main-window card (PRD 0022 mockup 10): the 5 h and weekly limit columns, or the tightest quota, an
 // uncapped metric's text, a renewed window waiting for its reading or the reason there is none. Kept apart from
 // main.js so the card's summary renders (and is tested) without the window.
-import { t, te } from "./i18n.js";
+import { t, te, tl } from "./i18n.js";
 import {
-  billingOverage, cardPace, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, isFullCounter, metricName, paceHtml, paceLineLabel, paceOf, periodText, renewedText, renewedWindowsOf,
+  billingOverage, cardPace, causeText, esc, fmtAmount, fmtShare, icon, isBindingMetric, isBudgetMetric, isFullCounter, metricName, paceHtml, paceLineLabel, paceOf, periodText, renewedText, renewedWindowsOf,
   resetsText, summaryOf, windowsOf,
 } from "./lib.js";
 import { expectedLeft, extraColumnHtml, figureHtml, meterHtml } from "./components.js";
@@ -19,8 +19,10 @@ function limitColumn(r, label, m, pct, stale) {
   const reset = resetsText(m);
   // PRD 0038 F-09: the period only in the tooltip (DS card density).
   const tip = [metricName(m), periodText(m), fmtAmount(m)].filter(Boolean).join(" · ");
-  return `<div class="win${binding ? " binding" : ""}" title="${esc(tip)}">
-    <div class="win-top"><span class="win-name">${esc(label)}</span>${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
+  // PRD 0041 RF2 (re-validation F-08): the person's budget is tagged as such on the card too, as in the details.
+  const budget = isBudgetMetric(m) && m.budget_badge ? tl(m.budget_badge) : "";
+  return `<div class="win${binding ? " binding" : ""}${budget ? " budget" : ""}" title="${esc(tip)}">
+    <div class="win-top"><span class="win-name">${esc(label)}</span>${budget ? `<span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
     ${isFullCounter(m) ? figureHtml(t("metric.full"), "", { role: "warn", cls: "left wordfig", dim: stale })
       : exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale })}
     ${cardMeter(m, pct, stale, label)}

@@ -4318,11 +4318,14 @@ export function summaryOf(r) {
   const planAll = r.metrics.filter((m) => m.kind !== "rate_limit" && !isOverage(m));
   return { kind: planAll.length && !quotas.length ? "hidden" : "none" };
 }
+/** PRD 0041 RF2: a budget the core derived from the person's `[[accounts.budgets]]` (never a provider limit). */
+export const isBudgetMetric = (m) => !!m?.derived_from;
 /** The account's 5h and weekly windows (classification comes from the core: `metric.window`). In each window the tightest
- *  quota among the non-hidden ones wins; null when the account has no such window. */
+ *  quota among the non-hidden ones wins; null when the account has no such window. A budget never takes a provider
+ *  window's slot (PRD 0041 re-validation F-08): it keeps its own name in the tightest-quota column. */
 export function windowsOf(r) {
   const when = (m) => (m.resets_at ? new Date(m.resets_at).getTime() : Infinity);
-  const pick = (w) => planMetrics(r).filter((m) => m.window === w).map((m) => ({ m, pct: remainingPct(m) })).filter((x) => x.pct != null)
+  const pick = (w) => planMetrics(r).filter((m) => m.window === w && !isBudgetMetric(m)).map((m) => ({ m, pct: remainingPct(m) })).filter((x) => x.pct != null)
     .sort((a, b) => a.pct - b.pct || when(a.m) - when(b.m))[0] ?? null;
   return { h5: pick("window_5h"), week: pick("weekly") };
 }
@@ -4330,7 +4333,7 @@ export function windowsOf(r) {
  *  slot value), so a card with a renewed 5 h window beside a current week says "Renewed at …" instead of "—". */
 export function renewedWindowsOf(r) {
   const when = (m) => (m.resets_at ? new Date(m.resets_at).getTime() : Infinity);
-  const pick = (w) => planMetrics(r).filter((m) => m.window === w && isRenewedWaiting(m)).sort((a, b) => when(a) - when(b))[0] ?? null;
+  const pick = (w) => planMetrics(r).filter((m) => m.window === w && !isBudgetMetric(m) && isRenewedWaiting(m)).sort((a, b) => when(a) - when(b))[0] ?? null;
   return { h5: pick("window_5h"), week: pick("weekly") };
 }
 /** Worst % available among the rate-limit windows (non-hidden); null when there are none. */

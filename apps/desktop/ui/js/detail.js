@@ -3,7 +3,7 @@
 import { t, te, tl } from "./i18n.js";
 import {
   STALE, paceUnit, accessHtml, ageHtml, bindingChipText, fmtShare, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isFullCounter, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric, periodText, utcMidnightResetText,
+  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isFullCounter, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric, periodText, utcMidnightResetText, isBudgetMetric,
 } from "./lib.js";
 import { expectedLeft, fmtAt, meterHtml, stageChip, TONE_ROLE } from "./components.js";
 import { breakdownHtml } from "./breakdown.js";
@@ -15,9 +15,10 @@ const LONG_WINDOW = { window_5h: "h5", weekly: "week" };
 function limitLabel(r, m) {
   const own = tl(m.label_text ?? m.label);
   const long = LONG_WINDOW[m.window];
-  if (!long) return own;
+  // PRD 0041 re-validation F-08: a budget keeps the person's own name, never the provider window's.
+  if (!long || isBudgetMetric(m)) return own;
   const window = t(`card.window.long.${long}`);
-  if ((r.metrics ?? []).filter((x) => x.window === m.window).length < 2) return window;
+  if ((r.metrics ?? []).filter((x) => x.window === m.window && !isBudgetMetric(x)).length < 2) return window;
   return m.scope?.label ? `${m.scope.label} · ${window}` : own;
 }
 
