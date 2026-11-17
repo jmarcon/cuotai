@@ -3054,14 +3054,14 @@ const demoDayRows = (id, back) => Object.keys(DEMO_COST[id].models).flatMap((mod
 /** The core's `CostSummary` of the demo sources over the saved period. */
 const demoCostUsage = () => {
   const now = new Date();
-  const span = { today: 0, last_7_days: 6, last_30_days: 29, current_month: now.getDate() - 1, all: 44 }[demoCost.period];
+  const span = demoSpanDays();
   const at = (back) => { const d = new Date(now); d.setDate(d.getDate() - back); return dayKey(d); };
   const noAccess = new URLSearchParams(location.search).has("cost-noaccess");
   const sources = Object.entries(DEMO_COST).map(([id, s]) => {
     const base = { source: id, label: s.label, providers: s.providers };
     if (!(id in demoCost.on)) return { ...base, state: "off", note: demoL10n("cost.scan.off", { source: s.label }, `${s.label}: off; nothing is read.`), usage: null };
     const kept = !demoCost.erased.has(id);
-    const rowsOf = (back) => (kept ? demoDayRows(id, back) : []);
+    const rowsOf = (back) => (kept ? demoShownRows(id, back) : []);
     const days = [];
     for (let back = span; back >= 0; back--) {
       const e = demoEstimate(rowsOf(back));
@@ -3080,80 +3080,180 @@ const demoCostUsage = () => {
   });
   const label = demoL10n(`cost.period.${demoCost.period}`, {}, DEMO_PERIODS[demoCost.period]);
   const all = Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id))
-    .flatMap((id) => Array.from({ length: span + 1 }, (_, back) => demoDayRows(id, back)).flat());
+    .flatMap((id) => Array.from({ length: span + 1 }, (_, back) => demoShownRows(id, back)).flat());
   const total = demoEstimate(all);
   const unpriced = total.models.filter((m) => m.cost == null).map((m) => m.model);
+  const hidden = demoHiddenProjects();
   const oldest = total.tables.reduce((a, b) => (a && a.age_days >= b.age_days ? a : b), null);
   // C-07: the desktop's `display_text`, the core's `DisplayCurrency::text_for` of each source's period.
   const display = demoPlan.display ? Object.fromEntries(sources.filter((s) => s.usage).map((s) => [s.source, demoDisplayText(s.usage.period)]).filter(([, v]) => v)) : {};
   return { currency: "USD", notice: demoNotice(), span: { period: demoCost.period, days: null, label, first_day: demoCost.period === "all" ? null : at(span), last_day: at(0) }, sources,
     total, pricing_error: null, live: demoLive(), prices_effective: oldest?.effective ?? null, prices_age_days: oldest?.age_days ?? null, prices_age: oldest?.age ?? null,
-    unpriced_models: unpriced, unpriced: demoUnpriced(unpriced),
+    unpriced_models: unpriced, unpriced: demoUnpriced(unpriced), ...(hidden.count ? { hidden_projects: hidden.count } : {}), hidden_note: hidden.note,
     ...(demoPlan.notes.length ? { settings_notes: demoPlan.notes } : {}), ...(Object.keys(display).length ? { display_text: display } : {}) };
 };
 const demoUnpriced = (models) => (models.length ? demoL10n("cost.prices.unpriced", { models: listText(models) }, `No price for: ${models.join(", ")}`) : null);
-// PRD 0042 demo: sessions, 5-hour blocks and projects built from the same synthetic days; the active block started
-// 80 minutes ago. Digests are fixed placeholders; labels and hidden projects live for the page's life.
+// PRD 0042 demo: sessions, blocks and projects built from the same synthetic days, in the core's shapes (re-validation
+// L-12: only states the core can produce). The rows of a day belong to the project `DEMO_PROJECTS[back % 2]`, the
+// third project has rows of its own and starts hidden with `?cost` (M-05: a hidden project leaves every figure, and
+// each view says so in `hidden_note`). Today is the active block, one session per source: Claude Code's rows are half
+// on a model without a price (H-01: the live line keeps "+ unknown cost", the projection is `money_partial`), Codex
+// CLI's have too few recent requests for a burn rate (`rate_missing`). Times are written in the computer's time, like
+// the core's `local_text`. Digests are fixed placeholders; labels and hidden projects live for the page's life.
 const demoOn = () => Object.keys(DEMO_COST).filter((id) => id in demoCost.on && !demoCost.erased.has(id));
-const demoBlock = (id, back, active) => {
+const DEMO_PROJECTS = ["3f9a1c2e7b4d5a60", "a81d0c44e2f97b13", "c27e5b90d4a1f836"];
+const DEMO_HIDDEN_PROJECT = DEMO_PROJECTS[2];
+// K3: the folder names the desktop gets beside the projects page (`hints`), never on a project row.
+const DEMO_FOLDERS = { [DEMO_PROJECTS[0]]: ["claude_code", "client-portal-redesign"], [DEMO_PROJECTS[1]]: ["codex_cli", "infra"] };
+if (new URLSearchParams(location.search).has("cost")) {
+  demoCost.hidden.add(DEMO_HIDDEN_PROJECT);
+  demoCost.hints.claude_code = true;
+}
+const demoShown = (digest) => !demoCost.hidden.has(digest);
+/** The active block's requests of `id` (today, in `DEMO_PROJECTS[0]`). */
+const demoLiveRows = (id) => (id === "claude_code"
+  ? [{ model: "claude-sonnet-4-5-20250929", requests: 30, tokens: { input: 40_000, output: 20_000, cache_read: 320_000, cache_write: 30_000, cache_write_1h: 0 } },
+    { model: "claude-haiku-5-5", requests: 26, tokens: { input: 38_000, output: 18_000, cache_read: 330_000, cache_write: 24_000, cache_write_1h: 0 } }]
+  : [{ model: "gpt-5-codex", requests: 18, tokens: { input: 25_000, output: 9_000, cache_read: 140_000, cache_write: 0, cache_write_1h: 0 } }]);
+/** The hidden project's own requests: Claude Code, three days ago. */
+const demoHiddenRows = (id, back) => (id === "claude_code" && back === 3
+  ? [{ model: "claude-sonnet-4-5-20250929", requests: 9, tokens: { input: 12_000, output: 6_000, cache_read: 90_000, cache_write: 8_000, cache_write_1h: 0 } }] : []);
+/** The rows of `id` on the day `back` days ago that `project` holds. */
+const demoProjectRows = (project, id, back) => (project === DEMO_HIDDEN_PROJECT ? demoHiddenRows(id, back)
+  : project === DEMO_PROJECTS[back % 2] ? (back === 0 ? demoLiveRows(id) : demoDayRows(id, back)) : []);
+/** Every row of `id` on the day `back` days ago, the hidden projects' left out. */
+const demoShownRows = (id, back) => DEMO_PROJECTS.filter(demoShown).flatMap((p) => demoProjectRows(p, id, back));
+/** The span's days, `back` from 0 (today). */
+const demoSpanDays = () => ({ today: 0, last_7_days: 6, last_30_days: 29, current_month: new Date().getDate() - 1, all: 44 }[demoCost.period]);
+/** The hidden projects with requests in the span, and the core's `cost.hidden.note` (`null` for none). */
+const demoHiddenProjects = () => {
+  const days = Array.from({ length: demoSpanDays() + 1 }, (_, back) => back);
+  const count = DEMO_PROJECTS.filter((p) => !demoShown(p) && demoOn().some((id) => days.some((back) => demoProjectRows(p, id, back).length))).length;
+  const note = count ? demoL10n("cost.hidden.note", { count },
+    count === 1 ? "{count} hidden project is not counted in these figures." : "{count} hidden projects are not counted in these figures.") : null;
+  return { count, note };
+};
+const pad2 = (n) => String(n).padStart(2, "0");
+/** The core's `local_text` with "%Y-%m-%d %H:%M" (`date`) or "%H:%M". */
+const demoLocal = (at, date = false) => { const d = new Date(at); return `${date ? `${dayKey(d)} ` : ""}${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const demoDuration = (m) => (m < 60 ? demoL10n("cost.duration.minutes", { m }, "{m}m") : demoL10n("cost.duration.hours", { h: Math.floor(m / 60), m: m % 60 }, "{h}h {m}m"));
+/** The core's `compact_tokens`. */
+const demoCompact = (n) => {
+  if (n < 1000) return String(n);
+  const [div, suffix] = n < 1e6 ? [1e3, "K"] : n < 1e9 ? [1e6, "M"] : [1e9, "B"];
+  const v = n / div;
+  return `${String(Number(v.toFixed(v < 10 ? 2 : v < 100 ? 1 : 0)))}${suffix}`;
+};
+const demoCents = (usd) => demoMoney(Math.round(usd * 100) / 100);
+const demoProjectName = (digest) => {
+  const label = demoCost.labels[digest];
+  return label ? demoL10n("cost.project.labelled", { label }, "{label}") : demoL10n("cost.project.name", { short: digest.slice(0, 8) }, "Project {short}");
+};
+/** The core's `BlockSummary` of `rows`; the active one started about 80 minutes ago, on the hour. */
+const demoBlock = (id, back, rows) => {
   const now = Date.now();
   const hours = demoCost.hours[id] ?? DEMO_BLOCK_HOURS[id];
+  const active = back === 0;
   const start = new Date(active ? now - 80 * 60_000 : now - (back * 24 + 3) * 3_600_000);
   start.setMinutes(0, 0, 0);
+  if (active && start.getTime() + hours * 3_600_000 <= now) start.setTime(now - (now % 3_600_000));
   return { source: id, start: start.toISOString(), end: new Date(start.getTime() + hours * 3_600_000).toISOString(), active,
-    last_request: new Date(active ? now - 60_000 : start.getTime() + 3_600_000).toISOString(), sessions: active ? 2 : 1, projects: 1,
-    estimate: demoEstimate(demoDayRows(id, back)), provider_window: null };
+    last_request: new Date(active ? now - 60_000 : start.getTime() + 3_600_000).toISOString(), sessions: 1, projects: 1,
+    estimate: demoEstimate(rows), provider_window: null };
 };
+/** The core's `LiveBlock` of each source on, with the shared contract's fields (K1). */
 function demoLive() {
+  if (!demoShown(DEMO_PROJECTS[0])) return [];
   return demoOn().map((id) => {
-    const block = demoBlock(id, 0, true);
-    const cost = block.estimate.total;
-    return { block, elapsed_minutes: 80, left_minutes: (demoCost.hours[id] ?? DEMO_BLOCK_HOURS[id]) * 60 - 80, burn_rate_tokens_per_min: 38000, projected_block_cost: cost == null ? null : cost * 3.1,
-      line: cost == null ? null : demoL10n("cost.live.line", { cost: demoUsd(cost), rate: "38K" }, `This block ≈ ${demoUsd(cost)} · 38K tok/min`),
-      projection: cost == null ? null : demoL10n("cost.live.projection", { cost: demoUsd(cost * 3.1), at: "18:00" }, `At this rate ≈ ${demoUsd(cost * 3.1)} by 18:00`) };
+    const block = demoBlock(id, 0, demoLiveRows(id));
+    const e = block.estimate;
+    const now = Date.now();
+    const elapsed = Math.floor((now - Date.parse(block.start)) / 60_000);
+    const left = Math.max(0, Math.floor((Date.parse(block.end) - now) / 60_000));
+    const tokens = tokenSum(e.tokens), unknown = tokenSum(e.unknown_tokens);
+    const at = demoLocal(block.end);
+    const base = { block, elapsed_minutes: elapsed, left_minutes: left, burn_rate_tokens_per_min: null, projected_block_cost: null, line: null, projection: null,
+      unknown_tokens: unknown, projected_tokens: null, projected_unknown_tokens: null, projection_kind: null, rate_missing: null };
+    if (id !== "claude_code") {
+      return { ...base, rate_missing: demoL10n("cost.live.rate_few", { min: 3, minutes: 10, count: 2 }, "Burn rate: needs at least {min} requests in the last {minutes} minutes; {count} so far.") };
+    }
+    // 38K tokens a minute over the last ten minutes, 40 % of them on the model without a price.
+    const rate = 38_000, recentUnknown = 0.4;
+    const rateText = demoCompact(rate);
+    const line = e.total == null
+      ? demoL10n("cost.live.line_unknown", { tokens: demoCompact(tokens), rate: rateText }, "This block: {tokens} tokens, unknown cost · {rate} tok/min")
+      : unknown
+        ? demoL10n("cost.live.line_partial", { cost: demoCents(e.total), unknown: demoCompact(unknown), rate: rateText }, "This block ≈ {cost} + unknown cost of {unknown} tokens · {rate} tok/min")
+        : demoL10n("cost.live.line", { cost: demoCents(e.total), rate: rateText }, "This block ≈ {cost} · {rate} tok/min");
+    const out = { ...base, burn_rate_tokens_per_min: rate, line };
+    const length = Date.parse(block.end) - Date.parse(block.start);
+    if (e.total == null || elapsed * 60_000 < 0.2 * length) return out;
+    const projectedTokens = Math.round(tokens + rate * left);
+    const projectedUnknown = Math.round(unknown + rate * recentUnknown * left);
+    const pricedPerToken = e.total / (tokens - unknown);
+    const cost = e.total + pricedPerToken * rate * (1 - recentUnknown) * left;
+    const kind = projectedUnknown === 0 ? "money" : projectedUnknown / projectedTokens >= 0.5 ? "tokens" : "money_partial";
+    const projection = kind === "tokens"
+      ? demoL10n("cost.live.projection_tokens", { tokens: demoCompact(projectedTokens), at }, "At this rate ≈ {tokens} tokens by {at}; most of them have no known price, so no cost is projected")
+      : kind === "money_partial"
+        ? demoL10n("cost.live.projection_partial", { cost: demoCents(cost), unknown: demoCompact(projectedUnknown), at }, "At this rate ≈ {cost} + unknown cost of about {unknown} tokens by {at}")
+        : demoL10n("cost.live.projection", { cost: demoCents(cost), at }, "At this rate ≈ {cost} by {at}");
+    return { ...out, projected_block_cost: kind === "tokens" ? null : Math.round(cost * 1e6) / 1e6, projection, projected_tokens: projectedTokens,
+      projected_unknown_tokens: projectedUnknown, projection_kind: kind };
   });
 }
-const DEMO_PROJECTS = ["3f9a1c2e7b4d5a60", "a81d0c44e2f97b13"];
 function demoBreakdown(by, offset = 0) {
   const usage = demoCostUsage();
-  // M-05: the core's note of the hidden projects, on every tab (the demo's figures keep them; K10 rebuilds the data).
-  const count = demoCost.hidden.size;
-  const note = count ? { hidden_note: demoL10n("cost.hidden.note", { count: String(count) },
-    `${count} hidden ${count === 1 ? "project is" : "projects are"} not counted in these figures.`) } : {};
-  const base = { notice: demoNotice(), span: usage.span, total: usage.total, ...note };
+  const hidden = demoHiddenProjects();
+  const base = { notice: demoNotice(), span: usage.span, total: usage.total, hidden_note: hidden.note };
   const label = (digest) => demoCost.labels[digest] ?? null;
-  if (by === "day" || by === "model") return { ...usage, ...note };
+  if (by === "day" || by === "model") return usage;
+  const span = demoSpanDays();
   if (by === "session") {
-    const sessions = demoOn().flatMap((id, i) => [0, 1, 2].map((back) => {
-      const digest = `${id.length}${i}${back}`.padEnd(64, "c");
-      const first = new Date(Date.now() - (back * 24 + 2) * 3_600_000);
-      const minutes = 40 + back * 35;
-      const name = label(digest) ? demoL10n("cost.session.labelled", { label: label(digest) }, label(digest))
-        : demoL10n("cost.session.name", { start: first.toISOString().slice(0, 16).replace("T", " "), end: "", duration: `${minutes}m` }, `Session · ${first.toISOString().slice(0, 16).replace("T", " ")} · ${minutes}m`);
-      return { source: id, session: digest, short: digest.slice(0, 8), label: label(digest), name, first: first.toISOString(),
-        last: new Date(first.getTime() + minutes * 60_000).toISOString(), duration_minutes: minutes, project: DEMO_PROJECTS[back % 2], estimate: demoEstimate(demoDayRows(id, back)) };
-    }));
-    return { ...base, count: sessions.length, sessions: sessions.slice(offset, offset + 100) };
+    // One session per source, day and project with requests (the core lists no session without one).
+    const sessions = demoOn().flatMap((id, i) => Array.from({ length: Math.min(span, 3) + 1 }, (_, back) => back).flatMap((back) => DEMO_PROJECTS.filter(demoShown).map((project) => {
+      const rows = demoProjectRows(project, id, back);
+      if (!rows.length) return null;
+      const digest = `${id.length}${i}${back}${DEMO_PROJECTS.indexOf(project)}`.padEnd(64, "c");
+      // Today's session runs inside the active block (it started on the hour, at least 80 minutes ago).
+      const minutes = back ? 40 + back * 35 : 70 - i * 20;
+      const first = new Date(Date.now() - (back ? (back * 24 + 2) * 3_600_000 + DEMO_PROJECTS.indexOf(project) * 5 * 3_600_000 + i * 12 * 60_000 : (75 - i * 20) * 60_000));
+      const last = new Date(first.getTime() + minutes * 60_000);
+      const times = { start: demoLocal(first, true), end: demoLocal(last), duration: demoDuration(minutes) };
+      const name = label(digest) ? demoL10n("cost.session.labelled", { label: label(digest), ...times }, "{label} · {start}–{end} · {duration}")
+        : demoL10n("cost.session.name", times, "Session · {start}–{end} · {duration}");
+      return { source: id, session: digest, short: digest.slice(0, 8), label: label(digest), name, first: first.toISOString(), last: last.toISOString(),
+        duration_minutes: minutes, project, estimate: demoEstimate(rows), project_name: demoProjectName(project) };
+    }).filter(Boolean))).sort((a, b) => b.last.localeCompare(a.last) || a.session.localeCompare(b.session));
+    return { ...base, count: sessions.length, total: demoEstimate(demoOn().flatMap((id) => Array.from({ length: span + 1 }, (_, back) => demoShownRows(id, back)).flat())), sessions: sessions.slice(offset, offset + 100) };
   }
   if (by === "block") {
-    const blocks = demoOn().flatMap((id) => [demoBlock(id, 0, true), demoBlock(id, 1, false), demoBlock(id, 2, false)]);
-    return { ...base, blocks, live: demoLive() };
+    // The active block first (K7), then the closed ones newest first; a block with no shown request is not listed.
+    const blocks = demoOn().flatMap((id) => [0, 1, 2].filter((back) => back <= span).map((back) => {
+      const rows = back === 0 ? (demoShown(DEMO_PROJECTS[0]) ? demoLiveRows(id) : []) : demoShownRows(id, back);
+      return rows.length ? { block: demoBlock(id, back, rows), rows } : null;
+    }).filter(Boolean)).sort((a, b) => Number(b.block.active) - Number(a.block.active) || b.block.start.localeCompare(a.block.start) || a.block.source.localeCompare(b.block.source));
+    // R-02: the total is the sum of the listed blocks.
+    return { ...base, total: demoEstimate(blocks.flatMap((b) => b.rows)), blocks: blocks.map((b) => b.block), live: demoLive() };
   }
-  const projects = (demoOn().length ? DEMO_PROJECTS : []).map((digest, i) => {
-    const rows = demoOn().flatMap((id) => [i, i + 2].flatMap((back) => demoDayRows(id, back)));
-    return { project: digest, short: digest.slice(0, 8), label: label(digest), hidden: demoCost.hidden.has(digest),
-      name: label(digest) ? demoL10n("cost.project.labelled", { label: label(digest) }, label(digest)) : demoL10n("cost.project.name", { short: digest.slice(0, 8) }, `Project ${digest.slice(0, 8)}`),
-      first: new Date(Date.now() - 5 * 86_400_000).toISOString(), last: new Date().toISOString(), sessions: 2 + i, estimate: demoEstimate(rows) };
-  });
-  const visible = DEMO_PROJECTS.filter((d) => !demoCost.hidden.has(d)).flatMap((_, i) => demoOn().flatMap((id) => [i, i + 2].flatMap((back) => demoDayRows(id, back))));
-  return { ...base, total: demoEstimate(visible), hidden: demoCost.hidden.size, projects, hints: {} };
+  const days = Array.from({ length: span + 1 }, (_, back) => back);
+  const rowsOf = (digest) => demoOn().flatMap((id) => days.flatMap((back) => demoProjectRows(digest, id, back)));
+  const projects = DEMO_PROJECTS.map((digest) => {
+    const rows = rowsOf(digest);
+    if (!rows.length) return null;
+    const backs = days.filter((back) => demoOn().some((id) => demoProjectRows(digest, id, back).length));
+    const at = (back, hours) => new Date(Date.now() - back * 86_400_000 - hours * 3_600_000).toISOString();
+    return { project: digest, short: digest.slice(0, 8), label: label(digest), name: demoProjectName(digest), hidden: !demoShown(digest),
+      first: at(Math.max(...backs), 6), last: at(Math.min(...backs), 0.05), sessions: 2 + DEMO_PROJECTS.indexOf(digest), estimate: demoEstimate(rows) };
+  }).filter(Boolean).sort((a, b) => (b.estimate.total ?? -1) - (a.estimate.total ?? -1) || tokenSum(b.estimate.tokens) - tokenSum(a.estimate.tokens) || a.project.localeCompare(b.project));
+  const hints = Object.fromEntries(projects.map((p) => [p.project, DEMO_FOLDERS[p.project]]).filter(([, f]) => f && demoCost.hints[f[0]] && demoOn().includes(f[0])).map(([d, f]) => [d, f[1]]));
+  return { ...base, total: demoEstimate(DEMO_PROJECTS.filter(demoShown).flatMap(rowsOf)), hidden: hidden.count, projects, hints };
 }
 // PRD 0030 RF1/RF6 demo: plan prices by account id and one typed rate, kept for the page's life like the core's
 // settings. The value line mirrors `cost::plan_values` (C-05: one account, a single line; several, one combined line
 // with a ratio only when every account has a plan in one currency and on one cycle day; the front ends show it only on
 // the planned ids) and its texts use the core's ids and English wording with `amount.money` / `amount.number` params.
 const demoPlan = { plans: {}, display: null, notes: [] };
-const demoUsd = (amount) => `$${amount.toFixed(2)}`;
 const demoNumber = (value) => ({ id: "amount.number", params: { value: String(value) }, fallback: String(value) });
 /** The core's `DisplayCurrency::age_text`. */
 const demoRateAge = (days) => (days === 0 ? demoL10n("cost.rate.age.today", {}, "set today") : days === 1 ? demoL10n("cost.rate.age.yesterday", {}, "set yesterday")

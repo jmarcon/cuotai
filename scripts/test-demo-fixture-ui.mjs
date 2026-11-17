@@ -227,5 +227,63 @@ const suggestion = await budgetLib.budgetSuggestion(spendIndex, "Requests today"
 assert.equal(suggestion.budget.kind, "usage");
 assert.equal(suggestion.reference.id, "budget.reference.last_30_days");
 await assert.rejects(budgetLib.budgetSuggestion(spendIndex, "Nope"), "an unknown metric is the core's invalid index");
-console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set; the agent-fed accounts, live sessions, banner and Claude form; the budget, floor and allowance set and the budget check");
+// PRD 0042 re-validation (L-12, R-05): `?cost` gives the sessions, blocks and projects in the core's shapes and the
+// shared contracts of the re-validation (field names exactly): only states the core can produce.
+globalThis.location = { search: "?cost" };
+const costLib = await import("../apps/desktop/ui/js/lib.js?cost");
+const tokenTotal = (t) => t.input + t.output + t.cache_read + t.cache_write + (t.cache_write_1h ?? 0);
+const hhmm = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const ymd = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const costPages = Object.fromEntries(await Promise.all(["day", "session", "block", "project"].map(async (by) => [by, await costLib.costBreakdown(by)])));
+// M-05 (K2): one hidden project, said on every page, counted on the summary.
+for (const [by, page] of Object.entries(costPages)) {
+  assert.deepEqual([page.hidden_note?.id, page.hidden_note?.params.count], ["cost.hidden.note", 1], `${by}: the hidden note`);
+}
+assert.equal(costPages.day.hidden_projects, 1, "the summary counts the hidden project");
+// K3: the folder names come beside the projects, never on a row.
+const projectPage = costPages.project;
+assert.ok(projectPage.projects.every((p) => !("folder_hint" in p)), "no folder_hint on a project row");
+assert.equal(typeof projectPage.hints, "object", "the projects page has its hints map");
+assert.ok(Object.entries(projectPage.hints).length && Object.entries(projectPage.hints).every(([d, name]) => /^[0-9a-f]{16}$/.test(d) && typeof name === "string"), "hints by 16-hex digest");
+const hiddenProject = projectPage.projects.find((p) => p.hidden);
+assert.ok(hiddenProject && projectPage.hidden === 1, "the hidden project stays listed and flagged");
+const shownRequests = projectPage.projects.filter((p) => !p.hidden).reduce((n, p) => n + p.estimate.requests, 0);
+assert.equal(projectPage.total.requests, shownRequests, "the projects total leaves the hidden project out");
+assert.equal(costPages.day.total.requests, shownRequests, "and so does the summary");
+// Blocks: the active ones first, none without usage, the total is the listed blocks' sum (R-02).
+const { blocks, live } = costPages.block;
+const firstClosed = blocks.findIndex((b) => !b.active);
+assert.ok(firstClosed > 0 && blocks.slice(firstClosed).every((b) => !b.active), "active blocks first");
+assert.ok(blocks.every((b) => tokenTotal(b.estimate.tokens) > 0 && b.estimate.requests > 0), "no block without usage");
+assert.equal(costPages.block.total.requests, blocks.reduce((n, b) => n + b.estimate.requests, 0), "the blocks total is their sum");
+// The live blocks (K1): Claude Code half unpriced with a partial projection, Codex CLI without a burn rate.
+const liveOf = Object.fromEntries(live.map((l) => [l.block.source, l]));
+const claudeLive = liveOf.claude_code, codexLive = liveOf.codex_cli;
+assert.ok(live.every((l) => tokenTotal(l.block.estimate.tokens) > 0), "no live block without usage");
+assert.ok(live.every((l) => l.line == null || l.burn_rate_tokens_per_min > 0), "a line only with a burn rate");
+assert.ok(live.every((l) => ["unknown_tokens", "projected_tokens", "projected_unknown_tokens", "projection_kind", "rate_missing"].every((k) => k in l)), "the LiveBlock fields");
+assert.equal(claudeLive.unknown_tokens, tokenTotal(claudeLive.block.estimate.unknown_tokens));
+assert.equal(claudeLive.unknown_tokens * 2, tokenTotal(claudeLive.block.estimate.tokens), "half of the block has no price");
+assert.deepEqual([claudeLive.line.id, claudeLive.projection.id, claudeLive.projection_kind], ["cost.live.line_partial", "cost.live.projection_partial", "money_partial"]);
+assert.ok(claudeLive.projected_block_cost > 0 && claudeLive.projected_unknown_tokens / claudeLive.projected_tokens < 0.5, "a money projection below half unpriced");
+assert.equal(claudeLive.line.params.cost.id, "amount.money", "the money is the core's amount");
+assert.equal(claudeLive.projection.params.at, hhmm(claudeLive.block.end), "the projection ends with the block, in local time");
+assert.equal(claudeLive.rate_missing, null);
+assert.deepEqual([codexLive.line, codexLive.projection, codexLive.projection_kind, codexLive.burn_rate_tokens_per_min, codexLive.rate_missing?.id],
+  [null, null, null, null, "cost.live.rate_few"], "no burn rate: the reason instead of a line");
+// Sessions: names in local time with their end, the project's name (K7), newest first.
+const { sessions } = costPages.session;
+assert.ok(sessions.length && sessions.every((x) => x.estimate.requests > 0), "no session without requests");
+for (const x of sessions) {
+  assert.deepEqual([x.name.params.start, x.name.params.end], [`${ymd(x.first)} ${hhmm(x.first)}`, hhmm(x.last)], "session times in local time");
+  assert.ok(["cost.project.name", "cost.project.labelled"].includes(x.project_name?.id), "the session names its project");
+}
+assert.ok(sessions.every((x, k) => !k || sessions[k - 1].last >= x.last), "newest first");
+assert.ok(!sessions.some((x) => x.project === hiddenProject.project), "no session of the hidden project");
+// Showing the hidden project counts it again and drops the note.
+await costLib.costSetHidden(hiddenProject.project, false);
+const shown = await costLib.costBreakdown("project");
+assert.deepEqual([shown.hidden_note, shown.hidden, shown.total.requests], [null, 0, shownRequests + hiddenProject.estimate.requests]);
+assert.ok(!("hidden_projects" in (await costLib.costUsage())), "no hidden_projects when none is hidden");
+console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set; the agent-fed accounts, live sessions, banner and Claude form; the budget, floor and allowance set and the budget check; the local cost sessions, blocks and projects (`?cost`)");
 process.exit(0); // the shared modules keep a BroadcastChannel open
