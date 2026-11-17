@@ -213,13 +213,16 @@ pub fn run(repo: &Path, opts: &Options) -> Res<Option<Outcome>> {
             if missing == 0 {
                 break;
             }
-            let line = render::entry(commit, sentence, short);
+            let line = render::entry(commit, &sentence.text, short);
             if refreshing && existing.lines().any(|l| l == line) {
                 continue;
             }
             missing -= 1;
             added += 1;
-            entries.entry(commit.category()).or_default().push(line);
+            entries
+                .entry(commit.entry_category(sentence))
+                .or_default()
+                .push(line);
         }
     }
     if refreshing && !opts.refresh && added == 0 {

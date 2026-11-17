@@ -8,7 +8,9 @@
 //! one space). The trailers this module understands are:
 //!
 //! * `Changelog: <sentence>` (several allowed) or `Changelog: skip <reason>`;
-//! * `Changelog-Category: Added|Changed|Deprecated|Removed|Fixed|Security`;
+//!   a sentence may start with its own category, `Changelog: [Security] …`;
+//! * `Changelog-Category: Added|Changed|Deprecated|Removed|Fixed|Security`
+//!   (for a commit with one sentence; the gate refuses it with several);
 //! * `Refs: PRD 0006 RF2, RF3; PRD 0009 RF1` and `Refs: #12` / `issue #12`;
 //! * `BREAKING CHANGE: <migration>` (also `BREAKING-CHANGE:`);
 //! * `Changelog-Edit: <reason>` (a `docs(changelog)` prose correction);
@@ -91,11 +93,44 @@ pub enum Reference {
     Issue(u64),
 }
 
+/// One `Changelog:` sentence and the category of its optional
+/// `[Category]` prefix (F-04), which is stripped from `text`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Entry {
+    pub text: String,
+    pub category: Option<Category>,
+}
+
+impl Entry {
+    pub fn new(text: impl Into<String>, category: Option<Category>) -> Entry {
+        Entry {
+            text: text.into(),
+            category,
+        }
+    }
+}
+
+impl PartialEq<&str> for Entry {
+    fn eq(&self, other: &&str) -> bool {
+        self.category.is_none() && self.text == *other
+    }
+}
+
+/// The six category names, for messages.
+pub fn category_names() -> String {
+    Category::ALL
+        .iter()
+        .map(|c| c.title())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// The trailers of one message (RF1.2).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Trailers {
-    /// Every `Changelog:` sentence, in order (skip lines excluded).
-    pub sentences: Vec<String>,
+    /// Every `Changelog:` sentence, in order (skip lines excluded), with its
+    /// per-entry category.
+    pub sentences: Vec<Entry>,
     /// The reason of `Changelog: skip <reason>`.
     pub skip: Option<String>,
     pub category: Option<Category>,
@@ -237,8 +272,33 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<TrailerProblem>) {
                         "Changelog",
                         "'Changelog:' trailer without a sentence",
                     ));
-                } else {
-                    trailers.sentences.push(value.clone());
+                    continue;
+                }
+                let prefix = value
+                    .strip_prefix('[')
+                    .and_then(|rest| rest.split_once(']'));
+                match prefix {
+                    Some((name, rest)) => {
+                        let name = name.trim();
+                        let text = rest.trim();
+                        match Category::ALL.into_iter().find(|c| c.title() == name) {
+                            Some(category) if !text.is_empty() => {
+                                trailers.sentences.push(Entry::new(text, Some(category)))
+                            }
+                            Some(_) => problems.push(TrailerProblem::new(
+                                "Changelog",
+                                format!("'Changelog: [{name}]' has no sentence after the category"),
+                            )),
+                            None => problems.push(TrailerProblem::new(
+                                "Changelog-Category",
+                                format!(
+                                    "'Changelog: [{name}] …' names an unknown category: use one of {}",
+                                    category_names()
+                                ),
+                            )),
+                        }
+                    }
+                    None => trailers.sentences.push(Entry::new(value.clone(), None)),
                 }
             }
             "Changelog-Category" => match Category::ALL
@@ -249,7 +309,8 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<TrailerProblem>) {
                 None => problems.push(TrailerProblem::new(
                     "Changelog-Category",
                     format!(
-                        "'Changelog-Category: {value}' is not one of Added, Changed, Deprecated, Removed, Fixed, Security"
+                        "'Changelog-Category: {value}' is not one of {}",
+                        category_names()
                     ),
                 )),
             },
@@ -540,6 +601,12 @@ impl Commit {
             _ if !self.trailers.sentences.is_empty() => Bump::Patch,
             _ => Bump::None,
         }
+    }
+
+    /// The category of one of this commit's entries: its `[Category]`
+    /// prefix, or the commit's category.
+    pub fn entry_category(&self, entry: &Entry) -> Category {
+        entry.category.unwrap_or_else(|| self.category())
     }
 
     /// RF3.2: the default category, overridden by `Changelog-Category:`.
@@ -896,6 +963,39 @@ mod tests {
         assert!(c.problems.is_empty(), "{:?}", c.problems);
         let bad = commit("feat: a", "Refs: something");
         assert!(!bad.problems.is_empty());
+    }
+
+    #[test]
+    fn per_entry_categories() {
+        let c = commit(
+            "fix: a",
+            "Changelog: [Security] A token no longer leaks.\nChangelog: The button works.",
+        );
+        assert_eq!(
+            c.trailers.sentences,
+            [
+                Entry::new("A token no longer leaks.", Some(Category::Security)),
+                Entry::new("The button works.", None),
+            ]
+        );
+        assert!(c.problems.is_empty(), "{:?}", c.problems);
+        assert_eq!(
+            c.entry_category(&c.trailers.sentences[0]),
+            Category::Security
+        );
+        assert_eq!(c.entry_category(&c.trailers.sentences[1]), Category::Fixed);
+        let unknown = commit("fix: a", "Changelog: [Features] A thing.");
+        assert!(unknown.trailers.sentences.is_empty());
+        assert_eq!(unknown.problems[0].key, "Changelog-Category");
+        assert!(
+            unknown.problems[0]
+                .text
+                .contains("Added, Changed, Fixed, Security, Deprecated, Removed"),
+            "{:?}",
+            unknown.problems
+        );
+        let empty = commit("fix: a", "Changelog: [Added]");
+        assert!(empty.problems[0].text.contains("no sentence"));
     }
 
     #[test]

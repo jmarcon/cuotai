@@ -96,6 +96,7 @@ User-visible changes also need a smoke test of the affected interface (the TUI w
 - Work on a branch (`<type>/<slug>`) and open a pull request to `main`; it merges (rebase and merge) once the `CI result` check is green.
 - Semantic commits: `type(scope): subject`, with the subject and the body written in **English**.
 - A user-visible commit carries its changelog entry as a trailer, `Changelog: <one sentence for the user>.` (or `Changelog: skip <reason>`), plus `Refs: PRD 0006 RF2` and `BREAKING CHANGE: <migration>` when they apply.
+- An entry lands under the category of its commit type (`feat` → Added, `fix` → Fixed). To choose another, prefix the sentence: `Changelog: [Security] A token no longer leaks to the log.` (Added, Changed, Deprecated, Removed, Fixed or Security). A `Changelog-Category: <name>` trailer still works for a commit with a single sentence; with several sentences, or together with prefixes, the commit gate refuses it, because it would apply to every sentence.
 - Do **not** change any version or `CHANGELOG.md`: both are produced at release time and CI rejects them in a normal commit. The full rules are in "How to deliver a change" and "Versioning, Commits & Changelog" in [`AGENTS.md`](AGENTS.md). Check your commits locally with `cargo xtask changelog-gate --base origin/main --head HEAD`.
 - Keep pull requests focused and small enough to review.
 

@@ -82,7 +82,11 @@ release time, never in feature or fix commits. Each user-visible commit
 carries its entry as a `Changelog:` trailer (plus `Refs:`,
 `Changelog-Category:` and `BREAKING CHANGE:` when they apply), and the
 commit gate in CI rejects version or changelog edits outside a release
-commit. `cargo xtask release prepare` turns the trailers into the
+commit. Each entry takes the category of its commit type unless its
+sentence starts with its own, `Changelog: [Security] <sentence>`; a
+`Changelog-Category:` trailer is accepted only on a commit with a single
+sentence and no such prefix, so one commit can file a fix under Fixed and
+a hardening under Security without one category leaking onto the other. `cargo xtask release prepare` turns the trailers into the
 `## [X.Y.Z] - YYYY-MM-DD` section with the real short hashes, and the
 release PR is where the wording is reviewed (see
 [`AGENTS.md`](../AGENTS.md), "How to deliver a change", and

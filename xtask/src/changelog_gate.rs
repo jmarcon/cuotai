@@ -7,7 +7,9 @@
 //! 1. the header is conventional;
 //! 2. a user-visible commit touching product paths says what changed
 //!    (`Changelog: <sentence>`) or why not (`Changelog: skip <reason>`);
-//!    2b. the category trailer is valid;
+//!    2b. each entry has one clear category: a valid `[Category]` prefix
+//!    or `Changelog-Category:` name, and a category trailer only with a
+//!    single sentence and no prefixes (scoped);
 //! 3. a breaking commit carries its `BREAKING CHANGE:` migration;
 //! 4. no commit but a release commit changes a version location, a
 //!    workspace lockfile entry or `CHANGELOG.md` (a `docs(changelog)` commit
@@ -48,6 +50,13 @@ pub const RULES_SINCE: &[(&str, &str)] = &[
     // Rule 7, UI paths written with '>' or '→': added by dda445fc
     // (2026-11-15); this is its parent.
     ("ui-path", "57cf7a68c6079a2d578220353449377275fe1eaf"),
+    // The checks below landed with the PRD 0039 re-validation. cdfdb5f0
+    // (`chore(release): 0.86.7`) is the `origin/main` tip the PRD 0039+0040
+    // pair branch was cut from: it is on main for good, unlike the branch's
+    // own commits, which the rebase merge rewrites.
+    // Rule 2b, one `Changelog-Category:` over several sentences or mixed
+    // with `[Category]` prefixes (20 older commits do that).
+    ("category", "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6"),
 ];
 
 /// A rule of RF2.1, as the gate labels it.
@@ -411,15 +420,24 @@ pub fn check_message(
             .iter()
             .map(|p| Problem::new(Rule::of_trailer(p.key), p.text.clone())),
     );
+    if scope.applies("category") {
+        out.extend(category_ambiguity(commit).map(|text| Problem::new(Rule::Category, text)));
+    }
 
     if commit.release_version().is_none() {
-        // Rule 2, unless a trailer problem of rule 2 already explains it
-        // (a misspelt key, a skip without a reason).
+        // Rule 2, unless a trailer problem already explains it (a misspelt
+        // key, a skip without a reason, a `Changelog:` line that yielded no
+        // entry).
         if commit.is_user_visible()
             && files.iter().any(|f| is_product(f))
             && commit.trailers.sentences.is_empty()
             && commit.trailers.skip.is_none()
             && !out.iter().any(|p| p.rule == Rule::Entry)
+            && !commit
+                .trailers
+                .all
+                .iter()
+                .any(|(key, _)| key == "Changelog")
         {
             out.push(Problem::new(
                 Rule::Entry,
@@ -467,7 +485,7 @@ pub fn check_message(
     let applies = |check: &str| scope.applies(check);
     for sentence in &commit.trailers.sentences {
         out.extend(
-            commits::lint_sentence_with(sentence, &applies)
+            commits::lint_sentence_with(&sentence.text, &applies)
                 .into_iter()
                 .map(|p| Problem::new(Rule::Sentence, p)),
         );
@@ -486,6 +504,44 @@ pub fn check_message(
         }
     }
     dedup(out)
+}
+
+/// Rule 2b: a `Changelog-Category:` trailer that would silently apply to
+/// several sentences, or that is mixed with `[Category]` prefixes.
+fn category_ambiguity(commit: &Commit) -> Option<String> {
+    let category = commit.trailers.category?;
+    let sentences = &commit.trailers.sentences;
+    let prefixed = sentences.iter().any(|s| s.category.is_some());
+    if sentences.len() <= 1 && !prefixed {
+        return None;
+    }
+    let name = category.title();
+    let headline = if prefixed {
+        format!(
+            "'Changelog-Category: {name}' is mixed with [Category] prefixes on the \
+             'Changelog:' lines of this commit."
+        )
+    } else {
+        format!(
+            "'Changelog-Category: {name}' would apply to all {} sentences of this commit.",
+            sentences.len()
+        )
+    };
+    let first = sentences.first().map_or("…", |s| s.text.as_str());
+    let mut out = format!(
+        "{headline}\n  Either keep one sentence with the trailer:\n    Changelog: {first}\n    \
+         Changelog-Category: {name}\n  or give each sentence its own category:"
+    );
+    for (index, sentence) in sentences.iter().enumerate() {
+        let own = if index == 0 {
+            Some(sentence.category.unwrap_or(category))
+        } else {
+            sentence.category
+        };
+        let prefix = own.map(|c| format!("[{}] ", c.title())).unwrap_or_default();
+        out.push_str(&format!("\n    Changelog: {prefix}{}", sentence.text));
+    }
+    Some(out)
 }
 
 /// Every problem of one commit, without the commit prefix.
@@ -776,6 +832,65 @@ mod tests {
         // The same sentence twice is one problem.
         let twice = problems("fix(core): a", "Changelog: no period\nChangelog: no period");
         assert_eq!(twice.len(), 2, "{twice:?}");
+    }
+
+    #[test]
+    fn a_category_trailer_over_several_sentences_is_refused() {
+        let found = problems(
+            "fix(core): a",
+            "Changelog: A token no longer leaks to the log.\nChangelog: The refresh button works again.\nChangelog: Startup is faster.\nChangelog-Category: Security",
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(
+            found[0],
+            "rule 2b: 'Changelog-Category: Security' would apply to all 3 sentences of this commit.\n  \
+             Either keep one sentence with the trailer:\n    \
+             Changelog: A token no longer leaks to the log.\n    \
+             Changelog-Category: Security\n  \
+             or give each sentence its own category:\n    \
+             Changelog: [Security] A token no longer leaks to the log.\n    \
+             Changelog: The refresh button works again.\n    \
+             Changelog: Startup is faster."
+        );
+        let mixed = problems(
+            "fix(core): a",
+            "Changelog: [Added] A new flag.\nChangelog-Category: Security",
+        );
+        assert_eq!(mixed.len(), 1, "{mixed:?}");
+        assert!(
+            mixed[0].starts_with(
+                "rule 2b: 'Changelog-Category: Security' is mixed with [Category] prefixes"
+            ),
+            "{mixed:?}"
+        );
+        assert!(
+            mixed[0].contains("Changelog: [Added] A new flag."),
+            "{mixed:?}"
+        );
+        // One sentence with the trailer, or prefixes alone, are clear.
+        assert!(problems(
+            "fix(core): a",
+            "Changelog: A fix.\nChangelog-Category: Security"
+        )
+        .is_empty());
+        assert!(problems(
+            "fix(core): a",
+            "Changelog: [Security] A fix.\nChangelog: [Added] A flag.\nChangelog: Another fix."
+        )
+        .is_empty());
+        let unknown = problems("fix(core): a", "Changelog: [Feature] A flag.");
+        assert_eq!(unknown.len(), 1, "{unknown:?}");
+        assert!(unknown[0].starts_with("rule 2b: 'Changelog: [Feature] …' names an unknown category: use one of Added, Changed, Fixed, Security, Deprecated, Removed"), "{unknown:?}");
+        // Older commits are exempt.
+        let commit = message(
+            "fix(core): a",
+            "Changelog: One.\nChangelog: Two.\nChangelog-Category: Changed",
+        );
+        let old = Scope {
+            exempt: BTreeSet::from(["category"]),
+        };
+        let files = ["crates/cuotai-core/src/lib.rs".to_string()];
+        assert!(check_message(&commit, &files, None, &old).is_empty());
     }
 
     #[test]
