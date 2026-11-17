@@ -15,7 +15,9 @@
       "models.unsupported.reason.nine_router",
       "text.duration.compact.days",
       "text.duration.compact.hours",
-      "text.duration.compact.minutes"
+      "text.duration.compact.minutes",
+      "metric.renewed_waiting",
+      "note.router_sessions.codebuddy.refill_packs"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1230,7 +1232,7 @@
   "login.zed.oauth.completion_notice": "Đã đăng nhập; các tham số tài khoản đã được điền tự động.",
   "login.zed.oauth.help": "Luồng THỬ NGHIỆM dựa trên ứng dụng gốc của nhà cung cấp (giao diện nội bộ, không hỗ trợ chính thức; có thể lỗi hoặc bị hạn chế bất cứ lúc nào). Việc đồng ý diễn ra trong trình duyệt/mã thiết bị; không có mật khẩu hay token nào được gõ vào Cuotai.",
   "login.zed.oauth.label": "Đăng nhập gốc trong trình duyệt",
-  "metric.renewed_waiting": "Đã làm mới lúc {time}; đang chờ lần đọc tiếp theo.",
+  "metric.renewed_waiting": "Đã đặt lại lúc {time}; đang chờ lần đọc tiếp theo.",
   "metric_window.daily": "hằng ngày",
   "metric_window.monthly": "hằng tháng",
   "metric_window.weekly": "hằng tuần",
@@ -1509,7 +1511,7 @@
   "note.router_sessions.codebuddy.empty": "Không tìm thấy gói tín dụng nào trong phản hồi.",
   "note.router_sessions.codebuddy.endpoint": "Endpoint thanh toán nội bộ get-user-resource quan sát được trong 9router; không có tài liệu và có thể thay đổi.",
   "note.router_sessions.codebuddy.plan": "Gói: {plan}.",
-  "note.router_sessions.codebuddy.refill_packs": "Các gói Monthly/Weekly/Daily được làm mới tại resets_at (lần nạp lại chu kỳ tiếp theo).",
+  "note.router_sessions.codebuddy.refill_packs": "Các gói Monthly/Weekly/Daily được đặt lại tại resets_at (lần nạp lại chu kỳ tiếp theo).",
   "note.router_sessions.kiro.bonuses": "{resource}: các khoản thưởng đang hoạt động được cộng vào mức sử dụng; mức tiêu thụ của gói không tách riêng được và có thể vượt giới hạn gói.",
   "note.router_sessions.kiro.empty": "Không trả về hạn mức dạng số nào; việc thiếu không có nghĩa là không giới hạn.",
   "note.router_sessions.kiro.endpoint": "Endpoint nội bộ get-user-resource được ghi nhận trong 9router; không có tài liệu và có thể thay đổi.",

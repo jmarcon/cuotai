@@ -211,16 +211,16 @@ review" counts the `pending_review` ids of the three catalogs.
 | `en-US` | English | us | source (code) | source | source (code) | English source | source | source | 0 |
 | `es` | Español | es | complete | complete | complete | maintainer | pending | pending | 9 |
 | `it` | Italiano | it | complete | complete | complete | maintainer | pending | pending | 8 |
-| `zh-CN` | 中文（简体） | cn | complete | complete | complete | machine-translated, needs native review | pending | pending | 66 |
+| `zh-CN` | 中文（简体） | cn | complete | complete | complete | machine-translated, needs native review | pending | pending | 79 |
 | `fr` | Français | fr | complete | complete | complete | machine-translated, needs native review | pending | pending | 12 |
-| `de` | Deutsch | de | complete | complete | complete | machine-translated, needs native review | pending | pending | 44 |
+| `de` | Deutsch | de | complete | complete | complete | machine-translated, needs native review | pending | pending | 49 |
 | `ja` | 日本語 | jp | complete | complete | complete | machine-translated, needs native review | pending | pending | 22 |
-| `ru` | Русский | ru | complete | complete | complete | machine-translated, needs native review | pending | pending | 12 |
-| `ko` | 한국어 | kr | complete | complete | complete | machine-translated, needs native review | pending | pending | 40 |
-| `hi-IN` | हिन्दी | in | complete | complete | complete | machine-translated, needs native review | pending | pending | 12 |
+| `ru` | Русский | ru | complete | complete | complete | machine-translated, needs native review | pending | pending | 91 |
+| `ko` | 한국어 | kr | complete | complete | complete | machine-translated, needs native review | pending | pending | 62 |
+| `hi-IN` | हिन्दी | in | complete | complete | complete | machine-translated, needs native review | pending | pending | 29 |
 | `id-ID` | Bahasa Indonesia | id | complete | complete | complete | machine-translated, needs native review | pending | pending | 11 |
 | `tr` | Türkçe | tr | complete | complete | complete | machine-translated, needs native review | pending | pending | 11 |
-| `vi` | Tiếng Việt | vn | complete | complete | complete | machine-translated, needs native review | pending | pending | 11 |
+| `vi` | Tiếng Việt | vn | complete | complete | complete | machine-translated, needs native review | pending | pending | 18 |
 <!-- status-table:end -->
 
 Native reviewers volunteer through a [Question issue](https://github.com/jmarcon/cuotai/issues/new?template=question.yml) ("Looking for

@@ -3,7 +3,11 @@
     "name": "Tiếng Việt",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "metric.renewedWaiting",
+      "theme.label"
+    ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
   "agg.alertEachHelp": "Tắt: một thông báo khi mọi tài khoản của một nhà cung cấp hết, và một thông báo khi một tài khoản hoạt động trở lại.",
@@ -149,7 +153,7 @@
   "tray.error": "Làm mới không thành công",
   "tray.ok": "Mọi hệ thống đều hoạt động",
   "tray.attention": "Cần chú ý",
-  "theme.label": "Giao diện",
+  "theme.label": "Chủ đề",
   "theme.mode.label": "Chế độ hiển thị",
   "theme.mode.system": "Hệ thống",
   "theme.mode.light": "Sáng",
@@ -543,7 +547,7 @@
   "freshness.stale": "Cũ",
   "age.measuredAt": "Đo lúc: {time}",
   "age.clockAdjusted": "đồng hồ hệ thống đã được điều chỉnh",
-  "metric.renewedWaiting": "Đã làm mới lúc {time}; đang chờ lần đọc tiếp theo",
+  "metric.renewedWaiting": "Đã đặt lại lúc {time}; đang chờ lần đọc tiếp theo",
   "freshness.data_as_of": "dữ liệu tại {time}",
   "tray.tooltip": "Lần đọc cũ nhất: {account}, {age}",
   "settings.order.title": "Thứ tự tài khoản",

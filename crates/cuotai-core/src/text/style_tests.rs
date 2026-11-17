@@ -109,3 +109,251 @@ fn ko_has_no_haeyo_sentence_ends() {
         "ko texts end a sentence in 해요체: {bad:#?}"
     );
 }
+
+// G11 ---------------------------------------------------------------------
+
+/// The ratchet of one glossary term: the ids of `code` whose text matches
+/// `term` (among those `scope` keeps) are exactly `allowed`.
+fn glossary_ratchet(code: &str, term: &str, scope: impl Fn(&str) -> bool, allowed: &[&str]) {
+    let term = Regex::new(term).unwrap();
+    let found = offending_ids(code, |id, text| scope(id) && term.is_match(text));
+    let allowed: BTreeSet<String> = allowed.iter().map(|id| id.to_string()).collect();
+    let new: Vec<_> = found.difference(&allowed).collect();
+    let gone: Vec<_> = allowed.difference(&found).collect();
+    assert!(
+        new.is_empty(),
+        "{code}: these texts use a term the README glossary replaces ({term}); \
+         use the glossary term, or add the id here once reviewed: {new:#?}"
+    );
+    assert!(
+        gone.is_empty(),
+        "{code}: these ids no longer use {term}; remove them from the list: {gone:#?}"
+    );
+}
+
+// G11
+/// ru ids that keep аккаунт on purpose (none).
+const RU_AKKAUNT: &[&str] = &[];
+
+// G11
+/// ko ids that keep 공급자/제공자 on purpose: the D-Bus "Secret Service
+/// provider" is not an AI provider.
+const KO_PROVIDER: &[&str] = &["core:oauth_error.store.linux_secret_service_unavailable"];
+
+// G11
+/// zh-CN ids that keep 服务商 on purpose (none).
+const ZH_CN_FUWUSHANG: &[&str] = &[];
+
+// G11
+/// de ids that keep "Reset" on purpose (none).
+const DE_RESET: &[&str] = &[];
+
+// G11
+/// hi-IN ids that keep लॉगिन/लॉग इन on purpose: their English says "login"
+/// (Native login, `bl auth login`, the dashboard login of 9router, the
+/// autostart keywords), not "sign in".
+const HI_IN_LOGIN: &[&str] = &[
+    "core:access.credential.aggregator_login",
+    "core:access.credential_hint.aggregator_login",
+    "core:access.credential_hint.subscription_session",
+    "core:access.summary.alibaba_model_studio_cli",
+    "core:auth_mode.oauth.label",
+    "core:credential_help.alibaba_model_studio",
+    "core:credential_help.antigravity",
+    "core:credential_help.kiro",
+    "core:credential_help.nine_router",
+    "core:credential_help.zed",
+    "core:edit_error.login_partial_failure",
+    "core:edit_error.oauth_required",
+    "core:field.alibaba_coding_plan.session_env.help",
+    "core:field.kiro.auth_method.help",
+    "core:field.kiro.auth_method.option.api_key.unavailable",
+    "core:field.kiro.auth_method.option.builder-id.unavailable",
+    "core:field.kiro.auth_method.option.external_idp.unavailable",
+    "core:field.kiro.auth_method.option.github.unavailable",
+    "core:field.kiro.auth_method.option.google.unavailable",
+    "core:field.kiro.auth_method.option.idc.unavailable",
+    "core:field.kiro.auth_method.option.import.unavailable",
+    "core:login.alibaba_model_studio.bailian_console.completion_notice",
+    "core:login.alibaba_model_studio.bailian_console.help",
+    "core:login.alibaba_model_studio.bailian_console.option.profile.help",
+    "core:login.alibaba_token_plan.bailian_console.completion_notice",
+    "core:login.alibaba_token_plan.bailian_console.help",
+    "core:login.alibaba_token_plan.bailian_console.option.profile.help",
+    "core:login.antigravity.oauth.completion_notice",
+    "core:login.antigravity.oauth.label",
+    "core:login.aws_bedrock.aws_sso.completion_notice",
+    "core:login.azure_open_ai.oauth.completion_notice",
+    "core:login.azure_open_ai.oauth.label",
+    "core:login.chat_gpt.oauth.completion_notice",
+    "core:login.chat_gpt.oauth.label",
+    "core:login.claude.oauth.completion_notice",
+    "core:login.claude.oauth.label",
+    "core:login.cline.oauth.completion_notice",
+    "core:login.cline.oauth.label",
+    "core:login.code_buddy.oauth.completion_notice",
+    "core:login.code_buddy.oauth.label",
+    "core:login.copilot.oauth.completion_notice",
+    "core:login.copilot.oauth.label",
+    "core:login.cursor.oauth.help",
+    "core:login.gemini_ai.oauth.completion_notice",
+    "core:login.gemini_ai.oauth.label",
+    "core:login.gemini_api.oauth.completion_notice",
+    "core:login.gemini_api.oauth.help",
+    "core:login.gemini_api.oauth.label",
+    "core:login.grok.oauth.completion_notice",
+    "core:login.grok.oauth.label",
+    "core:login.kimi.oauth.completion_notice",
+    "core:login.kimi.oauth.label",
+    "core:login.kiro.oauth.completion_notice",
+    "core:login.kiro.oauth.label",
+    "core:login.open_router.oauth.completion_notice",
+    "core:login.progress.bailian_done",
+    "core:login.qoder.oauth.completion_notice",
+    "core:login.qoder.oauth.label",
+    "core:login.qwen.oauth.completion_notice",
+    "core:login.qwen.oauth.help",
+    "core:login.qwen.oauth.label",
+    "core:login.vertex_ai.oauth.completion_notice",
+    "core:login.vertex_ai.oauth.help",
+    "core:login.vertex_ai.oauth.label",
+    "core:login.xiaomi_mimo.oauth.label",
+    "core:login.zed.oauth.completion_notice",
+    "core:login.zed.oauth.label",
+    "core:native.kiro.auth_method.help",
+    "core:oauth.registration_help.gemini_api",
+    "core:oauth.registration_help.vertex_ai",
+    "core:oauth_error.aws.sso_login_incomplete",
+    "core:oauth_error.bailian.profile_blank",
+    "core:oauth_error.browser.local_port_in_use",
+    "core:oauth_error.browser.provider_no_oauth",
+    "core:oauth_error.config.credentials_not_in_options",
+    "core:oauth_error.config.provider_no_integrated_oauth",
+    "core:oauth_error.flows.provider_no_oauth",
+    "core:oauth_error.kiro.invalid_auth_method",
+    "core:oauth_error.kiro.invalid_aws_region",
+    "core:oauth_error.login.dedicated_profile_missing",
+    "core:oauth_error.login.mode_not_offered",
+    "core:oauth_error.login.unknown_mode",
+    "core:oauth_error.login.unknown_option",
+    "core:oauth_error.native.invalid_login_endpoint",
+    "core:oauth_error.native.local_key_generation_failed",
+    "core:oauth_error.native.no_integrated_flow",
+    "core:oauth_error.session.login_not_found",
+    "core:oauth_error.store.macos_keychain_unavailable",
+    "core:query.alibaba_plans.model_studio_cli_auth",
+    "core:query.nine_router.locked",
+    "core:query.nine_router.login_refused",
+    "core:query.nine_router.redirected",
+    "core:query.oauth.denied",
+    "core:query.oauth.expired",
+    "core:query.router_grok.missing_oauth_token",
+    "core:query.router_keys.xiaomi_native_key_has_no_quota",
+    "core:user_session.warning",
+    "core:user_session.warning_env",
+    "tui:login.cleanup_warning",
+    "tui:login.code.closed",
+    "tui:login.partial.base",
+    "tui:login.partial.failed",
+    "tui:login.partial.previous_restored",
+    "tui:login.title",
+    "tui:ui.login_cancelled",
+    "tui:wizard.credential.action.authorized",
+    "tui:wizard.credential.action.existing",
+    "tui:wizard.credential.action.external",
+    "tui:wizard.credential.action.finished",
+    "tui:wizard.credential.action.start",
+    "tui:wizard.credential.login_unavailable",
+    "tui:wizard.hint.credential_login",
+    "tui:wizard.hint.credential_modes",
+    "tui:wizard.login.authorized",
+    "tui:wizard.login.finished",
+    "tui:wizard.summary.login.authorized",
+    "tui:wizard.summary.login.existing",
+    "tui:wizard.summary.login.pending",
+    "ui:dialog.nativeNote",
+    "ui:settings.autostart.label",
+    "ui:settings.autostart.stale",
+    "ui:settings.error.autostart_failed",
+    "ui:settings.kw.autostart",
+];
+
+// G11
+/// vi reset/renew ids that keep làm mới on purpose: "the next refresh".
+const VI_LAM_MOI: &[&str] = &["core:resets.body", "core:resets.body.private"];
+
+// G11
+/// V35-06: Russian "account" is учётная запись, not аккаунт.
+#[test]
+fn ru_account_is_uchyotnaya_zapis() {
+    glossary_ratchet("ru", "(?i)аккаунт", |_| true, RU_AKKAUNT);
+}
+
+// G11
+/// V35-07: Korean "provider" is 제공업체, not 공급자 or 제공자.
+#[test]
+fn ko_provider_is_jegongeopche() {
+    glossary_ratchet("ko", "공급자|제공자", |_| true, KO_PROVIDER);
+}
+
+// G11
+/// V35-07: Simplified Chinese "provider" is 提供商, not 服务商.
+#[test]
+fn zh_cn_provider_is_tigongshang() {
+    glossary_ratchet("zh-CN", "服务商", |_| true, ZH_CN_FUWUSHANG);
+}
+
+// G11
+/// V35-07: German "reset" is Zurücksetzung (or the verb), not "Reset";
+/// search keywords (`settings.kw.*`) may list it.
+#[test]
+fn de_reset_is_zuruecksetzung() {
+    glossary_ratchet(
+        "de",
+        r"\bReset\b",
+        |id| !id.starts_with("ui:settings.kw."),
+        DE_RESET,
+    );
+}
+
+// G11
+/// V35-07: Hindi "sign in" is साइन इन; लॉगिन stays only where the English
+/// says "login" (native login, autostart, `bl auth login`).
+#[test]
+fn hi_in_sign_in_is_sain_in() {
+    glossary_ratchet("hi-IN", "लॉग इन|लॉगिन", |_| true, HI_IN_LOGIN);
+}
+
+// G11
+/// V35-07: Vietnamese "reset"/"renew" is đặt lại; làm mới is "refresh".
+/// Only ids about a reset or a renewal are checked.
+#[test]
+fn vi_reset_is_dat_lai() {
+    glossary_ratchet(
+        "vi",
+        "(?i)làm mới",
+        |id| id.contains("reset") || id.contains("renew"),
+        VI_LAM_MOI,
+    );
+}
+
+// G11
+/// V35-11: the settings section "Appearance" and the theme picker "Theme"
+/// are two words in every language.
+#[test]
+fn appearance_and_theme_are_distinct() {
+    let mut same = Vec::new();
+    for row in super::LOCALES.iter().filter(|row| row.is_translated()) {
+        let catalog = layer_catalog("ui", row.code).expect("desktop catalog");
+        let text = |id: &str| catalog.messages().get(id).and_then(|m| m.as_text());
+        if text("settings.appearance").is_some()
+            && text("settings.appearance") == text("theme.label")
+        {
+            same.push(row.code);
+        }
+    }
+    assert!(
+        same.is_empty(),
+        "settings.appearance equals theme.label in {same:?}"
+    );
+}

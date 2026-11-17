@@ -14,7 +14,9 @@
       "settings.erase.help",
       "settings.hooks.event.balance_below_floor",
       "settings.hooks.event.balance_recovered",
-      "stats.rhythm.subtitle"
+      "stats.rhythm.subtitle",
+      "settings.costBy.providerReset",
+      "settings.costBy.providerWindow"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -1052,8 +1054,8 @@
     "one": "{count} ältere Sitzung nicht aufgeführt.",
     "other": "{count} ältere Sitzungen nicht aufgeführt."
   },
-  "settings.costBy.providerWindow": "Anbieterfenster: {pct}% verbraucht, Reset um {at}",
-  "settings.costBy.providerReset": "Anbieterfenster: Reset um {at}",
+  "settings.costBy.providerWindow": "Anbieterfenster: {pct}% verbraucht, Zurücksetzung um {at}",
+  "settings.costBy.providerReset": "Anbieterfenster: Zurücksetzung um {at}",
   "settings.costBy.liveTitle": "Aktiver Block · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} vergangen, {left} übrig",
   "settings.costBy.noRate": "Verbrauchsrate: noch nicht genug aktuelle Anfragen.",

@@ -3,7 +3,12 @@
     "name": "Tiếng Việt",
     "status": "machine-translated, needs native review",
     "reviewed": false,
-    "machine_reviewed": "2026-10-25"
+    "machine_reviewed": "2026-10-25",
+    "pending_review": [
+      "dashboard.reset.renews",
+      "history.window.renews",
+      "once.renews"
+    ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
   "about.component.core": "lõi",
@@ -207,7 +212,7 @@
   "dashboard.models.none": "không có mô hình",
   "dashboard.models.one": "1 mô hình",
   "dashboard.reset.now": "bây giờ",
-  "dashboard.reset.renews": "làm mới ",
+  "dashboard.reset.renews": "đặt lại ",
   "dashboard.reset.soon": "sắp tới",
   "dashboard.sub.also_direct": " · cũng trực tiếp",
   "dashboard.too_small": "Cuotai: hãy mở rộng terminal tối thiểu 45 × 18. q để thoát.",
@@ -260,7 +265,7 @@
   "history.metric_empty": "  {label}: không có giá trị đo được trong khoảng thời gian này",
   "history.no_accounts": "Không có tài khoản nào trong cấu hình; không có số đo để hiển thị.",
   "history.window": "    Khung {start} → {end}: {initial} → {final}, đỉnh {peak} lúc {peak_at}{resets}",
-  "history.window.renews": " · làm mới {at}",
+  "history.window.renews": " · đặt lại {at}",
   "history_actions.done_footer": "Nhấn phím bất kỳ để quay lại",
   "history_actions.erase_footer": "Tab tài khoản này hoặc tất cả · Enter xóa · Esc quay lại",
   "history_actions.erase_hint": "Không thể khôi phục các mẫu đã xóa.",
@@ -326,7 +331,7 @@
   "once.period": "    Khoảng: {period}",
   "once.pool": "  Nhóm gộp: {summary}",
   "once.provider_status": "  Trạng thái nhà cung cấp: {parts}",
-  "once.renews": "Làm mới: {at}",
+  "once.renews": "Đặt lại: {at}",
   "once.source": "  Nguồn: {source}",
   "once.sub.disabled": "tắt trong 9router",
   "once.sub.duplicate": "cũng được theo dõi trực tiếp",
