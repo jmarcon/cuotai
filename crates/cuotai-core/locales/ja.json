@@ -203,7 +203,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -1556,6 +1559,8 @@
   "note.budget.partial": "{budget}：この期間の使用量の一部が記録されていないため、少なくともこの量を使用しています。",
   "note.budget.negative": "{budget}：この期間のメトリクスが差し引きでクレジットになっているため、この予算では集計できません。",
   "note.budget.unit_mismatch_named": "{budget}：メトリクスは {metric_unit} で報告され、この予算は {budget_unit} のため、集計できません。",
+  "note.budget.ignored": "{problem} 修正されるまで、この予算または下限は使われません。",
+  "note.budget.floor_missing": "{field}：この測定にはこの下限に合う残高もクレジットもないため、何も警告しません。",
   "note.claude_code.answered_by_api": "Claude の照会で取得しました。Claude Code からの新しい測定値がありません。",
   "note.claude_code.answered_by_feed": "Claude Code 自身のステータスラインで取得しました（ネットワーク要求なし）。",
   "note.claude_code.fed": "Claude Code の文書化されたステータスラインからのフィードです。ネットワーク要求もトークンの再利用もありません。",
@@ -2775,6 +2780,7 @@
   "budget.error.duplicate_label": "{field}：このアカウントには同じ名前の予算がすでにあります。",
   "budget.error.unit_mismatch": "{field}：メトリクスは {metric_unit} で報告され、この予算は {budget_unit} です。{metric_unit} で指定してください。",
   "budget.error.amount_ambiguous": "{field}：{text} は {whole} とも {decimal} とも読めます。{whole} または {decimal} と入力してください。",
+  "budget.error.characters": "{field}：見えない文字や制御文字を削除してください。使えるのは表示される文字だけです。",
   "budget.period_since": "{day}から",
   "budget.field.kind": "メトリクス",
   "budget.field.amount": "金額",

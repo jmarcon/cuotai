@@ -158,7 +158,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1511,6 +1514,8 @@
   "note.budget.partial": "{budget}: sebagian penggunaan periode ini tidak tercatat, jadi setidaknya sebanyak ini telah digunakan.",
   "note.budget.negative": "{budget}: metrik menunjukkan kredit bersih pada periode ini, jadi anggaran ini tidak bisa menghitungnya.",
   "note.budget.unit_mismatch_named": "{budget}: metrik dilaporkan dalam {metric_unit} dan anggaran ini dalam {budget_unit}, jadi anggaran ini tidak bisa menghitung.",
+  "note.budget.ignored": "{problem} Anggaran atau batas bawah ini dikesampingkan sampai diperbaiki.",
+  "note.budget.floor_missing": "{field}: tidak ada saldo atau kredit dalam pembacaan ini yang cocok dengan batas bawah ini, jadi batas ini tidak memperingatkan apa pun.",
   "note.claude_code.answered_by_api": "Dijawab oleh kueri Claude: tidak ada pembacaan terbaru dari Claude Code.",
   "note.claude_code.answered_by_feed": "Dijawab oleh baris status Claude Code sendiri (tanpa permintaan jaringan).",
   "note.claude_code.fed": "Diumpan oleh baris status Claude Code yang terdokumentasi: tanpa permintaan jaringan, tanpa memakai ulang token.",
@@ -2730,6 +2735,7 @@
   "budget.error.duplicate_label": "{field}: anggaran lain di akun ini sudah memakai label ini.",
   "budget.error.unit_mismatch": "{field}: metrik dilaporkan dalam {metric_unit} dan anggaran ini dalam {budget_unit}; atur dalam {metric_unit}.",
   "budget.error.amount_ambiguous": "{field}: {text} bisa berarti {whole} atau {decimal}. Ketik {whole} atau {decimal} sebagai gantinya.",
+  "budget.error.characters": "{field}: hapus karakter tak terlihat atau karakter kontrol; hanya teks yang terlihat yang diizinkan.",
   "budget.period_since": "sejak {day}",
   "budget.field.kind": "Metrik",
   "budget.field.amount": "Jumlah",

@@ -346,8 +346,25 @@ impl Config {
     /// unrelated content.
     pub fn from_toml(text: &str) -> Result<Self, ConfigError> {
         let config = config_file::parse(text, config_file::ConfigParseMode::Strict)?.config;
-        config.validate()?;
+        config.validate_strict()?;
         Ok(config)
+    }
+
+    /// [`Self::validate`] plus the budgets and floors (PRD 0041 RF1.2): the
+    /// first invalid entry is a [`ConfigError::Budget`] naming its field.
+    /// The strict readers ([`Self::from_toml`], `--check-config`) use it;
+    /// runtime readers use [`Self::validate`], which leaves such an entry
+    /// out of the readings with a note instead of refusing every account
+    /// (re-validation F-15).
+    pub fn validate_strict(&self) -> Result<(), ConfigError> {
+        self.validate()?;
+        for (index, account) in self.accounts.iter().enumerate() {
+            budget::validate(index, account).map_err(|error| ConfigError::Budget {
+                field: error.field,
+                rule: error.rule,
+            })?;
+        }
+        Ok(())
     }
 
     /// PRD 0029 RF1.3: give every account without an `id` its effective id,
@@ -588,11 +605,9 @@ impl Config {
                     return Err(ConfigError::Extension);
                 }
             }
-            // PRD 0041 RF1.2: the person's budgets and floors.
-            budget::validate(index, account).map_err(|error| ConfigError::Budget {
-                field: error.field,
-                rule: error.rule,
-            })?;
+            // PRD 0041 RF1.2: the person's budgets and floors are checked
+            // by `validate_strict`; a runtime reader leaves an invalid one
+            // out with a note (re-validation F-15, `budget::valid_indices`).
         }
         // PRD 0040 RF8.1/RF8.2: a feed carries no account identity, so one
         // account at most reads each agent's feed.
@@ -1500,7 +1515,7 @@ impl Monitor {
     /// the baselines read from the history (none without one) and period
     /// boundaries at local midnight.
     fn apply_budgets(&self, account: &Account, report: &mut Report) {
-        if account.budgets.is_empty() {
+        if account.budgets.is_empty() && account.floors.is_empty() {
             return;
         }
         let store = self.history();
@@ -1535,6 +1550,9 @@ impl Monitor {
                 .unwrap_or_default()
         };
         budget::apply_rows(account, report, &row_baselines, now, &chrono::Local);
+        // PRD 0041 re-validation F-14: the budget labels, units and notes
+        // join the report after `query_report`'s cleaning; clean again.
+        report.strip_disguising_text();
     }
 
     /// PRD 0036 RF4.4: refresh only the connection `sub_id` of the
@@ -2170,6 +2188,10 @@ impl Credentials for QueryCredentials<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "budget_filter_tests.rs"]
+mod budget_filter_tests;
 
 #[cfg(test)]
 mod tests {

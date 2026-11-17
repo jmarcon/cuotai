@@ -177,7 +177,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -1530,6 +1533,8 @@
   "note.budget.partial": "{budget}: 이 기간 사용량의 일부가 기록되지 않아 최소한 이만큼 사용했습니다.",
   "note.budget.negative": "{budget}: 이 기간 지표가 순 크레딧을 나타내므로 이 예산으로 집계할 수 없습니다.",
   "note.budget.unit_mismatch_named": "{budget}: 지표는 {metric_unit}(으)로 보고되고 이 예산은 {budget_unit}(이)라 집계할 수 없습니다.",
+  "note.budget.ignored": "{problem} 이 예산 또는 하한선은 고칠 때까지 제외됩니다.",
+  "note.budget.floor_missing": "{field}: 이번 측정에 이 하한선과 맞는 잔액이나 크레딧이 없어 아무것도 경고하지 않습니다.",
   "note.claude_code.answered_by_api": "Claude 조회로 답했습니다. Claude Code의 최근 측정값이 없습니다.",
   "note.claude_code.answered_by_feed": "Claude Code 자체 상태 표시줄로 답했습니다(네트워크 요청 없음).",
   "note.claude_code.fed": "Claude Code의 문서화된 상태 표시줄이 공급합니다. 네트워크 요청도 토큰 재사용도 없습니다.",
@@ -2749,6 +2754,7 @@
   "budget.error.duplicate_label": "{field}: 이 계정에 같은 이름의 예산이 이미 있습니다.",
   "budget.error.unit_mismatch": "{field}: 지표는 {metric_unit}(으)로 보고되고 이 예산은 {budget_unit}입니다. {metric_unit}(으)로 지정하세요.",
   "budget.error.amount_ambiguous": "{field}: {text}은(는) {whole} 또는 {decimal}(으)로 읽힐 수 있습니다. 대신 {whole} 또는 {decimal}을(를) 입력하세요.",
+  "budget.error.characters": "{field}: 보이지 않는 문자나 제어 문자를 지우세요. 보이는 텍스트만 쓸 수 있습니다.",
   "budget.period_since": "{day}부터",
   "budget.field.kind": "지표",
   "budget.field.amount": "금액",

@@ -158,7 +158,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -1532,6 +1535,8 @@
   "note.budget.partial": "{budget}: bu dönemin kullanımının bir kısmı kaydedilmedi, bu yüzden en az bu kadar kullanıldı.",
   "note.budget.negative": "{budget}: metrik bu dönemde net alacak gösteriyor, bu yüzden bu bütçe onu sayamaz.",
   "note.budget.unit_mismatch_named": "{budget}: metrik {metric_unit} cinsinden bildiriliyor ve bu bütçe {budget_unit} cinsinden, bu yüzden sayamaz.",
+  "note.budget.ignored": "{problem} Bu bütçe veya alt sınır düzeltilene kadar dışarıda bırakılır.",
+  "note.budget.floor_missing": "{field}: bu ölçümde bu alt sınırla eşleşen bakiye veya kredi yok, bu yüzden hiçbir şey için uyarmaz.",
   "note.claude_code.answered_by_api": "Claude sorgusuyla yanıtlandı: Claude Code’dan yakın tarihli ölçüm yok.",
   "note.claude_code.answered_by_feed": "Claude Code’un kendi durum satırıyla yanıtlandı (ağ isteği yok).",
   "note.claude_code.fed": "Claude Code’un belgelenmiş durum satırından besleniyor: ağ isteği yok, belirteç yeniden kullanılmıyor.",
@@ -2784,6 +2789,7 @@
   "budget.error.duplicate_label": "{field}: bu hesabın başka bir bütçesi zaten bu adı taşıyor.",
   "budget.error.unit_mismatch": "{field}: metrik {metric_unit} cinsinden bildiriliyor ve bu bütçe {budget_unit} cinsinden; bütçeyi {metric_unit} cinsinden belirleyin.",
   "budget.error.amount_ambiguous": "{field}: {text}, {whole} ya da {decimal} olarak okunabilir. Bunun yerine {whole} ya da {decimal} yazın.",
+  "budget.error.characters": "{field}: görünmeyen veya denetim karakterlerini kaldırın; yalnızca görünür metne izin verilir.",
   "budget.period_since": "başlangıç: {day}",
   "budget.field.kind": "Metrik",
   "budget.field.amount": "Tutar",

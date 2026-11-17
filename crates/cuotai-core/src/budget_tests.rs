@@ -547,9 +547,12 @@ fn validation_rejects_each_rule_with_its_field() {
         amount: -1.0,
         unit: None,
     };
-    let floors = problems(Provider::OpenAiApi, &[], &vec![floor; 5]);
+    // F-15: an oversized list is refused alone, before any per-row check.
+    let floors = problems(Provider::OpenAiApi, &[], &vec![floor.clone(); 5]);
+    assert_eq!(floors.len(), 1);
     assert_eq!(floors[0].rule, BudgetRule::TooMany);
-    assert_eq!(floors[1].field, "floors[0].amount");
+    let floors = problems(Provider::OpenAiApi, &[], &vec![floor; 4]);
+    assert_eq!(floors[0].field, "floors[0].amount");
     // Every rule has a localized text naming the field.
     let note = BudgetRule::Amount.note("accounts[0].budgets[0].amount");
     assert_eq!(note.id, "budget.error.amount");

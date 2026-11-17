@@ -35,7 +35,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -957,6 +960,8 @@
   "note.budget.partial": "{budget}: parte del consumo di questo periodo non è stata registrata, quindi ne è stato consumato almeno questo.",
   "note.budget.negative": "{budget}: la metrica mostra un credito netto in questo periodo, quindi questo budget non può conteggiarla.",
   "note.budget.unit_mismatch_named": "{budget}: la metrica è riportata in {metric_unit} e questo budget è in {budget_unit}, quindi non può contare.",
+  "note.budget.ignored": "{problem} Questo budget o questa soglia resta escluso finché non viene corretto.",
+  "note.budget.floor_missing": "{field}: nessun saldo o credito di questa lettura corrisponde a questa soglia, quindi non avvisa di nulla.",
   "note.claude_code.answered_by_api": "Risposta dalla query di Claude: nessuna lettura recente da Claude Code.",
   "note.claude_code.answered_by_feed": "Risposta dalla riga di stato di Claude Code (nessuna richiesta di rete).",
   "note.claude_code.fed": "Alimentato dalla riga di stato documentata di Claude Code: nessuna richiesta di rete, nessun token riutilizzato.",
@@ -2661,6 +2666,7 @@
   "budget.error.duplicate_label": "{field}: un altro budget di questo account ha già questa etichetta.",
   "budget.error.unit_mismatch": "{field}: la metrica è riportata in {metric_unit} e questo budget è in {budget_unit}; impostalo in {metric_unit}.",
   "budget.error.amount_ambiguous": "{field}: {text} può valere {whole} o {decimal}. Scrivi invece {whole} o {decimal}.",
+  "budget.error.characters": "{field}: rimuovi i caratteri invisibili o di controllo; è ammesso solo testo visibile.",
   "budget.period_since": "da {day}",
   "budget.field.kind": "Metrica",
   "budget.field.amount": "Importo",

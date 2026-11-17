@@ -178,13 +178,24 @@ impl AlertPrefs {
     }
 
     /// PRD 0041 RF3: these preferences with the floors of `config`'s
-    /// accounts (the TOML is their only source).
+    /// accounts (the TOML is their only source). An invalid floor is left
+    /// out, as from the readings (re-validation F-15).
     pub fn with_floors(mut self, config: &crate::Config) -> Self {
         self.floors = config
             .accounts
             .iter()
-            .filter(|account| !account.floors.is_empty())
-            .map(|account| (account.state_key(), account.floors.clone()))
+            .map(|account| {
+                let valid = crate::budget::valid_indices(account);
+                let floors: Vec<_> = account
+                    .floors
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| valid.floor(*index))
+                    .map(|(_, floor)| floor.clone())
+                    .collect();
+                (account.state_key(), floors)
+            })
+            .filter(|(_, floors)| !floors.is_empty())
             .collect();
         self
     }

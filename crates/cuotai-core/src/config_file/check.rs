@@ -128,7 +128,7 @@ fn check_bytes_at(bytes: &[u8], identity: Option<&super::ConfigIdentity>) -> Con
     };
     let result = parse(text, ConfigParseMode::Strict).and_then(|parsed| {
         parsed.config.check_ids(identity)?;
-        parsed.config.validate()?;
+        parsed.config.validate_strict()?;
         Ok(parsed.config)
     });
     match result {

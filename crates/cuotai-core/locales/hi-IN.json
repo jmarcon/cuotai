@@ -176,7 +176,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -1550,6 +1553,8 @@
   "note.budget.partial": "{budget}: इस अवधि के उपयोग का कुछ हिस्सा दर्ज नहीं हुआ, इसलिए कम से कम इतना उपयोग हुआ है।",
   "note.budget.negative": "{budget}: इस अवधि में मीट्रिक शुद्ध क्रेडिट दिखाता है, इसलिए यह बजट इसे गिन नहीं सकता।",
   "note.budget.unit_mismatch_named": "{budget}: मीट्रिक {metric_unit} में बताया गया है और यह बजट {budget_unit} में है, इसलिए यह गिन नहीं सकता।",
+  "note.budget.ignored": "{problem} ठीक होने तक यह बजट या न्यूनतम सीमा छोड़ दी जाती है।",
+  "note.budget.floor_missing": "{field}: इस रीडिंग में कोई बैलेंस या क्रेडिट इस न्यूनतम सीमा से मेल नहीं खाता, इसलिए यह किसी बात की चेतावनी नहीं देती।",
   "note.claude_code.answered_by_api": "Claude क्वेरी से जवाब: Claude Code से कोई ताज़ा रीडिंग नहीं।",
   "note.claude_code.answered_by_feed": "Claude Code की अपनी स्टेटस लाइन से जवाब (कोई नेटवर्क अनुरोध नहीं)।",
   "note.claude_code.fed": "Claude Code की दस्तावेज़ीकृत स्टेटस लाइन से: कोई नेटवर्क अनुरोध नहीं, कोई टोकन दोबारा इस्तेमाल नहीं।",
@@ -2802,6 +2807,7 @@
   "budget.error.duplicate_label": "{field}: इस खाते के किसी दूसरे बजट का नाम पहले से यही है।",
   "budget.error.unit_mismatch": "{field}: मीट्रिक {metric_unit} में बताया गया है और यह बजट {budget_unit} में है; इसे {metric_unit} में सेट करें।",
   "budget.error.amount_ambiguous": "{field}: {text} का अर्थ {whole} या {decimal} हो सकता है। इसके बजाय {whole} या {decimal} लिखें।",
+  "budget.error.characters": "{field}: अदृश्य या कंट्रोल अक्षर हटाएँ; केवल दिखने वाला टेक्स्ट मान्य है।",
   "budget.period_since": "{day} से",
   "budget.field.kind": "मीट्रिक",
   "budget.field.amount": "राशि",

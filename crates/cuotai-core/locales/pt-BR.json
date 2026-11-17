@@ -36,7 +36,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -1410,6 +1413,8 @@
   "note.budget.partial": "{budget}: parte do uso deste período não foi registrada, então foi usado pelo menos isto.",
   "note.budget.negative": "{budget}: a métrica mostra um crédito líquido neste período, então este orçamento não pode contá-la.",
   "note.budget.unit_mismatch_named": "{budget}: a métrica é informada em {metric_unit} e este orçamento está em {budget_unit}, então não pode contar.",
+  "note.budget.ignored": "{problem} Este orçamento ou piso fica de fora até ser corrigido.",
+  "note.budget.floor_missing": "{field}: nenhum saldo ou crédito desta leitura corresponde a este piso, então ele não avisa nada.",
   "note.claude_code.answered_by_api": "Respondido pela consulta do Claude: sem leitura recente do Claude Code.",
   "note.claude_code.answered_by_feed": "Respondido pela própria linha de status do Claude Code (sem requisição de rede).",
   "note.claude_code.fed": "Alimentado pela linha de status documentada do Claude Code: sem requisição de rede, sem reutilizar tokens.",
@@ -2662,6 +2667,7 @@
   "budget.error.duplicate_label": "{field}: outro orçamento desta conta já tem este rótulo.",
   "budget.error.unit_mismatch": "{field}: a métrica é informada em {metric_unit} e este orçamento está em {budget_unit}; defina-o em {metric_unit}.",
   "budget.error.amount_ambiguous": "{field}: {text} pode ser {whole} ou {decimal}. Digite {whole} ou {decimal}.",
+  "budget.error.characters": "{field}: remova os caracteres invisíveis ou de controle; só é permitido texto visível.",
   "budget.period_since": "desde {day}",
   "budget.field.kind": "Métrica",
   "budget.field.amount": "Valor",

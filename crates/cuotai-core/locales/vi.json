@@ -160,7 +160,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1513,6 +1516,8 @@
   "note.budget.partial": "{budget}: một phần mức sử dụng của kỳ này không được ghi lại, nên đã dùng ít nhất chừng này.",
   "note.budget.negative": "{budget}: chỉ số cho thấy khoản tín dụng ròng trong kỳ này, nên ngân sách này không thể tính.",
   "note.budget.unit_mismatch_named": "{budget}: chỉ số được báo cáo theo {metric_unit} còn ngân sách này theo {budget_unit}, nên không thể đếm.",
+  "note.budget.ignored": "{problem} Ngân sách hoặc mức sàn này bị bỏ qua cho đến khi được sửa.",
+  "note.budget.floor_missing": "{field}: không có số dư hay tín dụng nào trong số đo này khớp với mức sàn này, nên nó không cảnh báo gì.",
   "note.claude_code.answered_by_api": "Trả lời bằng truy vấn Claude: không có số liệu mới từ Claude Code.",
   "note.claude_code.answered_by_feed": "Trả lời bằng chính dòng trạng thái của Claude Code (không có yêu cầu mạng).",
   "note.claude_code.fed": "Lấy từ dòng trạng thái có tài liệu của Claude Code: không yêu cầu mạng, không tái sử dụng token.",
@@ -2732,6 +2737,7 @@
   "budget.error.duplicate_label": "{field}: một ngân sách khác của tài khoản này đã có nhãn này.",
   "budget.error.unit_mismatch": "{field}: chỉ số được báo cáo theo {metric_unit} còn ngân sách này theo {budget_unit}; hãy đặt theo {metric_unit}.",
   "budget.error.amount_ambiguous": "{field}: {text} có thể là {whole} hoặc {decimal}. Hãy nhập {whole} hoặc {decimal}.",
+  "budget.error.characters": "{field}: hãy xóa các ký tự ẩn hoặc ký tự điều khiển; chỉ cho phép văn bản nhìn thấy được.",
   "budget.period_since": "từ {day}",
   "budget.field.kind": "Chỉ số",
   "budget.field.amount": "Số tiền",

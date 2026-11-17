@@ -196,7 +196,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -1549,6 +1552,8 @@
   "note.budget.partial": "{budget}：本周期的部分用量未被记录，因此至少已使用这么多。",
   "note.budget.negative": "{budget}：该指标本周期显示为净抵扣额，因此此预算无法计算。",
   "note.budget.unit_mismatch_named": "{budget}：该指标以 {metric_unit} 报告，而此预算为 {budget_unit}，因此无法计算。",
+  "note.budget.ignored": "{problem} 在修正之前，此预算或下限不会生效。",
+  "note.budget.floor_missing": "{field}：此读数中没有与该下限匹配的余额或额度，因此它不会发出任何提醒。",
   "note.claude_code.answered_by_api": "由 Claude 查询作答：Claude Code 没有最近的读数。",
   "note.claude_code.answered_by_feed": "由 Claude Code 自己的状态栏作答（不发网络请求）。",
   "note.claude_code.fed": "由 Claude Code 有文档的状态栏推送：不发网络请求，不复用令牌。",
@@ -2768,6 +2773,7 @@
   "budget.error.duplicate_label": "{field}：此账户已有其他预算使用这个名称。",
   "budget.error.unit_mismatch": "{field}：该指标以 {metric_unit} 报告，而此预算为 {budget_unit}；请改用 {metric_unit}。",
   "budget.error.amount_ambiguous": "{field}：{text} 可能是 {whole}，也可能是 {decimal}。请改为输入 {whole} 或 {decimal}。",
+  "budget.error.characters": "{field}：请删除不可见字符或控制字符；只允许可见文本。",
   "budget.period_since": "自{day}起",
   "budget.field.kind": "指标",
   "budget.field.amount": "金额",

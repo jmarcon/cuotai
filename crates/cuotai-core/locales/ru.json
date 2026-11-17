@@ -209,7 +209,10 @@
       "budget.field.label_contains",
       "budget.field.row",
       "budget.field.budgets",
-      "budget.field.floors"
+      "budget.field.floors",
+      "budget.error.characters",
+      "note.budget.ignored",
+      "note.budget.floor_missing"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1625,6 +1628,8 @@
   "note.budget.partial": "{budget}: часть расхода за этот период не записана, поэтому израсходовано не меньше этого.",
   "note.budget.negative": "{budget}: метрика показывает чистый кредит за этот период, поэтому бюджет не может её учесть.",
   "note.budget.unit_mismatch_named": "{budget}: метрика сообщается в {metric_unit}, а этот бюджет задан в {budget_unit}, поэтому он не может считать.",
+  "note.budget.ignored": "{problem} Этот бюджет или порог не учитывается, пока его не исправят.",
+  "note.budget.floor_missing": "{field}: в этом показании нет баланса или кредитов, подходящих под этот порог, поэтому он ни о чём не предупреждает.",
   "note.claude_code.answered_by_api": "Ответ получен запросом Claude: свежих показаний от Claude Code нет.",
   "note.claude_code.answered_by_feed": "Ответ получен из строки состояния Claude Code (без сетевых запросов).",
   "note.claude_code.fed": "Данные из документированной строки состояния Claude Code: без сетевых запросов и повторного использования токенов.",
@@ -2943,6 +2948,7 @@
   "budget.error.duplicate_label": "{field}: у другого бюджета этой учётной записи уже есть такое название.",
   "budget.error.unit_mismatch": "{field}: метрика сообщается в {metric_unit}, а этот бюджет задан в {budget_unit}; укажите его в {metric_unit}.",
   "budget.error.amount_ambiguous": "{field}: {text} можно прочитать как {whole} или {decimal}. Введите {whole} или {decimal}.",
+  "budget.error.characters": "{field}: удалите невидимые и управляющие символы; допускается только видимый текст.",
   "budget.period_since": "с {day}",
   "budget.field.kind": "Метрика",
   "budget.field.amount": "Сумма",
