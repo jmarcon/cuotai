@@ -533,7 +533,14 @@ pub(crate) fn trend_text(trend: &Trend, unit: &str) -> String {
             ("min", &compact(trend.min)),
             ("max", &compact(trend.max)),
             ("last", &compact(trend.last.used)),
-            ("unit", &safe(&crate::ui::unit_text(unit))),
+            (
+                "unit",
+                &safe(&crate::ui::unit_text_for(
+                    unit,
+                    Some(trend.last.used),
+                    crate::ui::tui_locale(),
+                )),
+            ),
         ],
     )
 }

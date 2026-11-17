@@ -4004,6 +4004,12 @@ pub(crate) fn unit_text(raw: &str) -> String {
     metric_label_text(raw)
 }
 
+/// PRD 0037 re-validation (V-03): a unit printed right after `figure`, in
+/// `locale` and in the plural form of that figure ("1 credit", "5 кредитов").
+pub(crate) fn unit_text_for(raw: &str, figure: Option<f64>, locale: &str) -> String {
+    cuotai_core::metric_text::unit_for(raw, figure).resolve(locale)
+}
+
 /// Resolve a [`cuotai_core::text::Localized`] for the TUI locale.
 pub(crate) fn resolve_l10n(note: &cuotai_core::text::Localized) -> String {
     note.resolve(tui_locale())
@@ -4081,7 +4087,7 @@ pub(crate) fn metric_text_in(metric: &Metric, locale: &str) -> String {
         Some(used) if metric.unit == "%" => format_percent(used, locale),
         Some(_) if currency => number(metric.used),
         _ => {
-            let unit = unit_text(&metric.unit);
+            let unit = unit_text_for(&metric.unit, metric.used, locale);
             let unit = safe(&unit);
             if unit.is_empty() {
                 number(metric.used)

@@ -346,7 +346,10 @@ export function tl(value, vars = {}, escape = false) {
   const allVars = { ...(value.params ?? {}), ...vars };
   const currentCatalog = mergedCatalog(current);
   const fallbackCatalog = mergedCatalog(FALLBACK);
-  const template = pluralForm(currentCatalog[value.id] ?? fallbackCatalog[value.id], allVars.count);
+  // A core plural with no count reads in its `other` form, as the core renders it (PRD 0037 re-validation V-03: a
+  // bare counted unit).
+  const entry = currentCatalog[value.id] ?? fallbackCatalog[value.id];
+  const template = allVars.count == null && entry && typeof entry === "object" ? entry.other ?? pluralForm(entry) : pluralForm(entry, allVars.count);
   // PRD 0034 RF7: the core's English fallbacks are the source of its en-US texts (there is no en-US core catalog), so the
   // pseudo-locale derives its core texts from them, as it does from the UI catalog.
   const text = template ?? (current === PSEUDO && typeof value.fallback === "string" ? pseudoText(value.fallback) : value.fallback);

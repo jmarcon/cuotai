@@ -1894,12 +1894,16 @@ mod tests {
                     if !matches!(message, Message::Plural(_)) {
                         continue;
                     }
+                    // A counted unit is a selector plural (PRD 0037
+                    // re-validation V-03): its figure is printed beside it,
+                    // never inside it.
+                    let selector = *layer == "core" && id.starts_with("metric.unit.");
                     for count in COUNTS {
                         checked += 1;
                         let category = plural_category(row.plural_rule, count);
                         match message.template(row.plural_rule, Some(count)) {
                             None => problems.push(format!("{} {layer} {id} {count}: no form", row.code)),
-                            Some(text) if count != "1" && !text.contains("{count}") => problems
+                            Some(text) if count != "1" && !selector && !text.contains("{count}") => problems
                                 .push(format!(
                                     "{} {layer} {id} {count} ({category}): {text:?} hides the number",
                                     row.code

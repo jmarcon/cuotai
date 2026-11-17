@@ -2276,21 +2276,57 @@
   "freshness.age.minutes": "{n} dk önce",
   "freshness.age.hours": "{n} sa önce",
   "freshness.age.days": "{n} g önce",
-  "metric.unit.credits": "kredi",
-  "metric.unit.frames": "kare",
-  "metric.unit.images": "görsel",
-  "metric.unit.calls": "çağrı",
-  "metric.unit.requests": "istek",
-  "metric.unit.requisitions": "istek",
-  "metric.unit.tokens": "token",
-  "metric.unit.voices": "ses",
+  "metric.unit.credits": {
+    "one": "kredi",
+    "other": "kredi"
+  },
+  "metric.unit.frames": {
+    "one": "kare",
+    "other": "kare"
+  },
+  "metric.unit.images": {
+    "one": "görsel",
+    "other": "görsel"
+  },
+  "metric.unit.calls": {
+    "one": "çağrı",
+    "other": "çağrı"
+  },
+  "metric.unit.requests": {
+    "one": "istek",
+    "other": "istek"
+  },
+  "metric.unit.requisitions": {
+    "one": "istek",
+    "other": "istek"
+  },
+  "metric.unit.tokens": {
+    "one": "token",
+    "other": "token"
+  },
+  "metric.unit.voices": {
+    "one": "ses",
+    "other": "ses"
+  },
   "metric.word.unknown": "bilinmiyor",
   "metric.word.limit": "sınır",
   "metric.word.quota": "kota",
-  "metric.unit.units": "birim",
-  "metric.unit.queries": "sorgu",
-  "metric.unit.members": "üye",
-  "metric.unit.models": "model",
+  "metric.unit.units": {
+    "one": "birim",
+    "other": "birim"
+  },
+  "metric.unit.queries": {
+    "one": "sorgu",
+    "other": "sorgu"
+  },
+  "metric.unit.members": {
+    "one": "üye",
+    "other": "üye"
+  },
+  "metric.unit.models": {
+    "one": "model",
+    "other": "model"
+  },
   "metric.period.billing_cycle": "faturalama döngüsü",
   "metric.period.current_balance": "geçerli bakiye",
   "metric.period.weekly": "haftalık",
@@ -2459,7 +2495,10 @@
   "metric.label.rate_limit_of": "{label} (hız sınırı)",
   "metric.label.rate_limit": "Hız sınırı",
   "metric.label.extra_usage_used": "Ek kullanım — kullanılan",
-  "metric.unit.provider_units": "sağlayıcı birimi",
+  "metric.unit.provider_units": {
+    "one": "sağlayıcı birimi",
+    "other": "sağlayıcı birimi"
+  },
   "metric.label.overage_of": "{label} (aşım)",
   "metric.label.overage_charged_of": "{label} (ücretlendirilen aşım)",
   "metric.label.free_trial_of": "{label} (ücretsiz deneme)",

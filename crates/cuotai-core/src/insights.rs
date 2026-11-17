@@ -100,7 +100,7 @@ impl LimitChange {
                 ("to", ParamValue::Text(plain(self.to))),
                 (
                     "unit",
-                    ParamValue::l10n(crate::metric_text::metric_text(&self.unit)),
+                    ParamValue::l10n(crate::metric_text::unit_for(&self.unit, Some(self.to))),
                 ),
                 ("date", ParamValue::Text(date(self.observed_at))),
             ]),

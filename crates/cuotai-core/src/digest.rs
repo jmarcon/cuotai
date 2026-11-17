@@ -491,7 +491,10 @@ impl Digest {
                             ),
                             (
                                 "unit",
-                                ParamValue::l10n(crate::metric_text::metric_text(&budget.unit))
+                                ParamValue::l10n(crate::metric_text::unit_for(
+                                    &budget.unit,
+                                    Some(budget.limit)
+                                ))
                             ),
                         ]),
                         "{budget}: {used} of {limit} {unit}",

@@ -97,7 +97,9 @@ const flat = (value) => value.replace(/[  ]/g, " ");
 const decode = (html) => flat(html).replaceAll("&#39;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const withoutTitles = (html) => html.replace(/ (title|aria-label|aria-valuetext)="[^"]*"/g, "");
 const count = (haystack, needle) => haystack.split(needle).length - 1;
-const coreText = async (code, id, fallback) => (code === "en-US" ? fallback : flat((await read(`crates/cuotai-core/locales/${code}.json`))[id] ?? fallback));
+// A counted unit is a plural object (PRD 0037 re-validation V-03); its bare form is `other`.
+const bare = (value) => (value && typeof value === "object" ? value.other : value);
+const coreText = async (code, id, fallback) => (code === "en-US" ? fallback : flat(bare((await read(`crates/cuotai-core/locales/${code}.json`))[id]) ?? fallback));
 
 assert.equal(i18n.LOCALES.length, 14, "every built-in language is checked");
 for (const { code } of i18n.LOCALES) {
@@ -178,6 +180,9 @@ for (const { code } of i18n.LOCALES) {
   // PRD 0034 re-validation (G13): an adapter unit (`créditos`, an id) reads as the overage metric's `unit_text` on the
   // card column, the line, the details and the cap; the core's chip text carries its own nested unit text.
   const creditsWord = await coreText(code, "metric.unit.credits", "credits");
+  // PRD 0037 re-validation (V-03): the unit takes the plural form of the figure printed before it.
+  const creditsForms = code === "en-US" ? { one: "credit", other: "credits" } : (await read(`crates/cuotai-core/locales/${code}.json`))["metric.unit.credits"];
+  const creditsFor = (n) => flat(creditsForms[new Intl.PluralRules(code).select(n)] ?? creditsForms.other);
   const creditsText = text("metric.unit.credits", "credits");
   const creditsAmount = (value) => text("amount.units", `${value} credits`, { value: String(value), unit: creditsText });
   const credits = report({ state: "active", spent: 12, unit: "créditos", currency: null, cap: 40, cycle_ends_at: null,
@@ -185,8 +190,8 @@ for (const { code } of i18n.LOCALES) {
     summary: text("overage.limit_hit_on_extra", "Limit hit · on extra 12 credits", { amount: creditsAmount(12) }), caveat: null },
   extraMetric({ unit: "créditos", unit_text: creditsText, kind: "quota", used: 12, limit: 40 }));
   const creditsAll = decode(extraColumnHtml(credits) + lib.overageChipHtml(credits) + detailHtml(credits) + lib.overageLineHtml(credits));
-  assert.ok(creditsAll.includes(`${num(12)} ${flat(creditsWord)}`) && creditsAll.includes(`${num(40)} ${flat(creditsWord)}`), `${code}: credits read in the language`);
-  if (flat(creditsWord) !== "créditos") assert.ok(!creditsAll.includes("créditos"), `${code}: the raw unit never shows`);
+  assert.ok(creditsAll.includes(`${num(12)} ${creditsFor(12)}`) && creditsAll.includes(`${num(40)} ${creditsFor(40)}`), `${code}: credits read in the language`);
+  if (flat(creditsWord) !== "créditos" && creditsFor(12) !== "créditos") assert.ok(!creditsAll.includes("créditos"), `${code}: the raw unit never shows`);
 
   // Overage never decides the card summary or the sort order.
   assert.equal(lib.worstRemaining(cases.unknown), 40, `${code}: worst remaining ignores overage`);

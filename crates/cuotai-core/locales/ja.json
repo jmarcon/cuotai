@@ -2289,21 +2289,45 @@
   "freshness.age.minutes": "{n} 分前",
   "freshness.age.hours": "{n} 時間前",
   "freshness.age.days": "{n} 日前",
-  "metric.unit.credits": "クレジット",
-  "metric.unit.frames": "フレーム",
-  "metric.unit.images": "画像",
-  "metric.unit.calls": "回",
-  "metric.unit.requests": "リクエスト",
-  "metric.unit.requisitions": "リクエスト",
-  "metric.unit.tokens": "トークン",
-  "metric.unit.voices": "ボイス",
+  "metric.unit.credits": {
+    "other": "クレジット"
+  },
+  "metric.unit.frames": {
+    "other": "フレーム"
+  },
+  "metric.unit.images": {
+    "other": "画像"
+  },
+  "metric.unit.calls": {
+    "other": "回"
+  },
+  "metric.unit.requests": {
+    "other": "リクエスト"
+  },
+  "metric.unit.requisitions": {
+    "other": "リクエスト"
+  },
+  "metric.unit.tokens": {
+    "other": "トークン"
+  },
+  "metric.unit.voices": {
+    "other": "ボイス"
+  },
   "metric.word.unknown": "不明",
   "metric.word.limit": "上限",
   "metric.word.quota": "クォータ",
-  "metric.unit.units": "単位",
-  "metric.unit.queries": "照会",
-  "metric.unit.members": "メンバー",
-  "metric.unit.models": "モデル",
+  "metric.unit.units": {
+    "other": "単位"
+  },
+  "metric.unit.queries": {
+    "other": "照会"
+  },
+  "metric.unit.members": {
+    "other": "メンバー"
+  },
+  "metric.unit.models": {
+    "other": "モデル"
+  },
   "metric.period.billing_cycle": "請求サイクル",
   "metric.period.current_balance": "現在の残高",
   "metric.period.weekly": "週次",
@@ -2469,7 +2493,9 @@
   "metric.label.rate_limit_of": "{label}（レート制限）",
   "metric.label.rate_limit": "レート制限",
   "metric.label.extra_usage_used": "追加使用 — 使用済み",
-  "metric.unit.provider_units": "プロバイダーの単位",
+  "metric.unit.provider_units": {
+    "other": "プロバイダーの単位"
+  },
   "metric.label.overage_of": "{label}（超過分）",
   "metric.label.overage_charged_of": "{label}（請求済みの超過分）",
   "metric.label.free_trial_of": "{label}（無料トライアル）",

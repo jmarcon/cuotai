@@ -2244,21 +2244,45 @@
   "freshness.age.minutes": "{n} mnt lalu",
   "freshness.age.hours": "{n} j lalu",
   "freshness.age.days": "{n} hr lalu",
-  "metric.unit.credits": "kredit",
-  "metric.unit.frames": "frame",
-  "metric.unit.images": "gambar",
-  "metric.unit.calls": "panggilan",
-  "metric.unit.requests": "permintaan",
-  "metric.unit.requisitions": "permintaan",
-  "metric.unit.tokens": "token",
-  "metric.unit.voices": "suara",
+  "metric.unit.credits": {
+    "other": "kredit"
+  },
+  "metric.unit.frames": {
+    "other": "frame"
+  },
+  "metric.unit.images": {
+    "other": "gambar"
+  },
+  "metric.unit.calls": {
+    "other": "panggilan"
+  },
+  "metric.unit.requests": {
+    "other": "permintaan"
+  },
+  "metric.unit.requisitions": {
+    "other": "permintaan"
+  },
+  "metric.unit.tokens": {
+    "other": "token"
+  },
+  "metric.unit.voices": {
+    "other": "suara"
+  },
   "metric.word.unknown": "tidak diketahui",
   "metric.word.limit": "batas",
   "metric.word.quota": "kuota",
-  "metric.unit.units": "unit",
-  "metric.unit.queries": "kueri",
-  "metric.unit.members": "anggota",
-  "metric.unit.models": "model",
+  "metric.unit.units": {
+    "other": "unit"
+  },
+  "metric.unit.queries": {
+    "other": "kueri"
+  },
+  "metric.unit.members": {
+    "other": "anggota"
+  },
+  "metric.unit.models": {
+    "other": "model"
+  },
   "metric.period.billing_cycle": "siklus penagihan",
   "metric.period.current_balance": "saldo saat ini",
   "metric.period.weekly": "mingguan",
@@ -2424,7 +2448,9 @@
   "metric.label.rate_limit_of": "{label} (batas laju)",
   "metric.label.rate_limit": "Batas laju",
   "metric.label.extra_usage_used": "Penggunaan ekstra — terpakai",
-  "metric.unit.provider_units": "unit penyedia",
+  "metric.unit.provider_units": {
+    "other": "unit penyedia"
+  },
   "metric.label.overage_of": "{label} (kelebihan)",
   "metric.label.overage_charged_of": "{label} (kelebihan ditagih)",
   "metric.label.free_trial_of": "{label} (uji coba gratis)",

@@ -121,10 +121,10 @@ fn day_label(day: &stats::DayPeak, locale: &str) -> String {
 /// An amount in its unit, in the language's number format: money for a
 /// currency code, the number and the unit otherwise (re-validation R-02).
 fn amount_text(amount: f64, unit: &str, locale: &str) -> String {
-    let unit = crate::ui::unit_text(unit);
     let note = if unit.len() == 3 && unit.bytes().all(|b| b.is_ascii_uppercase()) {
-        text::number::money(amount, &unit)
+        text::number::money(amount, unit)
     } else {
+        let unit = crate::ui::unit_text_for(unit, Some(amount), locale);
         text::number::units(amount, &safe(&unit))
     };
     note.resolve(locale)

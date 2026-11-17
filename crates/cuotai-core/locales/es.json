@@ -2188,21 +2188,57 @@
   "freshness.age.minutes": "hace {n} min",
   "freshness.age.hours": "hace {n} h",
   "freshness.age.days": "hace {n} d",
-  "metric.unit.credits": "créditos",
-  "metric.unit.frames": "fotogramas",
-  "metric.unit.images": "imágenes",
-  "metric.unit.calls": "llamadas",
-  "metric.unit.requests": "solicitudes",
-  "metric.unit.requisitions": "solicitudes",
-  "metric.unit.tokens": "tokens",
-  "metric.unit.voices": "voces",
+  "metric.unit.credits": {
+    "one": "crédito",
+    "other": "créditos"
+  },
+  "metric.unit.frames": {
+    "one": "fotograma",
+    "other": "fotogramas"
+  },
+  "metric.unit.images": {
+    "one": "imagen",
+    "other": "imágenes"
+  },
+  "metric.unit.calls": {
+    "one": "llamada",
+    "other": "llamadas"
+  },
+  "metric.unit.requests": {
+    "one": "solicitud",
+    "other": "solicitudes"
+  },
+  "metric.unit.requisitions": {
+    "one": "solicitud",
+    "other": "solicitudes"
+  },
+  "metric.unit.tokens": {
+    "one": "token",
+    "other": "tokens"
+  },
+  "metric.unit.voices": {
+    "one": "voz",
+    "other": "voces"
+  },
   "metric.word.unknown": "desconocida",
   "metric.word.limit": "límite",
   "metric.word.quota": "cuota",
-  "metric.unit.units": "unidades",
-  "metric.unit.queries": "consultas",
-  "metric.unit.members": "miembros",
-  "metric.unit.models": "modelos",
+  "metric.unit.units": {
+    "one": "unidad",
+    "other": "unidades"
+  },
+  "metric.unit.queries": {
+    "one": "consulta",
+    "other": "consultas"
+  },
+  "metric.unit.members": {
+    "one": "miembro",
+    "other": "miembros"
+  },
+  "metric.unit.models": {
+    "one": "modelo",
+    "other": "modelos"
+  },
   "metric.period.billing_cycle": "ciclo de facturación",
   "metric.period.current_balance": "saldo actual",
   "metric.period.weekly": "semanal",
@@ -2371,7 +2407,10 @@
   "metric.label.rate_limit_of": "{label} (límite de frecuencia)",
   "metric.label.rate_limit": "Límite de frecuencia",
   "metric.label.extra_usage_used": "Uso extra — utilizado",
-  "metric.unit.provider_units": "unidades del proveedor",
+  "metric.unit.provider_units": {
+    "one": "unidad del proveedor",
+    "other": "unidades del proveedor"
+  },
   "metric.label.overage_of": "{label} (excedente)",
   "metric.label.overage_charged_of": "{label} (excedente cobrado)",
   "metric.label.free_trial_of": "{label} (prueba gratuita)",

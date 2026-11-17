@@ -290,7 +290,9 @@ pub fn format_amount(value: f64, unit: &str, currency: Option<&str>) -> ParamVal
         // PRD 0034 re-validation (G13): an adapter's own unit (an id, often
         // Portuguese: `créditos`) reads as its display text; a unit the
         // catalog does not know stays as the provider wrote it.
-        None => match crate::metric_text::metric_text(unit) {
+        // A counted unit takes the form of its figure (PRD 0037
+        // re-validation V-03).
+        None => match crate::metric_text::unit_for(unit, Some(value)) {
             text if text.id == "metric.verbatim" => ParamValue::l10n(number::units(value, unit)),
             text => ParamValue::l10n(number::units_text(value, text)),
         },
