@@ -90,6 +90,7 @@ fn push_balance(metrics: &mut Vec<Metric>, label: &str, balance: f64) -> Result<
         period: None,
         resets_at: None,
         derived_from: None,
+        unlimited: false,
     });
     Ok(())
 }

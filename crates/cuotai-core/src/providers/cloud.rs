@@ -213,6 +213,7 @@ fn google_metrics(label: &str, limits: &[Ts], usage: &[Ts]) -> Result<Vec<Metric
             period: None,
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         });
     }
     for ts in usage {

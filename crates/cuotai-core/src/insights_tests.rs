@@ -24,6 +24,7 @@ fn quota(label: &str, used: f64, limit: Option<f64>, resets_at: Option<DateTime<
         billing: Billing::Included,
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 

@@ -35,6 +35,7 @@ fn quota(used: f64, resets_at: Option<DateTime<Utc>>) -> Metric {
         period: None,
         resets_at,
         derived_from: None,
+        unlimited: false,
     }
 }
 
@@ -619,6 +620,7 @@ fn overage_report(at: DateTime<Utc>, spent: f64) -> Report {
         period: None,
         resets_at: Some(cycle),
         derived_from: None,
+        unlimited: false,
     };
     report(at, metric)
 }

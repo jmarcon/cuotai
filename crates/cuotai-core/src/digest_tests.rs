@@ -21,6 +21,7 @@ fn daily(used: f64, limit: f64, day: u32) -> Metric {
         billing: Billing::Included,
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 

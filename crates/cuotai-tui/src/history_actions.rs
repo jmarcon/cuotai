@@ -523,6 +523,7 @@ credential_env = "GROQ_KEY_HOME"
             billing: Default::default(),
             scope: None,
             derived_from: None,
+            unlimited: false,
         };
         let taken = chrono::Utc::now() - chrono::TimeDelta::minutes(30);
         store.record(&accounts()[0], taken, &[metric]).unwrap();

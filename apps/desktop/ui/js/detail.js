@@ -3,7 +3,7 @@
 import { t, te, tl } from "./i18n.js";
 import {
   STALE, paceUnit, accessHtml, ageHtml, bindingChipText, fmtShare, causeText, errText, esc, fmtAmount, fmtReset, getView, icon, incidentDetailHtml, isBindingMetric, isMetricHidden, isRenewedWaiting, isStaleReading, level, loadModels, metricAlertHtml, metricKey, modelState, noteText,
-  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
+  adviceHtml, fmtMetricExtra, forecastHtml, scopeBlocksHtml, isFullCounter, isOverage, openExternal, overageDetailHtml, paceHtml, paceOf, remainingPct, renewedText, reportKey, restNotes, staleView, statusLabel, syncModels, textualMetric,
 } from "./lib.js";
 import { expectedLeft, fmtAt, meterHtml, stageChip, TONE_ROLE } from "./components.js";
 import { breakdownHtml } from "./breakdown.js";
@@ -38,7 +38,8 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
   // PRD 0022 RF2 (DS-CMP-MTR): one continuous bar of the remaining share; the pace corridor sits at the expected
   // remaining share (PRD 0007 RF3.2) and is absent on stale, unknown and exhausted meters.
   const state = stale ? "stale" : m.state === "exhausted" ? "exhausted" : pct == null ? "unknown" : "fresh";
-  const valueText = pct == null ? t("meter.noData")
+  const full = isFullCounter(m);
+  const valueText = full ? t("metric.full") : pct == null ? t("meter.noData")
     : pace ? t("meter.valuetext", { pct: Math.round(pct), status: [paceWords, t("metric.pace.expected", { pct: Math.round(pace.expected_used_fraction * 100) })].join(", ") })
       : t("meter.left", { pct: Math.round(pct) });
   const renewed = isRenewedWaiting(m);
@@ -46,7 +47,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     ? `<p class="sub" data-renewed-waiting>${icon("clock")} ${esc(renewedText(m))}</p>`
     : text != null
     ? `<div class="balance ${m.state === "exhausted" && !extra ? "bad" : ""}">${esc(text)}</div>`
-    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), text: valueText, name: limitLabel(r, m) })}</div>`;
+    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), role: full ? "warn" : null, text: valueText, name: limitLabel(r, m) })}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets the "Binding" tag; every other metric stays listed.
   const binding = isBindingMetric(r, m);
   // DS-CMP-SUB-1 (mockup 03): label + tag, the figure with its unit inline; the meter; the pace stage on the left and

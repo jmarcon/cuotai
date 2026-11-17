@@ -245,6 +245,7 @@ async fn opencode_go_at(
             period: Some(period_pt.into()),
             resets_at: parse_reset_time(quota.get("resetsAt")),
             derived_from: None,
+            unlimited: false,
         });
     }
 
@@ -335,6 +336,7 @@ pub(crate) async fn groq_at(
             period: Some("janela corrente do rate limit".into()),
             resets_at,
             derived_from: None,
+            unlimited: false,
         });
     }
 
@@ -524,6 +526,7 @@ async fn kimi_coding_at(
                 period: Some("semanal".into()),
                 resets_at: reset,
                 derived_from: None,
+                unlimited: false,
             });
         }
     }
@@ -554,6 +557,7 @@ async fn kimi_coding_at(
                 period: Some("janela corrente do rate limit".into()),
                 resets_at: parse_reset_time(pick(&["resetTime", "reset_at", "resetAt"])),
                 derived_from: None,
+                unlimited: false,
             });
         }
     }
@@ -882,6 +886,7 @@ fn mimo_data_from_body(
         period: Some("semanal".into()),
         resets_at,
         derived_from: None,
+        unlimited: false,
     }];
     let mut notes = Notes::new();
     notes.push_params(

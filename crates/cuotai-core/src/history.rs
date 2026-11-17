@@ -1107,6 +1107,7 @@ impl HistoryStore {
                             period: None,
                             resets_at: reset_instant(row.get(9)?),
                             derived_from: None,
+                            unlimited: false,
                         },
                     })
                 },
@@ -1357,6 +1358,7 @@ credential_env = "GROQ_KEY_BETA"
             period: Some("5h".into()),
             resets_at: Some(t0() + TimeDelta::hours(5)),
             derived_from: None,
+            unlimited: false,
         }
     }
 

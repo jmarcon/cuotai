@@ -35,6 +35,7 @@ fn quota(used: f64, resets_at: DateTime<Utc>) -> Metric {
         period: None,
         resets_at: Some(resets_at),
         derived_from: None,
+        unlimited: false,
     }
 }
 

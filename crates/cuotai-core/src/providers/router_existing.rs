@@ -115,6 +115,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 period: Some("janela do plano".into()),
                 resets_at,
                 derived_from: None,
+                unlimited: false,
             });
         }
     } else if response.monthly_quotas.is_some() || response.limited_user_quotas.is_some() {
@@ -143,6 +144,7 @@ async fn copilot(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Dat
                 period: Some("janela mensal do plano".into()),
                 resets_at,
                 derived_from: None,
+                unlimited: false,
             });
         }
     } else {
@@ -259,6 +261,7 @@ async fn gemini_cli(account: &Account, ctx: &Context<'_>, base: &str) -> Result<
             period: None,
             resets_at: reset(bucket.reset_time.as_deref())?,
             derived_from: None,
+            unlimited: false,
         });
     }
     let mut notes = Notes::new();

@@ -3352,6 +3352,7 @@ mod tests {
             period: None,
             resets_at: Some(resets_at),
             derived_from: None,
+            unlimited: false,
         }
     }
 
@@ -3614,6 +3615,7 @@ mod tests {
             period: None,
             resets_at: cycle_end,
             derived_from: None,
+            unlimited: false,
         };
         if spent.is_none() && cap.is_none() {
             meter.used = None;

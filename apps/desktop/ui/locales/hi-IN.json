@@ -160,6 +160,8 @@
   "metric.balance": "बैलेंस: {amount}",
   "metric.usage": "उपयोग: {amount}",
   "metric.exhausted": "खत्म",
+  "metric.full": "सब उपयोग में",
+  "metric.noCap": "कोई ऊपरी सीमा नहीं",
   "account.empty": "कोई खाता कॉन्फ़िगर नहीं है।",
   "account.enable": "डैशबोर्ड में दिखाएँ",
   "account.disable": "डैशबोर्ड से छिपाएँ",

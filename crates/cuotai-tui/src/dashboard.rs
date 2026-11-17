@@ -248,6 +248,10 @@ struct MetricRow {
     /// PRD 0024 RF7.3 (re-validation V-05): when the core's strict forecast
     /// says the metric runs out, for the advice ([`cuotai_core::advice::running_out`]).
     runs_out_at: Option<DateTime<Utc>>,
+    /// PRD 0037 RF5: the metric's kind and whether the provider stated it
+    /// has no cap, for the wording of an uncapped or full metric.
+    kind: cuotai_core::MetricKind,
+    unlimited: bool,
 }
 
 /// The reading a pace is read from (PRD 0024 FIX-11): its measurement time
@@ -294,6 +298,8 @@ fn metric_row(metric: &Metric, clock: Option<PaceClock>, recent: &[Point]) -> Me
         state: classify_metric(metric),
         period: metric.period.as_deref().map(crate::ui::unit_text),
         resets_at: metric.resets_at,
+        kind: metric.kind,
+        unlimited: metric.unlimited,
         pace: clock.and_then(|clock| {
             pace::assess_reading(
                 metric,
@@ -2872,11 +2878,13 @@ fn render_metric_block(
                 ));
                 frame.render_widget(Paragraph::new(line), gauge_area);
             } else {
+                // PRD 0038 RF4.2: a full Usage counter never blocks the account.
+                let color = if is_full_counter(metric) { YELLOW } else { RED };
                 render_gauge(
                     frame,
                     gauge_area,
                     fill(0.0),
-                    Some(RED),
+                    Some(color),
                     metric,
                     (now, reset_column),
                     unicode,
@@ -2885,7 +2893,8 @@ fn render_metric_block(
         }
         MetricState::Available { ratio, uncapped } => {
             if uncapped {
-                let line = Line::from(Span::styled(no_limit(), Style::default().fg(MUTED)));
+                let text = uncapped_text(metric).unwrap_or_default();
+                let line = Line::from(Span::styled(text, Style::default().fg(MUTED)));
                 frame.render_widget(Paragraph::new(line), gauge_area);
             } else {
                 let ratio = fill(ratio);
@@ -2980,8 +2989,10 @@ fn render_gauge(
     };
     let label_text = match metric.state {
         MetricState::Unmeasured => "—".to_string(),
-        MetricState::Exhausted { .. } => tr("dashboard.metric.exhausted", "exhausted").to_string(),
-        MetricState::Available { uncapped: true, .. } => no_limit().to_string(),
+        MetricState::Exhausted { .. } => exhausted_text(metric).to_string(),
+        MetricState::Available { uncapped: true, .. } => {
+            uncapped_text(metric).unwrap_or_default().to_string()
+        }
         MetricState::Available { .. } => {
             // V-17: the sign placed as the language places it ("64 %", "%64").
             padded_percent((ratio * 100.0).round())
@@ -3002,9 +3013,34 @@ fn render_gauge(
     }
 }
 
-/// "limit not reported".
-fn no_limit() -> &'static str {
-    tr("dashboard.metric.no_limit", "limit not reported")
+/// PRD 0037 RF5: what an uncapped metric says instead of a gauge: "no
+/// cap" when the provider stated it, nothing for money (the amount alone
+/// says it all), otherwise "limit not reported".
+fn uncapped_text(metric: &MetricRow) -> Option<&'static str> {
+    use cuotai_core::MetricKind as K;
+    if metric.unlimited {
+        Some(tr("dashboard.metric.no_cap", "no cap"))
+    } else if matches!(metric.kind, K::Spend | K::Balance | K::Credits) {
+        None
+    } else {
+        Some(tr("dashboard.metric.no_limit", "limit not reported"))
+    }
+}
+
+/// PRD 0038 RF4.2: a capped `Usage` counter at its limit (all voice slots
+/// taken, the `:free` requests of a paid key) never blocks the account.
+fn is_full_counter(metric: &MetricRow) -> bool {
+    metric.kind == cuotai_core::MetricKind::Usage
+        && matches!(metric.state, MetricState::Exhausted { no_cap: false })
+}
+
+/// "exhausted", or "all in use" for a full `Usage` counter.
+fn exhausted_text(metric: &MetricRow) -> &'static str {
+    if is_full_counter(metric) {
+        tr("dashboard.metric.full", "all in use")
+    } else {
+        tr("dashboard.metric.exhausted", "exhausted")
+    }
 }
 
 fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut Targets) {
@@ -3623,7 +3659,11 @@ fn line_bar(
     now: DateTime<Utc>,
     motion: Option<(&Anim, &str, usize)>,
 ) -> Line<'static> {
-    let ratio_color = metric_state_color(metric.state);
+    let ratio_color = if is_full_counter(metric) {
+        Some(YELLOW)
+    } else {
+        metric_state_color(metric.state)
+    };
     let fill = |ratio: f64| motion.map_or(ratio, |(anim, name, i)| anim.bar(name, i, ratio));
     // PRD 0033 re-validation V-11: a reset already past (a renewed window
     // of a preserved reading) has no countdown, never "renews now".
@@ -3659,12 +3699,13 @@ fn line_bar(
                     tr("dashboard.metric.balance_exhausted", "balance exhausted")
                 )
             } else {
-                format!(" {}", tr("dashboard.metric.exhausted", "exhausted"))
+                format!(" {}", exhausted_text(metric))
             },
         ),
         MetricState::Available { ratio, uncapped } => {
             if uncapped {
-                (String::new(), format!(" {}", no_limit()))
+                let suffix = uncapped_text(metric).map(|text| format!(" {text}"));
+                (String::new(), suffix.unwrap_or_default())
             } else {
                 let ratio = fill(ratio);
                 let suffix = trf(
@@ -3747,6 +3788,43 @@ mod tests {
         assert_eq!(compact, "ctx 8% · ≈$0.42");
     }
 
+    /// PRD 0037 RF5 / PRD 0038 RF4.2: an uncapped metric says why ("no cap"
+    /// when the provider stated it, the amount alone for money, otherwise
+    /// "limit not reported"), and a full Usage counter reads "all in use".
+    #[test]
+    fn uncapped_and_full_metrics_say_why() {
+        let now = chrono::Utc::now();
+        let suffix = |metric: &Metric| {
+            let row = metric_row(metric, None, &[]);
+            crate::l10n::with_locale("en-US", || {
+                (
+                    line_bar(&row, 60, now, None).to_string(),
+                    uncapped_text(&row),
+                )
+            })
+        };
+        let mut uncapped = metric("Requests", Some(3.0), None, None);
+        assert!(suffix(&uncapped).0.ends_with(" limit not reported"));
+        uncapped.unlimited = true;
+        assert!(suffix(&uncapped).0.ends_with(" no cap"));
+        for kind in [MetricKind::Spend, MetricKind::Balance, MetricKind::Credits] {
+            let mut money = metric("Spend", Some(3.0), None, None);
+            money.kind = kind;
+            let (line, text) = suffix(&money);
+            assert_eq!(text, None, "{kind:?}");
+            assert!(!line.contains("limit"), "{kind:?}: {line}");
+        }
+        let mut slots = metric("Slots", Some(1.0), Some(1.0), Some(0.0));
+        slots.kind = MetricKind::Usage;
+        let (line, _) = suffix(&slots);
+        assert!(
+            line.ends_with(" all in use") && !line.contains("exhausted"),
+            "{line}"
+        );
+        slots.kind = MetricKind::Quota;
+        assert!(suffix(&slots).0.ends_with(" exhausted"));
+    }
+
     #[test]
     fn gauge_colours_follow_the_core_level_thresholds() {
         let colour = |ratio| {
@@ -3785,6 +3863,7 @@ mod tests {
             period: None,
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         }
     }
 
@@ -3898,6 +3977,7 @@ mod tests {
                 period: Some("ciclo de cobrança".into()),
                 resets_at: None,
                 derived_from: None,
+                unlimited: false,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),
@@ -3997,6 +4077,7 @@ mod tests {
                     period: None,
                     resets_at: None,
                     derived_from: None,
+                    unlimited: false,
                 }],
                 notes: Vec::new(),
                 notes_l10n: Vec::new(),

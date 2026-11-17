@@ -3311,6 +3311,7 @@ mod prd0033_rf2_tests {
                 billing: Default::default(),
                 scope: None,
                 derived_from: None,
+                unlimited: false,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),

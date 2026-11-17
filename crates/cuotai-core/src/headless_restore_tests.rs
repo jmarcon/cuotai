@@ -52,6 +52,7 @@ fn every_restore_path_drops_a_reading_taken_with_other_settings() {
         period: None,
         resets_at: None,
         derived_from: None,
+        unlimited: false,
     };
     history
         .record(

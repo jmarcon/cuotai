@@ -664,16 +664,21 @@ export function fmtAmount(m) {
 }
 /** One recorded value of metric `m` (history; its `unit` and `unit_text`): "60%", "12.5 USD", or a bare count. */
 export const fmtValue = (v, m) => (m.unit === "%" ? fmtPercent(v, 2) : `${fmtNumber(v)}${unitSuffix(m)}`);
-/** Metric without a usable limit: text in place of the bar (never invents "100% free"). */
+/** Metric without a usable limit: text in place of the bar (never invents "100% free"). PRD 0037 RF5: a metric the
+ *  provider stated has no cap (`unlimited`) says "No cap" after its amount. */
 export function textualMetric(m) {
   if (m.state === "exhausted" && m.no_cap) return t("metric.exhausted");
   if (m.state === "available" && m.uncapped) {
     const amount = m.remaining ?? m.used;
-    if (amount == null) return null;
-    return t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: `${fmtNumber(amount)}${unitSuffix(m)}` });
+    if (amount == null) return m.unlimited ? t("metric.noCap") : null;
+    const text = t(m.remaining != null ? "metric.balance" : "metric.usage", { amount: `${fmtNumber(amount)}${unitSuffix(m)}` });
+    return m.unlimited ? `${text} · ${t("metric.noCap")}` : text;
   }
   return null;
 }
+/** PRD 0038 RF4.2: a capped `usage` counter at its limit (every voice slot taken, the `:free` requests of a paid key)
+ *  is "All in use", never "Exhausted": a usage counter does not block the account. */
+export const isFullCounter = (m) => m?.kind === "usage" && m.state === "exhausted" && !m.no_cap;
 /** PRD 0024 RF1.4/RF6.1: "Resets 19:30 · in 1h 35m", worded by the core (`resets_label`); only a reading without it
  *  (the browser demo, a window already past) falls back to the local countdown. Null without a reset time. */
 export function resetsText(m) {

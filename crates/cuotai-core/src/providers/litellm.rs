@@ -175,6 +175,7 @@ fn parse_budgets(value: &Value, now: DateTime<Utc>) -> Result<Budgets, QueryErro
                 period: None,
                 resets_at,
                 derived_from: None,
+                unlimited: false,
             });
         }
         subs.push(SubReport {
@@ -477,6 +478,7 @@ fn budget_row(
             billing: Default::default(),
             scope: None,
             derived_from: None,
+            unlimited: false,
         },
         (None, Some(spend)) => Metric::usage("Gasto total", spend, "USD", MetricKind::Spend, None),
         (None, None) => return Ok(None),

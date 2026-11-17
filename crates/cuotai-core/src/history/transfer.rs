@@ -358,6 +358,7 @@ mod tests {
             billing: Default::default(),
             scope: None,
             derived_from: None,
+            unlimited: false,
         }
     }
 

@@ -146,6 +146,7 @@ async fn grok_cli(
                 period: Some("semanal".into()),
                 resets_at: grpc.reset_at,
                 derived_from: None,
+                unlimited: false,
             });
             notes.push(
                 "note.router_grok.supergrok_weekly_pool",
@@ -345,6 +346,7 @@ fn quota_metric(
         period: period.map(Into::into),
         resets_at,
         derived_from: None,
+        unlimited: false,
     }
 }
 
@@ -413,6 +415,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
                 period: Some("ciclo de cobrança".into()),
                 resets_at,
                 derived_from: None,
+                unlimited: false,
             });
         }
         _ => {}
@@ -435,6 +438,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             period: None,
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         });
     }
 
@@ -461,6 +465,7 @@ fn parse_billing(billing: &Value, user: Option<&Value>) -> ParsedBilling {
             period: Some("semanal".into()),
             resets_at,
             derived_from: None,
+            unlimited: false,
         });
     }
 

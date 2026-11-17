@@ -36,7 +36,10 @@
       "wizard.interval.help_metered",
       "wizard.interval.prompt_metered",
       "dashboard.detail.pools",
-      "dashboard.hint.more_pools"
+      "dashboard.hint.more_pools",
+      "dashboard.metric.no_cap",
+      "dashboard.metric.full",
+      "once.cycle_ends"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -238,8 +241,10 @@
   "dashboard.incident.unavailable": "ステータスページを利用できません",
   "dashboard.metric.balance_exhausted": "残高なし",
   "dashboard.metric.exhausted": "上限到達",
+  "dashboard.metric.full": "すべて使用中",
   "dashboard.metric.no_data": "データなし",
   "dashboard.metric.no_limit": "制限は非公開",
+  "dashboard.metric.no_cap": "上限なし",
   "dashboard.metric.remaining": " 残り {percent}",
   "dashboard.models.many": "{n} モデル",
   "dashboard.models.none": "モデルなし",
@@ -371,6 +376,7 @@
   "once.sub.plan": "プラン {plan}",
   "once.breakdown": "  内訳：",
   "once.breakdown.more": "    … ほか {count} 件は詳細に表示",
+  "once.cycle_ends": "サイクル終了：{at}",
   "report.copy_only": "入力済みのリンクは長すぎて開けません。上のテキストを新しい issue にコピーしてください：",
   "report.footer": "Cuotai は何も送信しません · o ブラウザーで開く · ↑↓ スクロール · Esc 戻る",
   "report.healthy": "注：アカウントは正常に応答しました。値がおかしいと思われる場合にのみ報告してください。",

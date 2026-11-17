@@ -56,7 +56,9 @@
       "confirm.certificate.host",
       "confirm.certificate.checked",
       "confirm.certificate.replace",
-      "coreText.passwordUnset"
+      "coreText.passwordUnset",
+      "metric.noCap",
+      "metric.full"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -211,6 +213,8 @@
   "metric.balance": "余额：{amount}",
   "metric.usage": "用量：{amount}",
   "metric.exhausted": "已用尽",
+  "metric.full": "已全部占用",
+  "metric.noCap": "无上限",
   "account.empty": "未配置账户。",
   "account.enable": "在仪表板中显示",
   "account.disable": "从仪表板中隐藏",

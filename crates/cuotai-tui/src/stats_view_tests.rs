@@ -67,6 +67,7 @@ fn quota(used: f64, resets: DateTime<Utc>) -> Metric {
         billing: Default::default(),
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 

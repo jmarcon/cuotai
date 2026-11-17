@@ -310,6 +310,7 @@ fn metric(label: String, used: f64) -> Metric {
         billing: Default::default(),
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 

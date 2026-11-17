@@ -364,6 +364,7 @@ fn history_metric(used: f64) -> crate::Metric {
         billing: Default::default(),
         scope: None,
         derived_from: None,
+        unlimited: false,
     }
 }
 

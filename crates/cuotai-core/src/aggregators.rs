@@ -1131,6 +1131,7 @@ mod tests {
             period: None,
             resets_at: resets,
             derived_from: None,
+            unlimited: false,
         }
     }
 

@@ -252,6 +252,7 @@ fn push_quota(
             period: None,
             resets_at,
             derived_from: None,
+            unlimited: false,
         });
         return;
     };
@@ -276,6 +277,7 @@ fn push_quota(
         period: None,
         resets_at,
         derived_from: None,
+        unlimited: false,
     });
 }
 

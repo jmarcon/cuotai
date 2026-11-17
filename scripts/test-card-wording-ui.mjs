@@ -423,3 +423,24 @@ console.log("PASS: remaining-share wording renders in pt-BR, en-US, es and it; U
   assert.equal(lib.fmtAmount(requests), "3 / 10");
   console.log("PASS: the History panel, amounts and pace fallback show display texts, never raw labels or units");
 }
+
+// PRD 0037 RF5 / PRD 0038 RF4.2: a metric the provider stated has no cap says "No cap" after its amount; a full
+// usage counter is "All in use", never "Exhausted"; a capped quota at its limit stays exhausted.
+{
+  const lib = await import("../apps/desktop/ui/js/lib.js");
+  await i18n.setLocale("en-US");
+  const uncapped = { label: "x", unit: "USD", used: 3, limit: null, remaining: null, kind: "usage", state: "available", ratio: null, uncapped: true, no_cap: false };
+  assert.equal(lib.textualMetric(uncapped), "Usage: 3 USD");
+  assert.equal(lib.textualMetric({ ...uncapped, unlimited: true }), "Usage: 3 USD · No cap");
+  assert.equal(lib.textualMetric({ ...uncapped, used: null, unlimited: true }), "No cap");
+  const full = { ...uncapped, limit: 1, used: 1, remaining: 0, state: "exhausted", uncapped: false };
+  assert.equal(lib.isFullCounter(full), true);
+  assert.equal(lib.isFullCounter({ ...full, kind: "quota" }), false);
+  assert.equal(lib.isFullCounter({ ...full, no_cap: true }), false);
+  for (const { code } of i18n.LOCALES) {
+    await i18n.setLocale(code);
+    assert.notEqual(i18n.t("metric.full"), "metric.full", code);
+    assert.notEqual(i18n.t("metric.noCap"), "metric.noCap", code);
+  }
+  console.log("PASS: an uncapped metric says no cap when the provider stated it; a full usage counter is all in use");
+}

@@ -201,6 +201,7 @@ fn report(provider: Provider, used: f64, resets_at: Option<DateTime<Utc>>) -> Re
             billing: Default::default(),
             scope: None,
             derived_from: None,
+            unlimited: false,
         }],
         as_of: None,
         overage_hint: None,

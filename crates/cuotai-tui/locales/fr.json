@@ -226,7 +226,10 @@
       "wizard.summary.token_vault",
       "wizard.too_small",
       "dashboard.detail.pools",
-      "dashboard.hint.more_pools"
+      "dashboard.hint.more_pools",
+      "dashboard.metric.no_cap",
+      "dashboard.metric.full",
+      "once.cycle_ends"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -434,8 +437,10 @@
   "dashboard.incident.unavailable": "Page d’état indisponible",
   "dashboard.metric.balance_exhausted": "solde épuisé",
   "dashboard.metric.exhausted": "épuisé",
+  "dashboard.metric.full": "tout est utilisé",
   "dashboard.metric.no_data": "sans données",
   "dashboard.metric.no_limit": "limite non communiquée",
+  "dashboard.metric.no_cap": "sans plafond",
   "dashboard.metric.remaining": " {percent} restant",
   "dashboard.models.many": "{n} modèles",
   "dashboard.models.none": "aucun modèle",
@@ -568,6 +573,7 @@
   "once.sub.plan": "forfait {plan}",
   "once.breakdown": "  Ventilation :",
   "once.breakdown.more": "    … {count} de plus dans les détails",
+  "once.cycle_ends": "Fin du cycle : {at}",
   "report.copy_only": "Le lien prérempli est trop long pour être ouvert ; copiez le texte ci-dessus dans une nouvelle issue :",
   "report.footer": "Cuotai n'envoie rien · o ouvrir dans le navigateur · ↑↓ défiler · Échap retour",
   "report.healthy": "Remarque : le compte a répondu normalement ; signalez-le seulement si ses valeurs semblent fausses.",

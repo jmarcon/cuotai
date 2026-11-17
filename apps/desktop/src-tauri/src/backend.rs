@@ -7901,6 +7901,7 @@ mod tests {
             period: None,
             resets_at: Some(now + chrono::Duration::hours(resets_in)),
             derived_from: None,
+            unlimited: false,
         };
         let report = Report {
             overage_hint: Default::default(),
@@ -8005,6 +8006,7 @@ mod tests {
             period: None,
             resets_at: Some(chrono::Utc::now() + chrono::Duration::hours(resets_h)),
             derived_from: None,
+            unlimited: false,
         }
     }
 
@@ -9890,6 +9892,7 @@ mod tests {
                 billing: Default::default(),
                 scope: None,
                 derived_from: None,
+                unlimited: false,
             }],
             notes: Vec::new(),
             notes_l10n: Vec::new(),

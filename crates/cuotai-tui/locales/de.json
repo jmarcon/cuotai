@@ -9,7 +9,10 @@
       "feed.setup.intro",
       "wizard.budgets.prompt",
       "dashboard.detail.pools",
-      "dashboard.hint.more_pools"
+      "dashboard.hint.more_pools",
+      "dashboard.metric.no_cap",
+      "dashboard.metric.full",
+      "once.cycle_ends"
     ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
@@ -217,8 +220,10 @@
   "dashboard.incident.unavailable": "Statusseite nicht verfügbar",
   "dashboard.metric.balance_exhausted": "Guthaben aufgebraucht",
   "dashboard.metric.exhausted": "erschöpft",
+  "dashboard.metric.full": "alle belegt",
   "dashboard.metric.no_data": "keine Daten",
   "dashboard.metric.no_limit": "Limit nicht angegeben",
+  "dashboard.metric.no_cap": "ohne Obergrenze",
   "dashboard.metric.remaining": " {percent} übrig",
   "dashboard.models.many": "{n} Modelle",
   "dashboard.models.none": "keine Modelle",
@@ -351,6 +356,7 @@
   "once.sub.plan": "Tarif {plan}",
   "once.breakdown": "  Aufschlüsselung:",
   "once.breakdown.more": "    … {count} weitere in den Details",
+  "once.cycle_ends": "Zyklus endet: {at}",
   "report.copy_only": "Der vorausgefüllte Link ist zu lang zum Öffnen; kopiere den Text oben in ein neues Issue:",
   "report.footer": "Cuotai sendet nichts · o im Browser öffnen · ↑↓ scrollen · Esc zurück",
   "report.healthy": "Hinweis: Das Konto hat normal geantwortet; melde es nur, wenn die Werte falsch aussehen.",

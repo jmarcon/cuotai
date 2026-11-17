@@ -74,6 +74,7 @@ fn reading(checked_at: DateTime<Utc>, used: f64, resets_at: DateTime<Utc>) -> Re
             period: None,
             resets_at: Some(resets_at),
             derived_from: None,
+            unlimited: false,
         }],
         notes: Vec::new(),
         notes_l10n: Vec::new(),

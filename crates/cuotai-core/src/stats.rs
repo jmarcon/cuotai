@@ -356,6 +356,7 @@ credential_env = "GROQ_KEY_BETA"
             billing: Default::default(),
             scope: None,
             derived_from: None,
+            unlimited: false,
         }
     }
 

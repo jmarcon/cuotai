@@ -180,6 +180,7 @@ async fn key_check(
             period: Some("janela corrente do rate limit".into()),
             resets_at: None,
             derived_from: None,
+            unlimited: false,
         });
     }
 
@@ -517,6 +518,7 @@ fn usage_metrics(series: &serde_json::Map<String, Value>, period: &MonthToDate) 
         period: Some(period.label()),
         resets_at: Some(period.resets_at),
         derived_from: None,
+        unlimited: false,
     };
     let mut out = Vec::new();
     if let Some(cost) = series.get("USAGE_BILLABLE_COST") {

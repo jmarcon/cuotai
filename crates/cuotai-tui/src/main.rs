@@ -1962,7 +1962,7 @@ fn report_text(
             out += "\n";
         }
         if let Some(reset) = metric.resets_at {
-            out += &renews_line(locale, "    ", &at(reset));
+            out += &renews_line(locale, "    ", metric.kind, &at(reset));
         }
         if metric.derived_from.is_some() {
             out += &format!(
@@ -2048,12 +2048,21 @@ fn pace_lines(
     out
 }
 
-/// "    Renews: <time>" under a metric of `--once`.
-fn renews_line(locale: &str, indent: &str, at: &str) -> String {
-    format!(
-        "{indent}{}\n",
+/// "    Renews: <time>" under a metric of `--once`; under money spent,
+/// "Cycle ends: <time>" (PRD 0037 RF5: a billing cycle closes, nothing
+/// renews).
+fn renews_line(locale: &str, indent: &str, kind: cuotai_core::MetricKind, at: &str) -> String {
+    let line = if kind == cuotai_core::MetricKind::Spend {
+        l10n::trf_in(
+            locale,
+            "once.cycle_ends",
+            "Cycle ends: {at}",
+            &[("at", &at)],
+        )
+    } else {
         l10n::trf_in(locale, "once.renews", "Renews: {at}", &[("at", &at)])
-    )
+    };
+    format!("{indent}{line}\n")
 }
 
 /// PRD 0036 RF9.3: the block of an aggregator account, indented under its
@@ -2157,7 +2166,7 @@ fn connection_text(
             ui::metric_text_in(metric, locale)
         );
         if let Some(reset) = metric.resets_at {
-            out += &renews_line(locale, "        ", &at(reset));
+            out += &renews_line(locale, "        ", metric.kind, &at(reset));
         }
         if sub.status == cuotai_core::Status::Ready {
             let lines = pace_lines(metric, reading_at, None, interval, now, locale, at);
@@ -2677,6 +2686,7 @@ mod tests {
             period: None,
             resets_at,
             derived_from: None,
+            unlimited: false,
         }
     }
 
@@ -3054,6 +3064,30 @@ mod tests {
         );
         assert!(!text.contains('`'), "{text}");
         assert_eq!(text.matches("The provider changed").count(), 1, "{text}");
+    }
+
+    /// PRD 0037 RF5 (V-16a): under money spent the reset is a cycle end,
+    /// never a renewal; a quota still renews.
+    #[test]
+    fn once_says_cycle_ends_under_a_spend_metric() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let mut spend = quota(
+            MetricWindow::Monthly,
+            40.0,
+            Some(now + chrono::Duration::minutes(120)),
+        );
+        spend.kind = cuotai_core::MetricKind::Spend;
+        let renewing = quota(
+            MetricWindow::Window5h,
+            40.0,
+            Some(now + chrono::Duration::minutes(180)),
+        );
+        let account = report("acc", Status::Ready, vec![spend, renewing]);
+        let at = |t: DateTime<Utc>| t.format("%H:%M").to_string();
+        let text = report_text(&account, &[], None, FIVE_MIN, now, "en-US", at);
+        assert!(text.contains("    Cycle ends: 02:00\n"), "{text}");
+        assert!(!text.contains("Renews: 02:00"), "{text}");
+        assert!(text.contains("    Renews: 03:00\n"), "{text}");
     }
 
     /// PRD 0007 RF4.2 (re-validation V-01): a connection's eligible metric
