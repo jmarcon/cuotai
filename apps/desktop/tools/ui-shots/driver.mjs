@@ -32,24 +32,33 @@ export async function launch({ port, cdp, serve = true } = {}) {
   cdp ??= process.env.UI_SHOTS_CDP ? Number(process.env.UI_SHOTS_CDP) : 0;
   const python = process.platform === "win32" ? "python" : "python3";
   const server = serve ? spawn(python, ["-m", "http.server", String(port), "--bind", "127.0.0.1", "--directory", ROOT], { stdio: "ignore" }) : null;
-  const profile = mkdtempSync(join(tmpdir(), "cuotai-ui-shots-"));
   const chromePath = process.env.CHROME ?? (CHROMES[process.platform] ?? [])[0];
-  const chrome = spawn(chromePath, ["--headless=new", "--disable-gpu", "--hide-scrollbars", `--remote-debugging-port=${cdp}`,
-    `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore" });
-  const stop = () => { server?.kill(); chrome.kill(); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
+  let chrome = null, profile = null;
+  const stopChrome = () => { chrome?.kill(); if (profile) try { rmSync(profile, { recursive: true, force: true }); } catch {} chrome = profile = null; };
+  const stop = () => { server?.kill(); stopChrome(); };
   process.on("exit", stop);
-
-  for (let i = 0; i < 80 && !cdp; i++) {
-    const file = join(profile, "DevToolsActivePort");
-    if (existsSync(file)) cdp = Number(readFileSync(file, "utf8").split("\n")[0]) || 0;
-    if (!cdp) await sleep(100);
-  }
-  let targets = [];
-  for (let i = 0; i < 80 && !targets.some((t) => t.type === "page"); i++) {
-    try { targets = await (await fetch(`http://127.0.0.1:${cdp}/json/list`)).json(); } catch {}
-    if (!targets.some((t) => t.type === "page")) await sleep(250);
-  }
-  const page = targets.find((t) => t.type === "page");
+  /** One browser start with a fresh profile; the DevTools page target, or null when none appeared in time. */
+  const startChrome = async () => {
+    profile = mkdtempSync(join(tmpdir(), "cuotai-ui-shots-"));
+    chrome = spawn(chromePath, ["--headless=new", "--disable-gpu", "--hide-scrollbars", `--remote-debugging-port=${cdp}`,
+      `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore" });
+    let devtools = cdp;
+    for (let i = 0; i < 80 && !devtools; i++) {
+      const file = join(profile, "DevToolsActivePort");
+      if (existsSync(file)) devtools = Number(readFileSync(file, "utf8").split("\n")[0]) || 0;
+      if (!devtools) await sleep(100);
+    }
+    let targets = [];
+    for (let i = 0; i < 80 && devtools && !targets.some((t) => t.type === "page"); i++) {
+      try { targets = await (await fetch(`http://127.0.0.1:${devtools}/json/list`)).json(); } catch {}
+      if (!targets.some((t) => t.type === "page")) await sleep(250);
+    }
+    return targets.find((t) => t.type === "page") ?? null;
+  };
+  // A loaded runner sometimes starts Chrome too slowly (seen once in a release run): stop that browser and try one
+  // more time with a fresh profile and the same bounds before giving up.
+  let page = await startChrome();
+  if (!page) { stopChrome(); page = await startChrome(); }
   if (!page) { stop(); throw new Error("headless Chrome did not start (set CHROME to its path)"); }
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });

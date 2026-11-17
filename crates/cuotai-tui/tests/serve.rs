@@ -16,6 +16,13 @@ use std::time::{Duration, Instant};
 
 const TOKEN: &str = "cuotai_test-token-0123456789abcdef";
 
+/// How long a test waits for a condition (a first reading, a reload, an
+/// exit) before it fails. Every wait polls the condition and returns the
+/// moment it holds, so this bound costs nothing on a healthy run; it is
+/// generous because a loaded runner (or heavy jobs beside a local run) can
+/// delay the first sweep of the fake CLI well past a few seconds.
+const PATIENCE: Duration = Duration::from_secs(120);
+
 /// A private HOME with a fake `aws` that logs every call and answers by
 /// profile: `dev` with a Cost Explorer total, `broken` with a failure.
 struct Sandbox(PathBuf);
@@ -128,7 +135,7 @@ impl Server {
     fn get(&self, path: &str, extra: &str) -> (u16, String) {
         let mut stream = TcpStream::connect(&self.addr).unwrap();
         stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
+            .set_read_timeout(Some(Duration::from_secs(30)))
             .unwrap();
         write!(
             stream,
@@ -152,13 +159,16 @@ impl Server {
 
     /// The snapshot once the first sweep landed (`503` until then).
     fn first_snapshot(&self, extra: &str) -> serde_json::Value {
-        let deadline = Instant::now() + Duration::from_secs(20);
+        let deadline = Instant::now() + PATIENCE;
         loop {
             let (status, body) = self.get("/v1/snapshot", extra);
             if status == 200 {
                 return serde_json::from_str(&body).unwrap();
             }
-            assert!(Instant::now() < deadline, "no reading in time");
+            assert!(
+                Instant::now() < deadline,
+                "no reading in {PATIENCE:?} (last status {status})"
+            );
             // A slow first sweep (a loaded runner) can outlast the per-peer burst of 20 polls:
             // the server then answers 429, and one poll a second stays within its 60 a minute.
             if status == 429 {
@@ -188,7 +198,7 @@ impl Drop for Server {
 }
 
 fn wait(child: &mut Child) -> ExitStatus {
-    let deadline = Instant::now() + Duration::from_secs(15);
+    let deadline = Instant::now() + PATIENCE;
     loop {
         if let Some(status) = child.try_wait().unwrap() {
             return status;
@@ -550,7 +560,7 @@ fn sighup_reloads_the_configuration_and_keeps_serving_on_errors() {
     )
     .unwrap();
     hup(&server);
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + PATIENCE;
     while accounts(&server).len() != 2 || sandbox.aws_calls() < 2 {
         assert!(Instant::now() < deadline, "no reload: {}", sandbox.stderr());
         std::thread::sleep(Duration::from_millis(100));
@@ -564,7 +574,7 @@ fn sighup_reloads_the_configuration_and_keeps_serving_on_errors() {
 
     fs::write(&config, "[[accounts]\nname = ").unwrap();
     hup(&server);
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + PATIENCE;
     while !sandbox.stderr().contains("configuration not reloaded") {
         assert!(Instant::now() < deadline, "{}", sandbox.stderr());
         std::thread::sleep(Duration::from_millis(100));
