@@ -22,6 +22,9 @@ pub enum Step {
     ChangelogGate,
     ChangelogCheck,
     ReleaseCheck,
+    /// `release prepare --check` of a verified release commit (its own
+    /// selection, [`for_release`]).
+    ReleasePrepareCheck,
     WorkflowCheck,
     Actionlint,
     Privacy,
@@ -51,7 +54,7 @@ pub enum Step {
 }
 
 impl Step {
-    pub const ALL: [Step; 27] = [
+    pub const ALL: [Step; 28] = [
         Step::CommitPolicy,
         Step::FmtStaged,
         Step::Fmt,
@@ -59,6 +62,7 @@ impl Step {
         Step::ChangelogGate,
         Step::ChangelogCheck,
         Step::ReleaseCheck,
+        Step::ReleasePrepareCheck,
         Step::WorkflowCheck,
         Step::Actionlint,
         Step::Privacy,
@@ -90,6 +94,7 @@ impl Step {
             Step::ChangelogGate => "changelog-gate",
             Step::ChangelogCheck => "changelog-check",
             Step::ReleaseCheck => "release-check",
+            Step::ReleasePrepareCheck => "release-prepare-check",
             Step::WorkflowCheck => "workflow-check",
             Step::Actionlint => "actionlint",
             Step::Privacy => "privacy",
@@ -409,13 +414,34 @@ pub fn for_push(files: &[String]) -> Plan {
     }
 }
 
+/// `--push` of exactly one release commit that passes rule 5 and the
+/// line-level check (T-02): only version lines, the section and plan tokens
+/// changed, so Clippy, the tests and `cargo deny` have nothing to find.
+pub fn for_release() -> Plan {
+    Plan {
+        steps: vec![
+            Step::CommitPolicy,
+            Step::ChangelogGate,
+            Step::ChangelogCheck,
+            Step::ReleaseCheck,
+            Step::ReleasePrepareCheck,
+        ],
+        packages: Vec::new(),
+    }
+}
+
 /// `--full`: everything, with no filter. It also stands in for a diff that
 /// cannot be computed, as in CI.
 pub fn for_full() -> Plan {
     Plan {
         steps: Step::ALL
             .into_iter()
-            .filter(|step| !matches!(step, Step::FmtStaged | Step::Privacy))
+            .filter(|step| {
+                !matches!(
+                    step,
+                    Step::FmtStaged | Step::Privacy | Step::ReleasePrepareCheck
+                )
+            })
             .collect(),
         packages: Package::ALL.to_vec(),
     }
@@ -459,6 +485,33 @@ pub fn unknown_skip_names(names: &[String]) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_verified_release_commit_selects_the_release_checks_only() {
+        let ids: Vec<&str> = for_release().steps.iter().map(|s| s.id()).collect();
+        assert_eq!(
+            ids,
+            [
+                "commit-policy",
+                "changelog-gate",
+                "changelog-check",
+                "release-check",
+                "release-prepare-check"
+            ]
+        );
+        assert!(for_release().packages.is_empty());
+        // `--full` runs on any commit; the release-commit check is not part
+        // of it, and an ordinary push never selects it.
+        assert!(!for_full().steps.contains(&Step::ReleasePrepareCheck));
+        assert!(!for_push(&files(&["Cargo.toml", "CHANGELOG.md"]))
+            .steps
+            .contains(&Step::ReleasePrepareCheck));
+        // `CUOTAI_SKIP=release-check` does not reach the other step.
+        assert!(!is_skipped(
+            Step::ReleasePrepareCheck,
+            &parse_skip("release-check")
+        ));
+    }
 
     fn files(paths: &[&str]) -> Vec<String> {
         paths.iter().map(|path| path.to_string()).collect()
@@ -789,8 +842,9 @@ mod tests {
     fn full_has_no_filter() {
         let plan = for_full();
         assert_eq!(plan.packages, Package::ALL);
-        assert_eq!(plan.steps.len(), Step::ALL.len() - 2);
-        // Staged blobs do not exist here, and the xtask tests hold privacy.
+        assert_eq!(plan.steps.len(), Step::ALL.len() - 3);
+        // Staged blobs do not exist here, the xtask tests hold privacy, and
+        // `release prepare --check` needs a release commit at HEAD.
         assert!(!plan.steps.contains(&Step::FmtStaged));
         assert!(!plan.steps.contains(&Step::Privacy));
     }

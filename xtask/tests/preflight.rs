@@ -172,3 +172,63 @@ fn hooks_are_executable() {
         assert_ne!(mode & 0o111, 0, "{hook} is not executable");
     }
 }
+
+/// `preflight --push --dry-run --base <base>` in `repo`: its standard output.
+fn push_dry_run(repo: &Path, base: &str) -> String {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_xtask"))
+        .args(["preflight", "--push", "--dry-run", "--base", base])
+        .current_dir(repo)
+        .env_remove("CUOTAI_SKIP")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(
+        output.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    stdout
+}
+
+/// T-02: a lone release commit verified line by line runs only the release
+/// checks; a range with more than the release commit, or a hand-edited
+/// release commit, falls back to the full selection.
+#[test]
+fn push_of_a_verified_release_commit_runs_only_the_release_checks() {
+    let (_d, repo) = repo_at("0.86.7");
+    feature_and_fix(&repo);
+    xtask::release::prepare::run(&repo, &options(false, true))
+        .unwrap()
+        .unwrap();
+    // The release commit is the only commit of main..HEAD.
+    let stdout = push_dry_run(&repo, "main");
+    assert!(
+        stdout.contains(
+            "release commit 0.87.0 verified line by line: release checks only (clippy, tests and deny skipped: only version lines, the section and plan tokens changed)"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "preflight --push: 5 step(s) for 9 file(s)\n  commit-policy\n  changelog-gate\n  changelog-check\n  release-check\n  release-prepare-check\ndry run: --push ran nothing"
+        ),
+        "{stdout}"
+    );
+
+    // Two commits in the range: the full selection, with no claim.
+    let stdout = push_dry_run(&repo, "main~1");
+    assert!(!stdout.contains("verified line by line"), "{stdout}");
+    assert!(!stdout.contains("release-prepare-check"), "{stdout}");
+    assert!(stdout.contains("  test"), "{stdout}");
+
+    // A hand edit of the section: the full selection again, and why.
+    let changelog = read(&repo, "CHANGELOG.md").replace("The order survives", "Order survives");
+    amend(&repo, "CHANGELOG.md", &changelog);
+    let stdout = push_dry_run(&repo, "main");
+    assert!(
+        stdout.contains("the release commit is not verified line by line (CHANGELOG.md:"),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("release-prepare-check"), "{stdout}");
+    assert!(stdout.contains("  deny"), "{stdout}");
+}

@@ -404,6 +404,13 @@ fn tasks(step: Step, context: &Context) -> Option<Vec<Task>> {
         }
         Step::ChangelogCheck => vec![xtask(&["changelog-check"])],
         Step::ReleaseCheck => vec![xtask(&["release-check"])],
+        Step::ReleasePrepareCheck => vec![xtask(&[
+            "release",
+            "prepare",
+            "--check",
+            "--rev",
+            &context.head,
+        ])],
         Step::WorkflowCheck => vec![xtask(&["workflow-check"])],
         Step::Actionlint => {
             let files = workflows(context);
@@ -863,10 +870,24 @@ pub fn run(args: &[String]) -> Res<()> {
         }
         Mode::Full => (Vec::new(), select::for_full()),
         Mode::Push => match changed_files(&root, &base, &head) {
-            Some(files) => {
-                let plan = select::for_push(&files);
-                (files, plan)
-            }
+            Some(files) => match verified_release(&root, &base, &head, &files) {
+                Ok(version) => {
+                    println!("{}", release_report_line(&version));
+                    (files, select::for_release())
+                }
+                Err(None) => {
+                    let plan = select::for_push(&files);
+                    (files, plan)
+                }
+                Err(Some(why)) => {
+                    println!(
+                        "preflight --push: the release commit is not verified line by line \
+                         ({why}); running the full selection"
+                    );
+                    let plan = select::for_push(&files);
+                    (files, plan)
+                }
+            },
             None => {
                 println!(
                     "warning: cannot diff against {base}; running everything, as CI does when \
@@ -952,6 +973,69 @@ pub fn run(args: &[String]) -> Res<()> {
         hook_window(hook_elapsed(started), record.is_some())?;
     }
     Ok(())
+}
+
+/// The report line of a verified release commit (T-02).
+pub fn release_report_line(version: &crate::Version) -> String {
+    format!(
+        "release commit {version} verified line by line: release checks only (clippy, tests and \
+         deny skipped: only version lines, the section and plan tokens changed)"
+    )
+}
+
+/// T-02: whether `base..head` is exactly one release commit that changes
+/// only the release file set (rule 5) and passes `release prepare --check`
+/// with the line-level check, i.e. a release above
+/// [`crate::release::LINE_CHECK_AFTER`]. `Ok(version)` selects the release
+/// checks only; `Err(None)` is not a lone release commit; `Err(Some(why))`
+/// is one that is not verified (a hand edit, an older release), and both
+/// fall back to the full selection. The hook runs the same function, so a
+/// recorded pass of the reduced set is accepted.
+pub fn verified_release(
+    root: &Path,
+    base: &str,
+    head: &str,
+    files: &[String],
+) -> Result<crate::Version, Option<String>> {
+    let list = git::run(root, &["rev-list", &format!("{base}..{head}")]).map_err(|_| None)?;
+    let shas: Vec<&str> = list
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    let [sha] = shas.as_slice() else {
+        return Err(None);
+    };
+    let subject = git::run(root, &["log", "-1", "--format=%s", sha]).map_err(|_| None)?;
+    let is_release = crate::commits::Commit::parse(sha, subject.trim(), subject.trim())
+        .release_version()
+        .is_some();
+    if !is_release {
+        return Err(None);
+    }
+    if let Some(file) = files.iter().find(|f| !crate::release::in_release_set(f)) {
+        return Err(Some(format!(
+            "it changes {file}, outside the release file set"
+        )));
+    }
+    match crate::release::check_release(root, sha) {
+        Ok(outcome) if outcome.line_checked => Ok(outcome.version),
+        Ok(outcome) => Err(Some(format!(
+            "{} keeps the file-level check",
+            outcome.version
+        ))),
+        Err(e) => {
+            // The first problem, not the "release check … failed" header.
+            let text = e.to_string();
+            let first = text
+                .lines()
+                .find_map(|line| line.trim_start().strip_prefix("- "))
+                .or_else(|| text.lines().next())
+                .unwrap_or("release prepare --check fails")
+                .to_string();
+            Err(Some(first))
+        }
+    }
 }
 
 /// Time since the hook started ([`HOOK_STARTED_VARIABLE`]), or since `started`
@@ -1138,6 +1222,23 @@ mod tests {
             None,
             "a dirty tree is not recorded"
         );
+    }
+
+    /// T-02: the pass record of a verified release commit names the
+    /// reduced selection, and the hook, which selects again with the same
+    /// rule, accepts it; the full selection of the same commits does not.
+    #[test]
+    fn a_release_pass_record_holds_the_reduced_selection() {
+        let reduced = select::for_release();
+        let key = record_key("h", "b", &reduced.steps);
+        assert!(key.ends_with(
+            "commit-policy,changelog-gate,changelog-check,release-check,release-prepare-check"
+        ));
+        let saved = record_line(&key, &[]);
+        assert_eq!(accepted_record(&saved, &key, &[]), Some(vec![]));
+        let full = select::for_push(&["Cargo.toml".to_string(), "Cargo.lock".to_string()]);
+        let other = record_key("h", "b", &full.steps);
+        assert_eq!(accepted_record(&saved, &other, &[]), None);
     }
 
     /// A pass with steps bypassed by `CUOTAI_SKIP` is recorded with them;
