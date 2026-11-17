@@ -82,12 +82,12 @@ open_router.key | 22151a817f66d61c | Usage | Some(Daily) | requisições | Inclu
 open_router.key | c4f7362e5d861282 | Quota | Some(Daily) | requisições | Included | Modelos gratuitos (:free): requisições hoje
 open_router.credits | bc1b896926c7ea87 | Balance | None | créditos | Included | Saldo de créditos
 open_router.credits | bfe2b03a5e16025c | Spend | None | créditos | Included | Créditos usados (total)
-open_router.activity | cef19a4cbf9943d2 | Spend | Some(Other) | USD | Included | Gasto 30 dias — OpenAI
-open_router.activity | 4497912f56df7b1b | Spend | Some(Other) | USD | Included | Gasto 30 dias — Anthropic
-open_router.activity | 422641ed98e5b728 | Spend | Some(Other) | USD | Included | Gasto 30 dias — Outros
+open_router.activity | e5f68da0a366047c | Spend | Some(Other) | créditos | Included | Gasto 30 dias — OpenAI
+open_router.activity | 473fa8fe516480ad | Spend | Some(Other) | créditos | Included | Gasto 30 dias — Anthropic
+open_router.activity | 0eda89a0db2d881f | Spend | Some(Other) | créditos | Included | Gasto 30 dias — Outros
 open_router.activity | 06a892504f12fabc | Spend | Some(Other) | USD | Included | BYOK (externo)
-open_router.activity | 2261beb586a4a3f8 | Spend | Some(Other) | USD | Included | Gasto 30 dias — openai/gpt-4o
-open_router.activity | 133bc78410cc7d0a | Spend | Some(Other) | USD | Included | Gasto 30 dias — anthropic/claude-sonnet-4
+open_router.activity | 1b070a062d4d1a90 | Spend | Some(Other) | créditos | Included | Gasto 30 dias — openai/gpt-4o
+open_router.activity | f1e09bd2ac255c9b | Spend | Some(Other) | créditos | Included | Gasto 30 dias — anthropic/claude-sonnet-4
 open_router.keys | 91278a737f005f5e | Quota | Some(Daily) | USD | Included | Limite da chave
 open_router.keys | 2ed1eaeca7204b81 | Spend | Some(Monthly) | USD | Included | Gasto no mês
 open_router.keys | b5d0ce687fcee23d | Spend | Some(Weekly) | USD | Included | Gasto na semana

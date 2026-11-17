@@ -951,24 +951,37 @@ fn parse_activity(value: &Value, breakdown: Breakdown) -> Result<Vec<Metric>, Qu
     }
     ranked.truncate(BREAKDOWN_TOP);
 
-    let item = |label: String, used: f64, scope: Option<Scope>| Metric {
+    // PRD 0038 review F-02: the spend by origin is in OpenRouter credits,
+    // the unit of the account balance next to it; BYOK is the person's
+    // upstream bill and stays in USD.
+    let item = |label: String, used: f64, scope: Option<Scope>, unit: &str| Metric {
         used: Some(used),
         window: Some(MetricWindow::Other),
         period: Some(ACTIVITY_PERIOD.into()),
         scope,
-        ..metric(label, MetricKind::Spend, USD)
+        ..metric(label, MetricKind::Spend, unit)
     };
     let mut metrics = Vec::new();
     for (name, sum) in ranked {
         let scope =
             (breakdown == Breakdown::Model).then(|| Scope::model(name.clone(), name.clone()));
-        metrics.push(item(format!("Gasto 30 dias — {name}"), sum, scope));
+        metrics.push(item(
+            format!("Gasto 30 dias — {name}"),
+            sum,
+            scope,
+            CREDITS_UNIT,
+        ));
     }
     if other > 0.0 {
-        metrics.push(item("Gasto 30 dias — Outros".into(), other, None));
+        metrics.push(item(
+            "Gasto 30 dias — Outros".into(),
+            other,
+            None,
+            CREDITS_UNIT,
+        ));
     }
     if let Some(byok) = byok.filter(|sum| *sum > 0.0) {
-        metrics.push(item("BYOK (externo)".into(), byok, None));
+        metrics.push(item("BYOK (externo)".into(), byok, None, USD));
     }
     Ok(metrics)
 }
@@ -1676,6 +1689,11 @@ mod tests {
         );
         assert_eq!(find(&data, "BYOK (externo)").used, Some(0.75));
         assert_eq!(find(&data, "Saldo de créditos").remaining, Some(6.0));
+        // F-02: the spend by origin is in credits, like the balance; BYOK is
+        // the upstream bill, in USD.
+        assert_eq!(openai.unit, CREDITS_UNIT);
+        assert_eq!(find(&data, "Saldo de créditos").unit, CREDITS_UNIT);
+        assert_eq!(find(&data, "BYOK (externo)").unit, "USD");
         assert!(ids(&data).contains(&"note.open_router.activity_window"));
         assert!(crate::metrics::binding(&report(&account(Some("account"), None), data)).is_none());
     }
@@ -1721,6 +1739,7 @@ mod tests {
         assert_eq!(named, 5);
         // P1 (1.0) falls out of the top five; null and empty names join it.
         assert_eq!(find(&data, "Gasto 30 dias — Outros").used, Some(1.75));
+        assert_eq!(find(&data, "Gasto 30 dias — Outros").unit, CREDITS_UNIT);
         assert!(data.metrics.iter().all(|m| !m.label.ends_with("Free")));
     }
 
