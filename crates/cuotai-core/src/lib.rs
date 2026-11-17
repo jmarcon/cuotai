@@ -2732,6 +2732,115 @@ credential_env = "GROQ_KEY_ALPHA"
         Utc.with_ymd_and_hms(2026, 10, 1, 12, 0, 0).unwrap()
     }
 
+    /// PRD 0041 RF2.3 through the real reader: a credits budget on a
+    /// balance-shaped metric (only `remaining`, as Kimchi, Cline,
+    /// OpenRouter and other prepaid balances report it) adds the drops the history
+    /// recorded, instead of stopping at "no baseline".
+    #[tokio::test]
+    async fn a_credits_budget_on_a_recorded_balance_counts_its_drops() {
+        use chrono::TimeZone;
+        let balance = |left: f64| Metric {
+            billing: Billing::Included,
+            scope: None,
+            label: "Credits".into(),
+            used: None,
+            limit: None,
+            remaining: Some(left),
+            unit: "USD".into(),
+            kind: MetricKind::Credits,
+            window: None,
+            period: None,
+            resets_at: None,
+            derived_from: None,
+            unlimited: false,
+        };
+        let account = Account {
+            name: "Credits".into(),
+            provider: Provider::Kimchi,
+            credential_env: Some("KIMCHI_BUDGET_TEST".into()),
+            budgets: vec![budget::Budget {
+                kind: Some(budget::BudgetKind::Credits),
+                scope: None,
+                label_contains: None,
+                amount: 20.0,
+                unit: Some("USD".into()),
+                period: budget::BudgetPeriod::Monthly,
+                starts: None,
+                label: None,
+                row: None,
+            }],
+            ..Default::default()
+        };
+        let now = Utc.with_ymd_and_hms(2026, 10, 21, 12, 0, 0).unwrap();
+        let reading = |left: f64| Report {
+            account: account.name.clone(),
+            account_id: None,
+            provider: Provider::Kimchi,
+            checked_at: now,
+            status: Status::Ready,
+            metrics: vec![balance(left)],
+            notes: Vec::new(),
+            notes_l10n: Vec::new(),
+            source: String::new(),
+            session_expires_at: None,
+            diagnostic: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        };
+        let monitor = |history: Option<history::HistoryStore>| {
+            let config = Config {
+                accounts: vec![account.clone()],
+                ..Config::default()
+            };
+            let mut monitor = Monitor::new(config).unwrap();
+            if let Some(store) = history {
+                monitor = monitor.with_history(store);
+            }
+            monitor.clock = Some(Arc::new(parking_lot::Mutex::new(now)));
+            monitor
+        };
+        let budget_of = |report: &Report| {
+            let derived = report
+                .metrics
+                .iter()
+                .find(|metric| metric.derived_from.is_some())
+                .cloned()
+                .expect("the budget metric");
+            let notes: Vec<String> = report
+                .notes_l10n
+                .iter()
+                .map(|note| note.id.to_string())
+                .collect();
+            (derived.used, notes)
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = store_at(&dir);
+        for (day, left) in [(5, 30.0), (10, 22.0)] {
+            let at = Utc.with_ymd_and_hms(2026, 10, day, 12, 0, 0).unwrap();
+            assert_eq!(store.record(&account, at, &[balance(left)]), Ok(1));
+        }
+        let recorded = monitor(Some(store));
+        let report = recorded.complete_report(0, &account, reading(18.0));
+        let (used, notes) = budget_of(&report);
+        assert_eq!(used, Some(12.0), "30 → 22 → 18 drops 12: {notes:?}");
+        assert!(
+            !notes.iter().any(|id| id == "note.budget.no_baseline"),
+            "{notes:?}"
+        );
+
+        // Without a history the same budget has no baseline.
+        let report = monitor(None).complete_report(0, &account, reading(18.0));
+        let (used, notes) = budget_of(&report);
+        assert_eq!(used, None);
+        assert!(
+            notes.iter().any(|id| id == "note.budget.no_baseline"),
+            "{notes:?}"
+        );
+    }
+
     #[tokio::test]
     async fn refresh_records_ready_readings_compacts_repeats_and_follows_new_windows() {
         let dir = tempfile::tempdir().unwrap();

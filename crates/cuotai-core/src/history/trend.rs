@@ -5,7 +5,7 @@
 //! Network-free reads of the store only.
 
 use super::{finite, group_windows, instant, untag, HistoryError, HistoryStore, WindowSample};
-use super::{span, WindowUsage};
+use super::{sample_value, span, WindowUsage};
 use crate::history::series_digest;
 use crate::pace::Point;
 use crate::{Account, Billing, MetricKind, MetricWindow};
@@ -272,7 +272,8 @@ impl MetricHistory {
 impl HistoryStore {
     /// RF5.1/RF6: every recorded metric of `account` with samples within
     /// `range`, ordered as the account last reported them, each with its
-    /// points (only finite `used`) and window instances. Empty when nothing
+    /// points (valued by `sample_value`: `used`, or a balance's
+    /// `remaining`) and window instances. Empty when nothing
     /// was recorded in the span; the file is never created by this read.
     pub fn account_history(
         &self,
@@ -317,7 +318,7 @@ impl HistoryStore {
             })?
             .collect::<rusqlite::Result<_>>()?;
         let mut samples_query = db.prepare(
-            "SELECT taken_at, used, \"limit\", resets_at FROM samples
+            "SELECT taken_at, used, \"limit\", resets_at, remaining FROM samples
              WHERE series_id = ?1 AND taken_at BETWEEN ?2 AND ?3
              ORDER BY taken_at",
         )?;
@@ -325,28 +326,33 @@ impl HistoryStore {
         for (id, mut metric) in series {
             let samples = samples_query
                 .query_map(rusqlite::params![id, start, end], |row| {
-                    Ok(WindowSample {
-                        taken_at: instant(row.get(0)?)?,
-                        used: row.get(1)?,
-                        limit: row.get(2)?,
-                        resets_at: row.get::<_, Option<i64>>(3)?.map(instant).transpose()?,
-                    })
+                    Ok((
+                        WindowSample {
+                            taken_at: instant(row.get(0)?)?,
+                            used: row.get(1)?,
+                            limit: row.get(2)?,
+                            resets_at: row.get::<_, Option<i64>>(3)?.map(instant).transpose()?,
+                        },
+                        row.get::<_, Option<f64>>(4)?,
+                    ))
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             // A series without samples in the span is left out.
             if samples.is_empty() {
                 continue;
             }
-            for sample in &samples {
+            for (sample, remaining) in &samples {
                 metric.limit = finite(sample.limit).or(metric.limit);
-                if let Some(used) = finite(sample.used) {
+                // A balance reads back as its `remaining` (`sample_value`).
+                if let Some(used) = sample_value(sample.used, sample.limit, *remaining) {
                     metric.points.push(Point {
                         taken_at: sample.taken_at,
                         used,
                     });
                 }
             }
-            metric.windows = group_windows(samples);
+            // Windows stay on `used`: a balance has none.
+            metric.windows = group_windows(samples.into_iter().map(|(sample, _)| sample));
             metrics.push(metric);
         }
         Ok(metrics)

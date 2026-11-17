@@ -249,6 +249,24 @@ fn without_a_baseline_used_is_unknown_with_a_note_never_zero() {
     assert!(!crate::alerts::eligible(metric), "never alerts");
 }
 
+/// A temporary history store holding `readings` of the `balance` metric
+/// (its `remaining` only, as recorded), read back through the real reader
+/// as `Monitor::apply_budgets` does.
+fn recorded_balance(
+    dir: &std::path::Path,
+    account: &Account,
+    readings: &[(DateTime<Utc>, f64)],
+) -> crate::history::HistoryStore {
+    let store = crate::history::HistoryStore::new(
+        dir.join("history.sqlite3"),
+        &crate::config_file::ConfigIdentity::Explicit("budget-tests".into()),
+    );
+    for &(taken_at, left) in readings {
+        assert_eq!(store.record(account, taken_at, &[balance(left)]), Ok(1));
+    }
+    store
+}
+
 #[test]
 fn a_balance_counts_its_drops_and_a_top_up_is_not_use() {
     let now = at(2026, 10, 21, 12, 0);
@@ -257,34 +275,42 @@ fn a_balance_counts_its_drops_and_a_top_up_is_not_use() {
         20.0,
         BudgetPeriod::Monthly,
     )]);
-    let samples = vec![
-        Point {
-            taken_at: at(2026, 10, 1, 1, 0),
-            used: 30.0,
-        },
-        Point {
-            taken_at: at(2026, 10, 10, 1, 0),
-            used: 22.0,
-        },
-    ];
-    let history = |_: &Metric, _: DateTime<Utc>| samples.clone();
+    let read_back = |store: &crate::history::HistoryStore| {
+        let account = account.clone();
+        let store = store.clone();
+        move |target: &Metric, since: DateTime<Utc>| {
+            store
+                .series(&account, &crate::history::metric_key(target), since..)
+                .unwrap()
+        }
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let store = recorded_balance(
+        dir.path(),
+        &account,
+        &[
+            (at(2026, 10, 1, 1, 0), 30.0),
+            (at(2026, 10, 10, 1, 0), 22.0),
+        ],
+    );
     let mut reading = report(vec![balance(18.0)], now);
-    apply(&account, &mut reading, &history, now, &Utc);
+    apply(&account, &mut reading, &read_back(&store), now, &Utc);
     assert_eq!(derived(&reading).used, Some(12.0));
     assert!(note_ids(&reading).is_empty());
 
     // A top-up to 50 after 22: the 8 before it still count, the rise not.
-    let topped = vec![
-        samples[0],
-        samples[1],
-        Point {
-            taken_at: at(2026, 10, 15, 1, 0),
-            used: 50.0,
-        },
-    ];
-    let history = |_: &Metric, _: DateTime<Utc>| topped.clone();
+    let topped = tempfile::tempdir().unwrap();
+    let store = recorded_balance(
+        topped.path(),
+        &account,
+        &[
+            (at(2026, 10, 1, 1, 0), 30.0),
+            (at(2026, 10, 10, 1, 0), 22.0),
+            (at(2026, 10, 15, 1, 0), 50.0),
+        ],
+    );
     let mut reading = report(vec![balance(47.0)], now);
-    apply(&account, &mut reading, &history, now, &Utc);
+    apply(&account, &mut reading, &read_back(&store), now, &Utc);
     assert_eq!(derived(&reading).used, Some(11.0));
     assert_eq!(note_ids(&reading), ["note.budget.topup_detected"]);
 }
