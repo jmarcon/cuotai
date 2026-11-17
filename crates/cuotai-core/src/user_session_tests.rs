@@ -1986,7 +1986,7 @@ async fn a_pasted_sso_session_replaces_the_login_and_a_rejected_one_says_so() {
     let account = nine_router(&server.uri());
     let monitor = monitor_for(&account);
     let test = monitor.test_nine_router_with(&account, &[reduced()]).await;
-    assert!(test.is_ok(), "{:?}", test.outcome);
+    assert!(test.is_ok(), "the pasted session connects");
     let report = monitor.test_session(&account, &[reduced()]).await;
     assert_eq!(report.status, Status::Ready, "{:?}", report.notes);
     assert!(report.session_expires_at.is_some());

@@ -944,7 +944,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -3089,6 +3091,8 @@
   "user_session.warning_env": "Ceci est une session de connexion complète. Cuotai la lit dans une variable d’environnement et ne l’utilise que pour interroger ce service ; déplacez-la vers le coffre du système dans l’assistant du compte.",
   "watch.error.interval_range": "L’intervalle du watch doit être compris entre {min} et {max} secondes ; les valeurs hors de cette plage sont refusées, pas ajustées.",
   "watch.error.unknown_event": "Événement inconnu : \"{name}\". Événements valides : {known}.",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} présente un certificat auquel cet ordinateur ne fait pas confiance. Empreinte SHA-256 : {fingerprint}. Comparez-la avec celle du serveur ; F6 lui fait confiance et teste à nouveau.",
+  "wizard.nine_router.cert_changed_prompt": "Le certificat de {host}:{port} a changé depuis que vous lui avez fait confiance. Ancienne : {previous}. Nouvelle : {fingerprint}. Il a peut-être été renouvelé, ou quelqu’un entre vous et le serveur présente le sien. Vérifiez la nouvelle empreinte sur le serveur, puis appuyez de nouveau sur F6 pour remplacer le certificat épinglé ; toute autre touche le conserve.",
   "oauth.xiaomi.invalid_code": "Code invalide ou d’une autre session ; copiez le code de cette tentative.",
   "login.progress.cursor_import": "Lecture de la session Cursor autorisée, en lecture seule...",
   "login.progress.preparing": "Préparation de l’autorisation auprès du fournisseur...",

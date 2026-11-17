@@ -44,7 +44,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2189,6 +2191,8 @@
   "user_session.warning_env": "यह पूरा लॉगिन सत्र है। Cuotai इसे एनवायरनमेंट वेरिएबल से पढ़ता है और केवल इस सेवा की जाँच के लिए इस्तेमाल करता है; इसे खाता विज़ार्ड में सिस्टम वॉल्ट में ले जाएँ।",
   "watch.error.interval_range": "watch का अंतराल {min} से {max} सेकंड के बीच होना चाहिए; इस सीमा से बाहर के मान अस्वीकार किए जाते हैं, समायोजित नहीं किए जाते।",
   "watch.error.unknown_event": "अज्ञात इवेंट: \"{name}\"। मान्य इवेंट: {known}।",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} ऐसा प्रमाणपत्र दे रहा है जिस पर यह कंप्यूटर भरोसा नहीं करता। SHA-256 फ़िंगरप्रिंट: {fingerprint}। इसे सर्वर के फ़िंगरप्रिंट से मिलाएँ; F6 इस पर भरोसा करके फिर से जाँचता है।",
+  "wizard.nine_router.cert_changed_prompt": "{host}:{port} का प्रमाणपत्र आपके भरोसा करने के बाद बदल गया है। पुराना: {previous}। नया: {fingerprint}। हो सकता है वह नवीनीकृत हुआ हो, या आपके और सर्वर के बीच कोई अपना प्रमाणपत्र दिखा रहा हो। सर्वर पर नया फ़िंगरप्रिंट जाँचें, फिर पिन किया प्रमाणपत्र बदलने के लिए F6 दोबारा दबाएँ; कोई और कुंजी उसे बनाए रखती है।",
   "oauth.xiaomi.invalid_code": "कोड अमान्य है या किसी और सत्र का है; इस कोशिश का कोड कॉपी करें।",
   "login.progress.cursor_import": "अधिकृत Cursor सत्र केवल-पढ़ने मोड में पढ़ा जा रहा है...",
   "login.progress.preparing": "प्रदाता के साथ अधिकरण तैयार हो रहा है...",

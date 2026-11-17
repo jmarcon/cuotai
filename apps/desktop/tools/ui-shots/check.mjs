@@ -183,6 +183,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["tray-agg-expanded", "tray.html?agg=12", 380, 600, {}, '[data-agg-toggle="nine_router::lab"]'],
   ["details-agg-instance", "index.html?agg=12", 1200, 820, {}, '.agg-section[data-card="nine_router::lab"] .agg-head [data-details]'],
   ["details-agg-connection", "index.html?agg=12", 1200, 820, {}, '.agg-section[data-card="nine_router::lab"] .card [data-details]'],
+  // Re-validation S-03: Test connection meets a certificate this computer does not trust (first sighting) and a pinned
+  // certificate that changed (its own dialog: old and new fingerprints, Cancel focused, Replace behind a checkbox).
+  ["dialog-cert-first", "index.html?aggtest=cert-first", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]', "#aggregator-test"]],
+  ["dialog-cert-changed", "index.html?aggtest=cert-changed", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]', "#aggregator-test"]],
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [

@@ -28,7 +28,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2141,6 +2143,8 @@
   "user_session.warning_env": "Đây là một phiên đăng nhập đầy đủ. Cuotai đọc nó từ biến môi trường và chỉ dùng để truy vấn dịch vụ này; hãy chuyển nó vào kho của hệ thống trong trình hướng dẫn tài khoản.",
   "watch.error.interval_range": "Chu kỳ watch phải nằm trong khoảng {min} đến {max} giây; giá trị nằm ngoài khoảng này bị từ chối, không được điều chỉnh.",
   "watch.error.unknown_event": "Sự kiện không xác định: \"{name}\". Các sự kiện hợp lệ: {known}.",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} đưa ra chứng chỉ mà máy tính này không tin cậy. Dấu vân tay SHA-256: {fingerprint}. Hãy so sánh với dấu vân tay của máy chủ; F6 tin cậy chứng chỉ và kiểm tra lại.",
+  "wizard.nine_router.cert_changed_prompt": "Chứng chỉ của {host}:{port} đã thay đổi kể từ khi bạn tin cậy nó. Cũ: {previous}. Mới: {fingerprint}. Có thể chứng chỉ đã được gia hạn, hoặc ai đó giữa bạn và máy chủ đang đưa ra chứng chỉ của họ. Hãy kiểm tra dấu vân tay mới trên máy chủ, rồi nhấn F6 lần nữa để thay chứng chỉ được ghim; phím khác sẽ giữ nguyên.",
   "oauth.xiaomi.invalid_code": "Mã không hợp lệ hoặc của phiên khác; hãy sao chép mã của lần thử này.",
   "login.progress.cursor_import": "Đang đọc phiên Cursor đã ủy quyền, ở chế độ chỉ-đọc...",
   "login.progress.preparing": "Đang chuẩn bị ủy quyền với nhà cung cấp...",

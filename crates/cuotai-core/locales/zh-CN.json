@@ -64,7 +64,9 @@
       "note.aggregator.duplicate_ids",
       "note.litellm.truncated",
       "metric.label.monthly",
-      "metric.label.week_model_7d"
+      "metric.label.week_model_7d",
+      "wizard.nine_router.cert_first_prompt",
+      "wizard.nine_router.cert_changed_prompt"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2177,6 +2179,8 @@
   "user_session.warning_env": "这是一个完整的登录会话。Cuotai 从环境变量中读取它，只用于查询此服务；请在账户向导中将其移到系统保险库。",
   "watch.error.interval_range": "watch 的间隔必须在 {min} 到 {max} 秒之间；超出此范围的值会被拒绝，而不是自动调整。",
   "watch.error.unknown_event": "未知事件：\"{name}\"。有效事件：{known}。",
+  "wizard.nine_router.cert_first_prompt": "{host}:{port} 提供的证书不受此电脑信任。SHA-256 指纹：{fingerprint}。请与服务器上的指纹比对；按 F6 信任它并重新测试。",
+  "wizard.nine_router.cert_changed_prompt": "{host}:{port} 的证书在您信任之后已更改。旧指纹：{previous}。新指纹：{fingerprint}。证书可能已续期，也可能有人在您与服务器之间出示了自己的证书。请先在服务器上核对新指纹，再按一次 F6 替换已固定的证书；按其他任意键则保留。",
   "oauth.xiaomi.invalid_code": "代码无效或属于其他会话；请复制本次尝试的代码。",
   "login.progress.cursor_import": "正在以只读模式读取已授权的 Cursor 会话...",
   "login.progress.preparing": "正在与提供商准备授权...",

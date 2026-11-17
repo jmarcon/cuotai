@@ -766,9 +766,11 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     aggregatorStatus.textContent = t(pending);
     const result = await testAggregator({ ...draftInput(), sessions: pastes() });
     aggregatorStatus.textContent = tl(result.message);
-    // PRD 0036 RF2.3: trust on first use — the fingerprint is pinned only after the user confirms it.
-    if (!result.ok && result.fingerprint && (await confirmFingerprint(result.fingerprint)) === "trust") {
-      setFieldText("tls_pin_sha256", result.fingerprint);
+    // PRD 0036 RF2.3: trust on first use — the fingerprint is pinned only after the user confirms it. Re-validation
+    // S-03: a changed pin opens its own dialog, where replacing it takes a checkbox and a secondary button.
+    const offer = result.ok ? null : result.certificate;
+    if (offer && ["trust", "replace"].includes(await confirmCertificate(offer))) {
+      setFieldText("tls_pin_sha256", offer.fingerprint);
       setFieldText("tls_ca_file", "");
       return runAggregatorTest(pending);
     }
@@ -1609,25 +1611,65 @@ export function confirmDelete(index, label, { usesOauth = false, secretsOf = nul
  *  `"reload"` when the user chose to refresh the snapshot, or `"keep"` when
  *  they accept editing against a stale snapshot. */
 // PRD 0036 RF2.3: the certificate a 9router instance presented, for the user to check on the server before
-// trusting it (DS-CMP-DLG). Resolves "trust" or "cancel"; nothing is pinned without "trust".
-function confirmFingerprint(fingerprint) {
+// trusting it (DS-CMP-DLG). Re-validation S-03: the core says whether it is a first sighting (`untrusted`) or a changed
+// pin (`changed`), and each has its own dialog. A first sighting resolves "trust" or "cancel". A changed pin shows the
+// address, the old and the new fingerprint and what the change can mean; Cancel is the focused primary button and
+// Enter or Escape cancels; "Replace the pinned certificate" stays disabled until "I checked the new fingerprint on the
+// server" is ticked, and resolves "replace". Nothing is pinned otherwise.
+export function confirmCertificate(offer) {
+  const changed = offer.state === "changed";
+  const where = esc(`${offer.host}:${offer.port}`);
   return new Promise((resolve) => {
     const dlg = document.createElement("dialog");
     dlg.className = "dlg";
-    dlg.innerHTML = `<form method="dialog" class="dlg-body" data-protected-texts="fingerprint">
-      <h2>${te("dialog.aggregator.trustTitle")}</h2>
-      <p>${te("dialog.aggregator.trustBody")}</p>
-      <p><code class="fingerprint">${esc(fingerprint)}</code></p>
+    dlg.innerHTML = changed
+      ? `<form method="dialog" class="dlg-body" data-protected-texts="certificate-changed">
+      <h2>${te("confirm.certificate.changedTitle")}</h2>
+      <p>${te("confirm.certificate.changedBody")}</p>
+      <dl class="cert-facts">
+        <dt>${te("confirm.certificate.host")}</dt><dd><code>${where}</code></dd>
+        <dt>${te("confirm.certificate.old")}</dt><dd><code class="fingerprint" data-old>${esc(offer.previous ?? "")}</code></dd>
+        <dt>${te("confirm.certificate.new")}</dt><dd><code class="fingerprint" data-new>${esc(offer.fingerprint)}</code></dd>
+      </dl>
+      <label class="extension-confirm"><input type="checkbox" id="cert-checked" />${te("confirm.certificate.checked")}</label>
+      <div class="dlg-actions">
+        <button type="button" class="btn" data-choice="replace" disabled>${te("confirm.certificate.replace")}</button>
+        <button type="button" class="btn primary" data-choice="cancel">${te("confirm.cancel")}</button>
+      </div>
+    </form>`
+      : `<form method="dialog" class="dlg-body" data-protected-texts="certificate-first">
+      <h2>${te("confirm.certificate.firstTitle")}</h2>
+      <p>${te("confirm.certificate.firstBody")}</p>
+      <dl class="cert-facts">
+        <dt>${te("confirm.certificate.host")}</dt><dd><code>${where}</code></dd>
+      </dl>
+      <p><code class="fingerprint" data-new>${esc(offer.fingerprint)}</code></p>
       <div class="dlg-actions">
         <button type="button" class="btn" data-choice="cancel">${te("confirm.cancel")}</button>
-        <button type="button" class="btn primary" data-choice="trust">${te("dialog.aggregator.trust")}</button>
+        <button type="button" class="btn primary" data-choice="trust">${te("confirm.certificate.trust")}</button>
       </div>
     </form>`;
+    dlg.dataset.certificate = changed ? "changed" : "first";
     document.body.append(dlg);
     showDialog(dlg);
     let choice = "cancel";
+    const replace = dlg.querySelector('[data-choice="replace"]');
+    const checked = dlg.querySelector("#cert-checked");
+    checked?.addEventListener("change", () => { replace.disabled = !checked.checked; });
+    if (changed) {
+      dlg.querySelector('[data-choice="cancel"]').focus();
+      // Enter anywhere but on the enabled Replace button cancels; replacing is never the default.
+      dlg.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" || e.target === replace) return;
+        e.preventDefault();
+        choice = "cancel";
+        dlg.close();
+      });
+    }
     for (const btn of dlg.querySelectorAll("[data-choice]")) {
       btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        if (btn.dataset.choice === "replace" && !checked?.checked) return;
         choice = btn.dataset.choice;
         dlg.close();
       });

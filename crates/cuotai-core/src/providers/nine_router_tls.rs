@@ -83,6 +83,14 @@ pub fn format_fingerprint(digest: &[u8; 32]) -> String {
         .join(":")
 }
 
+/// Re-validation S-03: the fingerprint `account` pins now, in the form
+/// shown to people; `None` without a pin or with one that does not parse.
+pub(crate) fn pinned_fingerprint(account: &Account) -> Option<String> {
+    param(account, "tls_pin_sha256")
+        .and_then(parse_pin)
+        .map(|digest| format_fingerprint(&digest))
+}
+
 fn param<'a>(account: &'a Account, key: &str) -> Option<&'a str> {
     account
         .params

@@ -155,7 +155,9 @@ for (const [label, opts] of [["plain", {}], ["vault", { usesOauth: true }], ["ex
   await surface("delete", () => { accountDialog.confirmDelete(0, "work@example.com", opts); });
   void label;
 }
-await sourceSurface("fingerprint", "account-dialog.js", ["confirmFingerprint"]);
+// Re-validation S-03: the first-sighting and the changed-pin certificate dialogs.
+await surface("certificate-first", () => { accountDialog.confirmCertificate({ state: "untrusted", host: "router.example.com", port: 443, fingerprint: "AB", previous: null }); });
+await surface("certificate-changed", () => { accountDialog.confirmCertificate({ state: "changed", host: "router.example.com", port: 443, fingerprint: "AB", previous: "CD" }); });
 await sourceSurface("external", "account-dialog.js", ["offerExternalReload"]);
 await sourceSurface("login", "account-dialog.js", ["renderLoginPanel"]);
 await sourceSurface("session", "account-dialog.js", ["renderSession"]);

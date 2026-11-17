@@ -396,9 +396,13 @@ pub(crate) struct Wizard {
     /// a successful test of exactly the account being saved.
     aggregator_test: Option<(bool, String)>,
     aggregator_ok: Option<Box<Account>>,
-    /// PRD 0036 RF2.3: the fingerprint the last test offered for trust on
-    /// first use; F6 pins it (after the user checked it) and tests again.
-    offered_pin: Option<String>,
+    /// PRD 0036 RF2.3: the certificate the last test offered for trust;
+    /// F6 pins it (after the user checked it) and tests again. Re-validation
+    /// S-03: a changed pin takes two F6 presses (`confirm_repin` is armed by
+    /// the first one, which shows the old and the new fingerprint); any
+    /// other key withdraws it.
+    offered_cert: Option<cuotai_core::aggregators::CertificateOffer>,
+    confirm_repin: bool,
     /// PRD 0047 T2: the variable the wizard last suggested for a new
     /// account; it is replaced when the provider or name changes, but only
     /// while the credential field still holds it (a typed name is kept).
@@ -524,7 +528,8 @@ impl Wizard {
             confirm_untested: None,
             aggregator_test: None,
             aggregator_ok: None,
-            offered_pin: None,
+            offered_cert: None,
+            confirm_repin: false,
             suggested_env,
         };
         // RF6.2: detection runs only when the Add-account wizard starts,
@@ -1504,6 +1509,8 @@ impl Wizard {
         // does; only a second F3 moves the session. Any other key cancels.
         let migrate_confirmed = std::mem::take(&mut self.confirm_migrate);
         let forget_confirmed = std::mem::take(&mut self.confirm_forget);
+        // Re-validation S-03: only the next F6 replaces a changed pin.
+        let repin_confirmed = std::mem::take(&mut self.confirm_repin);
         // SES-02: any key withdraws a pending save after the test, and only
         // the next Enter confirms "Save anyway".
         self.test_then_save = false;
@@ -1550,13 +1557,24 @@ impl Wizard {
         }
         // PRD 0036 RF2.3: F6 trusts the certificate the test showed (its
         // fingerprint becomes the pin, replacing a CA file) and tests again.
+        // Re-validation S-03: for a changed pin the first F6 only shows the
+        // old and the new fingerprint; the second one replaces the pin.
         if self.provider.is_aggregator()
             && matches!(self.step, Step::Params | Step::Summary)
             && key.code == KeyCode::F(6)
         {
-            let Some(pin) = self.offered_pin.take() else {
+            let Some(offer) = &self.offered_cert else {
                 return Action::Continue;
             };
+            if offer.state == cuotai_core::aggregators::CertificateState::Changed
+                && !repin_confirmed
+            {
+                self.error = None;
+                self.confirm_repin = true;
+                return Action::Continue;
+            }
+            let pin = offer.fingerprint.clone();
+            self.offered_cert = None;
             self.set_text_field("tls_pin_sha256", &pin);
             self.set_text_field("tls_ca_file", "");
             return self.test_aggregator();
@@ -2235,8 +2253,15 @@ impl Wizard {
         test: &cuotai_core::aggregators::AggregatorTest,
     ) -> Option<Action> {
         let text = crate::ui::resolve_l10n(&test.message);
-        self.offered_pin = test.fingerprint().map(str::to_owned);
-        let shown = if self.offered_pin.is_some() {
+        self.offered_cert = test.certificate.clone();
+        self.confirm_repin = false;
+        let first_sighting = self
+            .offered_cert
+            .as_ref()
+            .filter(|offer| offer.state == cuotai_core::aggregators::CertificateState::Untrusted);
+        let shown = if let Some(offer) = first_sighting {
+            crate::ui::resolve_l10n(&offer.prompt())
+        } else if self.offered_cert.is_some() {
             format!(
                 "{text}{}",
                 tr(
@@ -2801,6 +2826,14 @@ impl Wizard {
     /// and the summary.
     fn aggregator_test_line(&self) -> Option<Line<'static>> {
         let (ok, text) = self.aggregator_test.as_ref()?;
+        // Re-validation S-03: after the first F6 on a changed pin, the old
+        // and the new fingerprint and "press F6 again to replace".
+        if let Some(offer) = self.offered_cert.as_ref().filter(|_| self.confirm_repin) {
+            return Some(Line::from(Span::styled(
+                crate::ui::safe(&crate::ui::resolve_l10n(&offer.prompt())).into_owned(),
+                Style::default().fg(DRACULA_YELLOW),
+            )));
+        }
         Some(Line::from(vec![
             Span::styled(
                 tr("wizard.aggregator.test_line", "Connection test: "),
@@ -3031,7 +3064,7 @@ impl Wizard {
                 " type to filter  ↑↓ move  Enter select  Tab Models  Esc cancel",
             ),
             Step::Params | Step::Summary
-                if self.provider.is_aggregator() && self.offered_pin.is_some() =>
+                if self.provider.is_aggregator() && self.offered_cert.is_some() =>
             {
                 tr(
                     "wizard.hint.trust",
@@ -4599,6 +4632,71 @@ mod tests {
         assert!(!tested.params.contains_key("tls_ca_file"));
         // The offer is used once.
         assert!(matches!(press(&mut wiz, KeyCode::F(6)), Action::Continue));
+    }
+
+    /// Re-validation S-03: F6 on a changed pin does not pin on the first
+    /// press: it shows the old and the new fingerprint; only a second F6
+    /// replaces the pin, and any other key withdraws it.
+    #[test]
+    fn f6_replaces_a_changed_pin_only_on_the_second_press() {
+        use cuotai_core::aggregators::{AggregatorTest, TestOutcome};
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let old = "CD:".repeat(31) + "CD";
+        let new = "AB:".repeat(31) + "AB";
+        let mut router = account("home", "");
+        router.provider = Provider::NineRouter;
+        router.credential_env = None;
+        router
+            .params
+            .insert("base_url".into(), "https://router.example.com".into());
+        router.params.insert("tls_pin_sha256".into(), old.clone());
+        let config = Config {
+            accounts: vec![router.clone()],
+            ..Config::default()
+        };
+        let mut wiz = Wizard::new(&config, Some(0));
+        wiz.step = Step::Params;
+        let changed = AggregatorTest::for_account(
+            &router,
+            TestOutcome::CertificateChanged {
+                fingerprint: new.clone(),
+            },
+        );
+        assert!(wiz.aggregator_tested(&router, &changed).is_none());
+        let pin_now = |w: &Wizard| {
+            w.build_config().unwrap().accounts[0]
+                .params
+                .get("tls_pin_sha256")
+                .cloned()
+        };
+        // First F6: nothing is pinned; the prompt shows both fingerprints.
+        assert!(matches!(press(&mut wiz, KeyCode::F(6)), Action::Continue));
+        assert_eq!(pin_now(&wiz), Some(old.clone()));
+        let line: String = wiz
+            .aggregator_test_line()
+            .unwrap()
+            .spans
+            .iter()
+            .map(|span| span.content.to_string())
+            .collect();
+        assert!(
+            line.contains(&old) && line.contains(&new) && line.contains("F6"),
+            "{line}"
+        );
+        // Any other key withdraws it; the next F6 asks again.
+        assert!(matches!(press(&mut wiz, KeyCode::Down), Action::Continue));
+        assert!(!wiz.confirm_repin);
+        assert!(matches!(press(&mut wiz, KeyCode::F(6)), Action::Continue));
+        assert_eq!(pin_now(&wiz), Some(old.clone()));
+        // The second F6 in a row replaces the pin and tests again.
+        let tested = match press(&mut wiz, KeyCode::F(6)) {
+            Action::TestAggregator { account, .. } => *account,
+            _ => panic!("the second F6 replaces the pin and tests"),
+        };
+        assert_eq!(
+            tested.params.get("tls_pin_sha256").map(String::as_str),
+            Some(new.as_str())
+        );
     }
 
     fn wizard_with(name: &str, env: &str, interval: &str) -> Wizard {
