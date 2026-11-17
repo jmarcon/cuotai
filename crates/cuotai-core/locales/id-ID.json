@@ -141,7 +141,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -340,6 +344,9 @@
   "binding.renewal_due": "jendela {window} mencapai batasnya; pembaruan jatuh tempo, menunggu penyedia",
   "binding.renewal_due_metric": "{metric} mencapai batasnya; pembaruan jatuh tempo, menunggu penyedia",
   "binding.blocked_metric": "diblokir oleh {metric}; waktu kembali tidak diketahui",
+  "binding.tightest_budget": "paling membatasi: {metric} (anggaran Anda) pada {used}%",
+  "binding.blocked_until_budget": "{metric} (anggaran Anda) habis hingga {at}",
+  "binding.blocked_budget": "{metric} (anggaran Anda) habis; periode berikutnya tidak diketahui",
   "budget.badge": "Anggaran Anda",
   "budget.describe.daily": "Cuotai akan menampilkan kuota anggaran {amount} per hari, mulai tengah malam.",
   "budget.describe.monthly": "Cuotai akan menampilkan kuota anggaran {amount} per bulan, mulai tanggal {start}.",
@@ -2708,6 +2715,7 @@
   "budget.error.row": "{field}: anggaran pada baris rincian memerlukan kind, cakupan baris (key, virtual_key, project, workspace, atau team) dan id-nya, pada penyedia yang menawarkan rincian.",
   "budget.error.duplicate_floor": "{field}: batas bawah lain sudah memantau saldo yang sama dengan jumlah yang sama.",
   "budget.error.duplicate_label": "{field}: anggaran lain di akun ini sudah memakai label ini.",
+  "budget.period_since": "sejak {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",
   "alerts.at.day": "{day}/{month}",

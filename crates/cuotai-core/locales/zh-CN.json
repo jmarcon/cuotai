@@ -179,7 +179,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -378,6 +382,9 @@
   "binding.renewal_due": "{window}窗口已达限额；应已重置，等待提供商",
   "binding.renewal_due_metric": "{metric} 已达限额；应已重置，等待提供商",
   "binding.blocked_metric": "受{metric}限制；恢复时间未知",
+  "binding.tightest_budget": "最严格：{metric}（自定预算）已用{used}%",
+  "binding.blocked_until_budget": "{metric}（自定预算）已用完，直至{at}",
+  "binding.blocked_budget": "{metric}（自定预算）已用完；下一周期未知",
   "budget.badge": "自定预算",
   "budget.describe.daily": "Cuotai 将显示每天 {amount} 的预算配额，从午夜开始。",
   "budget.describe.monthly": "Cuotai 将显示每月 {amount} 的预算配额，从每月 {start} 日开始。",
@@ -2746,6 +2753,7 @@
   "budget.error.row": "{field}：明细行上的预算需要 kind、行的范围（key、virtual_key、project、workspace 或 team）及其 id，且提供方须支持明细。",
   "budget.error.duplicate_floor": "{field}：已有其他下限以相同金额监控同一余额。",
   "budget.error.duplicate_label": "{field}：此账户已有其他预算使用这个名称。",
+  "budget.period_since": "自{day}起",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{month}/{day} {time}",
   "alerts.at.day": "{month}/{day}",

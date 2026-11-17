@@ -159,7 +159,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -360,6 +364,9 @@
   "binding.renewal_due": "{window} विंडो सीमा पर; नवीनीकरण बाकी, प्रदाता का इंतज़ार",
   "binding.renewal_due_metric": "{metric} सीमा पर; नवीनीकरण बाकी, प्रदाता का इंतज़ार",
   "binding.blocked_metric": "{metric} से ब्लॉक; वापसी का समय अज्ञात",
+  "binding.tightest_budget": "सबसे सीमित: {metric} (आपका बजट) {used}% पर",
+  "binding.blocked_until_budget": "{metric} (आपका बजट) {at} तक खत्म",
+  "binding.blocked_budget": "{metric} (आपका बजट) खत्म; अगली अवधि अज्ञात",
   "budget.badge": "आपका बजट",
   "budget.describe.daily": "Cuotai आधी रात से प्रति दिन {amount} का बजट कोटा दिखाएगा।",
   "budget.describe.monthly": "Cuotai दिन {start} से प्रति माह {amount} का बजट कोटा दिखाएगा।",
@@ -2780,6 +2787,7 @@
   "budget.error.row": "{field}: विवरण पंक्ति पर बजट के लिए kind, पंक्ति का दायरा (key, virtual_key, project, workspace या team) और उसका id चाहिए, ऐसे प्रदाता पर जो विवरण देता हो।",
   "budget.error.duplicate_floor": "{field}: कोई दूसरी न्यूनतम सीमा उसी शेष राशि पर उसी रकम से पहले से नज़र रखती है।",
   "budget.error.duplicate_label": "{field}: इस खाते के किसी दूसरे बजट का नाम पहले से यही है।",
+  "budget.period_since": "{day} से",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",
   "alerts.at.day": "{day}/{month}",

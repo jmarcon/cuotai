@@ -143,7 +143,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -342,6 +346,9 @@
   "binding.renewal_due": "khung {window} đã chạm giới hạn; đến hạn đặt lại, đang chờ nhà cung cấp",
   "binding.renewal_due_metric": "{metric} đã chạm giới hạn; đến hạn đặt lại, đang chờ nhà cung cấp",
   "binding.blocked_metric": "bị chặn bởi {metric}; chưa rõ khi nào hoạt động lại",
+  "binding.tightest_budget": "hạn chế nhất: {metric} (ngân sách của bạn) ở mức {used}%",
+  "binding.blocked_until_budget": "{metric} (ngân sách của bạn) đã dùng hết đến {at}",
+  "binding.blocked_budget": "{metric} (ngân sách của bạn) đã dùng hết; chưa rõ kỳ tiếp theo",
   "budget.badge": "Ngân sách của bạn",
   "budget.describe.daily": "Cuotai sẽ hiển thị hạn mức ngân sách {amount} mỗi ngày, tính từ nửa đêm.",
   "budget.describe.monthly": "Cuotai sẽ hiển thị hạn mức ngân sách {amount} mỗi tháng, bắt đầu từ ngày {start}.",
@@ -2710,6 +2717,7 @@
   "budget.error.row": "{field}: ngân sách trên một hàng của bảng chi tiết cần kind, phạm vi của dòng (key, virtual_key, project, workspace hoặc team) và id của nó, ở nhà cung cấp có bảng chi tiết.",
   "budget.error.duplicate_floor": "{field}: một mức sàn khác đã theo dõi cùng số dư ở cùng mức tiền.",
   "budget.error.duplicate_label": "{field}: một ngân sách khác của tài khoản này đã có nhãn này.",
+  "budget.period_since": "từ {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",
   "alerts.at.day": "{day}/{month}",

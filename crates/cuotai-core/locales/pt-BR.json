@@ -19,7 +19,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -220,6 +224,9 @@
   "binding.renewal_due": "janela {window} no limite; renovação pendente, aguardando o provedor",
   "binding.renewal_due_metric": "{metric} no limite; renovação pendente, aguardando o provedor",
   "binding.blocked_metric": "bloqueada por {metric}; horário de retorno desconhecido",
+  "binding.tightest_budget": "mais restritiva: {metric} (seu orçamento) em {used}%",
+  "binding.blocked_until_budget": "{metric} (seu orçamento) esgotado até {at}",
+  "binding.blocked_budget": "{metric} (seu orçamento) esgotado; próximo período desconhecido",
   "budget.badge": "Seu orçamento",
   "budget.describe.daily": "O Cuotai mostrará uma cota de orçamento de {amount} por dia, a partir da meia-noite.",
   "budget.describe.monthly": "O Cuotai mostrará uma cota de orçamento de {amount} por mês, começando no dia {start}.",
@@ -2640,6 +2647,7 @@
   "budget.error.row": "{field}: um orçamento numa linha do detalhamento precisa de um kind, do escopo da linha (key, virtual_key, project, workspace ou team) e do seu id, num provedor que ofereça detalhamentos.",
   "budget.error.duplicate_floor": "{field}: outro piso já acompanha o mesmo saldo com o mesmo valor.",
   "budget.error.duplicate_label": "{field}: outro orçamento desta conta já tem este rótulo.",
+  "budget.period_since": "desde {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",
   "alerts.at.day": "{day}/{month}",

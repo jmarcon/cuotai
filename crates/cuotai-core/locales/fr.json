@@ -1059,7 +1059,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1260,6 +1264,9 @@
   "binding.renewal_due": "fenêtre {window} à sa limite ; renouvellement attendu, en attente du fournisseur",
   "binding.renewal_due_metric": "{metric} à sa limite ; renouvellement attendu, en attente du fournisseur",
   "binding.blocked_metric": "bloqué par {metric} ; heure de retour inconnue",
+  "binding.tightest_budget": "la plus restrictive : {metric} (votre budget) à {used} %",
+  "binding.blocked_until_budget": "{metric} (votre budget) épuisé jusqu’à {at}",
+  "binding.blocked_budget": "{metric} (votre budget) épuisé ; prochaine période inconnue",
   "budget.badge": "Votre budget",
   "budget.describe.daily": "Cuotai affichera un quota budgétaire de {amount} par jour, à partir de minuit.",
   "budget.describe.monthly": "Cuotai affichera un quota budgétaire de {amount} par mois, à partir du {start}.",
@@ -3680,6 +3687,7 @@
   "budget.error.row": "{field} : un budget sur une ligne de la ventilation a besoin d'un kind, de la portée de la ligne (key, virtual_key, project, workspace ou team) et de son id, chez un fournisseur qui propose des ventilations.",
   "budget.error.duplicate_floor": "{field} : un autre plancher surveille déjà le même solde au même montant.",
   "budget.error.duplicate_label": "{field} : un autre budget de ce compte porte déjà ce libellé.",
+  "budget.period_since": "depuis {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",
   "alerts.at.day": "{day}/{month}",

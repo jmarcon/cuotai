@@ -386,7 +386,7 @@ fn restored_readings_mark_their_budget_metrics_again() {
     for metric in &mut reading.metrics {
         metric.derived_from = None;
     }
-    mark_restored(&account, &mut reading);
+    mark_restored(&account, &mut reading, now, &Utc);
     assert_eq!(
         reading
             .metrics

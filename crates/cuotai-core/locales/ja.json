@@ -186,7 +186,11 @@
       "metric.label.budget_monthly_from",
       "metric.label.budget_cycle",
       "budget.error.duplicate_floor",
-      "budget.error.duplicate_label"
+      "budget.error.duplicate_label",
+      "budget.period_since",
+      "binding.tightest_budget",
+      "binding.blocked_until_budget",
+      "binding.blocked_budget"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -385,6 +389,9 @@
   "binding.renewal_due": "{window}ウィンドウは上限。リセット予定時刻を過ぎ、プロバイダーの更新待ち",
   "binding.renewal_due_metric": "{metric} は上限。リセット予定時刻を過ぎ、プロバイダーの更新待ち",
   "binding.blocked_metric": "{metric}により制限中。回復時刻は不明",
+  "binding.tightest_budget": "最も厳しい：{metric}（自分の予算、{used}%使用）",
+  "binding.blocked_until_budget": "{metric}（自分の予算）は{at}まで使い切り",
+  "binding.blocked_budget": "{metric}（自分の予算）を使い切り。次の期間は不明",
   "budget.badge": "自分の予算",
   "budget.describe.daily": "Cuotai は 1 日 {amount} の予算枠を午前 0 時から表示します。",
   "budget.describe.monthly": "Cuotai は月 {amount} の予算枠を毎月 {start} 日から表示します。",
@@ -2753,6 +2760,7 @@
   "budget.error.row": "{field}：内訳の行の予算には kind、行のスコープ（key、virtual_key、project、workspace、team）とその id が必要で、内訳に対応したプロバイダーである必要があります。",
   "budget.error.duplicate_floor": "{field}：同じ残高を同じ金額で見守る下限がすでにあります。",
   "budget.error.duplicate_label": "{field}：このアカウントには同じ名前の予算がすでにあります。",
+  "budget.period_since": "{day}から",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{month}/{day} {time}",
   "alerts.at.day": "{month}/{day}",

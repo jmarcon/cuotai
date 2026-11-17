@@ -71,6 +71,8 @@ fn derived(index: usize, budget: &Budget, used: f64, legacy: bool) -> Metric {
             } else {
                 budget_key(budget)
             },
+            period_start: None,
+            period_text: None,
         }),
         ..quota(&label, used, budget.amount)
     }
