@@ -147,7 +147,6 @@
       "cost.line.unknown",
       "cost.live.line_unknown",
       "cost.live.none",
-      "cost.live.rate_missing",
       "cost.plan.combined",
       "cost.plan.combined_side",
       "cost.plan.combined_some",
@@ -1084,7 +1083,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1493,8 +1497,15 @@
   "cost.live.line_unknown": "Ce bloc : {tokens} jetons, coût inconnu · {rate} jetons/min",
   "cost.live.projection": "À ce rythme ≈ {cost} d’ici {at}",
   "cost.live.window": "{source} · estimation locale {window} · {elapsed} écoulés, {left} restants",
-  "cost.live.rate_missing": "Rythme de consommation : pas encore assez de requêtes récentes ({requests} dans les {minutes} dernières minutes).",
   "cost.live.none": "{source} : aucun bloc actif.",
+  "cost.live.line_partial": "Ce bloc ≈ {cost} + coût inconnu de {unknown} jetons · {rate} jetons/min",
+  "cost.live.projection_partial": "À ce rythme ≈ {cost} + coût inconnu d’environ {unknown} jetons d’ici {at}",
+  "cost.live.projection_tokens": "À ce rythme ≈ {tokens} jetons d’ici {at} ; la plupart n’ont pas de prix connu, donc aucun coût n’est projeté",
+  "cost.live.rate_few": {
+    "one": "Rythme de consommation : il faut au moins {min} requêtes dans les {minutes} dernières minutes ; {count} pour l’instant.",
+    "other": "Rythme de consommation : il faut au moins {min} requêtes dans les {minutes} dernières minutes ; {count} pour l’instant."
+  },
+  "cost.live.rate_young": "Rythme de consommation : le bloc a commencé il y a {elapsed} ; il faut {min} minutes.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Projet {short}",
   "cost.project.none": "Aucun projet",

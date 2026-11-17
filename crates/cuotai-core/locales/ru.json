@@ -218,7 +218,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -645,8 +650,17 @@
   "cost.live.line_unknown": "Этот блок: {tokens} токенов, стоимость неизвестна · {rate} ток./мин",
   "cost.live.projection": "При таком темпе ≈ {cost} к {at}",
   "cost.live.window": "{source} · локальная оценка {window} · прошло {elapsed}, осталось {left}",
-  "cost.live.rate_missing": "Темп расхода: пока мало недавних запросов ({requests} за последние {minutes} минут).",
   "cost.live.none": "{source}: активного блока нет.",
+  "cost.live.line_partial": "Этот блок ≈ {cost} + неизвестные расходы для токенов: {unknown} · {rate} ток./мин",
+  "cost.live.projection_partial": "При таком темпе к {at} ≈ {cost} + неизвестные расходы для токенов: около {unknown}",
+  "cost.live.projection_tokens": "При таком темпе к {at} ≈ токенов: {tokens}; у большинства из них нет известной цены, поэтому стоимость не прогнозируется",
+  "cost.live.rate_few": {
+    "one": "Темп расхода: нужно не меньше {min} запр. за последние {minutes} мин.; пока {count}.",
+    "few": "Темп расхода: нужно не меньше {min} запр. за последние {minutes} мин.; пока {count}.",
+    "many": "Темп расхода: нужно не меньше {min} запр. за последние {minutes} мин.; пока {count}.",
+    "other": "Темп расхода: нужно не меньше {min} запр. за последние {minutes} мин.; пока {count}."
+  },
+  "cost.live.rate_young": "Темп расхода: блок начался {elapsed} назад; нужно не меньше {min} мин.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Проект {short}",
   "cost.project.none": "Без проекта",

@@ -186,7 +186,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -586,8 +591,14 @@
   "cost.live.line_unknown": "이 블록: {tokens} 토큰, 비용 알 수 없음 · 분당 {rate} 토큰",
   "cost.live.projection": "이 속도라면 {at}까지 ≈ {cost}",
   "cost.live.window": "{source} · 로컬 추정 {window} · {elapsed} 경과, {left} 남음",
-  "cost.live.rate_missing": "소비 속도: 최근 요청이 아직 부족합니다(최근 {minutes}분 동안 {requests}건).",
   "cost.live.none": "{source}: 활성 블록이 없습니다.",
+  "cost.live.line_partial": "이 블록 ≈ {cost} + 비용을 알 수 없는 토큰 {unknown}개 · 분당 {rate} 토큰",
+  "cost.live.projection_partial": "이 속도라면 {at}까지 ≈ {cost} + 비용을 알 수 없는 토큰 약 {unknown}개",
+  "cost.live.projection_tokens": "이 속도라면 {at}까지 ≈ 토큰 {tokens}개. 대부분 가격을 알 수 없어 비용은 예측하지 않습니다",
+  "cost.live.rate_few": {
+    "other": "소비 속도: 최근 {minutes}분 동안 요청이 {min}건 이상 필요합니다. 지금까지 {count}건."
+  },
+  "cost.live.rate_young": "소비 속도: 블록이 {elapsed} 전에 시작되었습니다. {min}분이 필요합니다.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "프로젝트 {short}",
   "cost.project.none": "프로젝트 없음",

@@ -1071,7 +1071,6 @@
   "settings.costBy.providerReset": "Sağlayıcı penceresi: {at} saatinde sıfırlanır",
   "settings.costBy.liveTitle": "Etkin blok · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} geçti, {left} kaldı",
-  "settings.costBy.noRate": "Tüketim hızı: henüz yeterli yakın tarihli istek yok.",
   "settings.costBy.localEstimate": "Yerel tahmin: bloklar günlüklerinizden hesaplanır, sağlayıcıdan okunmaz.",
   "settings.costBy.active": "Etkin",
   "settings.costBy.closed": "Kapandı",

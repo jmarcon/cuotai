@@ -1068,7 +1068,6 @@
   "settings.costBy.providerReset": "Ventana del proveedor: se reinicia a las {at}",
   "settings.costBy.liveTitle": "Bloque activo · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} transcurridos, quedan {left}",
-  "settings.costBy.noRate": "Ritmo de consumo: aún no hay suficientes solicitudes recientes.",
   "settings.costBy.localEstimate": "Estimación local: los bloques se calculan a partir de sus registros, no se leen del proveedor.",
   "settings.costBy.active": "Activo",
   "settings.costBy.closed": "Cerrado",

@@ -14,7 +14,7 @@
 use super::estimate::{estimate, Estimate, Usd};
 use super::index::{DailyUsage, ProjectRow, Request};
 use super::prices::{Prices, PricingFile};
-use super::view::{compact_tokens, Span, SpanView};
+use super::view::{compact_tokens, cost_part, CostPart, Span, SpanView};
 use super::{CostError, DayZone, Scanner, SourceId};
 use crate::model::{MetricWindow, Report, Status};
 use crate::text::{params, Localized, ParamValue};
@@ -348,23 +348,55 @@ pub fn blocks(
     out
 }
 
+/// RF3.3: what the live block projects to its end.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectionKind {
+    /// Every projected token has a known price: "≈ $6.40 by 18:53".
+    Money,
+    /// Under half of the projected tokens have no known price: the priced
+    /// part plus "unknown cost of about N tokens".
+    MoneyPartial,
+    /// Half or more have no known price: tokens only, no money.
+    Tokens,
+}
+
 /// RF3.3: the active block of one source with its rate and projection.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct LiveBlock {
     pub block: BlockSummary,
     pub elapsed_minutes: u64,
     pub left_minutes: u64,
-    /// Tokens per minute over the last [`BURN_WINDOW_MINUTES`]; `None`
-    /// under 3 requests or 3 minutes.
+    /// Tokens per minute over the last [`BURN_WINDOW_MINUTES`] (every
+    /// token, priced or not); `None` under 3 requests or 3 minutes.
     pub burn_rate_tokens_per_min: Option<f64>,
-    /// The block's cost at the current rate by its end; `None` without a
-    /// burn rate, before 20% of the block, or when nothing is priced.
+    /// The priced part of the block's cost at the current rate by its end;
+    /// `None` without a burn rate, before 20% of the block, or when the
+    /// projection is in tokens ([`ProjectionKind::Tokens`]).
     pub projected_block_cost: Option<Usd>,
-    /// "This block ≈ $4.10 · 38K tok/min"; `None` without a burn rate.
+    /// "This block ≈ $4.10 · 38K tok/min", with "+ unknown cost of N
+    /// tokens" for the part without a price; `None` without a burn rate.
     pub line: Option<Localized>,
     /// "At this rate ≈ $6.40 by 18:53"; `None` without a projection.
     pub projection: Option<Localized>,
+    /// The block's tokens so far without a known price.
+    pub unknown_tokens: u64,
+    /// Every token by the block's end at the current rate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projected_tokens: Option<u64>,
+    /// The part of `projected_tokens` without a known price.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projected_unknown_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projection_kind: Option<ProjectionKind>,
+    /// Why there is no burn rate yet; `None` with one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_missing: Option<Localized>,
 }
+
+/// RF3.3: no money projection once this share of the projected tokens has
+/// no known price: the figure would describe the minority of the usage.
+const PROJECTION_MAX_UNKNOWN: f64 = 0.5;
 
 /// RF3.3: `block` (the active one) at `now`, from its `requests`.
 pub fn live(
@@ -383,67 +415,145 @@ pub fn live(
         .iter()
         .filter(|r| r.source == block.source && r.at >= window_start && r.at <= now)
         .collect();
-    let window_minutes = (now - window_start).num_seconds() as f64 / 60.0;
-    let measured = recent.len() >= BURN_MIN_REQUESTS
-        && (now - window_start) >= Duration::minutes(BURN_MIN_MINUTES);
+    let window = now - window_start;
+    let window_minutes = window.num_seconds() as f64 / 60.0;
+    let young = window < Duration::minutes(BURN_MIN_MINUTES);
+    let measured = recent.len() >= BURN_MIN_REQUESTS && !young;
     let burn = measured.then(|| {
         let tokens: u64 = recent.iter().map(|r| r.tokens.total()).sum();
         tokens as f64 / window_minutes
     });
     let length = (block.end - block.start).num_seconds().max(1) as f64;
     let share = elapsed.num_seconds() as f64 / length;
-    let projected = match (burn, block.estimate.total) {
-        (Some(_), Some(so_far)) if share >= PROJECTION_MIN_ELAPSED => {
-            let recent_cost = estimate_of(recent.iter().copied(), prices).total;
-            recent_cost.map(|cost| {
-                let per_minute = cost.micros() as f64 / window_minutes;
-                let more = (per_minute * left.num_seconds() as f64 / 60.0).round();
-                so_far + Usd::from_micros(more.max(0.0) as u64)
-            })
-        }
-        _ => None,
-    };
-    let rate_text = burn.map(|rate| compact_tokens(rate.round() as u64));
-    let line = rate_text.as_ref().map(|rate| match block.estimate.total {
-        Some(cost) => Localized::with_params(
-            "cost.live.line",
-            params([
-                ("cost", cost.to_string().into()),
-                ("rate", rate.as_str().into()),
-            ]),
-            "This block ≈ {cost} · {rate} tok/min",
-        ),
-        None => Localized::with_params(
-            "cost.live.line_unknown",
-            params([
-                (
-                    "tokens",
-                    compact_tokens(block.estimate.tokens.total()).into(),
-                ),
-                ("rate", rate.as_str().into()),
-            ]),
-            "This block: {tokens} tokens, unknown cost · {rate} tok/min",
-        ),
+    let so_far = &block.estimate;
+    let left_minutes = left.num_seconds() as f64 / 60.0;
+    // At the recent rate, by the block's end; priced and unpriced tokens
+    // are projected apart, so the money never stands for the whole block.
+    let ahead = |recent: u64| (recent as f64 / window_minutes * left_minutes).round() as u64;
+    let projected = (burn.is_some() && share >= PROJECTION_MIN_ELAPSED).then(|| {
+        let recent = estimate_of(recent.iter().copied(), prices);
+        let tokens = so_far.tokens.total() + ahead(recent.tokens.total());
+        let unknown = so_far.unknown_tokens.total() + ahead(recent.unknown_tokens.total());
+        let cost = so_far.total.unwrap_or_default()
+            + Usd::from_micros(ahead(recent.total.map_or(0, Usd::micros)));
+        (tokens, unknown, cost)
     });
-    let projection = projected.map(|cost| {
-        Localized::with_params(
+    let kind = projected.map(|(tokens, unknown, _)| {
+        if tokens > 0 && unknown as f64 / tokens as f64 >= PROJECTION_MAX_UNKNOWN {
+            ProjectionKind::Tokens
+        } else if unknown > 0 {
+            ProjectionKind::MoneyPartial
+        } else {
+            ProjectionKind::Money
+        }
+    });
+    let rate_text = burn.map(|rate| compact_tokens(rate.round() as u64));
+    let line = rate_text.as_ref().map(|rate| {
+        match cost_part(so_far.total, &so_far.unknown_tokens, &so_far.tokens) {
+            CostPart::Partial { cost, unknown } => Localized::with_params(
+                "cost.live.line_partial",
+                params([
+                    ("cost", ParamValue::l10n(cost)),
+                    ("unknown", unknown.as_str().into()),
+                    ("rate", rate.as_str().into()),
+                ]),
+                "This block ≈ {cost} + unknown cost of {unknown} tokens · {rate} tok/min",
+            ),
+            CostPart::Priced { cost } => Localized::with_params(
+                "cost.live.line",
+                params([
+                    ("cost", ParamValue::l10n(cost)),
+                    ("rate", rate.as_str().into()),
+                ]),
+                "This block ≈ {cost} · {rate} tok/min",
+            ),
+            CostPart::None | CostPart::Unknown => Localized::with_params(
+                "cost.live.line_unknown",
+                params([
+                    ("tokens", compact_tokens(so_far.tokens.total()).into()),
+                    ("rate", rate.as_str().into()),
+                ]),
+                "This block: {tokens} tokens, unknown cost · {rate} tok/min",
+            ),
+        }
+    });
+    let at = local_text(zone, block.end, "%H:%M");
+    let projection = projected.zip(kind).map(|((tokens, unknown, cost), kind)| match kind {
+        ProjectionKind::Tokens => Localized::with_params(
+            "cost.live.projection_tokens",
+            params([
+                ("tokens", compact_tokens(tokens).into()),
+                ("at", at.as_str().into()),
+            ]),
+            "At this rate ≈ {tokens} tokens by {at}; most of them have no known price, so no cost is projected",
+        ),
+        ProjectionKind::MoneyPartial => Localized::with_params(
+            "cost.live.projection_partial",
+            params([
+                ("cost", ParamValue::l10n(cost.money())),
+                ("unknown", compact_tokens(unknown).into()),
+                ("at", at.as_str().into()),
+            ]),
+            "At this rate ≈ {cost} + unknown cost of about {unknown} tokens by {at}",
+        ),
+        ProjectionKind::Money => Localized::with_params(
             "cost.live.projection",
             params([
-                ("cost", cost.to_string().into()),
-                ("at", local_text(zone, block.end, "%H:%M").into()),
+                ("cost", ParamValue::l10n(cost.money())),
+                ("at", at.as_str().into()),
             ]),
             "At this rate ≈ {cost} by {at}",
-        )
+        ),
+    });
+    let rate_missing = burn.is_none().then(|| {
+        if young {
+            live_rate_young_text(minutes(elapsed))
+        } else {
+            live_rate_few_text(recent.len())
+        }
     });
     LiveBlock {
         block: block.clone(),
         elapsed_minutes: minutes(elapsed),
         left_minutes: minutes(left),
         burn_rate_tokens_per_min: burn,
-        projected_block_cost: projected,
+        projected_block_cost: projected
+            .zip(kind)
+            .and_then(|((_, _, cost), kind)| (kind != ProjectionKind::Tokens).then_some(cost)),
         line,
         projection,
+        unknown_tokens: so_far.unknown_tokens.total(),
+        projected_tokens: projected.map(|(tokens, _, _)| tokens),
+        projected_unknown_tokens: projected.map(|(_, unknown, _)| unknown),
+        projection_kind: kind,
+        rate_missing,
     }
+}
+
+/// M-08: fewer than [`BURN_MIN_REQUESTS`] requests in the burn window.
+fn live_rate_few_text(count: usize) -> Localized {
+    Localized::plural(
+        "cost.live.rate_few",
+        params([
+            ("min", (BURN_MIN_REQUESTS as u64).into()),
+            ("minutes", (BURN_WINDOW_MINUTES as u64).into()),
+            ("count", (count as u64).into()),
+        ]),
+        "Burn rate: needs at least {min} requests in the last {minutes} minutes; {count} so far.",
+        "Burn rate: needs at least {min} requests in the last {minutes} minutes; {count} so far.",
+    )
+}
+
+/// M-08: a block younger than [`BURN_MIN_MINUTES`].
+fn live_rate_young_text(elapsed: u64) -> Localized {
+    Localized::with_params(
+        "cost.live.rate_young",
+        params([
+            ("elapsed", ParamValue::l10n(duration_text(elapsed))),
+            ("min", (BURN_MIN_MINUTES as u64).into()),
+        ]),
+        "Burn rate: the block started {elapsed} ago; it needs {min} minutes.",
+    )
 }
 
 /// RF4.1: one project over a span.
@@ -837,18 +947,6 @@ pub fn live_window_text(live: &LiveBlock, zone: DayZone) -> Localized {
     )
 }
 
-/// RF3.3: why there is no burn rate yet.
-pub fn live_rate_missing_text() -> Localized {
-    Localized::with_params(
-        "cost.live.rate_missing",
-        params([
-            ("requests", (BURN_MIN_REQUESTS as u64).into()),
-            ("minutes", (BURN_WINDOW_MINUTES as u64).into()),
-        ]),
-        "Burn rate: not enough recent requests yet ({requests} in the last {minutes} minutes).",
-    )
-}
-
 /// RF5.2: `source` has no active block.
 pub fn live_none_text(source: SourceId) -> Localized {
     Localized::with_param(
@@ -942,6 +1040,9 @@ pub fn folder_hint_text(source: SourceId, on: bool, removed: usize) -> Localized
     }
 }
 
+#[cfg(test)]
+#[path = "live_tests.rs"]
+mod live_tests;
 #[cfg(test)]
 #[path = "breakdown_tests.rs"]
 mod tests;

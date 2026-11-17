@@ -45,7 +45,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -1746,8 +1751,15 @@
   "cost.live.line_unknown": "Este bloque: {tokens} tokens, costo desconocido · {rate} tok/min",
   "cost.live.projection": "A este ritmo ≈ {cost} a las {at}",
   "cost.live.window": "{source} · estimación local {window} · {elapsed} transcurridos, quedan {left}",
-  "cost.live.rate_missing": "Ritmo de consumo: aún no hay suficientes solicitudes recientes ({requests} en los últimos {minutes} minutos).",
   "cost.live.none": "{source}: ningún bloque activo.",
+  "cost.live.line_partial": "Este bloque ≈ {cost} + costo desconocido de {unknown} tokens · {rate} tok/min",
+  "cost.live.projection_partial": "A este ritmo ≈ {cost} + costo desconocido de unos {unknown} tokens a las {at}",
+  "cost.live.projection_tokens": "A este ritmo ≈ {tokens} tokens a las {at}; la mayoría no tiene precio conocido, así que no se proyecta ningún costo",
+  "cost.live.rate_few": {
+    "one": "Ritmo de consumo: se necesitan al menos {min} solicitudes en los últimos {minutes} minutos; por ahora {count}.",
+    "other": "Ritmo de consumo: se necesitan al menos {min} solicitudes en los últimos {minutes} minutos; por ahora {count}."
+  },
+  "cost.live.rate_young": "Ritmo de consumo: el bloque empezó hace {elapsed}; se necesitan {min} minutos.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Proyecto {short}",
   "cost.project.none": "Sin proyecto",

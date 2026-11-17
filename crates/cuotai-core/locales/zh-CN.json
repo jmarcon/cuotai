@@ -205,7 +205,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -605,8 +610,14 @@
   "cost.live.line_unknown": "本时段块：{tokens} 令牌，费用未知 · {rate} 令牌/分钟",
   "cost.live.projection": "按此速度，到 {at} 约 ≈ {cost}",
   "cost.live.window": "{source} · 本地估算 {window} · 已过 {elapsed}，剩余 {left}",
-  "cost.live.rate_missing": "消耗速度：近期请求还不够（最近 {minutes} 分钟内需 {requests} 个）。",
   "cost.live.none": "{source}：没有进行中的时段块。",
+  "cost.live.line_partial": "本时段块 ≈ {cost} + {unknown} token 费用未知 · {rate} 令牌/分钟",
+  "cost.live.projection_partial": "按此速度，到 {at} 约 ≈ {cost} + 约 {unknown} token 费用未知",
+  "cost.live.projection_tokens": "按此速度，到 {at} 约 ≈ {tokens} token；其中大部分没有已知价格，因此不预测费用",
+  "cost.live.rate_few": {
+    "other": "消耗速度：最近 {minutes} 分钟内至少需要 {min} 个请求；目前 {count} 个。"
+  },
+  "cost.live.rate_young": "消耗速度：本时段块开始于 {elapsed} 前；需要 {min} 分钟。",
   "cost.project.labelled": "{label}",
   "cost.project.name": "项目 {short}",
   "cost.project.none": "无项目",

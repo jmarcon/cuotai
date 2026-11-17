@@ -1068,7 +1068,6 @@
   "settings.costBy.providerReset": "Provider window: resets at {at}",
   "settings.costBy.liveTitle": "Active block · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} elapsed, {left} left",
-  "settings.costBy.noRate": "Burn rate: not enough recent requests yet.",
   "settings.costBy.localEstimate": "Local estimate: blocks are computed from your logs, not read from the provider.",
   "settings.costBy.active": "Active",
   "settings.costBy.closed": "Closed",

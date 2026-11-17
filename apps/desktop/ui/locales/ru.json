@@ -1169,7 +1169,6 @@
   "settings.costBy.providerReset": "Окно провайдера: сброс в {at}",
   "settings.costBy.liveTitle": "Активный блок · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · прошло {elapsed}, осталось {left}",
-  "settings.costBy.noRate": "Темп расхода: пока мало недавних запросов.",
   "settings.costBy.localEstimate": "Локальная оценка: блоки вычисляются по вашим журналам, а не считываются у провайдера.",
   "settings.costBy.active": "Активен",
   "settings.costBy.closed": "Завершён",

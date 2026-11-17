@@ -1068,7 +1068,6 @@
   "settings.costBy.providerReset": "Finestra del fornitore: si azzera alle {at}",
   "settings.costBy.liveTitle": "Blocco attivo · {source}",
   "settings.costBy.liveWindow": "{start}–{end} · {elapsed} trascorsi, {left} rimanenti",
-  "settings.costBy.noRate": "Ritmo di consumo: non ci sono ancora abbastanza richieste recenti.",
   "settings.costBy.localEstimate": "Stima locale: i blocchi sono calcolati dai tuoi log, non letti dal fornitore.",
   "settings.costBy.active": "Attivo",
   "settings.costBy.closed": "Chiuso",

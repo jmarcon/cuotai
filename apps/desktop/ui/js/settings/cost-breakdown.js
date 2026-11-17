@@ -72,7 +72,7 @@ function liveHtml(live) {
       <h4>${te("settings.costBy.liveTitle", { source: SOURCE_LABELS[b.source] ?? b.source })}</h4>
       <p>${te("settings.costBy.liveWindow", { start: time(b.start), end: time(b.end), elapsed: minutes(l.elapsed_minutes), left: minutes(l.left_minutes) })}</p>
       <p><b>${esc(approxText(b.estimate))}</b> · ${te("cost.tokens", { amount: fmtTokens(sum(b.estimate.tokens)) })}</p>
-      <p>${l.line ? esc(tl(l.line)) : te("settings.costBy.noRate")}</p>
+      ${l.line || l.rate_missing ? `<p data-cost-rate>${esc(tl(l.line ?? l.rate_missing))}</p>` : ""}
       ${l.projection ? `<p data-cost-projection>${esc(tl(l.projection))}</p>` : ""}${provider}
       <p class="hint">${te("settings.costBy.localEstimate")}</p></section>`;
   }).join("");

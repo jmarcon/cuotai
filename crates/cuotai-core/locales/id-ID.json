@@ -167,7 +167,12 @@
       "pace.allowance.day_less",
       "pace.allowance.hour_less",
       "pace.allowance.budget_day_less",
-      "pace.allowance.budget_hour_less"
+      "pace.allowance.budget_hour_less",
+      "cost.live.line_partial",
+      "cost.live.projection_partial",
+      "cost.live.projection_tokens",
+      "cost.live.rate_few",
+      "cost.live.rate_young"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -567,8 +572,14 @@
   "cost.live.line_unknown": "Blok ini: {tokens} token, biaya tidak diketahui · {rate} token/mnt",
   "cost.live.projection": "Dengan laju ini ≈ {cost} pada {at}",
   "cost.live.window": "{source} · perkiraan lokal {window} · {elapsed} berlalu, sisa {left}",
-  "cost.live.rate_missing": "Laju pemakaian: belum cukup permintaan terbaru ({requests} dalam {minutes} menit terakhir).",
   "cost.live.none": "{source}: tidak ada blok aktif.",
+  "cost.live.line_partial": "Blok ini ≈ {cost} + biaya tidak diketahui dari {unknown} token · {rate} token/mnt",
+  "cost.live.projection_partial": "Dengan laju ini ≈ {cost} + biaya tidak diketahui dari sekitar {unknown} token pada {at}",
+  "cost.live.projection_tokens": "Dengan laju ini ≈ {tokens} token pada {at}; sebagian besar tidak punya harga yang diketahui, jadi biaya tidak diproyeksikan",
+  "cost.live.rate_few": {
+    "other": "Laju pemakaian: perlu minimal {min} permintaan dalam {minutes} menit terakhir; baru {count}."
+  },
+  "cost.live.rate_young": "Laju pemakaian: blok dimulai {elapsed} yang lalu; perlu {min} menit.",
   "cost.project.labelled": "{label}",
   "cost.project.name": "Proyek {short}",
   "cost.project.none": "Tanpa proyek",
