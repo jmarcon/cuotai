@@ -780,6 +780,30 @@ async fn fetch_bedrock(account: &Account, ctx: &Context<'_>) -> Result<Data, Que
 // Testes
 // ---------------------------------------------------------------------------
 
+/// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
+/// records: a Cloud Monitoring limit and recent usage, named and with the
+/// fallbacks of a series that carries no quota or limit name.
+#[cfg(test)]
+pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let series = |labels: serde_json::Value| -> Vec<Ts> {
+        serde_json::from_value(serde_json::json!([{
+            "metric": {"labels": labels},
+            "resource": {"labels": {"location": "us-central1"}},
+            "points": [{"interval": {"endTime": "2026-10-20T12:00:00Z"}, "value": {"int64Value": "5"}}]
+        }]))
+        .expect("fixture decodes")
+    };
+    let named = series(serde_json::json!({
+        "quota_metric": "aiplatform.googleapis.com/online_prediction_requests",
+        "limit_name": "per_minute"
+    }));
+    let unnamed = series(serde_json::json!({}));
+    let mut vertex = google_metrics("Vertex AI", &named, &named).expect("fixture decodes");
+    vertex.extend(google_metrics("Vertex AI", &unnamed, &unnamed).expect("fixture decodes"));
+    let gemini = google_metrics("Gemini API", &named, &named).expect("fixture decodes");
+    vec![("cloud.gemini_api", gemini), ("cloud.vertex_ai", vertex)]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

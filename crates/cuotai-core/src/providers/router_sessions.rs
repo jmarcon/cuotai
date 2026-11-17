@@ -1058,7 +1058,12 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
             "overageCapWithPrecision": 20.0,
             "overageCharges": 0.5,
             "currency": "USD",
-            "nextDateReset": 1_790_000_000
+            "nextDateReset": 1_790_000_000,
+            "freeTrialInfo": {
+                "currentUsageWithPrecision": 1.0,
+                "usageLimitWithPrecision": 10.0,
+                "freeTrialExpiry": 1_790_000_000
+            }
         }]
     });
     vec![(

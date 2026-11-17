@@ -531,14 +531,37 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
                       "budget_reset_at": null}
     }});
     let budgets = parse_budgets(&body, Utc::now()).expect("fixture decodes");
-    vec![(
-        "litellm",
-        budgets
-            .subs
-            .into_iter()
-            .flat_map(|sub| sub.metrics)
-            .collect(),
-    )]
+    // The breakdown rows: a team budget, a key budget, and spend alone.
+    let rows = serde_json::json!({"rows": [
+        {"team_id": "team-1", "team_alias": "Platform", "max_budget": 100.0, "spend": 4.0},
+        {"token": "abc123", "key_alias": "ci", "max_budget": 10.0, "spend": 1.0},
+        {"token": "def456", "key_alias": "dev", "spend": 2.0}
+    ]});
+    let mut breakdown = Vec::new();
+    for (index, scope) in [
+        crate::ScopeKind::Team,
+        crate::ScopeKind::VirtualKey,
+        crate::ScopeKind::VirtualKey,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let row = budget_row(&rows, "rows[]", &rows["rows"][index], scope)
+            .expect("fixture decodes")
+            .expect("a row with figures");
+        breakdown.extend(row.metrics);
+    }
+    vec![
+        (
+            "litellm",
+            budgets
+                .subs
+                .into_iter()
+                .flat_map(|sub| sub.metrics)
+                .collect(),
+        ),
+        ("litellm.breakdown", breakdown),
+    ]
 }
 
 #[cfg(test)]

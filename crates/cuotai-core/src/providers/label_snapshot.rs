@@ -34,20 +34,182 @@ fn render(fixtures: &[(&str, Vec<Metric>)]) -> String {
     out
 }
 
-fn fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+/// How the labels of one provider are guarded (PRD 0037 re-validation,
+/// V-02): the match in [`fixture`] is exhaustive, so a new provider does
+/// not compile until it says which.
+enum Fixture {
+    /// The metrics offline fixtures of its adapter produce, one per metric
+    /// branch; their labels, units and periods are checked one by one.
+    Metrics(Vec<(&'static str, Vec<Metric>)>),
+    /// Its labels are names the provider or an extension supplies.
+    ProviderNamed(&'static str),
+    /// Its adapter builds metrics only inside its HTTP or CLI exchange, so
+    /// no offline fixture exists; every literal it can write as a label,
+    /// unit or period is checked by [`adapter_literals_are_localized`].
+    SourceScan(&'static str),
+}
+
+fn fixture(provider: crate::Provider) -> Fixture {
     use super::*;
-    let mut all = Vec::new();
-    all.extend(eleven_labs::label_fixtures());
-    all.extend(jetbrains_ai::label_fixtures());
-    all.extend(kimchi::label_fixtures());
-    all.extend(litellm::label_fixtures());
-    all.extend(mimo_platform::label_fixtures());
-    all.extend(nine_router::label_fixtures());
-    all.extend(open_router::label_fixtures());
-    all.extend(router_grok::label_fixtures());
-    all.extend(router_keys::label_fixtures());
-    all.extend(router_sessions::label_fixtures());
+    use crate::Provider as P;
+    match provider {
+        P::OpenAiApi | P::AnthropicApi => {
+            Fixture::SourceScan("api: costs and tokens summed inside paged HTTP queries")
+        }
+        P::ChatGpt | P::Claude | P::Copilot | P::Windsurf => Fixture::SourceScan(
+            "subscriptions and agent_feed: windows read inside the OAuth exchange or a feed file",
+        ),
+        P::Cursor => Fixture::Metrics(cursor_personal::label_fixtures()),
+        P::GeminiApi | P::VertexAi => Fixture::Metrics(cloud::label_fixtures()),
+        P::AwsBedrock | P::AzureOpenAi => Fixture::SourceScan(
+            "cloud: Cost Explorer and Cost Management read through the CLI or HTTP",
+        ),
+        P::MiniMax | P::Kimi | P::Qwen => {
+            Fixture::SourceScan("asia: balances read inside the HTTP exchange")
+        }
+        P::Groq => Fixture::SourceScan("router_keys: rate limits read from response headers"),
+        P::OpenCodeGo => Fixture::Metrics(router_keys::label_fixtures()),
+        P::XiaomiMimo => {
+            let mut all = mimo_platform::label_fixtures();
+            all.extend(router_keys::label_fixtures());
+            Fixture::Metrics(all)
+        }
+        P::Perplexity | P::Mistral | P::NvidiaNim | P::Poolside => {
+            Fixture::SourceScan("inference: usage read inside the HTTP exchange")
+        }
+        P::Grok => Fixture::Metrics(router_grok::label_fixtures()),
+        P::CloudflareAi | P::GeminiAi => {
+            Fixture::SourceScan("cloud_keys and router_existing: read inside the HTTP exchange")
+        }
+        P::OllamaCloud => Fixture::Metrics(router_accounts::label_fixtures()),
+        P::Qoder => {
+            Fixture::SourceScan("router_accounts: Qoder quotas read inside the HTTP exchange")
+        }
+        P::Kiro => Fixture::Metrics(router_sessions::label_fixtures()),
+        P::CodeBuddy | P::Zed => {
+            Fixture::SourceScan("router_sessions: read inside the session exchange")
+        }
+        P::Cline => Fixture::SourceScan("coding: balances read inside the HTTP exchange"),
+        P::AlibabaModelStudio => {
+            Fixture::SourceScan("alibaba_plans: Model Studio read through its CLI")
+        }
+        P::AlibabaCodingPlan | P::AlibabaTokenPlan => {
+            Fixture::Metrics(alibaba_plans::label_fixtures())
+        }
+        P::AlibabaCloud => {
+            Fixture::SourceScan("alibaba_billing: signed BSS queries inside the HTTP exchange")
+        }
+        P::Antigravity => {
+            Fixture::SourceScan("antigravity: model quotas read inside the Code Assist exchange")
+        }
+        P::Kimchi => Fixture::Metrics(kimchi::label_fixtures()),
+        P::ElevenLabs => Fixture::Metrics(eleven_labs::label_fixtures()),
+        P::Meta => Fixture::Metrics(meta::label_fixtures()),
+        P::JetbrainsAi => Fixture::Metrics(jetbrains_ai::label_fixtures()),
+        P::NineRouter => Fixture::Metrics(nine_router::label_fixtures()),
+        P::OpenRouter => Fixture::Metrics(open_router::label_fixtures()),
+        P::LiteLlm => Fixture::Metrics(litellm::label_fixtures()),
+        P::Extension => Fixture::ProviderNamed("an extension names its own metrics"),
+    }
+}
+
+/// Every provider, the [`crate::Provider::ALL`] ones and the extension.
+fn every_provider() -> Vec<crate::Provider> {
+    let mut all = crate::Provider::ALL.to_vec();
+    all.push(crate::Provider::Extension);
     all
+}
+
+/// The metrics of every [`Fixture::Metrics`], by adapter (sorted by
+/// module, each adapter once, each identity once).
+fn fixtures() -> Vec<(&'static str, Vec<Metric>)> {
+    let mut all: Vec<(&'static str, Vec<Metric>)> = Vec::new();
+    for provider in every_provider() {
+        if let Fixture::Metrics(fixtures) = fixture(provider) {
+            for (adapter, metrics) in fixtures {
+                if !all.iter().any(|(seen, _)| *seen == adapter) {
+                    all.push((adapter, metrics));
+                }
+            }
+        }
+    }
+    all.sort_by_key(|(adapter, _)| adapter.split('.').next().unwrap_or(adapter));
+    for (_, metrics) in &mut all {
+        let mut seen = std::collections::BTreeSet::new();
+        metrics.retain(|metric| seen.insert(metric_key(metric)));
+    }
+    all
+}
+
+/// The texts a metric may show verbatim, each with its reason: only brand
+/// and product names, model ids, symbols and codes (every other label a
+/// person reads is localized). A literal with no letter (`%`, `—`) and an
+/// ISO currency code (three capitals) are verbatim by rule, see
+/// [`verbatim_by_rule`].
+const VERBATIM_OK: &[(&str, &str)] = &[
+    ("Token Plan: 5h", "Alibaba's plan name and a window length"),
+    ("Coding Plan: 5h", "Alibaba's plan name and a window length"),
+    ("5h", "a window length, written alike in every language"),
+    ("s", "the SI symbol for seconds"),
+    ("{n} h", "an hour count with the h symbol (Ollama's range)"),
+    ("Cursor Auto (Composer)", "Cursor's model mode names"),
+    ("Zed: Edit Predictions", "Zed's product name"),
+    ("Zed: Hosted Model Requests", "Zed's product name"),
+    (
+        "Session",
+        "a quota name 9router supplies (the fixture's older one)",
+    ),
+    (
+        "Token Plan: {span}",
+        "Alibaba's plan name and a window length the `bl` CLI names",
+    ),
+    (
+        "Kiro: {resource}",
+        "Kiro's brand and the resource type code its API sends",
+    ),
+];
+
+/// Literals the scan collects that are never a metric text.
+const NOT_METRIC_TEXT: &[(&str, &str)] = &[
+    (
+        "o primeiro dia de qualquer mês é válido",
+        "an `expect` message, never shown",
+    ),
+    (
+        "https://api.anthropic.com/api/oauth/usage (evidência comunitária: github.com/loocor/codmate)",
+        "a report source reference, not a metric label, unit or period",
+    ),
+    (
+        "Bearer token (params.session_env not configured)",
+        "MiMo's credential description in its source note",
+    ),
+    ("Zed", "Zed's plan name, shown in the plan note"),
+    ("Zed Free", "Zed's plan name, shown in the plan note"),
+    ("Zed Pro", "Zed's plan name, shown in the plan note"),
+    ("Zed Pro Trial", "Zed's plan name, shown in the plan note"),
+    ("Zed Student", "Zed's plan name, shown in the plan note"),
+    ("Zed Business", "Zed's plan name, shown in the plan note"),
+];
+
+/// A text with no letter, an ISO currency code, or an instant or range
+/// of instants (Kimchi's budget period: digits first, no lowercase).
+fn verbatim_by_rule(text: &str) -> bool {
+    !text.chars().any(char::is_alphabetic)
+        || (text.len() == 3 && text.bytes().all(|b| b.is_ascii_uppercase()))
+        || (text.starts_with(|c: char| c.is_ascii_digit()) && !text.chars().any(char::is_lowercase))
+}
+
+/// A text on [`VERBATIM_OK`]; an entry with `{slot}`s matches any text
+/// built from it.
+fn verbatim_ok(text: &str) -> bool {
+    verbatim_by_rule(text)
+        || VERBATIM_OK.iter().any(|(ok, _)| {
+            *ok == text
+                || (ok.contains('{')
+                    && regex::Regex::new(&format!("^{}$", template_regex(ok).as_str()))
+                        .unwrap()
+                        .is_match(text))
+        })
 }
 
 #[test]
@@ -77,13 +239,15 @@ fn metric_identities_match_the_snapshot() {
 }
 
 /// PRD 0034 RF2: every label, unit and period a fixture produces has a
-/// display text; none is a Portuguese adapter text left unmapped, so the
-/// English rendering (the default of `label_text`/`unit_text`/`period_text`)
-/// carries no Portuguese.
+/// display text: a `metric.*` id, or a text on [`VERBATIM_OK`]. No marker
+/// heuristic decides (PRD 0037 re-validation R-02: unaccented Portuguese
+/// such as "Vozes personalizadas" has no marker), and the English
+/// rendering carries no Portuguese marker nor [`UNACCENTED_PORTUGUESE`]
+/// word, so a slot value such as the scope "outro" is caught too. The texts
+/// on [`PENDING_PRD_0038_O1`] are known gaps.
 #[test]
 fn every_fixture_text_has_an_english_display_text() {
     use crate::metric_text::metric_text;
-    use crate::text::portuguese_markers_in_english as portuguese_markers;
     let mut problems = Vec::new();
     for (adapter, metrics) in fixtures() {
         for metric in metrics {
@@ -95,9 +259,12 @@ fn every_fixture_text_has_an_english_display_text() {
             for raw in texts.into_iter().flatten() {
                 let text = metric_text(raw);
                 let english = text.resolve("en");
-                if text.id == "metric.verbatim" && !portuguese_markers(raw).is_empty() {
+                if pending_o1(raw) {
+                    continue;
+                }
+                if text.id == "metric.verbatim" && !raw.is_empty() && !verbatim_ok(raw) {
                     problems.push(format!("{adapter}: {raw:?} has no metric.* id"));
-                } else if !portuguese_markers(&english).is_empty() {
+                } else if !portuguese_in(&english).is_empty() {
                     problems.push(format!("{adapter}: {raw:?} -> {english:?} is Portuguese"));
                 }
             }
@@ -106,13 +273,42 @@ fn every_fixture_text_has_an_english_display_text() {
     assert!(problems.is_empty(), "{problems:#?}");
 }
 
+/// PRD 0037 re-validation V-02: every provider is in [`fixture`]; a
+/// [`Fixture::Metrics`] adapter emits metrics and the listed reasons are
+/// not empty.
+#[test]
+fn every_provider_has_a_label_fixture_or_a_reason() {
+    let (mut with_metrics, mut named, mut scanned) = (0, 0, 0);
+    for provider in every_provider() {
+        match fixture(provider) {
+            Fixture::Metrics(fixtures) => {
+                with_metrics += 1;
+                assert!(!fixtures.is_empty(), "{provider:?}");
+            }
+            Fixture::ProviderNamed(reason) => {
+                named += 1;
+                assert!(!reason.trim().is_empty(), "{provider:?}");
+            }
+            Fixture::SourceScan(reason) => {
+                scanned += 1;
+                assert!(!reason.trim().is_empty(), "{provider:?}");
+            }
+        }
+    }
+    assert_eq!(with_metrics + named + scanned, every_provider().len());
+    for (text, reason) in VERBATIM_OK.iter().chain(NOT_METRIC_TEXT) {
+        assert!(!reason.trim().is_empty(), "{text:?}");
+    }
+}
+
 /// The surfaces' guard (PRD 0034 re-validation, G9): the adapters' raw
 /// labels and units are ids, and no surface shows one. The sentinels are
 /// the adapters' own Portuguese texts (every fixture's, plus the Claude,
 /// Codex and Copilot ones) wherever a language words them differently;
 /// they are rendered through the widget file (every field but the `label`
 /// and `unit` ids), the export's display texts, and every event summary,
-/// in English and German, and none may appear in what a person reads.
+/// in English, German and Russian (whose plural forms differ most), and
+/// none may appear in what a person reads.
 #[test]
 fn raw_metric_texts_never_reach_a_surface() {
     use crate::events::{Event, EventKind, MetricReading, MetricRef, Values};
@@ -160,11 +356,15 @@ fn raw_metric_texts_never_reach_a_surface() {
         raw.dedup();
         raw
     };
+    let by_locale: std::collections::BTreeMap<&str, Vec<String>> = ["en-US", "de", "ru"]
+        .into_iter()
+        .map(|locale| (locale, sentinels(locale)))
+        .collect();
     let leaks = |surface: &str, locale: &str, texts: &[String]| -> Vec<String> {
         let mut out = Vec::new();
-        for raw in sentinels(locale) {
+        for raw in &by_locale[locale] {
             for text in texts {
-                if text.contains(&raw) {
+                if text.contains(raw.as_str()) {
                     out.push(format!("{surface} {locale}: {raw:?} in {text:?}"));
                 }
             }
@@ -178,9 +378,11 @@ fn raw_metric_texts_never_reach_a_surface() {
             serde_json::Value::Array(items) => items.iter().for_each(|v| shown(v, out)),
             serde_json::Value::Object(members) => {
                 for (key, v) in members {
-                    // The ids themselves, and a `Localized`'s params (its
-                    // rendered text is the `fallback` beside them).
-                    if !matches!(key.as_str(), "label" | "unit" | "period" | "params") {
+                    // The ids themselves (a `Localized`'s `id` names a
+                    // catalog entry such as `metric.label.input_tokens`),
+                    // and its params (its rendered text is the `fallback`
+                    // beside them).
+                    if !matches!(key.as_str(), "label" | "unit" | "period" | "params" | "id") {
                         shown(v, out);
                     }
                 }
@@ -249,6 +451,7 @@ fn raw_metric_texts_never_reach_a_surface() {
     for (locale, snapshot) in [
         ("en-US", widgets.clone()),
         ("de", widgets.clone().in_language("de")),
+        ("ru", widgets.clone().in_language("ru")),
     ] {
         let mut texts = Vec::new();
         shown(&serde_json::to_value(&snapshot).unwrap(), &mut texts);
@@ -300,7 +503,7 @@ fn raw_metric_texts_never_reach_a_surface() {
                 sample: false,
                 row: None,
             };
-            for locale in ["en-US", "de"] {
+            for locale in ["en-US", "de", "ru"] {
                 let line = event.summary().resolve(locale);
                 problems.extend(leaks(kind.name(), locale, &[line]));
             }
@@ -333,7 +536,7 @@ fn raw_metric_texts_never_reach_a_surface() {
         let state = crate::overage::assess(&report).expect("an overage reading");
         let export = crate::overage::OverageExport::from(&state);
         let amounts = [state.cap_amount(), state.amount(), export.amount()];
-        for locale in ["en-US", "de"] {
+        for locale in ["en-US", "de", "ru"] {
             let mut lines: Vec<String> = [state.text(), state.summary_with_limit_hit()]
                 .iter()
                 .map(|text| text.resolve(locale))
@@ -490,4 +693,1031 @@ fn nine_router_window_labels_are_localized_on_connections() {
         texts.iter().any(|text| text.contains("Week (7 days)")),
         "the export carries the connection's localized labels"
     );
+}
+
+/// A string literal of an adapter source: its byte span, line and value.
+struct Literal {
+    start: usize,
+    end: usize,
+    line: usize,
+    text: String,
+}
+
+/// The string literals of a Rust source, and the source with every comment
+/// and literal blanked out (same length), for structure searches.
+fn lex(src: &str) -> (Vec<Literal>, String) {
+    let bytes = src.as_bytes();
+    let mut masked = bytes.to_vec();
+    let mut literals = Vec::new();
+    let line_at = |at: usize| src[..at].matches('\n').count() + 1;
+    let blank = |masked: &mut Vec<u8>, from: usize, to: usize| {
+        for b in &mut masked[from..to] {
+            if *b != b'\n' {
+                *b = b' ';
+            }
+        }
+    };
+    let mut i = 0;
+    while i < bytes.len() {
+        let rest = &bytes[i..];
+        if rest.starts_with(b"//") {
+            let end = src[i..].find('\n').map_or(bytes.len(), |n| i + n);
+            blank(&mut masked, i, end);
+            i = end;
+        } else if rest.starts_with(b"/*") {
+            let (mut depth, mut j) = (1, i + 2);
+            while j < bytes.len() && depth > 0 {
+                if bytes[j..].starts_with(b"/*") {
+                    depth += 1;
+                    j += 2;
+                } else if bytes[j..].starts_with(b"*/") {
+                    depth -= 1;
+                    j += 2;
+                } else {
+                    j += 1;
+                }
+            }
+            blank(&mut masked, i, j);
+            i = j;
+        } else if (rest[0] == b'r' || rest.starts_with(b"br"))
+            && (i == 0 || !(bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_'))
+            && {
+                let k = if rest[0] == b'b' { 2 } else { 1 };
+                let hashes = rest[k..].iter().take_while(|b| **b == b'#').count();
+                rest.get(k + hashes) == Some(&b'"')
+            }
+        {
+            let k = if rest[0] == b'b' { 2 } else { 1 };
+            let hashes = rest[k..].iter().take_while(|b| **b == b'#').count();
+            let open = i + k + hashes + 1;
+            let close_pat = format!("\"{}", "#".repeat(hashes));
+            let close = src[open..]
+                .find(&close_pat)
+                .map_or(bytes.len(), |n| open + n);
+            let end = (close + close_pat.len()).min(bytes.len());
+            if k == 1 {
+                literals.push(Literal {
+                    start: i,
+                    end,
+                    line: line_at(i),
+                    text: src[open..close].to_string(),
+                });
+            }
+            blank(&mut masked, i, end);
+            masked[i] = b'"';
+            masked[end - 1] = b'"';
+            i = end;
+        } else if rest[0] == b'"' {
+            let byte_string = i > 0 && bytes[i - 1] == b'b';
+            let mut text = String::new();
+            let mut j = i + 1;
+            while j < bytes.len() && bytes[j] != b'"' {
+                if bytes[j] == b'\\' {
+                    let c = src[j + 1..].chars().next().unwrap_or(' ');
+                    match c {
+                        'n' => text.push('\n'),
+                        't' => text.push('\t'),
+                        '\n' => {
+                            j += 1;
+                            while j + 1 < bytes.len() && (bytes[j + 1] as char).is_whitespace() {
+                                j += 1;
+                            }
+                            j += 1;
+                            continue;
+                        }
+                        'u' => {
+                            let close = src[j..].find('}').map_or(j + 2, |n| j + n);
+                            let hex = src[j + 3..close].to_string();
+                            if let Some(c) =
+                                u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32)
+                            {
+                                text.push(c);
+                            }
+                            j = close + 1;
+                            continue;
+                        }
+                        c => text.push(c),
+                    }
+                    j += 1 + c.len_utf8();
+                } else {
+                    let c = src[j..].chars().next().unwrap();
+                    text.push(c);
+                    j += c.len_utf8();
+                }
+            }
+            let end = (j + 1).min(bytes.len());
+            if !byte_string {
+                literals.push(Literal {
+                    start: i,
+                    end,
+                    line: line_at(i),
+                    text,
+                });
+            }
+            blank(&mut masked, i, end);
+            masked[i] = b'"';
+            masked[end - 1] = b'"';
+            i = end;
+        } else if rest[0] == b'\'' {
+            // A char literal ('x', '\n', '\u{..}'), or a lifetime.
+            let len = if rest.get(1) == Some(&b'\\') {
+                src[i + 2..].find('\'').map(|n| n + 3)
+            } else {
+                src[i + 1..]
+                    .chars()
+                    .next()
+                    .filter(|c| src[i + 1 + c.len_utf8()..].starts_with('\''))
+                    .map(|c| c.len_utf8() + 2)
+            };
+            match len {
+                Some(len) => {
+                    blank(&mut masked, i, i + len);
+                    i += len;
+                }
+                None => i += 1,
+            }
+        } else {
+            i += 1;
+        }
+    }
+    (literals, String::from_utf8(masked).unwrap())
+}
+
+/// The end (exclusive) of the bracketed group opening at `open` in `masked`.
+fn group_end(masked: &str, open: usize) -> usize {
+    let bytes = masked.as_bytes();
+    let mut depth = 0i32;
+    for (j, b) in bytes.iter().enumerate().skip(open) {
+        match b {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return j + 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    bytes.len()
+}
+
+/// The top-level comma-separated parts of the group `[open, end)`.
+fn group_parts(masked: &str, open: usize, end: usize) -> Vec<(usize, usize)> {
+    let bytes = masked.as_bytes();
+    let mut parts = Vec::new();
+    let (mut depth, mut from) = (0i32, open + 1);
+    for (j, byte) in bytes.iter().enumerate().take(end - 1).skip(open + 1) {
+        match byte {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => depth -= 1,
+            b',' if depth == 0 => {
+                parts.push((from, j));
+                from = j + 1;
+            }
+            _ => {}
+        }
+    }
+    if !masked[from..end - 1].trim().is_empty() {
+        parts.push((from, end - 1));
+    }
+    parts
+}
+
+/// The spans of `#[cfg(test)]` items (the tests module, the fixtures).
+fn test_spans(masked: &str) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    for (at, _) in masked.match_indices("#[cfg(test)]") {
+        let after = at + "#[cfg(test)]".len();
+        let item = &masked[after..];
+        let brace = item.find('{');
+        let semi = item.find(';');
+        match (brace, semi) {
+            (Some(b), Some(s)) if s < b => spans.push((at, after + s + 1)),
+            (Some(b), _) => spans.push((at, group_end(masked, after + b))),
+            (None, Some(s)) => spans.push((at, after + s + 1)),
+            (None, None) => spans.push((at, masked.len())),
+        }
+    }
+    spans
+}
+
+/// Why a literal was collected by [`adapter_display_literals`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Found {
+    Field,
+    UsageArgument,
+    LoopTuple,
+    /// An argument, in a label/unit/period/scope position, of a call to a
+    /// function or closure of the same file that builds a metric
+    /// (`item("BYOK (externo)".into(), ..)`, `spend(label, ..)`).
+    HelperArgument,
+    /// A text a function of the same file returns, when the function names
+    /// a label, scope, unit or period (`safe_scope`, `scope_label`) or is
+    /// called where one is written (`copilot_quota_name` in a `label:`).
+    ReturnedText,
+    PortugueseMarker,
+    /// A word of [`UNACCENTED_PORTUGUESE`] (no accent marks it).
+    PortugueseWord,
+}
+
+/// Portuguese words that carry no accent, so the markers of
+/// [`crate::text::portuguese_markers_in_english`] miss them ("BYOK
+/// (externo)", the scope "outro", "Vozes personalizadas"). Only the adapter
+/// sources and the English renderings of the fixtures are checked against
+/// it, so a Spanish or Italian catalog that writes the same word is not
+/// affected.
+const UNACCENTED_PORTUGUESE: &[&str] = &[
+    "outro",
+    "outra",
+    "outros",
+    "outras",
+    "externo",
+    "externa",
+    "interno",
+    "interna",
+    "hoje",
+    "ontem",
+    "semana",
+    "chave",
+    "chaves",
+    "vozes",
+    "personalizadas",
+    "personalizados",
+    "profissionais",
+    "gratuito",
+    "gratuitos",
+    "gratuita",
+    "gratuitas",
+    "teste",
+    "excedente",
+    "cobrado",
+    "cobrada",
+    "provedor",
+    "equipe",
+    "assinatura",
+    "assentos",
+    "membros",
+    "lote",
+    "entrada",
+    "saida",
+    "corrente",
+    "atual",
+    "janela",
+    "ultimos",
+    "proximo",
+    "desconhecido",
+    "desconhecida",
+    "creditos",
+    "requisicoes",
+    "solicitacoes",
+    "sessao",
+    "orcamento",
+    "nao",
+    "mes",
+    "dias",
+    "horas",
+    "modelos",
+    "imagens",
+    "quadros",
+    "chamadas",
+    "unidades",
+    "consultas",
+];
+
+/// The [`UNACCENTED_PORTUGUESE`] words in `text`, plus its Portuguese
+/// markers.
+fn portuguese_in(text: &str) -> Vec<String> {
+    let mut found: Vec<String> = crate::text::portuguese_markers_in_english(text)
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    let lower = text.to_lowercase();
+    for word in lower.split(|c: char| !c.is_alphanumeric()) {
+        if UNACCENTED_PORTUGUESE.contains(&word) {
+            found.push(word.to_string());
+        }
+    }
+    found
+}
+
+/// PRD 0038 Delivery, group O1, localizes these OpenRouter texts (review
+/// F-01): until then they are known gaps, not verbatim texts. `(source
+/// literal, the id O1 gives it, where it comes from)`.
+/// [`pending_prd_0038_o1_is_still_pending`] fails as soon as one of them
+/// resolves, so O1 must empty this list.
+const PENDING_PRD_0038_O1: &[(&str, &str, &str)] = &[
+    (
+        "BYOK (externo)",
+        "metric.label.byok_external",
+        "open_router.rs: the BYOK total of `/activity`",
+    ),
+    (
+        "BYOK total",
+        "metric.label.byok_total",
+        "open_router.rs: the key's `byok_usage`",
+    ),
+    (
+        "outro",
+        "metric.label.budget_other_scope",
+        "open_router.rs: the budget scope fallback of `safe_scope` and of a budget without `scope`",
+    ),
+];
+
+fn pending_o1(text: &str) -> bool {
+    PENDING_PRD_0038_O1.iter().any(|(pending, _, _)| {
+        text == *pending
+            || text
+                .split(|c: char| !c.is_alphanumeric())
+                .any(|word| word == *pending)
+    })
+}
+
+/// Functions of the [`Fixture::Metrics`] modules that their fixtures do not
+/// run, each with its reason: the branches of a module that serve a
+/// [`Fixture::SourceScan`] provider. Their texts are still checked by
+/// [`adapter_literals_are_localized`]. `(file, function, reason)`.
+const NOT_IN_FIXTURES: &[(&str, &str, &str)] = &[
+    (
+        "alibaba_plans/model_studio_cli.rs",
+        "*",
+        "Model Studio (SourceScan) is read through its CLI",
+    ),
+    (
+        "cloud.rs",
+        "fetch_azure",
+        "Azure OpenAI (SourceScan): Cost Management over HTTP",
+    ),
+    (
+        "cloud.rs",
+        "fetch_bedrock",
+        "AWS Bedrock (SourceScan): Cost Explorer through the CLI",
+    ),
+    (
+        "kimchi.rs",
+        "kimchi_at",
+        "the credits balance is built inside the HTTP exchange",
+    ),
+    (
+        "meta.rs",
+        "key_check",
+        "rate limits read from the headers of the key check",
+    ),
+    (
+        "nine_router.rs",
+        "read_usage",
+        "the bare exhausted signal is built inside the HTTP exchange",
+    ),
+    ("router_accounts.rs", "qoder", "Qoder (SourceScan)"),
+    ("router_accounts.rs", "qoder_metric", "Qoder (SourceScan)"),
+    (
+        "router_keys.rs",
+        "groq_at",
+        "Groq (SourceScan): rate limits from response headers",
+    ),
+    ("router_keys.rs", "kimi_coding_at", "Kimi (SourceScan)"),
+    ("router_sessions.rs", "codebuddy", "CodeBuddy (SourceScan)"),
+    (
+        "router_sessions.rs",
+        "cadence_period",
+        "CodeBuddy's (SourceScan) refill periods",
+    ),
+    ("router_sessions.rs", "zed_data", "Zed (SourceScan)"),
+];
+
+/// A function or closure of an adapter's non-test code.
+struct Helper {
+    name: String,
+    /// The positions of its parameters that hold a label, unit, period or
+    /// scope.
+    display_params: Vec<usize>,
+    /// The span of its body.
+    body: (usize, usize),
+    /// Whether it returns a text (`-> String`, `-> &str`, `-> Option<&str>`).
+    returns_text: bool,
+    /// Whether it builds a [`Metric`].
+    builds_metric: bool,
+    /// A `fn` item, not a closure.
+    is_fn: bool,
+}
+
+/// A parameter or pattern name that holds a label, unit, period or scope
+/// text (`period_key` is the JSON key of a period, not its text).
+fn names_display(name: &str) -> bool {
+    let name = name.trim();
+    ["label", "unit", "period", "scope"]
+        .iter()
+        .any(|n| name.contains(n))
+        && !name.ends_with("key")
+}
+
+/// The end of the expression starting at `from`: the first top-level `,` or
+/// `;`, or the bracket that closes the group it sits in.
+fn expr_end(masked: &str, from: usize) -> usize {
+    let bytes = masked.as_bytes();
+    let mut depth = 0i32;
+    for (j, b) in bytes.iter().enumerate().skip(from) {
+        match b {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => {
+                if depth == 0 {
+                    return j;
+                }
+                depth -= 1;
+            }
+            b',' | b';' if depth == 0 => return j,
+            _ => {}
+        }
+    }
+    bytes.len()
+}
+
+/// The functions and closures of a file's masked source.
+fn helpers(masked: &str) -> Vec<Helper> {
+    let fn_re =
+        regex::Regex::new(r"\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>{}]*>)?\s*\(").unwrap();
+    let metric_word = regex::Regex::new(r"\bMetric\b").unwrap();
+    let closure_re =
+        regex::Regex::new(r"\blet\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:move\s*)?\|")
+            .unwrap();
+    let param_names = |parts: Vec<(usize, usize)>| -> Vec<usize> {
+        parts
+            .iter()
+            .enumerate()
+            .filter(|(_, (a, b))| {
+                let part = masked[*a..*b].trim();
+                let name = part.split(':').next().unwrap_or("").trim();
+                let name = name.trim_start_matches("mut ").trim();
+                names_display(name)
+            })
+            .map(|(i, _)| i)
+            .collect()
+    };
+    let mut out = Vec::new();
+    for caps in fn_re.captures_iter(masked) {
+        let open = caps.get(0).unwrap().end() - 1;
+        let close = group_end(masked, open);
+        let tail = &masked[close..];
+        let Some(brace) = tail.find(['{', ';']) else {
+            continue;
+        };
+        if tail.as_bytes()[brace] == b';' {
+            continue;
+        }
+        let signature = &tail[..brace];
+        let body = (close + brace, group_end(masked, close + brace));
+        let returns_text = signature.contains("->")
+            && ["str", "String", "Cow"]
+                .iter()
+                .any(|t| signature.contains(t));
+        out.push(Helper {
+            name: caps[1].to_string(),
+            display_params: param_names(group_parts(masked, open, close)),
+            body,
+            returns_text,
+            builds_metric: metric_word.is_match(&masked[open..body.1]),
+            is_fn: true,
+        });
+    }
+    for caps in closure_re.captures_iter(masked) {
+        let open = caps.get(0).unwrap().end() - 1;
+        let Some(close) = masked[open + 1..].find('|').map(|n| open + 1 + n) else {
+            continue;
+        };
+        let mut parts = Vec::new();
+        let mut from = open + 1;
+        for (j, b) in masked.bytes().enumerate().take(close).skip(open + 1) {
+            if b == b',' {
+                parts.push((from, j));
+                from = j + 1;
+            }
+        }
+        if !masked[from..close].trim().is_empty() {
+            parts.push((from, close));
+        }
+        let after = close + 1;
+        let rest = &masked[after..];
+        let skip = rest.len() - rest.trim_start().len();
+        let start = after + skip;
+        let (signature, body) = if rest.trim_start().starts_with("->") {
+            match masked[start..].find('{') {
+                Some(n) => (
+                    &masked[start..start + n],
+                    (start + n, group_end(masked, start + n)),
+                ),
+                None => continue,
+            }
+        } else if masked[start..].starts_with('{') {
+            ("", (start, group_end(masked, start)))
+        } else {
+            ("", (start, expr_end(masked, start)))
+        };
+        let returns_text = ["str", "String", "Cow"]
+            .iter()
+            .any(|t| signature.contains(t));
+        out.push(Helper {
+            name: caps[1].to_string(),
+            display_params: param_names(parts),
+            body,
+            returns_text,
+            builds_metric: metric_word.is_match(&masked[open..body.1]),
+            is_fn: false,
+        });
+    }
+    out
+}
+
+/// The literals of `span` in a value position: not a match pattern
+/// (`"API_KEY" =>`) and not the argument of a lookup or comparison
+/// (`.get("x")`, `== "x"`).
+fn value_literals(literals: &[Literal], masked: &str, span: (usize, usize)) -> Vec<usize> {
+    const LOOKUPS: [&str; 17] = [
+        ".format(",
+        ".get(",
+        ".contains(",
+        "starts_with(",
+        "ends_with(",
+        "strip_prefix(",
+        "strip_suffix(",
+        ".find(",
+        ".rfind(",
+        ".split(",
+        ".rsplit(",
+        "split_once(",
+        ".replace(",
+        ".eq(",
+        "==",
+        "!=",
+        "matches!(",
+    ];
+    literals
+        .iter()
+        .enumerate()
+        .filter(|(_, lit)| lit.start >= span.0 && lit.end <= span.1)
+        .filter(|(_, lit)| {
+            let after = masked[lit.end..].trim_start();
+            let before = masked[..lit.start].trim_end();
+            let pattern = after.starts_with("=>")
+                || (after.starts_with('|') && !after.starts_with("||"))
+                || (before.ends_with('|') && !before.ends_with("||"));
+            !pattern && !LOOKUPS.iter().any(|l| before.ends_with(l))
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// The non-test Rust sources of the adapters, `(path relative to
+/// `src/providers`, source)`.
+fn adapter_sources() -> Vec<(String, String)> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/providers");
+    let mut files = Vec::new();
+    let mut dirs = vec![root.clone()];
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                dirs.push(path);
+            } else if path.extension().is_some_and(|e| e == "rs")
+                && path.file_name().is_some_and(|n| n != "label_snapshot.rs")
+            {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files
+        .into_iter()
+        .map(|path| {
+            let src = std::fs::read_to_string(&path)
+                .unwrap()
+                .replace("\r\n", "\n");
+            let file = path
+                .strip_prefix(&root)
+                .unwrap()
+                .display()
+                .to_string()
+                .replace('\\', "/");
+            (file, src)
+        })
+        .collect()
+}
+
+/// PRD 0037 re-validation V-02: the literals of the adapters' non-test code
+/// that can become a metric label, unit, period or scope (`label:`/`unit:`/
+/// `period:` fields, `Metric::usage(...)` arguments, the label/unit/period
+/// positions of `for (...) in [...]` tuple arrays, the label/unit/period/
+/// scope arguments of the file's own metric-building helpers, and the texts
+/// returned by a function that names a label/scope/unit/period or is called
+/// where one is written) plus every literal with a Portuguese marker or an
+/// unaccented Portuguese word. `(file, line, text, why, enclosing fn)`.
+fn adapter_display_literals() -> Vec<(String, usize, String, Found, String)> {
+    let field = regex::Regex::new(
+        r"(?:^|[^A-Za-z0-9_])(?:label|unit|period)\s*:\s*(?:Some\(\s*)?(?:(?:format!|String::from|Cow::Borrowed)\(\s*)?$",
+    )
+    .unwrap();
+    let field_key =
+        regex::Regex::new(r"(?:^|[^A-Za-z0-9_:.])(?:label|unit|period|scope)\s*:").unwrap();
+    let for_tuple = regex::Regex::new(r"\bfor\s+\(").unwrap();
+    let for_single = regex::Regex::new(r"\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+\[").unwrap();
+    let call = regex::Regex::new(r"(?:^|[^A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)\s*\(").unwrap();
+    let mut out = Vec::new();
+    for (file, src) in adapter_sources() {
+        let (literals, masked) = lex(&src);
+        let tests = test_spans(&masked);
+        let in_tests = |at: usize| tests.iter().any(|(a, b)| (*a..*b).contains(&at));
+        let helpers: Vec<Helper> = helpers(&masked)
+            .into_iter()
+            .filter(|h| !in_tests(h.body.0))
+            .collect();
+        let mut found: std::collections::BTreeMap<usize, Found> = Default::default();
+        // The spans where a display text is written, to find the functions
+        // called there.
+        let mut display_spans: Vec<(usize, usize)> = Vec::new();
+        let mark = |from: usize,
+                    to: usize,
+                    why: Found,
+                    found: &mut std::collections::BTreeMap<usize, Found>| {
+            for (index, lit) in literals.iter().enumerate() {
+                if lit.start >= from && lit.end <= to {
+                    found.entry(index).or_insert(why);
+                }
+            }
+        };
+        for (index, lit) in literals.iter().enumerate() {
+            let before = &masked[lit.start.saturating_sub(120)..lit.start];
+            let before = &before[before
+                .char_indices()
+                .map(|(i, _)| i)
+                .find(|i| before.is_char_boundary(*i))
+                .unwrap_or(0)..];
+            if field.is_match(before) {
+                found.entry(index).or_insert(Found::Field);
+            }
+        }
+        for m in field_key.find_iter(&masked) {
+            if masked[m.end()..].starts_with(':') {
+                continue;
+            }
+            display_spans.push((m.end(), expr_end(&masked, m.end())));
+        }
+        for (at, _) in masked.match_indices("Metric::usage(") {
+            let open = at + "Metric::usage".len();
+            let end = group_end(&masked, open);
+            display_spans.push((open, end));
+            mark(open, end, Found::UsageArgument, &mut found);
+        }
+        for m in for_tuple.find_iter(&masked) {
+            let open = m.end() - 1;
+            let close = group_end(&masked, open);
+            let tail = &masked[close..];
+            let Some(rest) = tail.trim_start().strip_prefix("in") else {
+                continue;
+            };
+            if !rest.trim_start().starts_with('[') {
+                continue;
+            }
+            let positions: Vec<usize> = group_parts(&masked, open, close)
+                .iter()
+                .enumerate()
+                .filter(|(_, (a, b))| {
+                    let name = &masked[*a..*b];
+                    names_display(name) && !name.contains("scope")
+                })
+                .map(|(i, _)| i)
+                .collect();
+            if positions.is_empty() {
+                continue;
+            }
+            let bracket = close + (tail.len() - rest.trim_start().len());
+            let bracket_end = group_end(&masked, bracket);
+            for (a, b) in group_parts(&masked, bracket, bracket_end) {
+                let element = masked[a..b].trim_start();
+                if !element.starts_with('(') {
+                    continue;
+                }
+                let open = a + masked[a..b].find('(').unwrap();
+                let tuple_end = group_end(&masked, open);
+                for (i, (pa, pb)) in group_parts(&masked, open, tuple_end)
+                    .into_iter()
+                    .enumerate()
+                {
+                    if positions.contains(&i) {
+                        display_spans.push((pa, pb));
+                        mark(pa, pb, Found::LoopTuple, &mut found);
+                    }
+                }
+            }
+        }
+        for caps in for_single.captures_iter(&masked) {
+            if !names_display(&caps[1]) || caps[1].contains("scope") {
+                continue;
+            }
+            let bracket = caps.get(0).unwrap().end() - 1;
+            let end = group_end(&masked, bracket);
+            display_spans.push((bracket, end));
+            mark(bracket, end, Found::LoopTuple, &mut found);
+        }
+        // The arguments of the file's own metric-building helpers.
+        for caps in call.captures_iter(&masked) {
+            let name = caps.get(1).unwrap();
+            if masked[..name.start()].trim_end().ends_with("fn") {
+                continue;
+            }
+            let Some(helper) = helpers.iter().find(|h| {
+                h.builds_metric && !h.display_params.is_empty() && h.name == name.as_str()
+            }) else {
+                continue;
+            };
+            let open = caps.get(0).unwrap().end() - 1;
+            let close = group_end(&masked, open);
+            for (i, (a, b)) in group_parts(&masked, open, close).into_iter().enumerate() {
+                if helper.display_params.contains(&i) {
+                    display_spans.push((a, b));
+                    for index in value_literals(&literals, &masked, (a, b)) {
+                        found.entry(index).or_insert(Found::HelperArgument);
+                    }
+                }
+            }
+        }
+        // The texts returned by a function that names a display text, or is
+        // called where one is written (transitively).
+        let mut text_fns: Vec<usize> = helpers
+            .iter()
+            .enumerate()
+            .filter(|(_, h)| h.returns_text && names_display(&h.name))
+            .map(|(i, _)| i)
+            .collect();
+        let mut queue: Vec<(usize, usize)> = display_spans.clone();
+        queue.extend(text_fns.iter().map(|i| helpers[*i].body));
+        while let Some((a, b)) = queue.pop() {
+            for caps in call.captures_iter(&masked[a..b]) {
+                let name = caps.get(1).unwrap().as_str();
+                for (i, helper) in helpers.iter().enumerate() {
+                    if helper.returns_text && helper.name == name && !text_fns.contains(&i) {
+                        text_fns.push(i);
+                        queue.push(helper.body);
+                    }
+                }
+            }
+        }
+        for i in text_fns {
+            for index in value_literals(&literals, &masked, helpers[i].body) {
+                found.entry(index).or_insert(Found::ReturnedText);
+            }
+        }
+        for (index, lit) in literals.iter().enumerate() {
+            if !crate::text::portuguese_markers_in_english(&lit.text).is_empty() {
+                found.entry(index).or_insert(Found::PortugueseMarker);
+            } else if !portuguese_in(&lit.text).is_empty() {
+                found.entry(index).or_insert(Found::PortugueseWord);
+            }
+        }
+        for (index, why) in found {
+            let lit = &literals[index];
+            if !in_tests(lit.start) {
+                let within = helpers
+                    .iter()
+                    .filter(|h| h.is_fn && h.body.0 <= lit.start && lit.end <= h.body.1)
+                    .min_by_key(|h| h.body.1 - h.body.0)
+                    .map_or(String::new(), |h| h.name.clone());
+                out.push((file.clone(), lit.line, lit.text.clone(), why, within));
+            }
+        }
+    }
+    out
+}
+
+/// A `format!` template with its positional or formatted slots named, so
+/// it can be matched against [`crate::metric_text::TABLE`] templates.
+fn normalize_format(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let Some(close) = rest[open..].find('}') else {
+            out.push_str(&rest[open..]);
+            return out;
+        };
+        let inner = &rest[open + 1..open + close];
+        let name = inner.split(':').next().unwrap_or("");
+        out.push('{');
+        out.push_str(
+            if name.is_empty() || name.chars().all(|c| c.is_ascii_digit()) {
+                "slot"
+            } else {
+                name
+            },
+        );
+        out.push('}');
+        rest = &rest[open + close + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `text` with every `{slot}` removed.
+fn without_slots(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        match rest[open..].find('}') {
+            Some(close) => rest = &rest[open + close + 1..],
+            None => {
+                rest = "";
+                break;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Whether a source literal is accounted for: it renders through a
+/// `metric.*` id, is a literal part of a [`crate::metric_text::TABLE`]
+/// template, or may show verbatim (its slots aside).
+fn literal_resolves(text: &str) -> bool {
+    use crate::metric_text::{metric_text, AGGREGATOR_LABELS, ENGLISH_LABELS, TABLE};
+    let text = normalize_format(text);
+    let trimmed = text.trim();
+    trimmed.is_empty()
+        || verbatim_ok(trimmed)
+        || verbatim_by_rule(without_slots(trimmed).trim())
+        || metric_text(&text).id != "metric.verbatim"
+        || TABLE
+            .iter()
+            .chain(AGGREGATOR_LABELS)
+            .chain(ENGLISH_LABELS)
+            .any(|(template, _, _)| template.contains(trimmed))
+}
+
+fn not_metric_text(text: &str) -> bool {
+    NOT_METRIC_TEXT.iter().any(|(t, _)| *t == text)
+}
+
+/// PRD 0037 re-validation V-02 (the backstop for every literal): each
+/// literal of the adapters' non-test code that can become a label, unit,
+/// period or scope, and each literal with a Portuguese marker or word,
+/// resolves through `metric_text` to a `metric.*` id, is part of a
+/// template, or is on [`VERBATIM_OK`] / [`NOT_METRIC_TEXT`] with its
+/// reason. The texts PRD 0038 O1 localizes are on [`PENDING_PRD_0038_O1`].
+#[test]
+fn adapter_literals_are_localized() {
+    let literals = adapter_display_literals();
+    assert!(
+        literals.len() > 200,
+        "the scan found {} literals",
+        literals.len()
+    );
+    let by = |why: Found| literals.iter().filter(|l| l.3 == why).count();
+    eprintln!(
+        "scanned {} literals: {} fields, {} Metric::usage arguments, {} loop tuples, \
+         {} helper arguments, {} returned texts, {} with a Portuguese marker, \
+         {} with an unaccented Portuguese word",
+        literals.len(),
+        by(Found::Field),
+        by(Found::UsageArgument),
+        by(Found::LoopTuple),
+        by(Found::HelperArgument),
+        by(Found::ReturnedText),
+        by(Found::PortugueseMarker),
+        by(Found::PortugueseWord),
+    );
+    let problems: Vec<String> = literals
+        .iter()
+        .filter(|(_, _, text, _, _)| {
+            !literal_resolves(text) && !not_metric_text(text) && !pending_o1(text)
+        })
+        .map(|(file, line, text, why, _)| {
+            format!("src/providers/{file}:{line}: {text:?} ({why:?}) has no metric.* id")
+        })
+        .collect();
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// The scan reaches what the PRD 0038 review (F-01) found it missing: an
+/// argument of an adapter's own metric helper, a scope a function returns,
+/// and unaccented Portuguese.
+#[test]
+fn the_scan_sees_helper_arguments_returned_scopes_and_unaccented_portuguese() {
+    let literals = adapter_display_literals();
+    let why = |file: &str, text: &str| {
+        literals
+            .iter()
+            .find(|(f, _, t, _, _)| f == file && t == text)
+            .map(|l| l.3)
+    };
+    assert_eq!(
+        why("open_router.rs", "BYOK (externo)"),
+        Some(Found::HelperArgument)
+    );
+    assert_eq!(why("open_router.rs", "BYOK total"), Some(Found::LoopTuple));
+    assert_eq!(why("open_router.rs", "outro"), Some(Found::ReturnedText));
+    assert!(portuguese_in("BYOK (externo)").contains(&"externo".to_string()));
+    assert!(portuguese_in("Budget (outro)").contains(&"outro".to_string()));
+    assert!(portuguese_in("Vozes personalizadas").len() >= 2);
+    assert!(portuguese_in("Budget (team)").is_empty());
+}
+
+/// PRD 0038 O1 empties [`PENDING_PRD_0038_O1`]: each entry must still be
+/// written by the adapter and still lack its id. When O1 localizes one,
+/// this fails: remove the entry.
+#[test]
+fn pending_prd_0038_o1_is_still_pending() {
+    use crate::metric_text::{AGGREGATOR_LABELS, ENGLISH_LABELS, TABLE};
+    let literals = adapter_display_literals();
+    for (text, id, reason) in PENDING_PRD_0038_O1 {
+        assert!(!reason.trim().is_empty(), "{text:?}");
+        assert!(
+            literals.iter().any(|(_, _, t, _, _)| t == text),
+            "{text:?} is no longer in the adapter sources: remove it from PENDING_PRD_0038_O1"
+        );
+        let localized = literal_resolves(text)
+            || TABLE
+                .iter()
+                .chain(AGGREGATOR_LABELS)
+                .chain(ENGLISH_LABELS)
+                .any(|(_, table_id, _)| table_id == id)
+            || crate::text::catalog_locales().iter().any(|locale| {
+                crate::text::core_catalog(locale).is_some_and(|catalog| catalog.get(*id).is_some())
+            });
+        assert!(
+            !localized,
+            "{text:?} is localized now ({id}): remove it from PENDING_PRD_0038_O1"
+        );
+        assert!(
+            VERBATIM_OK.iter().all(|(ok, _)| ok != text),
+            "{text:?} is pending, not verbatim"
+        );
+    }
+}
+
+/// A regex that matches a text built from the `format!` template `text`
+/// (each slot any non-empty text).
+fn template_regex(text: &str) -> regex::Regex {
+    let normalized = normalize_format(text);
+    let mut pattern = String::new();
+    let mut rest = normalized.as_str();
+    while let Some(open) = rest.find('{') {
+        pattern.push_str(&regex::escape(&rest[..open]));
+        let Some(close) = rest[open..].find('}') else {
+            break;
+        };
+        pattern.push_str(".+");
+        rest = &rest[open + close + 1..];
+    }
+    pattern.push_str(&regex::escape(rest));
+    regex::Regex::new(&pattern).unwrap()
+}
+
+/// PRD 0038 review F-01 (b): the fixtures of a [`Fixture::Metrics`] adapter
+/// exercise every metric branch: every display literal the scan collects
+/// in its module appears in a label, unit or period its fixtures produce,
+/// or is on [`NOT_IN_FIXTURES`] with its reason.
+#[test]
+fn metrics_fixtures_cover_every_display_literal_of_their_module() {
+    let fixtures = fixtures();
+    let module_of = |name: &str| name.split(['.', '/']).next().unwrap_or(name).to_string();
+    let mut texts: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    for (adapter, metrics) in &fixtures {
+        let entry = texts.entry(module_of(adapter)).or_default();
+        for metric in metrics {
+            entry.push(metric.label.clone());
+            entry.push(metric.unit.clone());
+            entry.extend(metric.period.clone());
+        }
+    }
+    let mut problems = Vec::new();
+    let (mut checked, mut exempt) = (0, 0);
+    for (file, line, text, why, within) in adapter_display_literals() {
+        let module = module_of(file.trim_end_matches(".rs"));
+        let Some(produced) = texts.get(&module) else {
+            continue;
+        };
+        let bare = without_slots(&normalize_format(&text));
+        if bare.trim().is_empty() || verbatim_by_rule(bare.trim()) || not_metric_text(&text) {
+            continue;
+        }
+        if NOT_IN_FIXTURES
+            .iter()
+            .any(|(f, function, _)| *f == file && (*function == "*" || *function == within))
+        {
+            exempt += 1;
+            continue;
+        }
+        checked += 1;
+        let re = template_regex(&text);
+        if !produced.iter().any(|raw| re.is_match(raw)) {
+            problems.push(format!(
+                "src/providers/{file}:{line} in {within}: {text:?} ({why:?}) is in no fixture metric of {module}"
+            ));
+        }
+    }
+    for (file, function, reason) in NOT_IN_FIXTURES {
+        assert!(!reason.trim().is_empty(), "{file}: {function}");
+    }
+    eprintln!(
+        "{checked} literals of fixture modules matched against their fixtures, {exempt} exempt"
+    );
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

@@ -213,6 +213,31 @@ async fn opencode_go_at(
         .and_then(|u| u.as_object())
         .ok_or_else(|| QueryError::schema_at(&body, &["usage"], "object"))?;
 
+    let metrics = opencode_metrics(usage);
+
+    if metrics.is_empty() {
+        return Err(QueryError::schema_at(
+            &body,
+            &["usage", "weekly", "percent"],
+            "number",
+        ));
+    }
+
+    let mut notes = Notes::new();
+    notes.push(
+        "note.router_keys.opencode_usage_percentages",
+        "Usage is reported as percentages per metric (0..100); no absolute counts are exposed.",
+    );
+    notes.push(
+        "note.router_keys.opencode_internal_route",
+        "OpenCode internal route observed in 9router; subject to change and provider restrictions.",
+    );
+    Ok(Data::new(metrics, notes, OPENCODE_GO_USAGE_URL))
+}
+
+/// The percent windows of an OpenCode Go `usage` object (an absent or
+/// invalid percentage drops its window).
+fn opencode_metrics(usage: &serde_json::Map<String, serde_json::Value>) -> Vec<Metric> {
     let mut metrics = Vec::new();
     for (period_key, label, period_pt, window) in [
         (
@@ -248,25 +273,7 @@ async fn opencode_go_at(
             unlimited: false,
         });
     }
-
-    if metrics.is_empty() {
-        return Err(QueryError::schema_at(
-            &body,
-            &["usage", "weekly", "percent"],
-            "number",
-        ));
-    }
-
-    let mut notes = Notes::new();
-    notes.push(
-        "note.router_keys.opencode_usage_percentages",
-        "Usage is reported as percentages per metric (0..100); no absolute counts are exposed.",
-    );
-    notes.push(
-        "note.router_keys.opencode_internal_route",
-        "OpenCode internal route observed in 9router; subject to change and provider restrictions.",
-    );
-    Ok(Data::new(metrics, notes, OPENCODE_GO_USAGE_URL))
+    metrics
 }
 
 // -------------------------------------------------------------------- Groq
@@ -914,7 +921,16 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
     let body = serde_json::json!({"code": 0, "data": {"percent": 80, "resetAt": 1_790_000_000}});
     let data =
         mimo_data_from_body(&body, "fixture", "https://example.com").expect("fixture decodes");
-    vec![("router_keys.xiaomi_mimo", data.metrics)]
+    let usage = serde_json::json!({
+        "rolling": {"percent": 10}, "weekly": {"percent": 20}, "monthly": {"percent": 30},
+    });
+    vec![
+        (
+            "router_keys.opencode_go",
+            opencode_metrics(usage.as_object().expect("an object")),
+        ),
+        ("router_keys.xiaomi_mimo", data.metrics),
+    ]
 }
 
 #[cfg(test)]

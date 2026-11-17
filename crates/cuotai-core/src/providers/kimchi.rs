@@ -429,7 +429,12 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
                 "provider": "anthropic", "usageUsd": "2.0",
                 "limitType": "CAPPED", "budgetLimitUsd": "10.0"
             }]
-        }]
+        },
+        {"scope": "API_KEY", "scopeId": "k", "budgetLimitUsd": "1.0", "totalSpendUsd": "0.5"},
+        {"scope": "USER", "scopeId": "u", "budgetLimitUsd": "1.0", "totalSpendUsd": "0.5"},
+        {"scope": "TEAM_PER_USER", "scopeId": "t", "budgetLimitUsd": "1.0", "totalSpendUsd": "0.5"},
+        {"scope": "ORGANIZATION_SOFT", "scopeId": "o", "budgetLimitUsd": "1.0", "totalSpendUsd": "0.5"},
+        {"scope": "ORGANIZATION_HARD", "scopeId": "o", "budgetLimitUsd": "1.0", "totalSpendUsd": "0.5"}]
     });
     vec![("kimchi", parse_budget(&budget).expect("fixture decodes"))]
 }

@@ -415,9 +415,32 @@ pub(super) fn label_fixtures() -> Vec<(&'static str, Vec<Metric>)> {
         "character_refresh_period": "monthly_period",
         "max_credit_limit_extension": 5000,
         "can_extend_character_limit": true,
+        "current_overage": {"amount": "1.50", "currency": "usd"},
+        "voice_slots_used": 2, "voice_limit": 10,
+        "professional_voice_slots_used": 0, "professional_voice_limit": 1,
     });
     let data = parse(&body, source_for("https://api.elevenlabs.io")).expect("fixture decodes");
-    vec![("eleven_labs", data.metrics)]
+    // Extra usage enabled with no credit cap ("unlimited"): the extra
+    // metric has no limit and says so with `Metric::unlimited`.
+    let unlimited = serde_json::json!({
+        "character_count": 1200, "character_limit": 1000,
+        "character_refresh_period": "monthly_period",
+        "max_credit_limit_extension": "unlimited",
+        "can_extend_character_limit": true,
+    });
+    let unlimited =
+        parse(&unlimited, source_for("https://api.elevenlabs.io")).expect("fixture decodes");
+    assert!(
+        unlimited
+            .metrics
+            .iter()
+            .any(|m| m.unlimited && m.limit.is_none()),
+        "the uncapped extension is an unlimited metric"
+    );
+    vec![
+        ("eleven_labs", data.metrics),
+        ("eleven_labs.unlimited", unlimited.metrics),
+    ]
 }
 
 #[cfg(test)]
