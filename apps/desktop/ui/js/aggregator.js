@@ -89,7 +89,7 @@ export function warningChipsHtml(r) {
   if (!w) return "";
   const chip = (flag, id, fallback, glyph) => `<span class="mini warn" data-conn-warning="${flag}">${icon(glyph)}<span class="mini-t">${esc(tl({ id, params: {}, fallback }))}</span></span>`;
   return [w.exposed ? chip("exposed", "aggregators.chip.exposed", "No password", "warn") : "",
-    w.private_http ? chip("private_http", "aggregators.chip.private_http", "Unencrypted", "warn") : ""].join("");
+    w.private_http ? chip("private_http", "aggregators.chip.private_http", "Password or key unencrypted", "warn") : ""].join("");
 }
 
 /** One pool line ("Claude · 2 of 3 available") for lists and the details. */

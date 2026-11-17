@@ -1862,6 +1862,28 @@ async fn a_vault_password_logs_in_and_never_reaches_the_toml_or_the_report() {
     let server = MockServer::start().await;
     crate::providers::nine_router::forget_login(&format!("{}/", server.uri())).await;
     let token = jwt(Utc::now().timestamp() + 86_400);
+    // Re-validation S-01: the instance answers as a 9router before any secret.
+    Mock::given(method("GET"))
+        .and(path("/api/health"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/version"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"currentVersion": "0.5.109"})),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/version"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"currentVersion": "0.5.109"})),
+        )
+        .mount(&server)
+        .await;
     Mock::given(method("POST"))
         .and(path("/api/auth/login"))
         .and(body_json(
@@ -1941,6 +1963,14 @@ async fn a_pasted_sso_session_replaces_the_login_and_a_rejected_one_says_so() {
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
         .mount(&server)
         .await;
+    Mock::given(method("GET"))
+        .and(path("/api/version"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"currentVersion": "0.5.109"})),
+        )
+        .mount(&server)
+        .await;
     Mock::given(method("POST"))
         .and(path("/api/auth/login"))
         .respond_with(ResponseTemplate::new(403))
@@ -1966,6 +1996,14 @@ async fn a_pasted_sso_session_replaces_the_login_and_a_rejected_one_says_so() {
     Mock::given(method("GET"))
         .and(path("/api/health"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+        .mount(&revoked)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/version"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"currentVersion": "0.5.109"})),
+        )
         .mount(&revoked)
         .await;
     Mock::given(method("GET"))

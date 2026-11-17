@@ -20,8 +20,8 @@
 //! written from the documented example. A live instance has not been
 //! checked yet (owner verification), so the access level is `Official` (a documented route).
 
-use super::nine_router::{parse_base, sub_id, BaseUrlError};
-use super::{json, secret, Context, Data, QueryError};
+use super::nine_router::{allows_private_http, base_is_loopback, parse_base, sub_id, BaseUrlError};
+use super::{json_checked, secret, Context, Data, QueryError};
 use crate::text::{params, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status, SubReport};
 use chrono::{DateTime, Utc};
@@ -43,11 +43,7 @@ pub(crate) fn account_base(account: &Account) -> Result<url::Url, BaseUrlError> 
         .map(String::as_str)
         .filter(|value| !value.trim().is_empty())
         .unwrap_or(DEFAULT_BASE_URL);
-    let allow = account
-        .params
-        .get("allow_private_http")
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case("true"));
-    parse_base(raw, allow)
+    parse_base(raw, allows_private_http(account))
 }
 
 /// LiteLLM provider name → Cuotai provider; `None` for the others.
@@ -198,6 +194,26 @@ fn base_error(error: BaseUrlError) -> QueryError {
     QueryError::config(id, text)
 }
 
+/// One `GET` of the proxy with the key. Plain HTTP goes only to loopback,
+/// or to a private host when the account chose `allow_private_http`
+/// (PRD 0036 S-06); never a redirect.
+async fn get_json(
+    ctx: &Context<'_>,
+    url: &str,
+    key: &str,
+    allow_private: bool,
+) -> Result<Value, QueryError> {
+    json_checked(
+        ctx.http
+            .get(url)
+            .bearer_auth(key)
+            .header("Accept", "application/json")
+            .timeout(ctx.timeout),
+        allow_private,
+    )
+    .await
+}
+
 pub(crate) async fn fetch(account: &Account, ctx: &Context<'_>) -> Result<Data, QueryError> {
     fetch_at(account, ctx, Utc::now()).await
 }
@@ -209,15 +225,9 @@ pub(crate) async fn fetch_at(
 ) -> Result<Data, QueryError> {
     let base = account_base(account).map_err(base_error)?;
     let key = secret(account, ctx, "LITELLM_API_KEY")?;
+    let allow_private = allows_private_http(account);
     let url = format!("{}{BUDGETS_PATH}", base.as_str().trim_end_matches('/'));
-    let value: Value = json(
-        ctx.http
-            .get(&url)
-            .bearer_auth(key.trim())
-            .header("Accept", "application/json")
-            .timeout(ctx.timeout),
-    )
-    .await?;
+    let value = get_json(ctx, &url, key.trim(), allow_private).await?;
     let hidden: Vec<String> = account
         .params
         .get("hidden")
@@ -252,8 +262,8 @@ pub(crate) async fn fetch_at(
             continue;
         }
         let fetched = match kind {
-            crate::BreakdownKind::Keys => key_rows(ctx, root, key.trim()).await,
-            _ => team_rows(ctx, root, key.trim()).await,
+            crate::BreakdownKind::Keys => key_rows(ctx, root, key.trim(), allow_private).await,
+            _ => team_rows(ctx, root, key.trim(), allow_private).await,
         };
         match fetched {
             Ok((found, more)) => {
@@ -264,6 +274,9 @@ pub(crate) async fn fetch_at(
             }
             Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
         }
+    }
+    if allow_private && base.scheme() == "http" && !base_is_loopback(&base) {
+        notes.push_note(super::nine_router::private_http_note());
     }
     let mut data = Data::new(Vec::new(), notes, "LiteLLM: provider/budgets");
     data.sub_reports = sub_reports;
@@ -284,19 +297,13 @@ async fn key_rows(
     ctx: &Context<'_>,
     root: &str,
     key: &str,
+    allow_private: bool,
 ) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
     let mut rows = Vec::new();
     for page in 1..=crate::breakdown::MAX_PAGES {
         let url =
             format!("{root}{KEYS_PATH}?return_full_object=true&page={page}&size={KEY_PAGE_SIZE}");
-        let value: Value = json(
-            ctx.http
-                .get(&url)
-                .bearer_auth(key)
-                .header("Accept", "application/json")
-                .timeout(ctx.timeout),
-        )
-        .await?;
+        let value = get_json(ctx, &url, key, allow_private).await?;
         let keys = value
             .get("keys")
             .and_then(Value::as_array)
@@ -328,15 +335,9 @@ async fn team_rows(
     ctx: &Context<'_>,
     root: &str,
     key: &str,
+    allow_private: bool,
 ) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
-    let value: Value = json(
-        ctx.http
-            .get(format!("{root}{TEAMS_PATH}"))
-            .bearer_auth(key)
-            .header("Accept", "application/json")
-            .timeout(ctx.timeout),
-    )
-    .await?;
+    let value = get_json(ctx, &format!("{root}{TEAMS_PATH}"), key, allow_private).await?;
     let teams = value
         .as_array()
         .ok_or_else(|| QueryError::schema_at(&value, &[], "array"))?;

@@ -3,8 +3,9 @@
 //! - **Platform** (default): the client's built-in roots, as for every
 //!   provider.
 //! - **CA file** (`params.tls_ca_file`): a PEM bundle the user chose is
-//!   trusted in addition to the built-in roots; the host name is still
-//!   verified.
+//!   the **only** trust root of this instance (the system's roots are not
+//!   added, so a publicly issued certificate for the same name does not
+//!   pass); the host name is still verified.
 //! - **Pinned certificate** (`params.tls_pin_sha256`): only a leaf
 //!   certificate whose SHA-256 (of its DER) equals the pin is accepted,
 //!   with the handshake signatures still verified. This is how a

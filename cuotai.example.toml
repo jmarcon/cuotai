@@ -425,6 +425,10 @@ credential_env = "ELEVENLABS_API_KEY"
 name = "9router"
 provider = "nine_router"
 # credential_env = "NINEROUTER_PASSWORD"   # name of the variable holding the dashboard password
+# The password goes only over loopback, an encrypted overlay such as
+# Tailscale, or HTTPS: anywhere else plain http carries it unencrypted. Before
+# sending it Cuotai checks that the address answers like 9router and, on this
+# computer, that the program listening on the port is yours.
 params = { base_url = "http://127.0.0.1:20128" }
 # Optional keys of params: include = "claude,codex,github" (only these 9router
 # providers), exclude = "glm" (hide these) and hidden = "<id>,<id>" (hide single
@@ -433,9 +437,10 @@ params = { base_url = "http://127.0.0.1:20128" }
 # (dedup = "auto", the default; "off" shows both, or show_both = "<id>" for one
 # connection). group = "<slug>" ranks the connections in that group for "best
 # account now"; without it each one ranks with its provider. Outside this machine use
-# https://; plain http on a private network also needs allow_private_http = "true".
+# https://; plain http on a private network also needs allow_private_http = "true"
+# (the password then travels unencrypted on that network; prefer HTTPS).
 # A self-signed HTTPS instance: tls_ca_file = "/path/to/ca.pem" (the CA that
-# signed it) or tls_pin_sha256 = "AB:CD:…" (its certificate's SHA-256, offered
+# signed it, then the only CA trusted for it) or tls_pin_sha256 = "AB:CD:…" (its certificate's SHA-256, offered
 # by Test connection for you to confirm); never both.
 
 # OpenRouter, default view: limit, spend and free-model requests of an
