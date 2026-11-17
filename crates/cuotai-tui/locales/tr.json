@@ -548,6 +548,8 @@
   "wizard.interval.help": "Yalnızca bu hesap için geçerli; boş = genel.",
   "wizard.interval.prompt": "Bu hesabın kendi aralığı, saniye cinsinden ({min}–{max}); boş genel olanı devralır:",
   "wizard.login.authorized": "Oturum açma yetkilendirildi.",
+  "wizard.login.choose": "↓ oturum açmayı seçer; Tab modu değiştirir.",
+  "wizard.login.confirm": "{provider} oturumunu açmak için tarayıcı açılsın mı? Enter / Esc",
   "wizard.login.finished": "Oturum açma tamamlandı.",
   "wizard.models.heading": "Modeller · {provider}",
   "wizard.models.no_account": "Kaynak: {source}\nBu sağlayıcı için yapılandırılmış hesap yok; sorgulamak için hesabı kaydedin ve Modeller'i açın.",

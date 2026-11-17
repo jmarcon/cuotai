@@ -551,6 +551,8 @@
   "wizard.interval.help": "Vale solo per questo account; vuoto = globale.",
   "wizard.interval.prompt": "Intervallo proprio di questo account in secondi ({min}–{max}); vuoto eredita quello globale:",
   "wizard.login.authorized": "Accesso autorizzato.",
+  "wizard.login.choose": "↓ seleziona l'accesso; Tab cambia modalità.",
+  "wizard.login.confirm": "Aprire il browser per accedere a {provider}? Invio / Esc",
   "wizard.login.finished": "Accesso completato.",
   "wizard.models.heading": "Modelli · {provider}",
   "wizard.models.no_account": "Fonte: {source}\nNessun account di questo provider è configurato; salva l'account e apri Modelli per interrogarlo.",

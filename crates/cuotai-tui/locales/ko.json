@@ -21,7 +21,9 @@
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
       "once.renewal_due",
-      "feed.forget.failed"
+      "feed.forget.failed",
+      "wizard.login.choose",
+      "wizard.login.confirm"
     ]
   },
   "about.brazil": "특별히 감사드립니다: 브라질 개발자들이 만든 프로젝트",
@@ -550,6 +552,8 @@
   "wizard.interval.help": "이 계정에만 적용됩니다. 비우면 전역값을 사용합니다.",
   "wizard.interval.prompt": "이 계정만의 간격(초, {min}–{max}). 비우면 전역값을 사용합니다:",
   "wizard.login.authorized": "로그인이 승인되었습니다.",
+  "wizard.login.choose": "↓ 키로 로그인을 선택하고 Tab 키로 방식을 바꿉니다.",
+  "wizard.login.confirm": "브라우저를 열어 {provider}에 로그인하시겠습니까? Enter / Esc",
   "wizard.login.finished": "로그인이 완료되었습니다.",
   "wizard.models.heading": "모델 · {provider}",
   "wizard.models.no_account": "출처: {source}\n이 제공업체의 계정이 설정되어 있지 않습니다. 계정을 저장한 뒤 모델을 열어 조회하세요.",

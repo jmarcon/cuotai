@@ -444,7 +444,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   }
   async function renderAccess() {
     const seq = ++accessSeq;
-    const access = await draftAccess(provider, authMode, draftFields(), sessionSlots());
+    const access = await draftAccess(provider, effectiveAuthMode(), draftFields(), sessionSlots());
     if (seq !== accessSeq) return; // a newer change is already being described
     // Any change withdraws a pending "Save anyway", and with it the prompt that asked for it.
     if (confirmUnavailable) setSavePrompt(null);
@@ -498,6 +498,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     }
     return null;
   };
+  // PRD 0040 RF3.5 (re-validation V-06): the chosen source may need no credential at all (`credential_for().needed`):
+  // the Authentication choices, the key and the sign-in then go away, and the draft carries none of them.
+  const credentialNeeded = () => credentialVariant()?.needed ?? !feedOnly();
+  const effectiveAuthMode = () => (credentialNeeded() ? authMode : "credential");
   const mainSecret = () => {
     const secret = feedOnly() ? null : formSecrets().find((s) => s.slot === "credential_env") ?? null;
     const variant = secret && credentialVariant();
@@ -1201,11 +1205,10 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         : `<input name="f:${esc(f.key)}" value="${esc(v?.text ?? "")}" ${f.required ? "required" : ""} />`;
       return `<label class="f" data-field="f:${esc(f.key)}"><span>${esc(tl(f.label))}${f.required ? " *" : ""}</span>${input}<small class="field-err" hidden></small>${f.help ? `<small>${esc(tl(f.help))}</small>` : ""}</label>`;
     };
-    // PRD 0038 review F-07: the fields that decide the key (OpenRouter's product) come right above the key field.
-    const leading = !mode && mainSecret()
-      ? schema.fields.filter((f) => f.decides_credential && visible.has(f.key) && !terminalOnly.has(f.key))
-      : [];
-    dynAuth.innerHTML = authHtml + leading.map(fieldHtml).join("") + bodyHtml;
+    // PRD 0038 review F-07 / PRD 0040 V-06: the fields that decide the credential (OpenRouter's product, Claude's and
+    // ChatGPT's source) come first, before the way to connect; a choice that needs no credential shows nothing else.
+    const leading = schema.fields.filter((f) => f.decides_credential && visible.has(f.key) && !terminalOnly.has(f.key));
+    dynAuth.innerHTML = leading.map(fieldHtml).join("") + (credentialNeeded() ? authHtml + bodyHtml : "");
     dynFields.innerHTML = schema.fields.filter((f) => visible.has(f.key) && !leading.includes(f)).map(fieldHtml).join("");
     // PRD 0001 re-validation (M3): an RF11.3 substitution is explained next to what changed: under the row of the
     // field the core replaced (a form field, or the same choice shown as a sign-in option of the mode), else under the
@@ -1294,7 +1297,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   // The dialog's draft as the backend reads it (save and the PRD 0016 session test).
   function draftInput() {
     const data = new FormData(form);
-    const mode = selectedMode();
+    const needed = credentialNeeded();
+    const mode = needed ? selectedMode() : null;
     const { options } = collectModeInputs(mode);
     return {
       index, accountId, provider, name: String(data.get("name") ?? ""),
@@ -1306,11 +1310,11 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       breakdown: breakdownValue(),
       // PRD 0022 MONO-4: the display override (blank = derived from the name); the shell keeps it in desktop.json.
       monogram: String(data.get("monogram") ?? "").trim(),
-      commitLogin: loginDone(),
+      commitLogin: needed && loginDone(),
       loginAttempt: loginState?.attempt ?? 0,
-      authMode,
+      authMode: effectiveAuthMode(),
       authOptions: options,
-      authParams: loginDone() ? loginState.params : {},
+      authParams: needed && loginDone() ? loginState.params : {},
       // PRD 0047 G2: blank or absent keeps the stored secret.
       secrets: mode ? typedSecrets().filter((x) => x.slot !== "credential_env") : typedSecrets(),
       // PRD 0041 RF5.1: only when the section was touched; absent, the saved account keeps its lists.
@@ -1339,7 +1343,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       form.querySelector('[name="monogram"]')?.focus();
       return;
     }
-    const mode = selectedMode();
+    const mode = credentialNeeded() ? selectedMode() : null;
     // PRD 0047 G1: a missing required secret is said in the form's own words (the core's text is terminal wording).
     const missing = secretEls().find((el) => el.required && !el.value.trim());
     if (missing) {
@@ -1358,7 +1362,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       }
     }
     // RF3.4: an Unavailable account shows the core's reason first and needs a second, explicit "Save anyway".
-    const latest = await draftAccess(provider, authMode, draftFields(), sessionSlots());
+    const latest = await draftAccess(provider, effectiveAuthMode(), draftFields(), sessionSlots());
     if (latest.save_confirmation && !confirmUnavailable) {
       confirmUnavailable = true;
       setSavePrompt(tl(latest.save_confirmation));

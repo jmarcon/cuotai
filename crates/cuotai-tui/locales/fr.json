@@ -232,7 +232,9 @@
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
       "once.renewal_due",
-      "feed.forget.failed"
+      "feed.forget.failed",
+      "wizard.login.choose",
+      "wizard.login.confirm"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -778,6 +780,8 @@
   "wizard.interval.help": "S’applique uniquement à ce compte ; vide = global.",
   "wizard.interval.prompt": "Intervalle propre à ce compte en secondes ({min}–{max}) ; vide hérite du global :",
   "wizard.login.authorized": "Connexion autorisée.",
+  "wizard.login.choose": "↓ sélectionne la connexion ; Tab change de mode.",
+  "wizard.login.confirm": "Ouvrir le navigateur pour se connecter à {provider} ? Enter / Esc",
   "wizard.login.finished": "Connexion terminée.",
   "wizard.models.heading": "Modèles · {provider}",
   "wizard.models.no_account": "Source : {source}\nAucun compte de ce fournisseur n’est configuré ; enregistrez le compte et ouvrez Modèles pour l’interroger.",

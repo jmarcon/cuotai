@@ -16,7 +16,9 @@
       "once.cycle_ends",
       "dashboard.reset.renewal_due",
       "once.renewal_due",
-      "feed.forget.failed"
+      "feed.forget.failed",
+      "wizard.login.choose",
+      "wizard.login.confirm"
     ]
   },
   "about.brazil": "特别感谢：由巴西人创建的项目",
@@ -545,6 +547,8 @@
   "wizard.interval.help": "仅适用于此账户；留空 = 全局。",
   "wizard.interval.prompt": "此账户自己的间隔秒数（{min}–{max}）；留空则继承全局值：",
   "wizard.login.authorized": "登录已授权。",
+  "wizard.login.choose": "↓ 选择登录；Tab 切换方式。",
+  "wizard.login.confirm": "打开浏览器登录 {provider}？Enter / Esc",
   "wizard.login.finished": "登录完成。",
   "wizard.models.heading": "模型 · {provider}",
   "wizard.models.no_account": "来源：{source}\n尚未配置此提供商的账户；请保存账户后打开模型进行查询。",

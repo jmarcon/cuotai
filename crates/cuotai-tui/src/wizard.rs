@@ -359,6 +359,14 @@ pub(crate) struct Wizard {
     auth_mode: String,
     login_fields: Vec<LoginField>,
     login_idx: usize,
+    /// PRD 0040 RF3.5 (re-validation V-06): the cursor rests on the
+    /// authentication-mode row, a neutral row where Enter starts nothing.
+    /// Set whenever the Credential step opens on a mode whose Enter would
+    /// start a sign-in.
+    login_on_mode: bool,
+    /// V-06: the sign-in row was confirmed once; the confirmation line asks
+    /// before the browser opens (Enter opens it, Esc stays).
+    confirm_login: bool,
     /// OAuth config of the account being edited, preserved while the identity does not change.
     oauth_existing: Option<OAuthConfig>,
     /// Config authorized by a login completed in this wizard session.
@@ -453,6 +461,26 @@ impl Wizard {
     /// The credential the current choices decide.
     fn credential_for(&self) -> edit::CredentialFor {
         edit::credential_for(self.provider, &self.choice_values())
+    }
+
+    /// PRD 0040 RF3.5 (re-validation V-06): whether the current choices
+    /// need a credential at all; an agent-fed source needs none, and the
+    /// Credential step is skipped.
+    fn credential_needed(&self) -> bool {
+        self.credential_for().needed
+    }
+
+    /// Whether Enter on the sign-in row would start a sign-in now.
+    fn starts_sign_in(&self) -> bool {
+        self.oauth_active() && self.oauth_authorized.is_none() && self.oauth_existing.is_none()
+    }
+
+    /// Opens the Credential step on its neutral row (V-06): a mode that
+    /// would start a sign-in keeps the cursor on the mode row.
+    fn enter_credential_step(&mut self) {
+        self.step = Step::Credential;
+        self.login_on_mode = self.starts_sign_in();
+        self.confirm_login = false;
     }
 
     /// Whether `key` is a field that decides the credential.
@@ -579,6 +607,8 @@ impl Wizard {
             auth_mode,
             login_fields,
             login_idx: 0,
+            login_on_mode: false,
+            confirm_login: false,
             oauth_existing,
             oauth_authorized: None,
             external_login_params: None,
@@ -1043,6 +1073,7 @@ impl Wizard {
         match self.step {
             Step::Name if self.peer_focus && self.peer().is_some() => Some(&mut self.peer_name),
             Step::Name => Some(&mut self.name),
+            Step::Credential if self.login_on_mode => None,
             Step::Credential => {
                 if self.selected_mode().is_some() {
                     self.login_text_mut()
@@ -1152,14 +1183,18 @@ impl Wizard {
             }
             Step::Name => {
                 self.refresh_suggested_env();
-                self.step = Step::Credential;
+                self.enter_credential_step();
             }
             Step::Product => {
                 if self.field_idx + 1 < self.step_fields().len() {
                     self.field_idx += 1;
+                } else if !self.credential_needed() {
+                    // V-06: an agent-fed source asks for no credential.
+                    self.field_idx = 0;
+                    self.step = Step::Params;
                 } else {
                     self.refresh_suggested_env();
-                    self.step = Step::Credential;
+                    self.enter_credential_step();
                 }
             }
             Step::Credential => {
@@ -1206,9 +1241,13 @@ impl Wizard {
             Step::Params => {
                 if self.field_idx > 0 {
                     self.field_idx -= 1;
+                } else if !self.credential_needed() && self.has_product_step() {
+                    self.choice_notice = None;
+                    self.step = Step::Product;
+                    self.field_idx = self.step_fields().len().saturating_sub(1);
                 } else {
                     self.choice_notice = None;
-                    self.step = Step::Credential;
+                    self.enter_credential_step();
                 }
             }
             Step::Session => {
@@ -1311,16 +1350,20 @@ impl Wizard {
         if next == self.auth_mode {
             return;
         }
+        let had_product_step = self.has_product_step();
         self.auth_mode = next;
         self.reconcile_field_choices();
         self.reload_login_fields();
         self.invalidate_oauth();
         self.error = None;
         // PRD 0038 review F-07: a mode whose fields decide the credential
-        // (OpenRouter's key: the product) asks for them first.
-        if self.step == Step::Credential && self.has_product_step() {
+        // (OpenRouter's key: the product) asks for them first, unless they
+        // were already asked.
+        if self.step == Step::Credential && self.has_product_step() && !had_product_step {
             self.field_idx = 0;
             self.step = Step::Product;
+        } else if self.step == Step::Credential {
+            self.enter_credential_step();
         }
     }
 
@@ -1501,13 +1544,16 @@ impl Wizard {
             self.login_idx += 1;
             return Action::Continue;
         }
-        if !self.oauth_active() || self.oauth_authorized.is_some() || self.oauth_existing.is_some()
-        {
+        if !self.starts_sign_in() {
             self.error = None;
             self.advance();
             return Action::Continue;
         }
-        self.start_selected_login()
+        // V-06: Enter on the sign-in row only asks; the confirmation line's
+        // Enter opens the browser (`handle`), Esc stays.
+        self.error = None;
+        self.confirm_login = true;
+        Action::Continue
     }
 
     /// Emit the single generic login action. Core validates again at the
@@ -1620,6 +1666,17 @@ impl Wizard {
             self.error = None;
             return Action::Continue;
         }
+        // V-06: the sign-in confirmation line answers Enter (open the
+        // browser) or Esc (stay on the step); any other key withdraws it.
+        if std::mem::take(&mut self.confirm_login) {
+            match key.code {
+                KeyCode::Enter if self.step == Step::Credential => {
+                    return self.start_selected_login();
+                }
+                KeyCode::Esc => return Action::Continue,
+                _ => {}
+            }
+        }
         if key.code == KeyCode::Esc {
             return Action::Cancel;
         }
@@ -1726,6 +1783,30 @@ impl Wizard {
         }
         // Any selected core mode uses the same field navigation and F2 action.
         if self.step == Step::Credential && self.selected_mode().is_some() {
+            // V-06: on the neutral mode row, Enter starts nothing and ↓
+            // moves to the sign-in's rows.
+            if self.login_on_mode {
+                match key.code {
+                    KeyCode::Enter => {
+                        self.error = Some(
+                            tr(
+                                "wizard.login.choose",
+                                "↓ selects the sign-in; Tab switches the mode.",
+                            )
+                            .to_string(),
+                        );
+                        return Action::Continue;
+                    }
+                    KeyCode::Down => {
+                        self.error = None;
+                        self.login_on_mode = false;
+                        self.login_idx = 0;
+                        return Action::Continue;
+                    }
+                    KeyCode::Up | KeyCode::Left | KeyCode::Right => return Action::Continue,
+                    _ => {}
+                }
+            }
             match key.code {
                 KeyCode::Enter => return self.enter_login(),
                 KeyCode::Tab => {
@@ -1741,6 +1822,9 @@ impl Wizard {
                     return self.start_selected_login();
                 }
                 KeyCode::Up => {
+                    if self.login_idx == 0 && self.starts_sign_in() {
+                        self.login_on_mode = true;
+                    }
                     self.login_idx = self.login_idx.saturating_sub(1);
                     return Action::Continue;
                 }
@@ -2045,10 +2129,12 @@ impl Wizard {
                     return Action::Continue;
                 }
                 let mut line = choices + 4;
+                let on_mode = self.login_on_mode;
                 for (index, field) in self.login_fields.iter().enumerate() {
-                    let block = 1 + u16::from(index == self.login_idx);
+                    let block = 1 + u16::from(index == self.login_idx && !on_mode);
                     if row >= line && row < line + block {
-                        if index != self.login_idx {
+                        self.login_on_mode = false;
+                        if index != self.login_idx || on_mode {
                             self.login_idx = index;
                         } else if row == line && field.option.choices.is_some() {
                             return self.handle(right());
@@ -2058,9 +2144,12 @@ impl Wizard {
                     line += block;
                 }
                 if row == line {
-                    if self.login_idx == self.login_fields.len() {
+                    // V-06: the first click focuses the sign-in row; the
+                    // next one asks before the browser opens.
+                    if self.login_idx == self.login_fields.len() && !on_mode {
                         return self.handle(enter());
                     }
+                    self.login_on_mode = false;
                     self.login_idx = self.login_fields.len();
                 }
             }
@@ -2582,16 +2671,31 @@ impl Wizard {
             .and_then(|i| self.base.accounts.get(i))
             .filter(|a| a.provider == self.provider);
         let existing_params = existing_account.map(|a| &a.params);
-        let (credential, credential_params) = self.account_login_inputs().map_err(plain)?;
+        // V-06: an agent-fed source skipped the Credential step; nothing
+        // chosen there (a variable, a sign-in) is saved with it.
+        let needed = self.credential_needed();
+        let (credential, credential_params) = if needed {
+            self.account_login_inputs().map_err(plain)?
+        } else {
+            (String::new(), None)
+        };
         let draft = edit::AccountDraft {
             provider: self.provider,
             name: &self.name,
             credential: &credential,
-            auth_mode: &self.auth_mode,
-            oauth_mode: self.oauth_active(),
-            oauth_existing: self.oauth_existing.as_ref(),
-            oauth_authorized: self.oauth_authorized.clone(),
-            oauth_login_params: self.oauth_login_params.clone(),
+            auth_mode: if needed {
+                &self.auth_mode
+            } else {
+                "credential"
+            },
+            oauth_mode: needed && self.oauth_active(),
+            oauth_existing: self.oauth_existing.as_ref().filter(|_| needed),
+            oauth_authorized: self.oauth_authorized.clone().filter(|_| needed),
+            oauth_login_params: if needed {
+                self.oauth_login_params.clone()
+            } else {
+                BTreeMap::new()
+            },
             existing_params,
             credential_params,
             fields: &draft_fields,
@@ -2753,7 +2857,9 @@ impl Wizard {
                 Span::raw(crate::ui::safe(self.peer_name.trim()).into_owned()),
             ]));
         }
-        if let Some(mode) = self.selected_mode() {
+        if !self.credential_needed() {
+            // V-06: an agent-fed source has no credential to show.
+        } else if let Some(mode) = self.selected_mode() {
             let (status, color) =
                 if self.oauth_authorized.is_some() || self.external_login_params.is_some() {
                     (
@@ -3597,7 +3703,7 @@ impl Wizard {
             .iter()
             .filter(|mode| mode.unavailable_reason.is_none())
         {
-            lines.push(Line::from(format!(
+            let line = Line::from(format!(
                 "{} {}",
                 if mode.id == self.auth_mode {
                     "▶"
@@ -3605,7 +3711,17 @@ impl Wizard {
                     " "
                 },
                 crate::ui::resolve_l10n(&mode.label)
-            )));
+            ));
+            // V-06: the neutral row the cursor rests on.
+            lines.push(if mode.id == self.auth_mode && self.login_on_mode {
+                line.style(
+                    Style::default()
+                        .fg(DRACULA_CYAN)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                line
+            });
             // The CLI this mode runs is missing: its official install page, as text.
             if let Some(install) = &mode.install {
                 lines.push(Line::from(Span::styled(
@@ -3642,7 +3758,7 @@ impl Wizard {
             )));
             lines.push(Line::default());
             for (index, field) in self.login_fields.iter().enumerate() {
-                let current = self.login_idx == index;
+                let current = self.login_idx == index && !self.login_on_mode;
                 let style = if current {
                     Style::default()
                         .fg(DRACULA_CYAN)
@@ -3676,7 +3792,7 @@ impl Wizard {
                     )));
                 }
             }
-            let current = self.login_idx == self.login_fields.len();
+            let current = self.login_idx == self.login_fields.len() && !self.login_on_mode;
             let action = if self.oauth_authorized.is_some() {
                 tr(
                     "wizard.credential.action.authorized",
@@ -3713,6 +3829,19 @@ impl Wizard {
                     Style::default()
                 },
             )));
+            // V-06: below every clickable row, so the hit-test is unchanged.
+            if self.confirm_login {
+                lines.push(Line::from(Span::styled(
+                    trf(
+                        "wizard.login.confirm",
+                        "Open the browser to sign in to {provider}? Enter / Esc",
+                        &[("provider", &crate::ui::provider_label(self.provider))],
+                    ),
+                    Style::default()
+                        .fg(DRACULA_YELLOW)
+                        .add_modifier(Modifier::BOLD),
+                )));
+            }
         } else {
             match edit::credential_kind(self.provider) {
                 edit::CredentialKind::EnvVar => {
@@ -4585,6 +4714,136 @@ mod tests {
         }
         press(&mut wiz, KeyCode::Enter);
         assert!(wiz.offer_consent.is_none());
+    }
+
+    /// PRD 0040 RF3.5 (re-validation V-06): the run that started a real
+    /// sign-in. With Claude Code detected, the Source comes before the
+    /// credential, the fed mode is preselected and skips the Credential
+    /// step, so F6, `claude`, a name and Enters never reach the login seam
+    /// (`Action::Login`); no flow runs in this test.
+    #[test]
+    fn a_detected_claude_code_never_starts_a_sign_in_on_enter() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut wiz = Wizard::new(&Config::default(), None);
+        press(&mut wiz, KeyCode::F(6));
+        wiz.detected = vec![detect::Detected {
+            provider: Provider::Claude,
+            kind: detect::SourceKind::ClaudeCode,
+            mode: Some("oauth"),
+            hint: cuotai_core::text::Localized::fixed("detect.hint", "found"),
+            consent: cuotai_core::text::Localized::fixed("x.consent", "CONSENT-LINE"),
+            configured: false,
+            local_cost: None,
+        }];
+        for c in "claude".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        assert!(!matches!(
+            press(&mut wiz, KeyCode::Enter),
+            Action::Login { .. }
+        ));
+        assert_eq!(wiz.step, Step::Name);
+        for c in "Personal".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        let mut steps = Vec::new();
+        for _ in 0..4 {
+            let action = press(&mut wiz, KeyCode::Enter);
+            assert!(!matches!(action, Action::Login { .. }), "{steps:?}");
+            steps.push(wiz.step);
+        }
+        assert_eq!(steps[0], Step::Product, "the Source comes first");
+        assert!(!steps.contains(&Step::Credential), "{steps:?}");
+        assert!(!wiz.credential_needed());
+        let config = wiz
+            .build_config()
+            .expect("a fed account needs no credential");
+        let saved = config.accounts.last().unwrap();
+        assert!(saved.credential_env.is_none() && saved.oauth.is_none());
+        // Back from the parameters returns to the Source, not to a sign-in.
+        while wiz.step != Step::Product {
+            press(&mut wiz, KeyCode::BackTab);
+            assert_ne!(wiz.step, Step::Credential);
+        }
+    }
+
+    /// V-06: in the query mode the Credential step opens on the neutral
+    /// mode row; a bare Enter starts nothing, the sign-in row asks first,
+    /// Esc stays on the step, and only the confirmation's Enter reaches
+    /// the login seam.
+    #[test]
+    fn a_sign_in_needs_its_row_and_a_confirmation() {
+        let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        let mut wiz = Wizard::new(&Config::default(), None);
+        press(&mut wiz, KeyCode::F(6));
+        wiz.detected = vec![detect::Detected {
+            provider: Provider::Claude,
+            kind: detect::SourceKind::ClaudeCode,
+            mode: Some("oauth"),
+            hint: cuotai_core::text::Localized::fixed("detect.hint", "found"),
+            consent: cuotai_core::text::Localized::fixed("x.consent", "CONSENT-LINE"),
+            configured: false,
+            local_cost: None,
+        }];
+        for c in "claude".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        press(&mut wiz, KeyCode::Enter);
+        for c in "Work".chars() {
+            press(&mut wiz, KeyCode::Char(c));
+        }
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Product);
+        // The person picks the query: the credential is needed again.
+        while wiz.choice_values().get("query_mode").map(String::as_str) != Some("api") {
+            press(&mut wiz, KeyCode::Left);
+        }
+        press(&mut wiz, KeyCode::Enter);
+        assert_eq!(wiz.step, Step::Credential);
+        assert_eq!(wiz.auth_mode, "oauth");
+        assert!(wiz.login_on_mode);
+        for _ in 0..3 {
+            assert!(!matches!(
+                press(&mut wiz, KeyCode::Enter),
+                Action::Login { .. }
+            ));
+            assert_eq!(wiz.step, Step::Credential);
+            assert!(!wiz.confirm_login);
+        }
+        press(&mut wiz, KeyCode::Down);
+        assert!(!wiz.login_on_mode);
+        assert!(!matches!(
+            press(&mut wiz, KeyCode::Enter),
+            Action::Login { .. }
+        ));
+        assert!(wiz.confirm_login);
+        let confirm = trf(
+            "wizard.login.confirm",
+            "Open the browser to sign in to {provider}? Enter / Esc",
+            &[("provider", &crate::ui::provider_label(Provider::Claude))],
+        );
+        let flat = |screen: String| screen.split_whitespace().collect::<Vec<_>>().join(" ");
+        let wanted = confirm.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(flat(screen_of(&mut wiz, 160, 50)).contains(&wanted));
+        // Esc withdraws the question and keeps the wizard open.
+        assert!(matches!(press(&mut wiz, KeyCode::Esc), Action::Continue));
+        assert!(!wiz.confirm_login);
+        assert_eq!(wiz.step, Step::Credential);
+        // Any other key withdraws it too.
+        press(&mut wiz, KeyCode::Enter);
+        assert!(wiz.confirm_login);
+        press(&mut wiz, KeyCode::Up);
+        assert!(!wiz.confirm_login);
+        assert!(wiz.login_on_mode);
+        press(&mut wiz, KeyCode::Down);
+        press(&mut wiz, KeyCode::Enter);
+        assert!(matches!(
+            press(&mut wiz, KeyCode::Enter),
+            Action::Login {
+                provider: Provider::Claude,
+                ..
+            }
+        ));
     }
 
     /// C-09: the filter stops growing at the core's query bound.

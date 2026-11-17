@@ -531,6 +531,8 @@
   "wizard.interval.help": "Hanya berlaku untuk akun ini; kosong = global.",
   "wizard.interval.prompt": "Interval milik akun ini dalam detik ({min}–{max}); kosong mewarisi yang global:",
   "wizard.login.authorized": "Login diotorisasi.",
+  "wizard.login.choose": "↓ memilih login; Tab mengganti mode.",
+  "wizard.login.confirm": "Buka browser untuk login ke {provider}? Enter / Esc",
   "wizard.login.finished": "Login selesai.",
   "wizard.models.heading": "Model · {provider}",
   "wizard.models.no_account": "Sumber: {source}\nBelum ada akun penyedia ini yang dikonfigurasi; simpan akun lalu buka Model untuk mengueri.",

@@ -59,10 +59,22 @@ assert.doesNotMatch(dialog, /id="choice-notice"/);
 assert.match(dialog, /notices\.push\(\{ key: resolved\.key, text: tl\(resolved\.notice\) \}\)/);
 assert.match(dialog, /dyn\.querySelector\(`\[data-field="f:\$\{CSS\.escape\(key\)\}"\]`\)\s*\?\? dynAuth\.querySelector\(`\[name="o:\$\{CSS\.escape\(key\)\}"\]`\)\?\.closest\("\.f"\)\s*\?\? dynAuth\.querySelector\("fieldset\.auth"\) \?\? dynFields;/);
 assert.match(dialog, /note\.className = "hint choice-notice";\s*note\.setAttribute\("role", "status"\);/);
-// PRD 0038 review F-07/F-08: a field that decides the key (OpenRouter's product) sits right above the key field, and the
+// PRD 0038 review F-07/F-08: a field that decides the key (OpenRouter's product) comes before the key field, and the
 // key's label, help and creation page come from the core's `credential_variants` for the chosen option.
-assert.match(dialog, /const leading = !mode && mainSecret\(\)\s*\? schema\.fields\.filter\(\(f\) => f\.decides_credential && visible\.has\(f\.key\)/);
-assert.match(dialog, /dynAuth\.innerHTML = authHtml \+ leading\.map\(fieldHtml\)\.join\(""\) \+ bodyHtml;/);
+// PRD 0040 RF3.5 (re-validation V-06): it also comes before the way to connect (Claude's and ChatGPT's source), and a
+// choice whose credential is not `needed` (a feed-only source) hides the Authentication choices, the key and the sign-in.
+assert.match(dialog, /const leading = schema\.fields\.filter\(\(f\) => f\.decides_credential && visible\.has\(f\.key\)/);
+assert.match(dialog, /dynAuth\.innerHTML = leading\.map\(fieldHtml\)\.join\(""\) \+ \(credentialNeeded\(\) \? authHtml \+ bodyHtml : ""\);/);
+assert.match(dialog, /const credentialNeeded = \(\) => credentialVariant\(\)\?\.needed \?\? !feedOnly\(\);/);
+// Nothing of the skipped step travels with the draft: no sign-in mode, no login result, no "sign in first" refusal.
+assert.match(dialog, /const effectiveAuthMode = \(\) => \(credentialNeeded\(\) \? authMode : "credential"\);/);
+assert.match(dialog, /const mode = needed \? selectedMode\(\) : null;/);
+assert.match(dialog, /commitLogin: needed && loginDone\(\),/);
+assert.match(dialog, /authMode: effectiveAuthMode\(\),/);
+assert.match(dialog, /const mode = credentialNeeded\(\) \? selectedMode\(\) : null;\s*\/\/ PRD 0047 G1/);
+assert.doesNotMatch(dialog, /draftAccess\(provider, authMode,/);
+// The sign-in starts only from its button, never from a field's Enter or on opening the dialog.
+assert.equal((dialog.match(/startLogin\(/g) ?? []).length, 2);
 assert.match(dialog, /!leading\.includes\(f\)/);
 assert.match(dialog, /for \(const v of schema\.credential_variants \?\? \[\]\)/);
 assert.match(dialog, /\{ \.\.\.secret, label: variant\.label, help: variant\.help, key_page: variant\.key_page \}/);
