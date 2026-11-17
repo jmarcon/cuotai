@@ -997,8 +997,12 @@ export const returnText = (r) => {
 /** The current query failed, or none answered yet (`r.pending`, a reading restored from the history on opening),
  *  and the core kept the last valid reading (`r.last_good`): always shown as stale. */
 export const isStaleReading = (r) => (r.pending || r.status !== "ready") && r.last_good != null;
-/** Instant of the reading on screen: the preserved one while the current query failed. */
-export const shownAt = (r) => (isStaleReading(r) ? r.last_good.checked_at : r.checked_at);
+/** Instant the reading on screen was measured: the preserved one while the current query failed. PRD 0040
+ *  re-validation H-1: the core's `measured_at` (an agent feed's own time), never the query time beside it. */
+export const shownAt = (r) => {
+  const shown = isStaleReading(r) ? r.last_good : r;
+  return shown.measured_at ?? shown.checked_at;
+};
 /** "3 min ago" in minute steps; a future instant (clock adjusted backwards) reads "now", never an error. */
 export function fmtAge(iso, now = Date.now()) {
   const min = Math.floor((now - new Date(iso).getTime()) / 60000);

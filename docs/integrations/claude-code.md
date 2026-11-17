@@ -60,7 +60,7 @@ A query-mode account can still show Claude Code's live session with `params = { 
 
 ### What the card shows
 
-- The 5-hour and weekly windows as the query mode shows them, with the reading's age counted from when Claude Code last spoke. When Claude Code is closed the reading ages; it never turns into 0.
+- The 5-hour and weekly windows as the query mode shows them, with the reading's age counted from when Claude Code last spoke ("read 2 h ago"), on the card, in the details, in `--once`, in the menu bar, in the widget and in `--status-line`. When Claude Code is closed the reading ages and turns **Aging**, then **Stale** (and `--status-line` exits 2); it never turns into 0 and never reads "Up to date".
 - A window Claude Code dropped after its reset stays **unknown** until the next prompt brings the new one.
 - Each window comes from the newest session that reported it with its reset still ahead. A new Claude Code window that has not reported its limits yet (before its first API response) does not blank the card, and its status line shows the account's last known windows. The card's age counts from the oldest reading it uses.
 - `claude_code_or_api` uses the feed only while a reading **with** limits is younger than the refresh interval; a fresh session without limits never decides it, so the query answers instead.

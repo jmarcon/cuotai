@@ -16,6 +16,8 @@ mod doctor;
 mod extension_check;
 mod extensions_view;
 mod feed_cli;
+#[cfg(test)]
+mod freshness_guard_tests;
 mod glyphs;
 mod headless;
 mod history_actions;
@@ -1706,6 +1708,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                 io::stdout().is_terminal(),
                 std::env::var("NO_COLOR").ok().as_deref(),
             );
+            let now = Utc::now();
             println!(
                 "{}",
                 status_line::render(
@@ -1714,11 +1717,16 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
                     style,
                     &line_ids,
                     color,
-                    Utc::now(),
+                    now,
                     &chrono::Local,
                     ui::tui_locale(),
                 )
             );
+            // PRD 0040 re-validation H-1: an old reading of a selected
+            // account exits 2 like a failed one.
+            if status_line::stale_selected(&config, &snapshot, &line_ids, now) {
+                return Ok(2);
+            }
             return Ok(code);
         }
         if args.json {
@@ -1954,7 +1962,7 @@ fn report_text(
     locale: &str,
     at: impl Fn(DateTime<Utc>) -> String,
 ) -> String {
-    let mut out = format!("\n{}\n", report_heading(report, now));
+    let mut out = format!("\n{}\n", report_heading(report, interval, now));
     if let Some(line) = status.and_then(|status| incident_line(status, locale, now, &at)) {
         out += &line;
     }
@@ -2374,8 +2382,11 @@ fn localized(mut json: serde_json::Value, locale: &Option<String>) -> serde_json
 }
 
 /// PRD 0010 RF5.2: `--once` account heading with the measurement age.
-fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
+fn report_heading(report: &Report, interval: Duration, now: DateTime<Utc>) -> String {
     let provider = ui::provider_label(report.provider);
+    // PRD 0040 re-validation H-1: the state and age come from the core's one
+    // presentation, so an old agent feed reads "Stale · read 2 h ago".
+    let (status, when) = ui::report_state(report, interval, now);
     // PRD 0029 RF3.4 (V-07): an unnamed account names its provider once
     // (an unnamed extension account is titled by its extension's name).
     let display = report.display_name();
@@ -2389,11 +2400,11 @@ fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
         (provider, None) => {
             return l10n::trf(
                 "once.heading_unnamed",
-                "{provider} — {status} · queried {age}{as_of}",
+                "{provider} — {status} · {when}{as_of}",
                 &[
                     ("provider", &ui::safe(provider)),
-                    ("status", &ui::status_label(report.status)),
-                    ("age", &ui::age_text(report.checked_at, now)),
+                    ("status", &status),
+                    ("when", &when),
                     ("as_of", &ui::data_as_of_suffix(report)),
                 ],
             );
@@ -2401,12 +2412,12 @@ fn report_heading(report: &Report, now: DateTime<Utc>) -> String {
     };
     l10n::trf(
         "once.heading",
-        "{account} / {provider} — {status} · queried {age}{as_of}",
+        "{account} / {provider} — {status} · {when}{as_of}",
         &[
             ("account", &ui::safe(display)),
             ("provider", &provider),
-            ("status", &ui::status_label(report.status)),
-            ("age", &ui::age_text(report.checked_at, now)),
+            ("status", &status),
+            ("when", &when),
             ("as_of", &ui::data_as_of_suffix(report)),
         ],
     )
@@ -2983,18 +2994,20 @@ mod tests {
         let report = report("Work", Status::RateLimited, Vec::new());
         let now = report.checked_at + chrono::Duration::seconds(125);
         assert_eq!(
-            report_heading(&report, now),
+            report_heading(&report, FIVE_MIN, now),
             "Work / Claude — Limite de uso · consultado há 2\u{a0}min"
         );
         // PRD 0029 V-07: an unnamed account names its provider once.
         let unnamed = self::report("", Status::RateLimited, Vec::new());
-        let heading = report_heading(&unnamed, now);
+        let heading = report_heading(&unnamed, FIVE_MIN, now);
         assert!(
             heading.starts_with("Claude — ") && !heading.contains(" / "),
             "{heading}"
         );
         // PRD 0010 re-validation V-05: the age reads naturally in ja.
-        let heading = crate::l10n::with_locale("ja", || report_heading(&report, report.checked_at));
+        let heading = crate::l10n::with_locale("ja", || {
+            report_heading(&report, FIVE_MIN, report.checked_at)
+        });
         assert!(heading.ends_with("たった今照会"), "{heading}");
     }
 

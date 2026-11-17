@@ -527,10 +527,16 @@ async fn an_old_feed_still_answers_with_its_own_age() {
     let report = monitor(FED, store.dir()).refresh().await.reports.remove(0);
     assert_eq!(report.status, Status::Ready);
     assert_eq!(report.as_of, Some(written));
-    assert!(
-        crate::freshness::lagging_as_of(&report).is_some(),
-        "shown with its age"
-    );
+    // PRD 0040 re-validation H-1: every surface ages it from the agent's
+    // time and calls it stale, never "Up to date · now".
+    let now = report.checked_at;
+    let shown = crate::freshness::present(&report, std::time::Duration::from_secs(300), now);
+    assert_eq!(shown.measured_at, written);
+    assert_eq!(shown.age, crate::freshness::age(written, now));
+    assert!(shown.age >= std::time::Duration::from_secs(30 * 3_600));
+    assert_eq!(shown.freshness, crate::freshness::Freshness::Stale);
+    assert_eq!(shown.when().text(), "read 1 d ago");
+    assert_eq!(crate::freshness::lagging_as_of(&report), None);
 }
 
 #[tokio::test]

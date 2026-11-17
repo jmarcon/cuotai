@@ -78,6 +78,66 @@ pub fn presented(report: &crate::Report, interval: Duration, now: DateTime<Utc>)
     assess(reading_time(report), interval, now)
 }
 
+/// PRD 0040 re-validation H-1: how every surface presents the age and the
+/// freshness of a report, from [`present`]. The TUI card, details and
+/// `--once`, the desktop's age chip (through `measured_at`), the menu bar,
+/// the widget and the status lines take their age only from here, so an
+/// agent feed written 2 h ago never reads "Up to date · now".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Presented {
+    /// [`reading_time`]: when the values were measured.
+    pub measured_at: DateTime<Utc>,
+    /// Age of `measured_at` at `now` (zero for a reading "from the future").
+    pub age: Duration,
+    /// [`presented`]: [`assess`] of `measured_at`.
+    pub freshness: Freshness,
+    /// The reading was handed over by an agent feed (`feed:` source), so
+    /// Cuotai *read* it rather than *queried* it.
+    pub fed: bool,
+}
+
+impl Presented {
+    /// The age in words ("3 min ago", "now"): [`age_label`] of `age`.
+    pub fn age_label(&self) -> crate::text::Localized {
+        age_label(self.age)
+    }
+
+    /// "queried 3 min ago", or "read 2 h ago" for an agent feed (L-13: the
+    /// wording follows the source).
+    pub fn when(&self) -> crate::text::Localized {
+        use crate::text::{Localized, ParamValue};
+        let (id, fallback) = if self.fed {
+            ("freshness.presented.read_ago", "read {age}")
+        } else {
+            ("freshness.presented.queried_ago", "queried {age}")
+        };
+        Localized::with_param(id, "age", ParamValue::l10n(self.age_label()), fallback)
+    }
+
+    /// The state word of a ready report: "Up to date" while fresh, "Aging"
+    /// or "Stale" otherwise, never "Up to date" for an old reading.
+    pub fn state(&self) -> crate::text::Localized {
+        use crate::text::Localized;
+        match self.freshness {
+            Freshness::Fresh => crate::text::status_l10n(crate::Status::Ready),
+            Freshness::Aging => Localized::fixed("freshness.state.aging", "Aging"),
+            Freshness::Stale => Localized::fixed("freshness.state.stale", "Stale"),
+        }
+    }
+}
+
+/// PRD 0040 re-validation H-1: the one presentation of `report`'s
+/// measurement time, age and freshness against `interval` at `now`.
+pub fn present(report: &crate::Report, interval: Duration, now: DateTime<Utc>) -> Presented {
+    let measured_at = reading_time(report);
+    Presented {
+        measured_at,
+        age: age(measured_at, now),
+        freshness: assess(measured_at, interval, now),
+        fed: report.source.starts_with(crate::feed::REPORT_SOURCE_PREFIX),
+    }
+}
+
 /// PRD 0033 RF3.2: gap after which a card names the data time.
 pub const AS_OF_LAG: Duration = Duration::from_secs(15 * 60);
 
@@ -89,7 +149,12 @@ pub fn data_age(report: &crate::Report, now: DateTime<Utc>) -> Option<Duration> 
 
 /// `Report::as_of` when it lies more than [`AS_OF_LAG`] before
 /// `checked_at`, i.e. when "Checked ... · data as of ..." is worth saying.
+/// Never for an agent feed: its `as_of` is the measurement time itself,
+/// which [`present`] already ages (PRD 0040 re-validation H-1).
 pub fn lagging_as_of(report: &crate::Report) -> Option<DateTime<Utc>> {
+    if report.source.starts_with(crate::feed::REPORT_SOURCE_PREFIX) {
+        return None;
+    }
     let as_of = report.as_of?;
     (report.checked_at - as_of > chrono::TimeDelta::from_std(AS_OF_LAG).ok()?).then_some(as_of)
 }
@@ -280,9 +345,22 @@ mod tests {
         };
         let interval = Duration::from_secs(300);
         assert_eq!(presented(&report, interval, at(10_000)), Freshness::Stale);
-        assert_eq!(lagging_as_of(&report), Some(at(10_000 - 7_200)));
+        // H-1: the feed's own time is the age, never a "data as of" beside
+        // a query time.
+        assert_eq!(lagging_as_of(&report), None);
+        let shown = present(&report, interval, at(10_000));
+        assert_eq!(shown.measured_at, at(10_000 - 7_200));
+        assert_eq!(shown.age, Duration::from_secs(7_200));
+        assert_eq!(shown.freshness, Freshness::Stale);
+        assert_eq!(shown.state().text(), "Stale");
+        assert_eq!(shown.when().text(), "read 2 h ago");
+        assert_eq!(shown.when().resolve("pt-BR"), "lido há 2\u{a0}h");
         report.source = "api".into();
         assert_eq!(presented(&report, interval, at(10_000)), Freshness::Fresh);
         assert_eq!(lagging_as_of(&report), Some(at(10_000 - 7_200)));
+        let shown = present(&report, interval, at(10_060));
+        assert_eq!(shown.measured_at, at(10_000));
+        assert_eq!(shown.state().text(), "Up to date");
+        assert_eq!(shown.when().text(), "queried 1 min ago");
     }
 }

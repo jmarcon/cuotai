@@ -104,6 +104,7 @@
         "source": "https://api.anthropic.com/api/oauth/usage"
       },
       "age_seconds": 120,
+      "reading_age_seconds": 120,
       "freshness": "fresh",
       "clock_adjusted": false,
       "stale": false,
@@ -268,6 +269,7 @@
         "source": ""
       },
       "age_seconds": 60,
+      "reading_age_seconds": 2520,
       "freshness": "fresh",
       "clock_adjusted": false,
       "stale": true,
@@ -369,6 +371,7 @@
         "source": ""
       },
       "age_seconds": 60,
+      "reading_age_seconds": 60,
       "freshness": "fresh",
       "clock_adjusted": false,
       "stale": false,
@@ -433,6 +436,7 @@
       "class": "unmeasured",
       "report": null,
       "age_seconds": null,
+      "reading_age_seconds": null,
       "freshness": null,
       "clock_adjusted": false,
       "stale": false,

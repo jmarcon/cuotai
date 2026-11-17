@@ -727,7 +727,7 @@ mod units {
             vec![sub("a1", Some(80.0)), off, dup, sub("b2", None)],
             "",
         );
-        let views = snapshot_views(&accounts, &reports);
+        let views = snapshot_views(&accounts, &reports, 300, now());
         // The aggregator is not an item while it has active connections.
         assert_eq!(names(&views), ["work", "conn-a1", "conn-b2"]);
         let router = accounts[1].state_key();
@@ -749,6 +749,24 @@ mod units {
         assert_eq!(s.title.as_deref(), Some("20% · Claude"));
     }
 
+    /// PRD 0040 re-validation H-1: a ready reading an agent wrote 2 hours
+    /// ago is stale in the menu bar and `--status-line`, with its own time.
+    #[test]
+    fn an_old_fed_reading_is_stale_with_its_measurement_time() {
+        let (accounts, mut reports) = setup(Status::Ready, Vec::new(), "");
+        reports[0].source = "feed:claude_code".into();
+        reports[0].as_of = Some(now() - chrono::TimeDelta::hours(2));
+        let views = snapshot_views(&accounts, &reports, 300, now());
+        assert!(views[0].stale);
+        assert_eq!(
+            views[0].measured_at,
+            Some(now() - chrono::TimeDelta::hours(2))
+        );
+        reports[0].as_of = Some(now() - chrono::TimeDelta::minutes(1));
+        let views = snapshot_views(&accounts, &reports, 300, now());
+        assert!(!views[0].stale);
+    }
+
     /// "Show in both" counts once, as the direct account.
     #[test]
     fn a_connection_kept_in_both_places_counts_once() {
@@ -758,7 +776,7 @@ mod units {
             "a1x, BOTH",
         );
         assert_eq!(
-            names(&snapshot_views(&accounts, &reports)),
+            names(&snapshot_views(&accounts, &reports, 300, now())),
             ["work", "conn-a1"]
         );
     }
@@ -767,7 +785,7 @@ mod units {
     #[test]
     fn a_failed_instance_is_one_failing_item() {
         let (accounts, reports) = setup(Status::Error, vec![sub("a1", Some(80.0))], "");
-        let views = snapshot_views(&accounts, &reports);
+        let views = snapshot_views(&accounts, &reports, 300, now());
         assert_eq!(names(&views), ["work", "home"]);
         assert_eq!(views[1].key, accounts[1].state_key());
         assert!(views[1].stale);
@@ -782,7 +800,7 @@ mod units {
         off.enabled_upstream = Some(false);
         for subs in [Vec::new(), vec![off]] {
             let (accounts, reports) = setup(Status::Ready, subs, "");
-            let views = snapshot_views(&accounts, &reports);
+            let views = snapshot_views(&accounts, &reports, 300, now());
             assert_eq!(names(&views), ["work", "home"]);
             assert_eq!(views[1].remaining, None);
             assert!(!views[1].stale);
@@ -794,10 +812,10 @@ mod units {
     #[test]
     fn the_hidden_setting_drops_aggregator_items() {
         let (accounts, reports) = setup(Status::Ready, vec![sub("a1", Some(80.0))], "");
-        let views = snapshot_views(&accounts, &reports);
+        let views = snapshot_views(&accounts, &reports, 300, now());
         assert_eq!(names(&without_aggregators(&views)), ["work"]);
         let (accounts, reports) = setup(Status::Error, Vec::new(), "");
-        let views = snapshot_views(&accounts, &reports);
+        let views = snapshot_views(&accounts, &reports, 300, now());
         assert_eq!(names(&without_aggregators(&views)), ["work"]);
     }
 
@@ -809,7 +827,7 @@ mod units {
             vec![sub("a1", Some(80.0)), sub("b2", Some(10.0))],
             "",
         );
-        let views = snapshot_views(&accounts, &reports);
+        let views = snapshot_views(&accounts, &reports, 300, now());
         let picked = TraySelection::Custom(vec![
             accounts[1].state_key(),
             format!("{}/a1", accounts[1].state_key()),

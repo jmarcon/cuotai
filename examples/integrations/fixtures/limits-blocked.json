@@ -26,6 +26,7 @@
         "renewal_due": false
       },
       "age_seconds": 30,
+      "reading_age_seconds": 30,
       "freshness": "fresh",
       "stale": false,
       "incident": {

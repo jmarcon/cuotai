@@ -2051,7 +2051,19 @@ fn render_card(
     let chunks = Layout::vertical(constraints).split(inner);
 
     let mut chunk_index = 0;
+    // PRD 0040 re-validation H-1: the state and the age come from the core's
+    // one presentation of the reading's measurement time.
+    let interval = Duration::from_secs(account.effective_refresh_seconds(view.refresh_seconds));
+    let shown = |report: &Report| cuotai_core::freshness::present(report, interval, view.now);
     let status = match report {
+        Some(report) if report.status == Status::Ready => {
+            let shown = shown(report);
+            let color = match shown.freshness {
+                cuotai_core::freshness::Freshness::Fresh => status_color(report.status),
+                _ => YELLOW,
+            };
+            Span::styled(resolve_l10n(&shown.state()), Style::default().fg(color))
+        }
         Some(report) => Span::styled(
             crate::ui::status_label(report.status),
             Style::default().fg(status_color(report.status)),
@@ -2063,7 +2075,7 @@ fn render_card(
     };
     let (class_span, suffix) = match stale {
         Some(stale) => {
-            let age = age_text(stale.checked_at, view.now);
+            let age = resolve_l10n(&shown(stale).age_label());
             let style = Style::default().fg(YELLOW).add_modifier(Modifier::BOLD);
             let full = trf("dashboard.card.stale", "(stale) {age}", &[("age", &age)]);
             (
@@ -2079,7 +2091,7 @@ fn render_card(
                     .add_modifier(Modifier::BOLD),
             )),
             report.map(|report| {
-                let age = age_text(report.checked_at, view.now);
+                let age = resolve_l10n(&shown(report).age_label());
                 let full = format!(
                     "{age}{}{}",
                     data_as_of_suffix(report),
@@ -3183,27 +3195,46 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
         return;
     };
 
+    // PRD 0040 re-validation H-1: the state, the age and the time come from
+    // the core's one presentation ("Stale · read 2 h ago (07:05:00 UTC …)"
+    // for an old agent feed); a failed query keeps its attempt time.
+    let interval = Duration::from_secs(account.effective_refresh_seconds(view.refresh_seconds));
+    let (state, when) = crate::ui::report_state(report, interval, now);
+    let shown_at = if report.status == Status::Ready {
+        cuotai_core::freshness::reading_time(report)
+    } else {
+        report.checked_at
+    };
+    let state_color = match report.status {
+        Status::Ready
+            if cuotai_core::freshness::presented(report, interval, now)
+                != cuotai_core::freshness::Freshness::Fresh =>
+        {
+            YELLOW
+        }
+        status => status_color(status),
+    };
     lines.push(Line::from(vec![
         Span::styled(
             tr("dashboard.detail.status", "  STATUS  "),
             Style::default().fg(PURPLE).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            crate::ui::status_label(report.status),
+            state,
             Style::default()
-                .fg(status_color(report.status))
+                .fg(state_color)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             trf(
                 "dashboard.detail.checked",
-                "   ·   queried {age} ({utc} · {local} local){as_of}",
+                "   ·   {when} ({utc} · {local} local){as_of}",
                 &[
-                    ("age", &age_text(report.checked_at, now)),
-                    ("utc", &report.checked_at.format("%H:%M:%S UTC")),
+                    ("when", &when),
+                    ("utc", &shown_at.format("%H:%M:%S UTC")),
                     (
                         "local",
-                        &cuotai_core::instant::format_local(report.checked_at, &Local, "%H:%M:%S"),
+                        &cuotai_core::instant::format_local(shown_at, &Local, "%H:%M:%S"),
                     ),
                     ("as_of", &data_as_of_suffix(report)),
                 ],
@@ -3235,6 +3266,7 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
     // current report's notes below still carry the cause of the failure.
     let stale = view.last_good.get(account_index).copied().flatten();
     if let Some(stale) = stale {
+        let kept = cuotai_core::freshness::present(stale, interval, now);
         lines.push(Line::from(vec![
             Span::styled(
                 tr("dashboard.detail.reading", "  READING "),
@@ -3245,12 +3277,12 @@ fn render_detail(frame: &mut Frame, area: Rect, view: &View<'_>, targets: &mut T
                     "dashboard.detail.stale",
                     "(stale) last valid {age} ({utc} · {local} local)",
                     &[
-                        ("age", &age_text(stale.checked_at, now)),
-                        ("utc", &stale.checked_at.format("%H:%M:%S UTC")),
+                        ("age", &resolve_l10n(&kept.age_label())),
+                        ("utc", &kept.measured_at.format("%H:%M:%S UTC")),
                         (
                             "local",
                             &cuotai_core::instant::format_local(
-                                stale.checked_at,
+                                kept.measured_at,
                                 &Local,
                                 "%H:%M:%S",
                             ),
@@ -5306,6 +5338,113 @@ mod tests {
         // Too few rows: whole pools only, the last row left to the hint.
         let (rows, hidden) = fit_pools(&pools, 40, 2);
         assert_eq!((rows.len(), hidden), (1, 2));
+    }
+
+    /// PRD 0040 re-validation H-1: a Claude Code reading read 1 minute ago
+    /// but written 2 hours ago reads stale with its own age on the card and
+    /// in the details, never "Up to date" or "now", in en-US and pt-BR.
+    #[test]
+    fn an_old_fed_reading_reads_stale_on_the_card_and_in_details() {
+        let now = Utc::now();
+        let account = Account {
+            name: "Fed".into(),
+            provider: Provider::Claude,
+            params: [("query_mode".to_owned(), "claude_code".to_owned())].into(),
+            ..three_accounts().remove(0)
+        };
+        let mut metric = Metric::usage(
+            "5h",
+            23.0,
+            "%",
+            cuotai_core::MetricKind::Quota,
+            Some(cuotai_core::MetricWindow::Window5h),
+        );
+        metric.limit = Some(100.0);
+        let report = Report {
+            account: "Fed".into(),
+            provider: Provider::Claude,
+            checked_at: now - chrono::TimeDelta::minutes(1),
+            status: Status::Ready,
+            metrics: vec![metric],
+            source: "feed:claude_code".into(),
+            as_of: Some(now - chrono::TimeDelta::hours(2)),
+            ..ready_snapshot().reports.remove(0)
+        };
+        let accounts = vec![account];
+        let reports = vec![Some(report)];
+        for (locale, stale, age, current, just_now) in [
+            ("en-US", "Stale", "2 h ago", "Up to date", "now"),
+            (
+                "pt-BR",
+                "Desatualizada",
+                "há 2\u{a0}h",
+                "Atualizado",
+                "agora",
+            ),
+        ] {
+            let card = render_for_test(&accounts, &reports, &[], &[0], now, locale);
+            assert!(card.contains(stale), "{locale}: {card}");
+            assert!(card.contains(age), "{locale}: {card}");
+            assert!(!card.contains(current), "{locale}: {card}");
+            let details = crate::l10n::with_locale(locale, || {
+                let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+                terminal
+                    .draw(|frame| {
+                        draw(
+                            frame,
+                            View {
+                                accounts: &accounts,
+                                reports: &reports,
+                                model_counts: &[],
+                                live: &[],
+                                visible: &[0],
+                                selected: Some(0),
+                                details: true,
+                                detail_scroll: 0,
+                                show_unmeasured: true,
+                                refreshing: false,
+                                location: "",
+                                filter: "",
+                                filtering: false,
+                                next_refresh: None,
+                                error: None,
+                                anim: None,
+                                last_good: &[],
+                                recent: &[],
+                                refresh_seconds: 300,
+                                history: None,
+                                banner: None,
+                                incidents: &[],
+                                local_cost: None,
+                                sub_cards: &[],
+                                aggregators_collapsed: false,
+                                connection_focus: None,
+                                access_account: None,
+                                now,
+                            },
+                        );
+                    })
+                    .unwrap();
+                terminal
+                    .backend()
+                    .buffer()
+                    .content()
+                    .iter()
+                    .map(|cell| cell.symbol())
+                    .collect::<String>()
+            });
+            let status: String = details
+                .split("STATUS")
+                .nth(1)
+                .unwrap_or(&details)
+                .chars()
+                .take(120)
+                .collect();
+            assert!(status.contains(stale), "{locale}: {status}");
+            assert!(status.contains(age), "{locale}: {status}");
+            assert!(!status.contains(current), "{locale}: {status}");
+            assert!(!status.contains(just_now), "{locale}: {status}");
+        }
     }
 
     #[test]

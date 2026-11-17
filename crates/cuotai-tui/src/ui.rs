@@ -4056,6 +4056,31 @@ pub(crate) fn age_text(
     ))
 }
 
+/// PRD 0040 re-validation H-1: the state word and the "queried {age}" /
+/// "read {age}" of `report`, from the core's one presentation
+/// ([`cuotai_core::freshness::present`]): a ready report reads "Up to date",
+/// "Aging" or "Stale" by its measurement time, a failed one its status and
+/// the age of the attempt.
+pub(crate) fn report_state(
+    report: &cuotai_core::Report,
+    interval: std::time::Duration,
+    now: chrono::DateTime<chrono::Utc>,
+) -> (String, String) {
+    use cuotai_core::freshness::{self, Freshness, Presented};
+    if report.status == cuotai_core::Status::Ready {
+        let shown = freshness::present(report, interval, now);
+        return (resolve_l10n(&shown.state()), resolve_l10n(&shown.when()));
+    }
+    // The time of the failed attempt, not of a reading.
+    let attempt = Presented {
+        measured_at: report.checked_at,
+        age: freshness::age(report.checked_at, now),
+        freshness: Freshness::Fresh,
+        fed: false,
+    };
+    (status_label(report.status), resolve_l10n(&attempt.when()))
+}
+
 /// PRD 0033 RF3.2: " · data as of 06:00" when the provider states that its
 /// data lags the query by more than 15 minutes; empty otherwise.
 pub(crate) fn data_as_of_suffix(report: &cuotai_core::Report) -> String {
