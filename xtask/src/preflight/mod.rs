@@ -382,13 +382,25 @@ fn tasks(step: Step, context: &Context) -> Option<Vec<Task>> {
         Step::Fmt => vec![Task::cargo(&["fmt", "--all", "--", "--check"])],
         Step::FmtDesktop => vec![with_manifest(vec!["fmt"], &["--", "--check"])],
         Step::ChangelogGate => {
-            vec![xtask(&[
+            let mut list = vec![xtask(&[
                 "changelog-gate",
                 "--base",
                 &context.base,
                 "--head",
                 &context.head,
-            ])]
+            ])];
+            // `--full` also audits the whole history since the cutover, as
+            // the `release-preflight` job of CI does when the rules change.
+            if context.mode == Mode::Full {
+                list.push(xtask(&[
+                    "changelog-gate",
+                    "--base",
+                    crate::changelog_gate::HISTORY_BASE,
+                    "--head",
+                    &context.head,
+                ]));
+            }
+            list
         }
         Step::ChangelogCheck => vec![xtask(&["changelog-check"])],
         Step::ReleaseCheck => vec![xtask(&["release-check"])],
@@ -1302,6 +1314,25 @@ mod tests {
         assert_eq!(
             first_task(Step::ChangelogGate, &[]).describe(),
             "xtask changelog-gate --base origin/main --head HEAD"
+        );
+        assert_eq!(
+            tasks(Step::ChangelogGate, &context(Mode::Push, &[]))
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn full_also_audits_the_history_since_the_cutover() {
+        let list = tasks(Step::ChangelogGate, &context(Mode::Full, &[])).unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(
+            list[1].describe(),
+            format!(
+                "xtask changelog-gate --base {} --head HEAD",
+                crate::changelog_gate::HISTORY_BASE
+            )
         );
     }
 

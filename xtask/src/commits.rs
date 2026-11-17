@@ -108,6 +108,31 @@ pub struct Trailers {
     pub all: Vec<(String, String)>,
 }
 
+/// A problem found while reading the trailers, with the trailer key it is
+/// about (the commit gate files it under that key's rule).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TrailerProblem {
+    /// `Changelog`, `Changelog-Category`, `Refs`, `BREAKING CHANGE`,
+    /// `Changelog-Edit` or `Version-Override`.
+    pub key: &'static str,
+    pub text: String,
+}
+
+impl TrailerProblem {
+    fn new(key: &'static str, text: impl Into<String>) -> TrailerProblem {
+        TrailerProblem {
+            key,
+            text: text.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for TrailerProblem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text)
+    }
+}
+
 /// Keys this module interprets; a different capitalization is a mistake.
 const KNOWN_KEYS: [&str; 7] = [
     "Changelog",
@@ -138,7 +163,7 @@ fn trailer_key(line: &str) -> Option<(&str, &str)> {
 
 /// The trailers of `body` (the full message or the body without the
 /// subject) plus the problems found while reading them.
-pub fn parse_trailers(body: &str) -> (Trailers, Vec<String>) {
+pub fn parse_trailers(body: &str) -> (Trailers, Vec<TrailerProblem>) {
     let text = body.replace("\r\n", "\n").replace('\r', "\n");
     let paragraphs: Vec<Vec<&str>> = text
         .split("\n\n")
@@ -185,7 +210,8 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<String>) {
     }
 
     let mut trailers = Trailers::default();
-    let mut problems = Vec::new();
+    let mut problems: Vec<TrailerProblem> = Vec::new();
+    let mut refs_problems: Vec<String> = Vec::new();
     for (key, value) in &pairs {
         match key.as_str() {
             "Changelog" => {
@@ -196,10 +222,10 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<String>) {
                             .trim_matches(['(', ')'])
                             .trim();
                         if reason.is_empty() {
-                            problems.push(
-                                "'Changelog: skip' needs a reason ('Changelog: skip <reason>')"
-                                    .to_string(),
-                            );
+                            problems.push(TrailerProblem::new(
+                                "Changelog",
+                                "'Changelog: skip' needs a reason ('Changelog: skip <reason>')",
+                            ));
                         } else {
                             trailers.skip = Some(reason.to_string());
                         }
@@ -207,7 +233,10 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<String>) {
                     }
                 }
                 if value.is_empty() {
-                    problems.push("'Changelog:' trailer without a sentence".to_string());
+                    problems.push(TrailerProblem::new(
+                        "Changelog",
+                        "'Changelog:' trailer without a sentence",
+                    ));
                 } else {
                     trailers.sentences.push(value.clone());
                 }
@@ -217,24 +246,30 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<String>) {
                 .find(|category| category.title() == value)
             {
                 Some(category) => trailers.category = Some(category),
-                None => problems.push(format!(
-                    "'Changelog-Category: {value}' is not one of Added, Changed, Deprecated, Removed, Fixed, Security"
+                None => problems.push(TrailerProblem::new(
+                    "Changelog-Category",
+                    format!(
+                        "'Changelog-Category: {value}' is not one of Added, Changed, Deprecated, Removed, Fixed, Security"
+                    ),
                 )),
             },
-            "Refs" => parse_refs(value, &mut trailers.refs, &mut problems),
+            "Refs" => parse_refs(value, &mut trailers.refs, &mut refs_problems),
             "BREAKING CHANGE" | "BREAKING-CHANGE" => {
                 if value.is_empty() {
-                    problems.push(
-                        "'BREAKING CHANGE:' needs the migration text ('BREAKING CHANGE: <migration>')"
-                            .to_string(),
-                    );
+                    problems.push(TrailerProblem::new(
+                        "BREAKING CHANGE",
+                        "'BREAKING CHANGE:' needs the migration text ('BREAKING CHANGE: <migration>')",
+                    ));
                 } else {
                     trailers.breaking = Some(value.clone());
                 }
             }
             "Changelog-Edit" => {
                 if value.is_empty() {
-                    problems.push("'Changelog-Edit:' needs a reason".to_string());
+                    problems.push(TrailerProblem::new(
+                        "Changelog-Edit",
+                        "'Changelog-Edit:' needs a reason",
+                    ));
                 } else {
                     trailers.changelog_edit = Some(value.clone());
                 }
@@ -245,16 +280,31 @@ pub fn parse_trailers(body: &str) -> (Trailers, Vec<String>) {
                     .iter()
                     .find(|known| known.eq_ignore_ascii_case(other))
                 {
-                    problems.push(format!(
-                        "trailer key '{other}' must be spelled '{known}' (keys are case-sensitive)"
+                    let key = match *known {
+                        "BREAKING-CHANGE" => "BREAKING CHANGE",
+                        known => known,
+                    };
+                    problems.push(TrailerProblem::new(
+                        key,
+                        format!(
+                            "trailer key '{other}' must be spelled '{known}' (keys are case-sensitive)"
+                        ),
                     ));
                 }
             }
         }
     }
     if trailers.skip.is_some() && !trailers.sentences.is_empty() {
-        problems.push("'Changelog: skip' and a 'Changelog:' sentence in the same commit".into());
+        problems.push(TrailerProblem::new(
+            "Changelog",
+            "'Changelog: skip' and a 'Changelog:' sentence in the same commit",
+        ));
     }
+    problems.extend(
+        refs_problems
+            .into_iter()
+            .map(|text| TrailerProblem::new("Refs", text)),
+    );
     trailers.all = pairs;
     (trailers, problems)
 }
@@ -401,7 +451,7 @@ pub struct Commit {
     pub header: Result<Header, String>,
     pub trailers: Trailers,
     /// Trailer problems (lowercase keys, missing reasons…).
-    pub problems: Vec<String>,
+    pub problems: Vec<TrailerProblem>,
 }
 
 impl Commit {
@@ -558,8 +608,16 @@ pub fn neutralize_skip_markers(text: &str) -> String {
         .join("\n")
 }
 
-/// RF2.1 rule 7: the light lint of one `Changelog:` sentence.
+/// RF2.1 rule 7: the light lint of one `Changelog:` sentence, every check
+/// included.
 pub fn lint_sentence(sentence: &str) -> Vec<String> {
+    lint_sentence_with(sentence, &|_| true)
+}
+
+/// [`lint_sentence`] where `applies(id)` says whether a check that was added
+/// after the cutover applies to this commit (the commit gate scopes them
+/// with `RULES_SINCE`). The ids are `ui-path`.
+pub fn lint_sentence_with(sentence: &str, applies: &dyn Fn(&str) -> bool) -> Vec<String> {
     let mut problems = Vec::new();
     if !sentence.chars().next().is_some_and(|c| c.is_uppercase()) {
         problems.push(format!(
@@ -588,10 +646,8 @@ pub fn lint_sentence(sentence: &str) -> Vec<String> {
             sentence.chars().take(40).collect::<String>()
         ));
     }
-    if has_skip_marker(sentence) {
-        problems.push("sentence carries a skip-CI marker".to_string());
-    }
-    if has_ascii_ui_path(sentence) {
+    // A skip marker is rule 6 of the gate, which reads the whole message.
+    if applies("ui-path") && has_ascii_ui_path(sentence) {
         problems.push(format!(
             "sentence '{sentence}' writes a UI path with '>' or '→': use › (Settings › About)"
         ));
@@ -756,7 +812,11 @@ mod tests {
     fn lowercase_key_is_rejected() {
         let c = commit("feat: a", "changelog: Something.");
         assert!(c.trailers.sentences.is_empty());
-        assert!(c.problems[0].contains("case-sensitive"), "{:?}", c.problems);
+        assert!(
+            c.problems[0].text.contains("case-sensitive"),
+            "{:?}",
+            c.problems
+        );
     }
 
     #[test]
@@ -777,7 +837,7 @@ mod tests {
         );
         let bare = commit("feat: a", "Changelog: skip");
         assert!(bare.trailers.skip.is_none());
-        assert!(bare.problems[0].contains("needs a reason"));
+        assert!(bare.problems[0].text.contains("needs a reason"));
         // "Skipped" is a sentence, not the skip keyword.
         let sentence = commit("feat: a", "Changelog: skipping frames is gone.");
         assert_eq!(sentence.trailers.sentences.len(), 1);
@@ -787,7 +847,7 @@ mod tests {
     fn breaking_without_text_is_rejected_and_bang_counts() {
         let empty = commit("feat: a", "BREAKING CHANGE:");
         assert!(empty.is_breaking());
-        assert!(empty.problems[0].contains("migration"));
+        assert!(empty.problems[0].text.contains("migration"));
         let bang = commit("feat!: a", "Changelog: Something.");
         assert!(bang.is_breaking());
         assert!(bang.trailers.breaking.is_none());
@@ -854,7 +914,7 @@ mod tests {
             Category::Changed
         );
         let bad = commit("feat: a", "Changelog-Category: Features");
-        assert!(bad.problems[0].contains("Changelog-Category"));
+        assert!(bad.problems[0].text.contains("Changelog-Category"));
     }
 
     fn v(text: &str) -> Version {

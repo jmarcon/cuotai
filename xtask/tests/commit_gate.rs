@@ -326,3 +326,124 @@ fn a_published_version_never_folds_into_the_pre_release_history() {
     );
     gate(&repo, "HEAD~1").unwrap();
 }
+
+fn gate_with(
+    repo: &Path,
+    base: &str,
+    head: &str,
+    since: &[(&'static str, &str)],
+) -> Result<usize, String> {
+    xtask::changelog_gate::run_with(repo, base, head, since).map_err(|e| e.to_string())
+}
+
+const UI_PATH: &str = "Changelog: Open Settings > About to see it.";
+
+#[test]
+fn a_scoped_check_spares_the_commits_written_before_it() {
+    let (_d, repo) = support::repo();
+    let base = head(&repo);
+    commit(
+        &repo,
+        &format!("fix(core): old wording\n\n{UI_PATH}"),
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let marker = commit(&repo, "docs: the rule lands", "docs/x.md", "x\n");
+    commit(
+        &repo,
+        &format!("fix(core): new wording\n\n{UI_PATH}"),
+        "crates/cuotai-core/src/lib.rs",
+        "// v3\n",
+    );
+    let error = gate_with(&repo, &base, "HEAD", &[("ui-path", &marker)]).unwrap_err();
+    assert!(error.contains("fix(core): new wording: rule 7:"), "{error}");
+    assert!(!error.contains("old wording"), "{error}");
+    assert!(
+        error.contains("commit gate failed (1 problem(s))"),
+        "{error}"
+    );
+    // Without the scoping entry both fail.
+    let error = gate_with(&repo, &base, "HEAD", &[]).unwrap_err();
+    assert!(
+        error.contains("old wording") && error.contains("new wording"),
+        "{error}"
+    );
+    // Only the old one: it passes.
+    gate_with(&repo, &base, "HEAD~2", &[("ui-path", &marker)]).unwrap();
+}
+
+#[test]
+fn a_scoping_commit_missing_from_the_clone_applies_the_check() {
+    let (_d, origin) = support::repo();
+    let base = head(&origin);
+    commit(
+        &origin,
+        &format!("fix(core): old wording\n\n{UI_PATH}"),
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    git(&origin, &["branch", "feature"]);
+    let marker = commit(&origin, "docs: the rule lands", "docs/x.md", "x\n");
+    git(&origin, &["switch", "-q", "feature"]);
+    commit(
+        &origin,
+        &format!("fix(core): new wording\n\n{UI_PATH}"),
+        "crates/cuotai-core/src/lib.rs",
+        "// v3\n",
+    );
+    git(&origin, &["switch", "-q", "main"]);
+    let since = [("ui-path", marker.as_str())];
+    // With the marker present, only the new commit fails.
+    let error = gate_with(&origin, &base, "feature", &since).unwrap_err();
+    assert!(!error.contains("old wording"), "{error}");
+    // A clone of the feature branch alone lacks the marker: fail closed.
+    let dir = tempfile::tempdir().unwrap();
+    let clone = dir.path().join("clone");
+    let status = std::process::Command::new("git")
+        .args(["clone", "-q", "--single-branch", "--branch", "feature"])
+        .arg(format!("file://{}", origin.display()))
+        .arg(&clone)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let error = gate_with(&clone, &base, "HEAD", &since).unwrap_err();
+    assert!(
+        error.contains("old wording") && error.contains("new wording"),
+        "{error}"
+    );
+    // The real table names commits of the Cuotai history, absent here.
+    let error = gate(&clone, &base).unwrap_err();
+    assert!(error.contains("old wording"), "{error}");
+}
+
+#[test]
+fn problems_carry_one_label_each_and_the_footer_fits() {
+    let (_d, repo) = support::repo();
+    let cargo = read(&repo, "Cargo.toml").replace("0.79.0", "0.80.0");
+    commit(
+        &repo,
+        "feat(core): bump\n\nChangelog: Something new.",
+        "Cargo.toml",
+        &cargo,
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(error.contains("Rule 4: drop the version"), "{error}");
+    assert!(!error.contains("Rules 1-3"), "{error}");
+
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "fix(core): a\n\nchangelog: A fix.\nRefs: PRD 0001 RF9",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("commit gate failed (2 problem(s))"),
+        "{error}"
+    );
+    assert!(error.contains("rule 2: trailer key 'changelog'"), "{error}");
+    assert!(error.contains("rule 8: Refs: PRD 0001 RF9"), "{error}");
+    assert!(error.contains("Rules 1-3 and 6-8: amend"), "{error}");
+    assert!(!error.contains("Rule 4"), "{error}");
+}

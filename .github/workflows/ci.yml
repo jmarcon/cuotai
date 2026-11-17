@@ -71,6 +71,7 @@ jobs:
     outputs:
       code: ${{ steps.classify.outputs.code }}
       release_tooling: ${{ steps.classify.outputs.release_tooling }}
+      gate_rules: ${{ steps.classify.outputs.gate_rules }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -119,6 +120,7 @@ jobs:
 
           code=true
           tooling=true
+          gate=true
           if [ -n "$range" ]; then
             list="$(mktemp)"
             # --no-renames lists both sides of a move, so a file moved out of
@@ -127,6 +129,7 @@ jobs:
               total=0
               code_files=0
               tooling_files=0
+              gate_files=0
               while IFS= read -r -d '' file; do
                 total=$((total + 1))
                 case "$file" in
@@ -139,11 +142,20 @@ jobs:
                   xtask/* | .github/workflows/* | scripts/release/* | packaging/* | deny.toml | apps/desktop/src-tauri/tauri*.json)
                     tooling_files=$((tooling_files + 1)) ;;
                 esac
+                # The commit gate's rules: the history audit of
+                # `release-preflight` runs when they change.
+                case "$file" in
+                  xtask/src/commits.rs | xtask/src/changelog_gate.rs | xtask/src/plan_links.rs)
+                    gate_files=$((gate_files + 1)) ;;
+                esac
                 echo "$kind  $file"
                 if [ "$kind" = code ]; then code_files=$((code_files + 1)); fi
               done < "$list"
               if [ "$total" -gt 0 ] && [ "$tooling_files" -eq 0 ]; then
                 tooling=false
+              fi
+              if [ "$total" -gt 0 ] && [ "$gate_files" -eq 0 ]; then
+                gate=false
               fi
               if [ "$total" -eq 0 ]; then
                 why="empty diff for $range"
@@ -158,14 +170,18 @@ jobs:
             fi
           fi
 
-          echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "release_tooling=$tooling" >> "$GITHUB_OUTPUT"
-          echo "code=$code release_tooling=$tooling ($why)"
+          {
+            echo "code=$code"
+            echo "release_tooling=$tooling"
+            echo "gate_rules=$gate"
+          } >> "$GITHUB_OUTPUT"
+          echo "code=$code release_tooling=$tooling gate_rules=$gate ($why)"
           {
             echo "### Change classification"
             echo
             echo "- code: \`$code\`"
             echo "- release tooling: \`$tooling\`"
+            echo "- commit gate rules: \`$gate\`"
             echo "- reason: $why"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -775,6 +791,15 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: ./target/debug/xtask release prepare --check --rev "$HEAD_SHA"
+      # PRD 0039 RF2 (F-22): a change to the gate's rules must keep every
+      # commit since the cutover passing; a new check is scoped with
+      # `RULES_SINCE` in xtask/src/changelog_gate.rs. The checkout above has
+      # the full history. Keep CUTOVER equal to `HISTORY_BASE` there.
+      - name: commit gate over the history since the cutover
+        if: needs.changes.outputs.gate_rules == 'true'
+        env:
+          CUTOVER: 72fa1d44917dfeb05315769f303210c60f1e60a2
+        run: ./target/debug/xtask changelog-gate --base "$CUTOVER^" --head HEAD
       - run: bash scripts/release/test-collect-linux.sh
       - run: cargo test -p xtask --locked --test packages
 

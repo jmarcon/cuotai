@@ -140,7 +140,15 @@ pub fn check_file(repo: &Path, file: &Path) -> Res<()> {
     let commit = Commit::parse(NO_SHA, subject, &message);
     let files = staged_files(repo)?;
     let plans = plan_links::Plans::read(repo).ok();
-    let mut problems = changelog_gate::check_message(&commit, &files, plans.as_ref());
+    let mut problems: Vec<String> = changelog_gate::check_message(
+        &commit,
+        &files,
+        plans.as_ref(),
+        &changelog_gate::Scope::all(),
+    )
+    .iter()
+    .map(ToString::to_string)
+    .collect();
     problems.extend(message_problems(&commit));
     problems.extend(identity_problems(
         &pending_email(repo, "GIT_AUTHOR_IDENT")?,
