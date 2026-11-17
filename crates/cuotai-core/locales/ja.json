@@ -145,7 +145,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2473,6 +2476,7 @@
   "metric.label.azure_resource_cost": "Azure リソースの費用（今月）",
   "metric.label.bedrock_cost": "AWS Bedrock の費用（今月）",
   "metric.label.budget_of": "予算 · {label}",
+  "metric.label.budget_other_scope": "予算（その他の範囲）",
   "metric.label.month_cost_usd": "今月の費用（USD）",
   "metric.label.month_cost": "今月の費用（{currency}）",
   "metric.label.completion_month": "今月の completion の使用量（{currency}）",
@@ -2482,6 +2486,8 @@
   "metric.label.copilot_quota": "Copilot: {quota}",
   "metric.label.postpaid_forecast": "現在のサイクルの後払いの予定使用量",
   "metric.label.byok_month": "今月の BYOK（プロバイダーが請求）",
+  "metric.label.byok_total": "BYOK 合計",
+  "metric.label.byok_external": "BYOK（外部）",
   "metric.label.provider_budget_named": "プロバイダーの予算 — {name}",
   "metric.label.provider_budget_period": "プロバイダーの予算（{period}）",
   "metric.label.provider_budget": "プロバイダーの予算",

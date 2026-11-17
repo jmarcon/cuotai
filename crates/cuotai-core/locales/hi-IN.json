@@ -118,7 +118,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2491,6 +2494,7 @@
   "metric.label.azure_resource_cost": "Azure रिसोर्स की लागत (चालू महीना)",
   "metric.label.bedrock_cost": "AWS Bedrock की लागत (चालू महीना)",
   "metric.label.budget_of": "बजट · {label}",
+  "metric.label.budget_other_scope": "बजट (अन्य दायरा)",
   "metric.label.month_cost_usd": "चालू महीने की लागत (USD)",
   "metric.label.month_cost": "चालू महीने की लागत ({currency})",
   "metric.label.completion_month": "चालू महीने में completion का उपयोग ({currency})",
@@ -2500,6 +2504,8 @@
   "metric.label.copilot_quota": "Copilot: {quota}",
   "metric.label.postpaid_forecast": "चालू चक्र में अनुमानित पोस्टपेड उपयोग",
   "metric.label.byok_month": "महीने में BYOK (प्रदाता द्वारा बिल)",
+  "metric.label.byok_total": "कुल BYOK",
+  "metric.label.byok_external": "BYOK (बाहरी)",
   "metric.label.provider_budget_named": "प्रदाता का बजट — {name}",
   "metric.label.provider_budget_period": "प्रदाता का बजट ({period})",
   "metric.label.provider_budget": "प्रदाता का बजट",

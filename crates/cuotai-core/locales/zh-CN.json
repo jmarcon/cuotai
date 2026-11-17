@@ -138,7 +138,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2466,6 +2469,7 @@
   "metric.label.azure_resource_cost": "Azure 资源费用（本月）",
   "metric.label.bedrock_cost": "AWS Bedrock 费用（本月）",
   "metric.label.budget_of": "预算 · {label}",
+  "metric.label.budget_other_scope": "预算（其他范围）",
   "metric.label.month_cost_usd": "本月费用（USD）",
   "metric.label.month_cost": "本月费用（{currency}）",
   "metric.label.completion_month": "本月 completion 用量（{currency}）",
@@ -2475,6 +2479,8 @@
   "metric.label.copilot_quota": "Copilot：{quota}",
   "metric.label.postpaid_forecast": "本周期预计后付费用量",
   "metric.label.byok_month": "本月 BYOK（由提供商收费）",
+  "metric.label.byok_total": "BYOK 总计",
+  "metric.label.byok_external": "BYOK（外部）",
   "metric.label.provider_budget_named": "提供商预算 — {name}",
   "metric.label.provider_budget_period": "提供商预算（{period}）",
   "metric.label.provider_budget": "提供商预算",

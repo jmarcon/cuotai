@@ -555,18 +555,21 @@ fn spend(
     }
 }
 
-/// A scope name that is safe to show: short and made of identifier characters.
-fn safe_scope(scope: &str) -> String {
-    if (1..=40).contains(&scope.len())
+/// A scope name that is safe to show: short and made of identifier
+/// characters. `None` for any other scope, which is then shown as
+/// [`OTHER_SCOPE_BUDGET`].
+fn safe_scope(scope: &str) -> Option<String> {
+    ((1..=40).contains(&scope.len())
         && scope
             .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b':'))
-    {
-        scope.to_string()
-    } else {
-        "outro".to_string()
-    }
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b':')))
+    .then(|| scope.to_string())
 }
+
+/// The label of a budget layer with no scope, or one that is not safe to
+/// show. It is the history key, so it keeps the adapter's text;
+/// `metric_text` renders it as `metric.label.budget_other_scope`.
+const OTHER_SCOPE_BUDGET: &str = "Orçamento (outro)";
 
 // --------------------------------------------------------------------- /key
 
@@ -633,11 +636,8 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
 
     // RF2.3: every other budget layer.
     for budget in budgets.iter().filter_map(Value::as_object) {
-        let scope = budget
-            .get("scope")
-            .and_then(Value::as_str)
-            .unwrap_or("outro");
-        if scope == "key_limit" {
+        let scope = budget.get("scope").and_then(Value::as_str);
+        if scope == Some("key_limit") {
             continue;
         }
         let (Some(limit), Some(remaining)) = (
@@ -655,7 +655,10 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
             window,
             resets_at: instant(budget.get("resets_at")).or(window.and(computed)),
             ..metric(
-                format!("Orçamento ({})", safe_scope(scope)),
+                match scope.and_then(safe_scope) {
+                    Some(scope) => format!("Orçamento ({scope})"),
+                    None => OTHER_SCOPE_BUDGET.to_string(),
+                },
                 MetricKind::Quota,
                 USD,
             )
@@ -667,10 +670,13 @@ fn parse_key(value: &Value, now: DateTime<Utc>, source: &'static str) -> Result<
         .and_then(Value::as_str)
         .filter(|scope| *scope != "key_limit")
     {
-        let scope = safe_scope(scope);
+        let scope = match safe_scope(scope) {
+            Some(scope) => ParamValue::from(scope),
+            None => ParamValue::l10n(crate::metric_text::metric_text(OTHER_SCOPE_BUDGET)),
+        };
         notes.push_params(
             "note.open_router.effective_budget",
-            params([("scope", ParamValue::from(scope.clone()))]),
+            params([("scope", scope)]),
             "The budget that blocks requests first is the one with scope {scope}.",
         );
     }
@@ -1518,6 +1524,51 @@ mod tests {
         assert_eq!((unknown.window, unknown.resets_at), (None, None));
         find(&data, "Orçamento (outro)");
         assert!(ids(&data).contains(&"note.open_router.effective_budget"));
+    }
+
+    /// PRD 0038 review F-01 and R-02: a budget layer with an unsafe scope,
+    /// or none, keeps the history label "Orçamento (outro)" and reads in
+    /// each language; so does the effective budget's scope in its note.
+    #[test]
+    fn an_unsafe_or_missing_budget_scope_is_localized() {
+        use crate::metric_text::metric_text;
+        let body = json!({"data": {
+            "usage": 1.0,
+            "budgets": [
+                {"scope": "not a safe scope!", "limit_usd": 20, "remaining_usd": 15},
+                {"limit_usd": 10, "remaining_usd": 9}
+            ],
+            "effective_budget": {"scope": "\u{202e}evil"}
+        }});
+        let data = parse_key(&body, clock(), KEY_SOURCE).expect("decodes");
+        let others: Vec<&Metric> = data
+            .metrics
+            .iter()
+            .filter(|m| m.label == OTHER_SCOPE_BUDGET)
+            .collect();
+        assert_eq!(others.len(), 2);
+        let text = metric_text(OTHER_SCOPE_BUDGET);
+        assert_eq!(text.id, "metric.label.budget_other_scope");
+        assert_eq!(text.resolve("en"), "Budget (other scope)");
+        assert_eq!(text.resolve("de"), "Budget (anderer Bereich)");
+        assert_eq!(text.resolve("pt-BR"), OTHER_SCOPE_BUDGET);
+        let note = data
+            .notes_l10n
+            .iter()
+            .find(|n| n.id == "note.open_router.effective_budget")
+            .expect("the effective budget note");
+        assert!(note.resolve("en").contains("Budget (other scope)"));
+        assert!(note.resolve("de").contains("Budget (anderer Bereich)"));
+        for (raw, english) in [
+            ("BYOK total", "BYOK total"),
+            ("BYOK (externo)", "BYOK (external)"),
+        ] {
+            let text = metric_text(raw);
+            assert_ne!(text.id, "metric.verbatim", "{raw}");
+            assert_eq!(text.resolve("en"), english);
+            assert_eq!(text.resolve("pt-BR"), raw);
+        }
+        assert_eq!(metric_text("BYOK (externo)").resolve("de"), "BYOK (extern)");
     }
 
     // F9

@@ -260,8 +260,7 @@ fn metric_identities_match_the_snapshot() {
 /// heuristic decides (PRD 0037 re-validation R-02: unaccented Portuguese
 /// such as "Vozes personalizadas" has no marker), and the English
 /// rendering carries no Portuguese marker nor [`UNACCENTED_PORTUGUESE`]
-/// word, so a slot value such as the scope "outro" is caught too. The texts
-/// on [`PENDING_PRD_0038_O1`] are known gaps.
+/// word, so a slot value such as the scope "outro" is caught too.
 #[test]
 fn every_fixture_text_has_an_english_display_text() {
     use crate::metric_text::metric_text;
@@ -276,9 +275,6 @@ fn every_fixture_text_has_an_english_display_text() {
             for raw in texts.into_iter().flatten() {
                 let text = metric_text(raw);
                 let english = text.resolve("en");
-                if pending_o1(raw) {
-                    continue;
-                }
                 if text.id == "metric.verbatim" && !raw.is_empty() && !verbatim_ok(raw) {
                     problems.push(format!("{adapter}: {raw:?} has no metric.* id"));
                 } else if !portuguese_in(&english).is_empty() {
@@ -1018,38 +1014,6 @@ fn portuguese_in(text: &str) -> Vec<String> {
     found
 }
 
-/// PRD 0038 Delivery, group O1, localizes these OpenRouter texts (review
-/// F-01): until then they are known gaps, not verbatim texts. `(source
-/// literal, the id O1 gives it, where it comes from)`.
-/// [`pending_prd_0038_o1_is_still_pending`] fails as soon as one of them
-/// resolves, so O1 must empty this list.
-const PENDING_PRD_0038_O1: &[(&str, &str, &str)] = &[
-    (
-        "BYOK (externo)",
-        "metric.label.byok_external",
-        "open_router.rs: the BYOK total of `/activity`",
-    ),
-    (
-        "BYOK total",
-        "metric.label.byok_total",
-        "open_router.rs: the key's `byok_usage`",
-    ),
-    (
-        "outro",
-        "metric.label.budget_other_scope",
-        "open_router.rs: the budget scope fallback of `safe_scope` and of a budget without `scope`",
-    ),
-];
-
-fn pending_o1(text: &str) -> bool {
-    PENDING_PRD_0038_O1.iter().any(|(pending, _, _)| {
-        text == *pending
-            || text
-                .split(|c: char| !c.is_alphanumeric())
-                .any(|word| word == *pending)
-    })
-}
-
 /// Functions of the [`Fixture::Metrics`] modules that their fixtures do not
 /// run, each with its reason: the branches of a module that serve a
 /// [`Fixture::SourceScan`] provider. Their texts are still checked by
@@ -1578,7 +1542,7 @@ fn not_metric_text(text: &str) -> bool {
 /// period or scope, and each literal with a Portuguese marker or word,
 /// resolves through `metric_text` to a `metric.*` id, is part of a
 /// template, or is on [`VERBATIM_OK`] / [`NOT_METRIC_TEXT`] with its
-/// reason. The texts PRD 0038 O1 localizes are on [`PENDING_PRD_0038_O1`].
+/// reason.
 #[test]
 fn adapter_literals_are_localized() {
     let literals = adapter_display_literals();
@@ -1603,9 +1567,7 @@ fn adapter_literals_are_localized() {
     );
     let problems: Vec<String> = literals
         .iter()
-        .filter(|(_, _, text, _, _)| {
-            !literal_resolves(text) && !not_metric_text(text) && !pending_o1(text)
-        })
+        .filter(|(_, _, text, _, _)| !literal_resolves(text) && !not_metric_text(text))
         .map(|(file, line, text, why, _)| {
             format!("src/providers/{file}:{line}: {text:?} ({why:?}) has no metric.* id")
         })
@@ -1630,44 +1592,15 @@ fn the_scan_sees_helper_arguments_returned_scopes_and_unaccented_portuguese() {
         Some(Found::HelperArgument)
     );
     assert_eq!(why("open_router.rs", "BYOK total"), Some(Found::LoopTuple));
-    assert_eq!(why("open_router.rs", "outro"), Some(Found::ReturnedText));
+    assert_eq!(
+        why("open_router.rs", "Orçamento (outro)"),
+        Some(Found::PortugueseMarker)
+    );
+    assert_eq!(why("kimchi.rs", "chave de API"), Some(Found::ReturnedText));
     assert!(portuguese_in("BYOK (externo)").contains(&"externo".to_string()));
     assert!(portuguese_in("Budget (outro)").contains(&"outro".to_string()));
     assert!(portuguese_in("Vozes personalizadas").len() >= 2);
     assert!(portuguese_in("Budget (team)").is_empty());
-}
-
-/// PRD 0038 O1 empties [`PENDING_PRD_0038_O1`]: each entry must still be
-/// written by the adapter and still lack its id. When O1 localizes one,
-/// this fails: remove the entry.
-#[test]
-fn pending_prd_0038_o1_is_still_pending() {
-    use crate::metric_text::{AGGREGATOR_LABELS, ENGLISH_LABELS, TABLE};
-    let literals = adapter_display_literals();
-    for (text, id, reason) in PENDING_PRD_0038_O1 {
-        assert!(!reason.trim().is_empty(), "{text:?}");
-        assert!(
-            literals.iter().any(|(_, _, t, _, _)| t == text),
-            "{text:?} is no longer in the adapter sources: remove it from PENDING_PRD_0038_O1"
-        );
-        let localized = literal_resolves(text)
-            || TABLE
-                .iter()
-                .chain(AGGREGATOR_LABELS)
-                .chain(ENGLISH_LABELS)
-                .any(|(_, table_id, _)| table_id == id)
-            || crate::text::catalog_locales().iter().any(|locale| {
-                crate::text::core_catalog(locale).is_some_and(|catalog| catalog.get(*id).is_some())
-            });
-        assert!(
-            !localized,
-            "{text:?} is localized now ({id}): remove it from PENDING_PRD_0038_O1"
-        );
-        assert!(
-            VERBATIM_OK.iter().all(|(ok, _)| ok != text),
-            "{text:?} is pending, not verbatim"
-        );
-    }
 }
 
 /// A regex that matches a text built from the `format!` template `text`

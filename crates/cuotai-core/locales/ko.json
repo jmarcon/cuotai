@@ -119,7 +119,10 @@
       "metric.label.codebuddy_cadence_n",
       "metric.label.codebuddy_cadence",
       "note.eleven_labs.overage_currency_unknown",
-      "query.retry_after_until"
+      "query.retry_after_until",
+      "metric.label.byok_external",
+      "metric.label.byok_total",
+      "metric.label.budget_other_scope"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2447,6 +2450,7 @@
   "metric.label.azure_resource_cost": "Azure 리소스 비용(이번 달)",
   "metric.label.bedrock_cost": "AWS Bedrock 비용(이번 달)",
   "metric.label.budget_of": "예산 · {label}",
+  "metric.label.budget_other_scope": "예산(기타 범위)",
   "metric.label.month_cost_usd": "이번 달 비용(USD)",
   "metric.label.month_cost": "이번 달 비용({currency})",
   "metric.label.completion_month": "이번 달 completion 사용량({currency})",
@@ -2456,6 +2460,8 @@
   "metric.label.copilot_quota": "Copilot: {quota}",
   "metric.label.postpaid_forecast": "이번 주기 후불 사용 예상",
   "metric.label.byok_month": "이번 달 BYOK(제공업체에서 청구)",
+  "metric.label.byok_total": "BYOK 합계",
+  "metric.label.byok_external": "BYOK(외부)",
   "metric.label.provider_budget_named": "제공업체 예산 — {name}",
   "metric.label.provider_budget_period": "제공업체 예산({period})",
   "metric.label.provider_budget": "제공업체 예산",
