@@ -5812,6 +5812,8 @@ impl Backend {
         Ok(AggregatorTestView {
             ok: test.is_ok(),
             fingerprint: test.fingerprint().map(str::to_owned),
+            tone: test.tone(),
+            field: test.field(),
             certificate: test.certificate,
             message: test.message,
         })
@@ -7133,6 +7135,10 @@ pub struct AggregatorTestView {
     /// `changed`, host, port, the new and the pinned fingerprint), so a
     /// changed pin opens its own dialog.
     pub certificate: Option<cuotai_core::aggregators::CertificateOffer>,
+    /// Re-validation V-13: the result's tone (`ok`, `warn`, `error`) and
+    /// the form field it is about (`params.<key>` or a secret slot).
+    pub tone: cuotai_core::aggregators::TestTone,
+    pub field: Option<&'static str>,
 }
 
 /// PRD 0016 RF2.1: the outcome of the dialog's read-only session test.
@@ -7365,6 +7371,10 @@ pub struct FormSchema {
     /// PRD 0001 re-validation (L2): the interval bounds the dialog offers
     /// (`min`, `max`, the provider's own `default_seconds`), from the core.
     interval: account_edit::IntervalBounds,
+    /// Re-validation V-04: the core's sentence beside the interval field
+    /// (an aggregator's 120 s floor); absent for the others.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    interval_hint: Option<cuotai_core::text::Localized>,
 }
 
 #[derive(Serialize)]
@@ -7455,6 +7465,7 @@ pub fn form_schema(provider: Provider) -> FormSchema {
         session_notice: user_session::paste_notice(provider),
         aggregator: provider.is_aggregator(),
         interval: account_edit::interval_bounds(provider),
+        interval_hint: account_edit::interval_hint(provider),
         secret_inputs: cuotai_core::secret_input::secret_inputs(provider),
         terminal_only_fields: field_descriptors(provider)
             .iter()

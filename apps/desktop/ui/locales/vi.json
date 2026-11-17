@@ -31,7 +31,8 @@
       "confirm.certificate.new",
       "confirm.certificate.host",
       "confirm.certificate.checked",
-      "confirm.certificate.replace"
+      "confirm.certificate.replace",
+      "coreText.passwordUnset"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -688,6 +689,7 @@
   "coreText.queriedWithKey": "Hạn mức được đọc bằng khóa API của tài khoản.",
   "coreText.queriedWithSession": "Hạn mức được đọc bằng phiên web của tài khoản.",
   "coreText.projectOverride": "Dự án đặt cho tài khoản này đã thay thế dự án được phát hiện.",
+  "coreText.passwordUnset": "Mật khẩu đặt trong terminal không dùng được trong ứng dụng nên không có mật khẩu nào được gửi. Hãy nhập vào ô mật khẩu, hoặc để trống nếu đăng nhập bảng điều khiển đang tắt.",
   "coreText.optionalSetting": "Có thêm chi tiết khi thêm một cài đặt trong Chỉnh sửa.",
   "coreText.perplexityComputer": "Chỉ hiển thị mức dùng Perplexity Computer; Sonar không có endpoint mức dùng.",
   "coreText.keyRejected": "Nhà cung cấp đã từ chối khóa. Kiểm tra hoặc thay khóa trong Chỉnh sửa.",

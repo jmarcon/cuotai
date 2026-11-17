@@ -46,7 +46,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -165,6 +170,7 @@
   "access.verified_month": "1 महीने पहले सत्यापित।",
   "access.verified_months": "{months} महीने पहले सत्यापित।",
   "access.verified_recent": "इस महीने सत्यापित।",
+  "account_edit.interval_aggregator_hint": "एग्रीगेटर को अधिकतम हर {min} सेकंड में पढ़ा जाता है, इसलिए अंतराल इससे छोटा नहीं हो सकता; खाली छोड़ने पर वैश्विक अंतराल लगता है, जो छोटा हो तो {min} सेकंड कर दिया जाता है।",
   "advice.best": "अभी सर्वश्रेष्ठ",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} ≈{at} पर खत्म होगा · {to} में {pct}% बचा है",
@@ -665,6 +671,7 @@
   "edit_error.group_invalid": "समूह में 1 से {max} छोटे अक्षर, अंक, - या _ होने चाहिए।",
   "edit_error.index_out_of_range": "अनुक्रमांक {index} सीमा से बाहर है ({count})।",
   "edit_error.interval_invalid": "अंतराल अमान्य है।",
+  "edit_error.interval_aggregator_min": "एग्रीगेटर को अधिकतम हर {min} सेकंड में पढ़ा जाता है: अंतराल {min} और {max} सेकंड के बीच होना चाहिए।",
   "edit_error.interval_range": "अंतराल {min} और {max} सेकंड के बीच होना चाहिए।",
   "edit_error.interval_metered_min": "यह प्रदाता हर क्वेरी पर शुल्क लेता है: अंतराल {min} और {max} सेकंड के बीच होना चाहिए।",
   "edit_error.io": "{path} पर I/O विफलता: {detail}।",
@@ -693,6 +700,7 @@
   "edit_error.toml_int_range": "{label} TOML की i64 सीमा के लिए बहुत बड़ा है।",
   "edit_error.config_breakdown": "फ़ील्ड {field} ऐसा विवरण बताता है जिसे यह खाता नहीं पढ़ सकता, या उसे दोहराता है; अनुमत मान प्रदाता और उसके मोड पर निर्भर हैं।",
   "edit_error.breakdown_value": "यह खाता अपने कुल को {value} के अनुसार विभाजित नहीं कर सकता।",
+  "edit_error.base_url_field": "{label}: http(s)://host[:port][/prefix] दर्ज करें, बिना उपयोगकर्ता, क्वेरी या फ़्रैगमेंट के। सादा HTTP केवल इसी कंप्यूटर पर काम करता है, या निजी नेटवर्क पर बिना एन्क्रिप्शन वाले कनेक्शन के विकल्प के साथ, निजी नेटवर्क पर।",
   "edit_notice.option_replaced_for_auth_mode": "{field}: {value} {auth_mode} के साथ उपलब्ध नहीं है; {replacement} से बदला गया। {reason}",
   "edit_notice.provider_switch_oauth": "सहेजने पर {provider} खाते का OAuth क्रेडेंशियल वॉल्ट से मिट जाता है।",
   "events.category.auth_required": "प्रमाणीकरण ज़रूरी",
@@ -1349,6 +1357,7 @@
     "other": "{count} दोहराए गए कनेक्शन छोड़ दिए गए।"
   },
   "note.aggregator.instance_truncated": "इस इंस्टेंस की केवल पहली 4000 सीमाएँ दिखाई गई हैं; बाकी छोड़ दी गईं।",
+  "note.aggregator.interval_raised": "कॉन्फ़िगर किया अंतराल {configured} सेकंड बढ़ाकर {effective} सेकंड कर दिया गया: एग्रीगेटर को अधिकतम हर {effective} सेकंड में पढ़ा जाता है।",
   "note.aggregator.metrics_truncated": "इस कनेक्शन की केवल कुछ सीमाएँ दिखाई गई हैं; बाकी छोड़ दी गईं।",
   "note.alibaba_billing.balance_metadata_currency": "मुद्रा: {currency}।",
   "note.alibaba_billing.balance_metadata_currency_cycle": "मुद्रा: {currency}। मौजूदा BillingCycle: {billing_cycle}।",
@@ -2111,6 +2120,7 @@
   "test.nine_router.password_required": "इस इंस्टेंस को डैशबोर्ड का पासवर्ड चाहिए; \"डैशबोर्ड का पासवर्ड\" चुनें।",
   "test.nine_router.unreachable": "दिए गए पते तक पहुँचा नहीं जा सका।",
   "test.nine_router.untrusted_certificate": "इंस्टेंस का प्रमाणपत्र इस कंप्यूटर के लिए भरोसेमंद नहीं है। SHA-256 फ़िंगरप्रिंट: {fingerprint}। भरोसा करने से पहले उसे सर्वर पर जाँचें।",
+  "test.nine_router.variable_unset": "वेरिएबल {name} सेट नहीं है, इसलिए कोई पासवर्ड नहीं भेजा गया। इसे सेट करें, या डैशबोर्ड साइन-इन बंद हो तो पासवर्ड खाली छोड़ें।",
   "text.countdown": "{duration} में",
   "text.countdown.now": "अभी",
   "text.duration.compact.days": "{d} दिन",

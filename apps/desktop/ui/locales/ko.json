@@ -51,7 +51,8 @@
       "confirm.certificate.new",
       "confirm.certificate.host",
       "confirm.certificate.checked",
-      "confirm.certificate.replace"
+      "confirm.certificate.replace",
+      "coreText.passwordUnset"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -708,6 +709,7 @@
   "coreText.queriedWithKey": "계정의 API 키로 할당량을 읽었습니다.",
   "coreText.queriedWithSession": "계정의 웹 세션으로 할당량을 읽었습니다.",
   "coreText.projectOverride": "이 계정에 지정한 프로젝트가 발견된 프로젝트를 대체했습니다.",
+  "coreText.passwordUnset": "터미널에서 설정한 비밀번호를 앱에서 사용할 수 없어 보내지 않았습니다. 비밀번호 칸에 입력하거나, 대시보드 로그인이 꺼져 있다면 비워 두세요.",
   "coreText.optionalSetting": "편집에서 설정을 하나 더 추가하면 더 자세히 볼 수 있습니다.",
   "coreText.perplexityComputer": "Perplexity Computer 사용량만 표시합니다. Sonar에는 사용량 엔드포인트가 없습니다.",
   "coreText.keyRejected": "제공업체가 키를 거부했습니다. 편집에서 확인하거나 교체하세요.",

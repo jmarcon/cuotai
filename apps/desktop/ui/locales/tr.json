@@ -670,6 +670,7 @@
   "coreText.queriedWithKey": "Kota hesabın API anahtarıyla okundu.",
   "coreText.queriedWithSession": "Kota hesabın web oturumuyla okundu.",
   "coreText.projectOverride": "Bu hesap için ayarlanan proje, bulunan projenin yerini aldı.",
+  "coreText.passwordUnset": "Terminalde ayarlanan parola uygulama tarafından kullanılamıyor, bu yüzden parola gönderilmedi. Parola alanına yazın ya da pano girişi kapalıysa boş bırakın.",
   "coreText.optionalSetting": "Düzenle'de bir ayar daha eklenirse daha fazla ayrıntı görünür.",
   "coreText.perplexityComputer": "Yalnızca Perplexity Computer kullanımı gösteriliyor; Sonar'ın kullanım uç noktası yok.",
   "coreText.keyRejected": "Sağlayıcı anahtarı reddetti. Düzenle'de kontrol edin veya değiştirin.",

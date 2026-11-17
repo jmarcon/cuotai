@@ -667,6 +667,7 @@
   "coreText.queriedWithKey": "Quota lida com a chave de API da conta.",
   "coreText.queriedWithSession": "Quota lida com a sessão web da conta.",
   "coreText.projectOverride": "O projeto definido nesta conta substituiu o descoberto.",
+  "coreText.passwordUnset": "A senha configurada no terminal não está disponível para o app, então nenhuma foi enviada. Digite-a no campo de senha, ou deixe-o vazio se o login do painel estiver desligado.",
   "coreText.optionalSetting": "Há mais detalhes com mais uma configuração em Editar.",
   "coreText.perplexityComputer": "Mostrando só o uso do Perplexity Computer; o Sonar não tem endpoint de uso.",
   "coreText.keyRejected": "O provedor recusou a chave. Confira ou troque-a em Editar.",

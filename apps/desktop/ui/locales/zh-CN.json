@@ -55,7 +55,8 @@
       "confirm.certificate.new",
       "confirm.certificate.host",
       "confirm.certificate.checked",
-      "confirm.certificate.replace"
+      "confirm.certificate.replace",
+      "coreText.passwordUnset"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -712,6 +713,7 @@
   "coreText.queriedWithKey": "已使用账户的 API 密钥读取额度。",
   "coreText.queriedWithSession": "已使用账户的网页会话读取额度。",
   "coreText.projectOverride": "此账户设置的项目替换了自动发现的项目。",
+  "coreText.passwordUnset": "在终端中设置的密码无法在应用中使用，因此没有发送密码。请在密码栏中输入；如果面板登录已关闭，请留空。",
   "coreText.optionalSetting": "在“编辑”中再添加一项设置可查看更多详情。",
   "coreText.perplexityComputer": "仅显示 Perplexity Computer 的用量；Sonar 没有用量接口。",
   "coreText.keyRejected": "提供商拒绝了该密钥。请在“编辑”中检查或更换。",

@@ -28,7 +28,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -147,6 +152,7 @@
   "access.verified_month": "Diverifikasi 1 bulan lalu.",
   "access.verified_months": "Diverifikasi {months} bulan lalu.",
   "access.verified_recent": "Diverifikasi bulan ini.",
+  "account_edit.interval_aggregator_hint": "Agregator dibaca paling sering setiap {min} dtk, jadi interval tidak bisa lebih pendek; kosong memakai interval global, dinaikkan ke {min} dtk jika lebih pendek.",
   "advice.best": "Terbaik sekarang",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} habis ≈{at} · {to} tersisa {pct}%",
@@ -632,6 +638,7 @@
   "edit_error.group_invalid": "Grup harus 1 hingga {max} huruf kecil, angka, - atau _.",
   "edit_error.index_out_of_range": "Indeks {index} di luar jangkauan ({count}).",
   "edit_error.interval_invalid": "Interval tidak valid.",
+  "edit_error.interval_aggregator_min": "Agregator dibaca paling sering setiap {min} detik: interval harus antara {min} dan {max} detik.",
   "edit_error.interval_range": "Interval harus antara {min} dan {max} detik.",
   "edit_error.interval_metered_min": "Penyedia ini menagih per kueri: interval harus antara {min} dan {max} detik.",
   "edit_error.io": "Kegagalan I/O di {path}: {detail}.",
@@ -660,6 +667,7 @@
   "edit_error.toml_int_range": "{label} terlalu besar untuk rentang i64 TOML.",
   "edit_error.config_breakdown": "Kolom {field} mencantumkan rincian yang tidak dapat dibaca akun ini, atau mengulanginya; nilai yang diizinkan bergantung pada penyedia dan modenya.",
   "edit_error.breakdown_value": "Akun ini tidak dapat merinci totalnya menurut {value}.",
+  "edit_error.base_url_field": "{label}: masukkan http(s)://host[:port][/prefiks], tanpa pengguna, kueri, atau fragmen. HTTP biasa hanya berfungsi di komputer ini atau, dengan opsi koneksi tanpa enkripsi di jaringan privat, di jaringan privat.",
   "edit_notice.option_replaced_for_auth_mode": "{value} tidak tersedia untuk {field} dengan {auth_mode}. {replacement} dipilih. {reason}",
   "edit_notice.provider_switch_oauth": "Saat Anda menyimpan, kredensial OAuth akun {provider} dihapus dari brankas.",
   "events.category.auth_required": "autentikasi diperlukan",
@@ -1310,6 +1318,7 @@
     "other": "{count} koneksi berulang dihilangkan."
   },
   "note.aggregator.instance_truncated": "Hanya 4000 batas pertama instans ini yang ditampilkan; sisanya dihilangkan.",
+  "note.aggregator.interval_raised": "Interval {configured} dtk yang dikonfigurasi dinaikkan menjadi {effective} dtk: agregator dibaca paling sering setiap {effective} dtk.",
   "note.aggregator.metrics_truncated": "Hanya sebagian batas koneksi ini yang ditampilkan; sisanya dihilangkan.",
   "note.alibaba_billing.balance_metadata_currency": "Mata uang: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Mata uang: {currency}. BillingCycle saat ini: {billing_cycle}.",
@@ -2061,6 +2070,7 @@
   "test.nine_router.password_required": "Instans ini memerlukan kata sandi dasbor; pilih \"Kata sandi dasbor\".",
   "test.nine_router.unreachable": "Alamat yang diberikan tidak dapat dijangkau.",
   "test.nine_router.untrusted_certificate": "Komputer ini tidak memercayai sertifikat instans. Sidik jari SHA-256: {fingerprint}. Periksa di server sebelum memercayainya.",
+  "test.nine_router.variable_unset": "Variabel {name} belum diatur, jadi tidak ada kata sandi yang dikirim. Atur variabel itu, atau kosongkan kata sandi jika login dasbor dimatikan.",
   "text.countdown": "dalam {duration}",
   "text.countdown.now": "sekarang",
   "text.duration.compact.days": "{d}hr",

@@ -51,7 +51,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -170,6 +175,7 @@
   "access.verified_month": "Vor 1 Monat verifiziert.",
   "access.verified_months": "Vor {months} Monaten verifiziert.",
   "access.verified_recent": "In diesem Monat verifiziert.",
+  "account_edit.interval_aggregator_hint": "Ein Aggregator wird höchstens alle {min} s gelesen, daher kann das Intervall nicht kürzer sein; leer übernimmt das globale, das auf {min} s erhöht wird, wenn es kürzer ist.",
   "advice.best": "Jetzt am besten",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} ist ≈{at} erschöpft · {to} hat noch {pct} %",
@@ -670,6 +676,7 @@
   "edit_error.group_invalid": "Die Gruppe muss 1 bis {max} Kleinbuchstaben, Ziffern, - oder _ haben.",
   "edit_error.index_out_of_range": "Index {index} außerhalb des Bereichs ({count}).",
   "edit_error.interval_invalid": "Ungültiges Intervall.",
+  "edit_error.interval_aggregator_min": "Ein Aggregator wird höchstens alle {min} Sekunden gelesen: Das Intervall muss zwischen {min} und {max} Sekunden liegen.",
   "edit_error.interval_range": "Das Intervall muss zwischen {min} und {max} Sekunden liegen.",
   "edit_error.interval_metered_min": "Dieser Anbieter berechnet jede Abfrage: Das Intervall muss zwischen {min} und {max} Sekunden liegen.",
   "edit_error.io": "E/A-Fehler bei {path}: {detail}.",
@@ -698,6 +705,7 @@
   "edit_error.toml_int_range": "{label} ist zu groß für den i64-Bereich der TOML.",
   "edit_error.config_breakdown": "Das Feld {field} nennt eine Aufschlüsselung, die dieses Konto nicht lesen kann, oder wiederholt eine; die erlaubten Werte hängen vom Anbieter und Modus ab.",
   "edit_error.breakdown_value": "Dieses Konto kann seine Summe nicht nach {value} aufschlüsseln.",
+  "edit_error.base_url_field": "{label}: Geben Sie http(s)://host[:port][/präfix] ein, ohne Benutzer, Abfrage oder Fragment. Einfaches HTTP funktioniert nur auf diesem Computer oder, mit der Option für unverschlüsselte Verbindungen im privaten Netz, in einem privaten Netz.",
   "edit_notice.option_replaced_for_auth_mode": "{field}: {value} ist mit {auth_mode} nicht verfügbar; ersetzt durch {replacement}. {reason}",
   "edit_notice.provider_switch_oauth": "Beim Speichern wird die OAuth-Anmeldung des Kontos {provider} aus dem Tresor gelöscht.",
   "events.category.auth_required": "Authentifizierung erforderlich",
@@ -1354,6 +1362,7 @@
     "other": "{count} doppelte Verbindungen wurden weggelassen."
   },
   "note.aggregator.instance_truncated": "Nur die ersten 4000 Limits dieser Instanz werden angezeigt; die übrigen wurden weggelassen.",
+  "note.aggregator.interval_raised": "Das konfigurierte Intervall von {configured} s wurde auf {effective} s erhöht: Ein Aggregator wird höchstens alle {effective} s gelesen.",
   "note.aggregator.metrics_truncated": "Nur ein Teil der Limits dieser Verbindung wird angezeigt; die übrigen wurden weggelassen.",
   "note.alibaba_billing.balance_metadata_currency": "Währung: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Währung: {currency}. Laufender BillingCycle: {billing_cycle}.",
@@ -2116,6 +2125,7 @@
   "test.nine_router.password_required": "Diese Instanz verlangt das Dashboard-Passwort; wählen Sie „Dashboard-Passwort“.",
   "test.nine_router.unreachable": "Die angegebene Adresse war nicht erreichbar.",
   "test.nine_router.untrusted_certificate": "Dem Zertifikat der Instanz vertraut dieser Computer nicht. SHA-256-Fingerabdruck: {fingerprint}. Prüfen Sie ihn auf dem Server, bevor Sie ihm vertrauen.",
+  "test.nine_router.variable_unset": "Die Variable {name} ist nicht gesetzt, daher wurde kein Passwort gesendet. Setzen Sie sie, oder lassen Sie das Passwort leer, wenn die Dashboard-Anmeldung aus ist.",
   "text.countdown": "in {duration}",
   "text.countdown.now": "jetzt",
   "text.duration.compact.days": "{d} T",

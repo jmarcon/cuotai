@@ -760,12 +760,39 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     // has a key, not a dashboard password).
     dlg.querySelector("#aggregator-hint").textContent = schema.aggregator
       ? t(provider === "litellm" ? "dialog.aggregator.hint.litellm" : "dialog.aggregator.hint", { aggregator: providerLabel() }) : "";
-    aggregatorStatus.textContent = "";
+    showAggregatorResult(null, "");
+  }
+  // Re-validation V-13: the field a Test connection result is about (the core names it: `params.<key>` or a secret
+  // slot), so the status is announced from that field and the field is marked when the result is an error.
+  const aggregatorField = (field) => {
+    if (!field) return null;
+    if (field.startsWith("params.")) return dyn.querySelector(`[name="f:${CSS.escape(field.slice("params.".length))}"]`);
+    return dyn.querySelector(`.secret-input[data-slot="${CSS.escape(field)}"]`)
+      ?? (field === "credential_env" ? dlg.querySelector("[name=credential]") : null);
+  };
+  let aggregatorLinked = null;
+  function showAggregatorResult(result, text) {
+    // The status is a polite live region (role="status"); its tone is a word in the sentence and a color.
+    aggregatorStatus.textContent = text;
+    aggregatorStatus.dataset.tone = result?.tone ?? "";
+    if (aggregatorLinked) {
+      const ids = (aggregatorLinked.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((id) => id && id !== "aggregator-status");
+      if (ids.length) aggregatorLinked.setAttribute("aria-describedby", ids.join(" "));
+      else aggregatorLinked.removeAttribute("aria-describedby");
+      aggregatorLinked.removeAttribute("aria-invalid");
+      aggregatorLinked = null;
+    }
+    const el = result ? aggregatorField(result.field) : null;
+    if (!el) return;
+    const ids = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+    el.setAttribute("aria-describedby", [...ids, "aggregator-status"].join(" "));
+    if (result.tone === "error") el.setAttribute("aria-invalid", "true");
+    aggregatorLinked = el;
   }
   async function runAggregatorTest(pending) {
-    aggregatorStatus.textContent = t(pending);
+    showAggregatorResult(null, t(pending));
     const result = await testAggregator({ ...draftInput(), sessions: pastes() });
-    aggregatorStatus.textContent = tl(result.message);
+    showAggregatorResult(result, tl(result.message));
     // PRD 0036 RF2.3: trust on first use — the fingerprint is pinned only after the user confirms it. Re-validation
     // S-03: a changed pin opens its own dialog, where replacing it takes a checkbox and a secondary button.
     const offer = result.ok ? null : result.certificate;
@@ -785,7 +812,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const btn = e.currentTarget;
     collect();
     btn.disabled = true;
-    try { await runAggregatorTest("dialog.aggregator.testing"); } catch (x) { aggregatorStatus.textContent = errText(x); }
+    try { await runAggregatorTest("dialog.aggregator.testing"); } catch (x) {
+      // Re-validation V-11: a draft the core refuses (an invalid address) is shown at its field, named by its label.
+      const parsed = parseErrorEnvelope(x);
+      if (parsed?.field) setFieldError(parsed.field, errText(parsed));
+      showAggregatorResult({ tone: "error", field: parsed?.field ?? null }, errText(x));
+    }
     finally { btn.disabled = false; }
   });
   renderAggregator();
@@ -1041,10 +1073,11 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const intervalHint = form.querySelector("#interval-hint");
     const bounds = schema?.interval;
     const metered = bounds?.default_seconds != null && (bounds.effective_min ?? bounds.min) > bounds.min;
+    // Re-validation V-04: an aggregator's 120 s floor, as the core words it.
     intervalHint.textContent = metered
       ? t("dialog.intervalHintMetered", { default: Math.round(bounds.default_seconds / 60), effective: Math.round(bounds.effective_min / 60), min: Math.round(bounds.min / 60) })
-      : "";
-    intervalHint.hidden = !metered;
+      : schema?.interval_hint ? tl(schema.interval_hint) : "";
+    intervalHint.hidden = !intervalHint.textContent;
     const optSnapshot = new Map();
     for (const el of dyn.querySelectorAll("[name^='o:'],[name^='r:']")) {
       optSnapshot.set(el.name, el.value);

@@ -1668,6 +1668,9 @@ pub enum TestOutcome {
     LoginRefused,
     /// No password was set but the instance requires one.
     PasswordRequired,
+    /// Re-validation V-03: the account names the variable `name` for the
+    /// password, and it is not set; nothing was sent.
+    VariableUnset { name: String },
     /// PRD 0036 RF2.6: the pasted SSO session is missing its `auth_token`,
     /// expired or was revoked.
     SessionRejected,
@@ -1771,6 +1774,12 @@ fn outcome_text_with_min(outcome: &TestOutcome, min: Option<&str>) -> Localized 
         TestOutcome::PasswordRequired => Localized::fixed(
             "test.nine_router.password_required",
             "This instance requires the dashboard password; choose \"Dashboard password\".",
+        ),
+        TestOutcome::VariableUnset { name } => Localized::with_param(
+            "test.nine_router.variable_unset",
+            "name",
+            name.as_str(),
+            "The variable {name} is not set, so no password was sent. Set it, or leave the password empty if the dashboard login is off.",
         ),
         TestOutcome::SessionRejected => crate::user_session::rejected(),
         TestOutcome::Unreachable => Localized::fixed(
@@ -1880,7 +1889,16 @@ pub(crate) async fn test_connection_with(
         None
     } else {
         let Ok(password) = password_of(account, ctx) else {
-            return TestOutcome::PasswordRequired;
+            // Re-validation V-03: a named variable that is not set is not
+            // "the instance requires a password".
+            return TestOutcome::VariableUnset {
+                name: account
+                    .credential_env
+                    .as_deref()
+                    .map(str::trim)
+                    .unwrap_or_default()
+                    .to_owned(),
+            };
         };
         password
     };
@@ -1904,7 +1922,9 @@ pub(crate) async fn test_connection_with(
             Ok(response) if response.status().is_success() => {
                 super::read_json::<Value>(response).await.ok()
             }
-            Ok(_) => return TestOutcome::Unreachable,
+            // Re-validation V-19: the address answers, but not like a
+            // 9router (a wrong prefix answers 404).
+            Ok(_) => return TestOutcome::NotNineRouter,
             Err(_) => return handshake_outcome(&instance, &trust).await,
         },
         Err(_) => return TestOutcome::Unreachable,
@@ -1930,7 +1950,7 @@ pub(crate) async fn test_connection_with(
         Some(token) => Ok(Some(token.clone())),
         None => instance.token(password.as_deref(), now, false).await,
     };
-    let token = match login {
+    let mut token = match login {
         Ok(token) => token,
         Err(error) => {
             return match error.note.id.as_ref() {
@@ -1948,20 +1968,26 @@ pub(crate) async fn test_connection_with(
             };
         }
     };
-    match instance
-        .get(&Route::Connections { page: 1 }, token.as_deref())
-        .await
-    {
-        Ok(response) => match super::read_json::<ConnectionsPage>(response).await {
-            Ok(page) => TestOutcome::Connected {
-                version,
-                connections: page.connections.len(),
-            },
-            Err(_) => TestOutcome::NotNineRouter,
+    // Re-validation R-02: every page, each connection once, and only the
+    // connections that are on, as a refresh would read them.
+    let relogin = if sso.is_some() {
+        None
+    } else {
+        password.as_deref()
+    };
+    match discover(&instance, &mut token, relogin, now).await {
+        Ok((connections, _)) => TestOutcome::Connected {
+            version,
+            connections: dedupe(connections)
+                .0
+                .iter()
+                .filter(|connection| connection.is_active != Some(false))
+                .count(),
         },
         Err(error) if error.note.id == "query.nine_router.listener_foreign" => {
             TestOutcome::ListenerForeign { port }
         }
+        Err(error) if error.note.id == QueryError::schema().note.id => TestOutcome::NotNineRouter,
         Err(error) if error.status == Status::AuthenticationError => {
             if sso.is_some() {
                 TestOutcome::SessionRejected
@@ -3327,10 +3353,12 @@ mod tests {
             run(account(&server, false, &[])).await,
             TestOutcome::NotNineRouter
         );
+        // Re-validation V-19: an address that answers 404 on the health
+        // route (a wrong prefix) is "not a 9router", not unreachable.
         let server = MockServer::start().await;
         assert_eq!(
             run(account(&server, false, &[])).await,
-            TestOutcome::Unreachable
+            TestOutcome::NotNineRouter
         );
 
         // No password chosen but the instance requires one.
@@ -3361,11 +3389,89 @@ mod tests {
             assert_eq!(run(account(&server, true, &[])).await, expected);
         }
 
-        // Nothing listening.
-        let dead = MockServer::start().await;
-        let acct = account(&dead, false, &[]);
-        drop(dead);
+        // Nothing listening (wiremock keeps a dropped server's port
+        // answering 404, so a port freed by the OS stands in for it).
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let server = MockServer::start().await;
+        let mut acct = account(&server, false, &[]);
+        acct.params
+            .insert("base_url".into(), format!("http://127.0.0.1:{port}"));
         assert_eq!(run(acct).await, TestOutcome::Unreachable);
+    }
+
+    /// Re-validation V-03: a named password variable that is not set has
+    /// its own outcome, naming the variable, and nothing is sent.
+    #[tokio::test]
+    async fn an_unset_password_variable_is_named_and_nothing_is_sent() {
+        let server = MockServer::start().await;
+        mount_json(&server, "/api/health", json!({ "ok": true })).await;
+        let http = client();
+        let mut acct = account(&server, false, &[]);
+        acct.credential_env = Some("UNSET_NINE_ROUTER_VARIABLE".into());
+        let outcome = test_connection_at(&acct, &context(&http), Limits::DEFAULT, Utc::now()).await;
+        assert_eq!(
+            outcome,
+            TestOutcome::VariableUnset {
+                name: "UNSET_NINE_ROUTER_VARIABLE".into()
+            }
+        );
+        let text = outcome_text(&outcome);
+        assert_eq!(text.id, "test.nine_router.variable_unset");
+        for locale in std::iter::once("en-US").chain(crate::text::catalog_locales()) {
+            assert!(
+                text.resolve(locale).contains("UNSET_NINE_ROUTER_VARIABLE"),
+                "{locale}"
+            );
+        }
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
+
+    /// Re-validation R-02: Test connection counts the connections of every
+    /// page, each id once, and only those that are on.
+    #[tokio::test]
+    async fn test_connection_counts_every_page_once_and_only_active_connections() {
+        let server = MockServer::start().await;
+        mount_json(&server, "/api/health", json!({ "ok": true })).await;
+        mount_json(
+            &server,
+            "/api/version",
+            json!({ "currentVersion": "0.5.109" }),
+        )
+        .await;
+        let mut off = connection("c", "codex", "C");
+        off["isActive"] = json!(false);
+        for (number, body) in [
+            (1, json!([connection("a", "claude", "A"), off])),
+            (
+                2,
+                json!([connection("b", "glm", "B"), connection("a", "claude", "A")]),
+            ),
+        ] {
+            Mock::given(method("GET"))
+                .and(path("/api/providers/client"))
+                .and(query_param("page", number.to_string()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(page(body, 2)))
+                .mount(&server)
+                .await;
+        }
+        let http = client();
+        assert_eq!(
+            test_connection_at(
+                &account(&server, false, &[]),
+                &context(&http),
+                Limits::DEFAULT,
+                Utc::now()
+            )
+            .await,
+            TestOutcome::Connected {
+                version: Some("0.5.109".into()),
+                connections: 2
+            }
+        );
     }
 
     // --- whole monitor ----------------------------------------------------

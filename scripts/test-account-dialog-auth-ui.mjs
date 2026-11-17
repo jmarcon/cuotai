@@ -121,6 +121,24 @@ for (const file of locales) {
   if (file !== "en-US.json") assert.notEqual(text, en["dialog.intervalHintMetered"], `${file}: untranslated`);
 }
 
+// PRD 0036 re-validation V-13: a Test connection result carries the core's tone and field; the status is a polite live
+// region, colored by its tone, and the field at fault points at it (aria-describedby) and is marked invalid on an error.
+assert.match(dialog, /<p class="hint" id="aggregator-status" role="status" aria-live="polite"><\/p>/);
+assert.match(dialog, /aggregatorStatus\.dataset\.tone = result\?\.tone \?\? "";/);
+assert.match(dialog, /el\.setAttribute\("aria-describedby", \[\.\.\.ids, "aggregator-status"\]\.join\(" "\)\);/);
+assert.match(dialog, /if \(result\.tone === "error"\) el\.setAttribute\("aria-invalid", "true"\);/);
+assert.match(dialog, /if \(field\.startsWith\("params\."\)\) return dyn\.querySelector\(`\[name="f:\$\{CSS\.escape\(field\.slice\("params\."\.length\)\)\}"\]`\);/);
+assert.match(dialog, /showAggregatorResult\(result, tl\(result\.message\)\);/);
+const css = await readFile(ui("css/dialog.css"), "utf8");
+for (const tone of ["ok", "warn", "error"]) assert.match(css, new RegExp(`#aggregator-status\\[data-tone="${tone}"\\]`));
+// V-04: the aggregator form carries the core's 120 s floor and its sentence beside the interval field.
+const routerSchema = await lib.formSchema("nine_router");
+assert.equal(routerSchema.interval.min, 120);
+assert.equal(routerSchema.interval_hint.id, "account_edit.interval_aggregator_hint");
+assert.match(dialog, /: schema\?\.interval_hint \? tl\(schema\.interval_hint\) : "";/);
+// V-11: a draft the core refuses during Test connection is shown at its field.
+assert.match(dialog, /if \(parsed\?\.field\) setFieldError\(parsed\.field, errText\(parsed\)\);/);
+
 // Re-validation S-03 (PRD 0036 RF2.3): a first sighting and a changed pin open different dialogs. The changed one
 // shows the address and both fingerprints, focuses Cancel (the primary button), cancels on Enter and Escape, and
 // replaces the pin only after "I checked the new fingerprint on the server" is ticked.

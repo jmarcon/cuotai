@@ -30,7 +30,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -149,6 +154,7 @@
   "access.verified_month": "Đã xác minh 1 tháng trước.",
   "access.verified_months": "Đã xác minh {months} tháng trước.",
   "access.verified_recent": "Đã xác minh trong tháng này.",
+  "account_edit.interval_aggregator_hint": "Bộ tổng hợp chỉ được đọc tối đa mỗi {min} giây một lần, nên khoảng thời gian không thể ngắn hơn; để trống sẽ dùng khoảng chung, được nâng lên {min} giây nếu ngắn hơn.",
   "advice.best": "Tốt nhất lúc này",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} hết khoảng {at} · {to} còn {pct}%",
@@ -634,6 +640,7 @@
   "edit_error.group_invalid": "Nhóm phải gồm 1 đến {max} chữ thường, chữ số, - hoặc _.",
   "edit_error.index_out_of_range": "Chỉ số {index} nằm ngoài phạm vi ({count}).",
   "edit_error.interval_invalid": "Chu kỳ không hợp lệ.",
+  "edit_error.interval_aggregator_min": "Bộ tổng hợp chỉ được đọc tối đa mỗi {min} giây một lần: khoảng thời gian phải từ {min} đến {max} giây.",
   "edit_error.interval_range": "Chu kỳ phải nằm trong khoảng {min} đến {max} giây.",
   "edit_error.interval_metered_min": "Nhà cung cấp này tính phí theo từng truy vấn: khoảng thời gian phải từ {min} đến {max} giây.",
   "edit_error.io": "Lỗi I/O tại {path}: {detail}.",
@@ -662,6 +669,7 @@
   "edit_error.toml_int_range": "{label} quá lớn so với phạm vi i64 của TOML.",
   "edit_error.config_breakdown": "Trường {field} liệt kê một bảng chi tiết mà tài khoản này không đọc được, hoặc bị lặp; các giá trị cho phép tùy nhà cung cấp và chế độ.",
   "edit_error.breakdown_value": "Tài khoản này không thể chia tổng theo {value}.",
+  "edit_error.base_url_field": "{label}: nhập http(s)://host[:port][/prefix], không có người dùng, truy vấn hay phân đoạn. HTTP thường chỉ hoạt động trên máy tính này hoặc, với tùy chọn kết nối không mã hóa trong mạng riêng, trong một mạng riêng.",
   "edit_notice.option_replaced_for_auth_mode": "{value} không khả dụng cho {field} với {auth_mode}. Đã chọn {replacement}. {reason}",
   "edit_notice.provider_switch_oauth": "Khi bạn lưu, thông tin xác thực OAuth của tài khoản {provider} sẽ bị xóa khỏi kho.",
   "events.category.auth_required": "cần xác thực",
@@ -1312,6 +1320,7 @@
     "other": "Đã bỏ qua {count} kết nối trùng lặp."
   },
   "note.aggregator.instance_truncated": "Chỉ 4000 giới hạn đầu tiên của phiên bản này được hiển thị; phần còn lại đã bị bỏ qua.",
+  "note.aggregator.interval_raised": "Chu kỳ {configured} giây đã cấu hình được nâng lên {effective} giây: bộ tổng hợp chỉ được đọc tối đa mỗi {effective} giây một lần.",
   "note.aggregator.metrics_truncated": "Chỉ một phần giới hạn của kết nối này được hiển thị; phần còn lại đã bị bỏ qua.",
   "note.alibaba_billing.balance_metadata_currency": "Tiền tệ: {currency}.",
   "note.alibaba_billing.balance_metadata_currency_cycle": "Tiền tệ: {currency}. BillingCycle hiện tại: {billing_cycle}.",
@@ -2063,6 +2072,7 @@
   "test.nine_router.password_required": "Phiên bản này cần mật khẩu bảng điều khiển; hãy chọn \"Mật khẩu bảng điều khiển\".",
   "test.nine_router.unreachable": "Không kết nối được địa chỉ đã nhập.",
   "test.nine_router.untrusted_certificate": "Máy tính này không tin cậy chứng chỉ của phiên bản. Dấu vân tay SHA-256: {fingerprint}. Hãy kiểm tra trên máy chủ trước khi tin cậy.",
+  "test.nine_router.variable_unset": "Biến {name} chưa được đặt nên không gửi mật khẩu nào. Hãy đặt biến đó, hoặc để trống mật khẩu nếu đăng nhập bảng điều khiển đang tắt.",
   "text.countdown": "sau {duration}",
   "text.countdown.now": "bây giờ",
   "text.duration.compact.days": "{d} ngày",

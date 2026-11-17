@@ -659,6 +659,7 @@
   "coreText.queriedWithKey": "Kuota dibaca dengan kunci API akun.",
   "coreText.queriedWithSession": "Kuota dibaca dengan sesi web akun.",
   "coreText.projectOverride": "Proyek yang diatur untuk akun ini menggantikan proyek yang ditemukan.",
+  "coreText.passwordUnset": "Kata sandi yang diatur di terminal tidak tersedia untuk aplikasi, jadi tidak ada yang dikirim. Ketik di kolom kata sandi, atau kosongkan jika login dasbor dimatikan.",
   "coreText.optionalSetting": "Detail lebih lanjut tersedia dengan satu pengaturan lagi di Edit.",
   "coreText.perplexityComputer": "Hanya menampilkan penggunaan Perplexity Computer; Sonar tidak punya endpoint penggunaan.",
   "coreText.keyRejected": "Penyedia menolak kunci. Periksa atau ganti di Edit.",

@@ -73,7 +73,12 @@
       "metric.label.monthly",
       "metric.label.week_model_7d",
       "wizard.nine_router.cert_first_prompt",
-      "wizard.nine_router.cert_changed_prompt"
+      "wizard.nine_router.cert_changed_prompt",
+      "test.nine_router.variable_unset",
+      "edit_error.interval_aggregator_min",
+      "account_edit.interval_aggregator_hint",
+      "note.aggregator.interval_raised",
+      "edit_error.base_url_field"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -192,6 +197,7 @@
   "access.verified_month": "1 か月前に検証済み。",
   "access.verified_months": "{months} か月前に検証済み。",
   "access.verified_recent": "今月検証済み。",
+  "account_edit.interval_aggregator_hint": "アグリゲーターの読み取りは最短でも {min} 秒ごとのため、これより短い間隔にはできません。空欄の場合は全体の間隔を使い、それより短ければ {min} 秒に引き上げます。",
   "advice.best": "今のおすすめ",
   "advice.notice": "{body} · {advice}",
   "advice.switch": "{from} は ≈{at} に上限到達 · {to} は残り {pct}%",
@@ -677,6 +683,7 @@
   "edit_error.group_invalid": "グループは 1〜{max} 文字の小文字、数字、- または _ にしてください。",
   "edit_error.index_out_of_range": "インデックス {index} が範囲外です（{count}）。",
   "edit_error.interval_invalid": "間隔が無効です。",
+  "edit_error.interval_aggregator_min": "アグリゲーターの読み取りは最短でも {min} 秒ごとです。間隔は {min} 〜 {max} 秒にしてください。",
   "edit_error.interval_range": "間隔は {min}〜{max} 秒にしてください。",
   "edit_error.interval_metered_min": "このプロバイダーはクエリごとに課金されます。間隔は {min} 〜 {max} 秒にしてください。",
   "edit_error.io": "{path} で入出力エラー：{detail}。",
@@ -705,6 +712,7 @@
   "edit_error.toml_int_range": "{label} は TOML の i64 の範囲を超えています。",
   "edit_error.config_breakdown": "フィールド {field} に、このアカウントで読み取れない内訳、または重複した内訳が指定されています。使える値はプロバイダーとモードによります。",
   "edit_error.breakdown_value": "このアカウントは合計を {value} で内訳表示できません。",
+  "edit_error.base_url_field": "{label}：http(s)://host[:port][/prefix] の形式で入力してください。ユーザー、クエリ、フラグメントは使えません。暗号化なしの HTTP は、このコンピューター上か、プライベートネットワークで暗号化なしの接続を許可するオプションを使ったプライベートネットワークでのみ使えます。",
   "edit_notice.option_replaced_for_auth_mode": "{auth_mode} の {field} では {value} を利用できません。{replacement} を選択しました。{reason}",
   "edit_notice.provider_switch_oauth": "保存すると、{provider} アカウントの OAuth 認証情報が保管庫から削除されます。",
   "events.category.auth_required": "認証が必要",
@@ -1355,6 +1363,7 @@
     "other": "重複した接続 {count} 件を省略しました。"
   },
   "note.aggregator.instance_truncated": "このインスタンスの上限は最初の 4000 件のみ表示しています。残りは省略しました。",
+  "note.aggregator.interval_raised": "アグリゲーターの読み取りは最短でも {effective} 秒ごとのため、設定した間隔 {configured} 秒を {effective} 秒に引き上げました。",
   "note.aggregator.metrics_truncated": "この接続の上限は一部のみ表示しています。残りは省略しました。",
   "note.alibaba_billing.balance_metadata_currency": "通貨：{currency}。",
   "note.alibaba_billing.balance_metadata_currency_cycle": "通貨：{currency}。現在の BillingCycle：{billing_cycle}。",
@@ -2106,6 +2115,7 @@
   "test.nine_router.password_required": "このインスタンスにはダッシュボードのパスワードが必要です。「ダッシュボードのパスワード」を選んでください。",
   "test.nine_router.unreachable": "指定したアドレスに接続できませんでした。",
   "test.nine_router.untrusted_certificate": "このコンピューターはインスタンスの証明書を信頼していません。SHA-256 フィンガープリント：{fingerprint}。信頼する前にサーバーで確認してください。",
+  "test.nine_router.variable_unset": "変数 {name} が設定されていないため、パスワードは送信されませんでした。変数を設定するか、ダッシュボードのログインがオフならパスワードを空のままにしてください。",
   "text.countdown": "{duration}後",
   "text.countdown.now": "今",
   "text.duration.compact.days": "{d}日",

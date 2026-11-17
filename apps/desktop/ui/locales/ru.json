@@ -49,7 +49,8 @@
       "confirm.certificate.new",
       "confirm.certificate.host",
       "confirm.certificate.checked",
-      "confirm.certificate.replace"
+      "confirm.certificate.replace",
+      "coreText.passwordUnset"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -739,6 +740,7 @@
   "coreText.queriedWithKey": "Квота прочитана с API-ключом учётной записи.",
   "coreText.queriedWithSession": "Квота прочитана с веб-сеансом учётной записи.",
   "coreText.projectOverride": "Проект, заданный для этой учётной записи, заменил найденный.",
+  "coreText.passwordUnset": "Пароль, настроенный в терминале, недоступен приложению, поэтому он не отправлен. Введите его в поле пароля или оставьте поле пустым, если вход в панель отключён.",
   "coreText.optionalSetting": "Больше подробностей — с ещё одной настройкой в «Изменить».",
   "coreText.perplexityComputer": "Показан только расход Perplexity Computer; у Sonar нет конечной точки расхода.",
   "coreText.keyRejected": "Провайдер отклонил ключ. Проверьте или замените его в «Изменить».",

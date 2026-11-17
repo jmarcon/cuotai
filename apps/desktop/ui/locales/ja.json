@@ -51,7 +51,8 @@
       "confirm.certificate.new",
       "confirm.certificate.host",
       "confirm.certificate.checked",
-      "confirm.certificate.replace"
+      "confirm.certificate.replace",
+      "coreText.passwordUnset"
     ]
   },
   "agg.alertEach": "接続ごとに通知",
@@ -708,6 +709,7 @@
   "coreText.queriedWithKey": "アカウントの API キーでクォータを読み取りました。",
   "coreText.queriedWithSession": "アカウントのウェブセッションでクォータを読み取りました。",
   "coreText.projectOverride": "このアカウントに設定したプロジェクトが、検出されたものを置き換えました。",
+  "coreText.passwordUnset": "ターミナルで設定したパスワードはアプリから使えないため、送信していません。パスワード欄に入力するか、ダッシュボードのログインがオフなら空のままにしてください。",
   "coreText.optionalSetting": "「編集」で設定を一つ追加すると、詳細を表示できます。",
   "coreText.perplexityComputer": "Perplexity Computer の使用量のみ表示しています。Sonar には使用量のエンドポイントがありません。",
   "coreText.keyRejected": "プロバイダーがキーを拒否しました。「編集」で確認または差し替えてください。",

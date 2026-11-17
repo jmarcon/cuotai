@@ -403,6 +403,10 @@ pub(crate) struct Wizard {
     /// other key withdraws it.
     offered_cert: Option<cuotai_core::aggregators::CertificateOffer>,
     confirm_repin: bool,
+    /// Re-validation V-11: an error the core tied to one parameter (its
+    /// key and the sentence, which names the field by its label), drawn
+    /// under that field, wrapped, instead of the clipped message line.
+    field_error: Option<(String, String)>,
     /// PRD 0047 T2: the variable the wizard last suggested for a new
     /// account; it is replaced when the provider or name changes, but only
     /// while the credential field still holds it (a typed name is kept).
@@ -530,6 +534,7 @@ impl Wizard {
             aggregator_ok: None,
             offered_cert: None,
             confirm_repin: false,
+            field_error: None,
             suggested_env,
         };
         // RF6.2: detection runs only when the Add-account wizard starts,
@@ -1503,6 +1508,13 @@ impl Wizard {
         }
         // The success notice is transient: it goes away on the next keypress.
         self.notice = None;
+        // A field's error stays while the user only moves between fields.
+        if !matches!(
+            key.code,
+            KeyCode::Up | KeyCode::Down | KeyCode::Tab | KeyCode::BackTab
+        ) {
+            self.field_error = None;
+        }
         // RF3.4: any key other than the confirming Enter cancels "save anyway".
         let confirmed = std::mem::take(&mut self.confirm_save);
         // PRD 0016 RF1.2: F3 on the summary first shows what the migration
@@ -2223,7 +2235,8 @@ impl Wizard {
     /// PRD 0036 RF2.2: F4 on the parameters or the summary of an aggregator
     /// draft. The draft must build; the query itself runs in `ui.rs`.
     fn test_aggregator(&mut self) -> Action {
-        match self.build_config() {
+        self.field_error = None;
+        match self.build_config_at_field() {
             Ok(config) => {
                 let index = self.editing.unwrap_or(config.accounts.len() - 1);
                 self.error = None;
@@ -2236,8 +2249,21 @@ impl Wizard {
                     sessions: self.reduced_sessions(),
                 }
             }
-            Err(message) => {
-                self.error = Some(message);
+            Err((field, message)) => {
+                // Re-validation V-11: an error about one visible parameter
+                // is drawn at that parameter.
+                let key = field.and_then(|field| field.strip_prefix("params."));
+                match key.filter(|key| {
+                    self.visible_fields()
+                        .iter()
+                        .any(|&i| self.fields[i].key == *key)
+                }) {
+                    Some(key) if self.step == Step::Params => {
+                        self.error = None;
+                        self.field_error = Some((key.to_owned(), message));
+                    }
+                    _ => self.error = Some(message),
+                }
                 Action::Continue
             }
         }
@@ -2417,6 +2443,13 @@ impl Wizard {
     }
 
     fn build_config(&self) -> Result<Config, String> {
+        self.build_config_at_field().map_err(|(_, message)| message)
+    }
+
+    /// [`Wizard::build_config`] with the field the core tied the error to,
+    /// when it did (`params.<key>`, `name`, `interval`, ...).
+    fn build_config_at_field(&self) -> Result<Config, (Option<&'static str>, String)> {
+        let plain = |message: String| (None, message);
         // Translate the wizard's UI fields into the UI-neutral AccountDraft
         // and let the core account-edit module own the policy (name check,
         // OAuth preservation, managed-keys cleanup, native login params,
@@ -2430,7 +2463,7 @@ impl Wizard {
             .and_then(|i| self.base.accounts.get(i))
             .filter(|a| a.provider == self.provider);
         let existing_params = existing_account.map(|a| &a.params);
-        let (credential, credential_params) = self.account_login_inputs()?;
+        let (credential, credential_params) = self.account_login_inputs().map_err(plain)?;
         let draft = edit::AccountDraft {
             provider: self.provider,
             name: &self.name,
@@ -2452,7 +2485,7 @@ impl Wizard {
             Some(peer) => self
                 .base
                 .name_peer(peer, &self.peer_name)
-                .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?,
+                .map_err(|e| plain(crate::ui::resolve_l10n(&e.l10n())))?,
             None => self.base.clone(),
         };
         // PRD 0016: a pasted session counts as the account's credential, so
@@ -2460,7 +2493,7 @@ impl Wizard {
         let pasted = self.reduced_sessions();
         let pasted: Vec<&str> = pasted.iter().map(ReducedSession::slot).collect();
         let mut account = edit::build_account_with_secrets(&draft, &base, self.editing, &pasted)
-            .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?;
+            .map_err(|e| (e.field(), crate::ui::resolve_l10n(&e.l10n())))?;
         // PRD 0045 RF6.3: the chosen breakdowns the built mode offers.
         let offered = cuotai_core::access::describe(&account).breakdowns;
         let chosen: Vec<_> = self
@@ -2470,16 +2503,16 @@ impl Wizard {
             .filter(|kind| offered.iter().any(|mode| mode.kind == *kind))
             .collect();
         edit::set_breakdown(&mut account, &chosen)
-            .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))?;
+            .map_err(|e| plain(crate::ui::resolve_l10n(&e.l10n())))?;
         // PRD 0041 RF5.2: the budgets and floors of the step, checked by
         // the core before the save.
         if let Some(note) = self.budget_step.problem(self.provider) {
-            return Err(crate::ui::resolve_l10n(&note));
+            return Err(plain(crate::ui::resolve_l10n(&note)));
         }
         account.budgets = self.budget_step.budgets();
         account.floors = self.budget_step.floors();
         base.upsert_account(account, self.editing)
-            .map_err(|e| crate::ui::resolve_l10n(&e.l10n()))
+            .map_err(|e| plain(crate::ui::resolve_l10n(&e.l10n())))
     }
 
     /// PRD 0045 RF6.3: the breakdown modes the draft offers, in the order
@@ -3654,6 +3687,16 @@ impl Wizard {
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
+            if let Some((_, message)) = self
+                .field_error
+                .as_ref()
+                .filter(|(key, _)| key.as_str() == field.key)
+            {
+                lines.push(Line::from(Span::styled(
+                    format!("    {}", crate::ui::safe(message)),
+                    Style::default().fg(DRACULA_RED),
+                )));
+            }
         }
         if let Some(line) = self.aggregator_test_line() {
             lines.push(Line::default());
@@ -3836,6 +3879,9 @@ impl Wizard {
                 "Applies only to this account. The real minimum is {effective} s: {min} to {effective} s are raised to {effective} s.",
                 &[("effective", &bounds.effective_min), ("min", &bounds.min)],
             )
+        } else if let Some(hint) = edit::interval_hint(self.provider) {
+            // Re-validation V-04: an aggregator's 120 s floor.
+            crate::ui::resolve_l10n(&hint)
         } else {
             tr(
                 "wizard.interval.help",
@@ -4697,6 +4743,41 @@ mod tests {
             tested.params.get("tls_pin_sha256").map(String::as_str),
             Some(new.as_str())
         );
+    }
+
+    /// Re-validation V-03 and V-11: a 9router draft suggests no password
+    /// variable, and F4 on an invalid address draws the core's error under
+    /// the address field, whole and named by the field's label.
+    #[test]
+    fn f4_on_an_invalid_address_shows_the_error_at_the_field() {
+        crate::l10n::with_locale("en-US", || {
+            let press = |w: &mut Wizard, code| w.handle(KeyEvent::new(code, KeyModifiers::NONE));
+            let mut router = account("home", "");
+            router.provider = Provider::NineRouter;
+            router.credential_env = None;
+            let config = Config {
+                accounts: vec![router],
+                ..Config::default()
+            };
+            let mut wiz = Wizard::new(&config, Some(0));
+            assert_eq!(wiz.suggest_env(Provider::NineRouter), "");
+            wiz.step = Step::Params;
+            wiz.set_text_field("base_url", "http://192.0.2.10:20128");
+            assert!(matches!(press(&mut wiz, KeyCode::F(4)), Action::Continue));
+            assert!(wiz.error.is_none());
+            let (key, message) = wiz.field_error.clone().expect("an error at the field");
+            assert_eq!(key, "base_url");
+            assert!(message.starts_with("9router address:"), "{message}");
+            let screen = screen_of(&mut wiz, 80, 40);
+            let flat = screen.split_whitespace().collect::<Vec<_>>().join(" ");
+            assert!(flat.contains("on a private network."), "{screen}");
+            assert!(!flat.contains("params.base_url"), "{screen}");
+            // Moving between fields keeps it; typing clears it.
+            press(&mut wiz, KeyCode::Down);
+            assert!(wiz.field_error.is_some());
+            press(&mut wiz, KeyCode::Char('x'));
+            assert!(wiz.field_error.is_none());
+        });
     }
 
     fn wizard_with(name: &str, env: &str, interval: &str) -> Wizard {

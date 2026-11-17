@@ -319,7 +319,8 @@
       "confirm.certificate.new",
       "confirm.certificate.host",
       "confirm.certificate.checked",
-      "confirm.certificate.replace"
+      "confirm.certificate.replace",
+      "coreText.passwordUnset"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -987,6 +988,7 @@
   "coreText.queriedWithKey": "Quota lu avec la clé d’API du compte.",
   "coreText.queriedWithSession": "Quota lu avec la session web du compte.",
   "coreText.projectOverride": "Le projet défini pour ce compte a remplacé celui découvert.",
+  "coreText.passwordUnset": "Le mot de passe configuré dans le terminal n’est pas disponible pour l’app, donc aucun n’a été envoyé. Saisissez-le dans le champ du mot de passe, ou laissez-le vide si la connexion au tableau de bord est désactivée.",
   "coreText.optionalSetting": "Plus de détails sont disponibles avec un réglage de plus dans Modifier.",
   "coreText.perplexityComputer": "Seule l’utilisation de Perplexity Computer est affichée ; Sonar n’a pas d’endpoint d’usage.",
   "coreText.keyRejected": "Le fournisseur a refusé la clé. Vérifiez-la ou remplacez-la dans Modifier.",
