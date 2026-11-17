@@ -175,6 +175,19 @@ for (const { code } of i18n.LOCALES) {
   assert.ok(unitsAll.includes(await coreText(code, "overage.units_caveat", "Amounts are in provider units, not money.")), `${code}: units caveat`);
   assert.ok(!unitsAll.includes("$"), `${code}: provider units never show a dollar sign`);
 
+  // PRD 0034 re-validation (G13): an adapter unit (`créditos`, an id) reads as the overage metric's `unit_text` on the
+  // card column, the line, the details and the cap; the core's chip text carries its own nested unit text.
+  const creditsWord = await coreText(code, "metric.unit.credits", "credits");
+  const creditsText = text("metric.unit.credits", "credits");
+  const creditsAmount = (value) => text("amount.units", `${value} credits`, { value: String(value), unit: creditsText });
+  const credits = report({ state: "active", spent: 12, unit: "créditos", currency: null, cap: 40, cycle_ends_at: null,
+    text: text("overage.on_extra", "On extra · 12 credits", { amount: creditsAmount(12) }),
+    summary: text("overage.limit_hit_on_extra", "Limit hit · on extra 12 credits", { amount: creditsAmount(12) }), caveat: null },
+  extraMetric({ unit: "créditos", unit_text: creditsText, kind: "quota", used: 12, limit: 40 }));
+  const creditsAll = decode(extraColumnHtml(credits) + lib.overageChipHtml(credits) + detailHtml(credits) + lib.overageLineHtml(credits));
+  assert.ok(creditsAll.includes(`${num(12)} ${flat(creditsWord)}`) && creditsAll.includes(`${num(40)} ${flat(creditsWord)}`), `${code}: credits read in the language`);
+  if (flat(creditsWord) !== "créditos") assert.ok(!creditsAll.includes("créditos"), `${code}: the raw unit never shows`);
+
   // Overage never decides the card summary or the sort order.
   assert.equal(lib.worstRemaining(cases.unknown), 40, `${code}: worst remaining ignores overage`);
   console.log(`${code}: ${flat(lib.overageLineText(cases.active.overage))}; ${capText}`);

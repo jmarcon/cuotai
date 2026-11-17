@@ -8,7 +8,8 @@
 //! - `amount.money` `{value, currency}`: `$6.25`, `6,25 $`, `US$ 6,25`;
 //! - `amount.number` `{value}`: `1,234.5`, `1.234,5`;
 //! - `amount.units` `{value, unit}`: `12.5 credits`, a no-break space between
-//!   the number and its unit (PRD 0034 re-validation V-10).
+//!   the number and its unit (PRD 0034 re-validation V-10). `unit` is a
+//!   plain text or a nested `Localized` (`metric.unit.credits`).
 //!
 //! A share in percent (PRD 0034 re-validation V-17) is a catalog text,
 //! `number.percent` `{p}`, whose `p` is an `amount.number`: each language
@@ -255,6 +256,20 @@ pub fn units(value: f64, unit: &str) -> Localized {
     }
 }
 
+/// A number with a unit that is a text of its own (`metric.unit.credits`),
+/// so the unit reads in the reader's language too (PRD 0034 re-validation,
+/// G13). The fallback is the English form.
+pub fn units_text(value: f64, unit: Localized) -> Localized {
+    Localized {
+        fallback: format!("{}{NBSP}{}", format_number(value, source()), unit.fallback).into(),
+        id: UNITS.into(),
+        params: params([
+            ("value", ParamValue::Text(machine(value))),
+            ("unit", ParamValue::l10n(unit)),
+        ]),
+    }
+}
+
 /// A share already in percent (`64.0` for 64 %), rendered per locale:
 /// `64%`, `64\u{a0}%` (de), `%64` (tr). The figure keeps up to two decimals;
 /// callers round it first when they show whole percents.
@@ -299,11 +314,13 @@ pub(super) fn render(note: &Localized, locale: &str) -> Option<String> {
             crate::budget::is_currency(currency).then(|| format_money(value, currency, locale))
         }
         NUMBER => Some(format_number(value, locale)),
-        UNITS => Some(format!(
-            "{}{NBSP}{}",
-            format_number(value, locale),
-            text_param(note, "unit")?
-        )),
+        UNITS => {
+            let unit = match note.params.get("unit")? {
+                ParamValue::Text(text) => text.clone(),
+                ParamValue::L10n(unit) => unit.resolve(locale),
+            };
+            Some(format!("{}{NBSP}{unit}", format_number(value, locale)))
+        }
         _ => None,
     }
 }

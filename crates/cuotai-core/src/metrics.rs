@@ -1305,7 +1305,7 @@ mod tests {
         );
         assert_eq!(
             texts[4].resolve("es"),
-            "más restrictiva: ventana semanal al 62%"
+            "más restrictiva: ventana semanal al 62\u{a0}%"
         );
         assert_eq!(
             texts[4].resolve("pt-BR"),

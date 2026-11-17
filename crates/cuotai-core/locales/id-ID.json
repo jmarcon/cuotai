@@ -2236,7 +2236,7 @@
     "other": "{prefix} — jendela {count} jam (%)"
   },
   "metric.label.window_seconds": "{prefix} — jendela {n} dtk (%)",
-  "metric.label.rate_limit_of": "{label} (rate limit)",
+  "metric.label.rate_limit_of": "{label} (batas laju)",
   "metric.label.extra_usage_used": "Penggunaan ekstra — terpakai",
   "metric.unit.provider_units": "unit penyedia",
   "metric.label.overage_of": "{label} (kelebihan)",

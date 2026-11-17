@@ -287,7 +287,13 @@ pub fn format_amount(value: f64, unit: &str, currency: Option<&str>) -> ParamVal
             "{value} provider units",
         )),
         None if unit.is_empty() => ParamValue::l10n(number::number(value)),
-        None => ParamValue::l10n(number::units(value, unit)),
+        // PRD 0034 re-validation (G13): an adapter's own unit (an id, often
+        // Portuguese: `créditos`) reads as its display text; a unit the
+        // catalog does not know stays as the provider wrote it.
+        None => match crate::metric_text::metric_text(unit) {
+            text if text.id == "metric.verbatim" => ParamValue::l10n(number::units(value, unit)),
+            text => ParamValue::l10n(number::units_text(value, text)),
+        },
     }
 }
 
@@ -298,7 +304,7 @@ impl Overage {
             .map(|v| format_amount(v, &self.unit, self.currency.as_deref()))
     }
 
-    /// The pt-BR fallback of [`Self::amount`] (for plain text consumers).
+    /// The English fallback of [`Self::amount`] (for plain text consumers).
     pub fn amount_text(&self) -> Option<String> {
         match self.amount()? {
             ParamValue::Text(t) => Some(t),

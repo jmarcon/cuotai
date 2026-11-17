@@ -4661,7 +4661,7 @@ mod tests {
         );
         assert_eq!(
             text(&one, "es").0,
-            "Claude: 90% de la ventana de 5 horas usado"
+            "Claude: 90\u{a0}% de la ventana de 5 horas usado"
         );
         assert_eq!(
             text(&[(&work, vec![week.clone()])], "en-US"),
@@ -4702,7 +4702,7 @@ mod tests {
             text(&accounts, "es"),
             (
                 "Cuotai: 2 alertas de uso".into(),
-                "Claude Work: Session (5h) 90%; Claude Home: 5h disponible de nuevo".into()
+                "Claude Work: Session (5h) 90\u{a0}%; Claude Home: 5h disponible de nuevo".into()
             )
         );
         assert!(notice(&[(&work, Vec::new())], t0(), &Utc).is_none());

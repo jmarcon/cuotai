@@ -792,7 +792,16 @@ export const planMetrics = (r) => r.metrics.filter((m) => m.kind !== "rate_limit
 /** Billed on top of the plan: never a plan meter, never the summary, always a textual figure. */
 export const isOverage = (m) => m.billing === "overage";
 /** The core's overage reading of a current report; null for a failed, pending or preserved one. */
-export const overageOf = (r) => (r.status === "ready" && !r.pending ? r.overage ?? null : null);
+// PRD 0034 re-validation (G13): `unit` is the adapter's id (often Portuguese: `créditos`); `unit_name` is how a person
+// reads it, the `unit_text` of the overage metric that carries that unit (the raw unit when no metric has one).
+// Resolved on each call: the name follows a language switch.
+const overageUnitName = (r, o) => {
+  if (!o.unit || o.currency) return o.unit ?? "";
+  const m = (r.metrics ?? []).find((x) => x.billing === "overage" && x.unit === o.unit);
+  return m ? unitName(m) : o.unit;
+};
+export const overageOf = (r) =>
+  r.status === "ready" && !r.pending && r.overage ? { ...r.overage, unit_name: overageUnitName(r, r.overage) } : null;
 /** The overage while money is being billed (`active`) or the extra budget is used up (`cap_reached`). */
 export const billingOverage = (r) => {
   const o = overageOf(r);
@@ -800,7 +809,8 @@ export const billingOverage = (r) => {
 };
 /** One amount: money with the locale's currency format, provider units as the core words them, anything else with
  *  its unit. A missing amount is "—", never zero (DS-MSG-5). */
-/** `shown` is the unit as a person reads it (a metric's `unitName`); `unit` stays the id the provider-units test reads. */
+/** `shown` is the unit as a person reads it (a metric's `unitName`, an overage's `unit_name`); `unit` stays the id the
+ *  provider-units test reads. */
 export function fmtExtra(value, unit, currency, shown = unit) {
   if (value == null) return "—";
   if (currency) {
@@ -820,7 +830,7 @@ export function extraFigure(o) {
   if (o.currency) return { fig: fmtExtra(o.spent, o.unit, o.currency), unit: t("figure.extra") };
   const unit = o.unit === "unid. provedor"
     ? tl({ id: "metric.unit.provider_units", params: {}, fallback: "provider units" })
-    : o.unit || t("figure.extra");
+    : (o.unit_name ?? o.unit) || t("figure.extra");
   return { fig: fmtNumber(o.spent), unit };
 }
 /** Figure first (DS-MSG-4): "$6.25 extra of $50" for one overage metric. */
@@ -835,8 +845,8 @@ export function overageLineText(o) {
   if (o.state === "disabled") return "";
   if (o.state === "active" || o.state === "cap_reached") {
     if (o.spent == null) return tl(o.text);
-    const amount = fmtExtra(o.spent, o.unit, o.currency);
-    return o.cap > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(o.cap, o.unit, o.currency) }) : t("metric.overage", { amount });
+    const amount = fmtExtra(o.spent, o.unit, o.currency, o.unit_name);
+    return o.cap > 0 ? t("metric.overageCap", { amount, cap: fmtExtra(o.cap, o.unit, o.currency, o.unit_name) }) : t("metric.overage", { amount });
   }
   return tl(o.text);
 }
@@ -864,7 +874,7 @@ export function overageDetailHtml(r) {
   const o = overageOf(r);
   if (!o) return "";
   const cycle = fmtReset(o.cycle_ends_at);
-  const cap = o.cap > 0 ? fmtExtra(o.cap, o.unit, o.currency) : null;
+  const cap = o.cap > 0 ? fmtExtra(o.cap, o.unit, o.currency, o.unit_name) : null;
   return `<div class="metric extra-detail" data-overage-detail>
     <div class="metric-top"><div><h3>${te("card.extra.title")}</h3>${o.state === "active" ? "" : `<span class="sub">${esc(tl(o.text))}</span>`}</div></div>
     ${o.state === "active" || o.state === "cap_reached" ? `<div class="balance">${esc(overageLineText(o))}</div>` : ""}
@@ -1412,6 +1422,9 @@ const dr = (account, provider, metrics, notes = [], status = "ready") => ({
 // Demo notes are catalog texts (`demo.note.*`), so every language renders its own.
 const demoNote = (id, fallback) => ({ id: `demo.note.${id}`, params: {}, fallback });
 const drn = (account, provider, metrics, note, status) => ({ ...dr(account, provider, metrics, [note.fallback], status), notes_l10n: [note] });
+// PRD 0034 re-validation (V-24): a note the real adapter writes, with its core id, so the demo shows it translated.
+const coreNote = (id, fallback, params = {}) => ({ id, params, fallback });
+const coreNotes = (notes) => ({ notes: notes.map((n) => n.fallback), notes_l10n: notes });
 // The core's amount (PRD 0023 re-validation V-02): machine params, formatted by `tl` in the UI locale.
 // Its English fallback is the en-US currency format, like the core's.
 const demoMoney = (value, currency = "USD") => ({ id: "amount.money", params: { value: String(value), currency }, fallback: new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value) });
@@ -1428,7 +1441,8 @@ const demoReports = [
   // PRD 0010 RF3 fixtures: an aging reading (10 min against 300 s) and a failure that kept its last valid reading.
   { ...dr("alex@example.com", "chat_gpt", [dm("5h", 6, 100, 67.6, "quota", "window_5h", "%")]), checked_at: ago(10), freshness: "aging", plan: "Plus" },
   { ...dr("octo-dev", "copilot", [dm("chat", 0, 0, 2.6, "quota", "other"), dm("Premium requests", 7026, 7000, 2.6, "quota", "other")]), class: "exhausted" },
-  { ...dr("Personal", "groq", [], ["Groq connected. No rate-limit data reported for this key yet."]), model_count: 4 },
+  { ...dr("Personal", "groq", []), model_count: 4,
+    ...coreNotes([coreNote("note.router_keys.groq_rate_limit_headers_missing", "Groq response without `x-ratelimit-*` headers in this request; the limit window is unknown.")]) },
   // PRD 0023 RF10.3 demo: the video model is at its limit (the core's `scope_blocks`); the account keeps its quota.
   { ...dr("Personal", "mini_max", [dm("M-series (5h)", 6, 100, 2.6, "quota", "window_5h"), dm("M-series (7d)", 60, 100, 98.6, "quota", "weekly"), dm("Video (5h)", 0, 100, 2.6, "quota", "window_5h")]),
     scope_blocks: [{ index: 2, label: "Video", resets_at: h(2.6), text: { id: "metrics.scope_blocked", params: { model: "Video", at: new Date(h(2.6)).toTimeString().slice(0, 5) }, fallback: `Video at its limit until ${new Date(h(2.6)).toTimeString().slice(0, 5)}` } }] },
@@ -1486,11 +1500,13 @@ if (new URLSearchParams(location.search).get("aggregator") !== "off") {
     demoConnection("a1b2c3", "work", "claude", "claude", [dm("session (5h)", 22, 100, 3, "quota", "window_5h", "%"), dm("weekly (7d)", 40, 100, 80, "quota", "weekly", "%")],
       { plan: "Max", connection: { label: "work", upstream: "claude", mapped: "claude", enabled_upstream: true, duplicate_of: new URLSearchParams(location.search).has("dup") ? "claude:Account 2" : null, plan: "Max", via: "open-sse/services/usage/claude.js", sub: "a1b2c3", show_both: false } }),
     { ...demoConnection("d4e5f6", "personal", "claude", "claude", [dm("session (5h)", 100, 100, 2, "quota", "window_5h", "%")]), class: "exhausted" },
-    demoConnection("0718aa", "team", "codex", "chat_gpt", [], { status: "ready", notes: ["Off in 9router."],
+    demoConnection("0718aa", "team", "codex", "chat_gpt", [], { status: "ready", ...coreNotes([coreNote("note.nine_router.off", "Off in 9router.")]),
       connection: { label: "team", upstream: "codex", mapped: "chat_gpt", enabled_upstream: false, duplicate_of: null, plan: null, via: null, sub: "0718aa", show_both: false } }),
-    { ...demoConnection("9bc0de", "zhipu", "glm", null, [], { status: "error", notes: ["Reconnect this account in 9router."], class: "unmeasured" }) },
+    { ...demoConnection("9bc0de", "zhipu", "glm", null, [], { status: "error", ...coreNotes([coreNote("note.nine_router.reconnect", "Reconnect this account in 9router.")]), class: "unmeasured" }) },
   ];
-  demoReports.push({ ...dr("home", "nine_router", [], ["2 of 4 9router connections with usage.", "9router 0.5.109."]),
+  demoReports.push({ ...dr("home", "nine_router", []),
+    ...coreNotes([coreNote("note.nine_router.summary", "2 of 4 9router connections with usage.", { ready: "2", total: "4" }),
+      coreNote("note.nine_router.version", "9router 0.5.109.", { version: "0.5.109" })]),
     class: "available", connections: conns,
     // PRD 0036 RF2.3/RF2.4: `?aggwarn` shows both standing warnings (the demo instance itself is loopback).
     ...(new URLSearchParams(location.search).has("aggwarn") ? { connection_warnings: { exposed: true, private_http: true } } : {}),

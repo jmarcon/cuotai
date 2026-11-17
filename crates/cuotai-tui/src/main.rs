@@ -2817,7 +2817,7 @@ mod tests {
         let now = report.checked_at + chrono::Duration::seconds(125);
         assert_eq!(
             report_heading(&report, now),
-            "Work / Claude — Rate limit · consultado há 2\u{a0}min"
+            "Work / Claude — Limite de uso · consultado há 2\u{a0}min"
         );
         // PRD 0029 V-07: an unnamed account names its provider once.
         let unnamed = self::report("", Status::RateLimited, Vec::new());
