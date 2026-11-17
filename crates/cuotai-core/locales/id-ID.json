@@ -98,7 +98,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -179,7 +180,7 @@
   "access.summary.copilot_quota": "Kuota interaksi pribadi Copilot melalui antarmuka internal GitHub.",
   "access.summary.cursor_personal": "Ringkasan langganan pribadi Cursor melalui antarmuka internal situs.",
   "access.summary.cursor_teams": "Pengeluaran tim dalam siklus melalui Admin API Cursor.",
-  "access.summary.eleven_labs": "Membaca kredit terpakai, batas paket, dan reset berikutnya dari endpoint langganan ElevenLabs yang terdokumentasi, ditambah penggunaan ekstra jika diaktifkan.",
+  "access.summary.eleven_labs": "Membaca kredit terpakai, batas paket, reset berikutnya, dan slot suara dari endpoint langganan ElevenLabs yang terdokumentasi, ditambah penggunaan ekstra jika diaktifkan, nama dan status paket, serta ada tidaknya tagihan yang belum dibayar (tanpa jumlah).",
   "access.summary.extension": "Penggunaan yang dilaporkan oleh ekstensi lokal yang disetujui pengguna.",
   "access.summary.gemini_ai": "Kunci API AI Studio.",
   "access.summary.gemini_ai_cli": "Kuota Gemini CLI melalui antarmuka internal Code Assist.",
@@ -978,7 +979,7 @@
   "field.copilot.query_mode.label": "Mode kueri",
   "field.copilot.query_mode.option.billing": "Penagihan terdokumentasi (bawaan)",
   "field.copilot.query_mode.option.quota": "Kuota pribadi (opt-in, antarmuka internal)",
-  "field.eleven_labs.region.help": "default (bawaan): api.elevenlabs.io. us, eu, in, dan sg: endpoint residensi data; pakai yang sesuai wilayah akun.",
+  "field.eleven_labs.region.help": "Bawaan: api.elevenlabs.io. us, eu, in, dan sg: endpoint residensi data; pakai wilayah akun Anda.",
   "field.eleven_labs.region.label": "Wilayah data",
   "field.eleven_labs.region.option.default": "Bawaan (api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "Uni Eropa (residensi data)",
@@ -1468,6 +1469,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs tidak melaporkan batas kredit; hanya konsumsi yang ditampilkan.",
   "note.eleven_labs.open_invoices": "ElevenLabs melaporkan tagihan yang belum dibayar.",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs melaporkan jumlah penggunaan ekstra yang tidak terbaca; biayanya dihilangkan.",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs melaporkan jumlah penggunaan ekstra dalam mata uang yang tidak dikenal Cuotai; biayanya dihilangkan.",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs melaporkan batas penggunaan ekstra tetapi tidak mengizinkan perluasan batas; penggunaan ekstra diperlakukan sebagai nonaktif.",
   "note.eleven_labs.overage_unlimited": "Penggunaan ekstra tidak memiliki batas kredit.",
   "note.eleven_labs.payg_not_reported": "Saldo Pay As You Go: tidak dilaporkan oleh endpoint ini.",

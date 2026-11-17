@@ -120,6 +120,23 @@ fn every_provider() -> Vec<crate::Provider> {
     all
 }
 
+/// Every provider whose offline label fixtures emit a metric billed as
+/// overage; `access` asserts each one says it reports overage (PRD 0037
+/// re-validation, V-06).
+pub(crate) fn providers_with_overage_fixtures() -> Vec<crate::Provider> {
+    every_provider()
+        .into_iter()
+        .filter(|&provider| match fixture(provider) {
+            Fixture::Metrics(fixtures) => fixtures.iter().any(|(_, metrics)| {
+                metrics
+                    .iter()
+                    .any(|metric| metric.billing == crate::model::Billing::Overage)
+            }),
+            _ => false,
+        })
+        .collect()
+}
+
 /// The metrics of every [`Fixture::Metrics`], by adapter (sorted by
 /// module, each adapter once, each identity once).
 fn fixtures() -> Vec<(&'static str, Vec<Metric>)> {

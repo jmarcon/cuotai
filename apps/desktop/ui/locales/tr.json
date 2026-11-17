@@ -255,7 +255,7 @@
   "settings.kw.tray-style": "menü çubuğu tepsi durum çubuğu başlık simge yüzde göstergeler renk hesap sırası stil en sıkı logolar",
   "settings.kw.tray-colored": "menü çubuğu tepsi durum çubuğu başlık simge yüzde göstergeler renk hesap sırası renkli düzeyler",
   "settings.kw.tray-auto": "menü çubuğu tepsi durum çubuğu başlık simge yüzde göstergeler renk hesap sırası otomatik seçim",
-  "settings.kw.agg-in-all": "9router bağlantıları toplayıcı tümü liste grup gizle",
+  "settings.kw.agg-in-all": "9router LiteLLM bağlantıları toplayıcı tümü liste grup gizle",
   "settings.kw.exhaustion": "tükendi boş kota bitti uyarı",
   "settings.kw.recovery": "düzeldi geri döndü yeniden kullanılabilir uyarı",
   "settings.kw.test": "test bildirim izin gönder",

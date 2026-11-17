@@ -117,7 +117,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -198,7 +199,7 @@
   "access.summary.copilot_quota": "GitHub 내부 인터페이스로 조회하는 Copilot의 개인 상호작용 할당량입니다.",
   "access.summary.cursor_personal": "사이트 내부 인터페이스로 조회하는 Cursor 개인 구독 요약입니다.",
   "access.summary.cursor_teams": "Cursor Admin API로 조회하는 주기 내 팀 지출입니다.",
-  "access.summary.eleven_labs": "ElevenLabs의 문서화된 구독 엔드포인트로 조회하는 사용한 크레딧, 요금제 한도, 다음 갱신일이며 활성화된 경우 추가 사용량도 포함합니다.",
+  "access.summary.eleven_labs": "ElevenLabs의 문서화된 구독 엔드포인트로 조회하는 사용한 크레딧, 요금제 한도, 다음 갱신일, 음성 슬롯이며 활성화된 경우 추가 사용량, 요금제 이름과 상태, 미결제 청구서 여부(금액 제외)도 포함합니다.",
   "access.summary.extension": "사용자가 승인한 로컬 확장 기능이 보고한 사용량입니다.",
   "access.summary.gemini_ai": "AI Studio API 키입니다.",
   "access.summary.gemini_ai_cli": "Code Assist 내부 인터페이스로 조회하는 Gemini CLI 할당량입니다.",
@@ -997,7 +998,7 @@
   "field.copilot.query_mode.label": "조회 모드",
   "field.copilot.query_mode.option.billing": "문서화된 청구(기본값)",
   "field.copilot.query_mode.option.quota": "개인 할당량(선택 사용, 내부 인터페이스)",
-  "field.eleven_labs.region.help": "default(기본값): api.elevenlabs.io. us, eu, in, sg: 데이터 거주 엔드포인트이며 계정의 리전에 맞는 것을 쓰세요.",
+  "field.eleven_labs.region.help": "기본값: api.elevenlabs.io. us, eu, in, sg: 데이터 거주 엔드포인트이며 계정의 리전을 쓰세요.",
   "field.eleven_labs.region.label": "데이터 리전",
   "field.eleven_labs.region.option.default": "기본값(api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "유럽 연합(데이터 거주)",
@@ -1487,6 +1488,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs가 크레딧 한도를 알려 주지 않아 사용량만 표시됩니다.",
   "note.eleven_labs.open_invoices": "ElevenLabs에 미결제 청구서가 있습니다.",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs가 읽을 수 없는 추가 사용량 금액을 반환하여 비용을 생략했습니다.",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs가 Cuotai가 알지 못하는 통화로 추가 사용량 금액을 반환하여 비용을 생략했습니다.",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs가 추가 사용량 상한을 알렸지만 한도 확장을 허용하지 않아 추가 사용량을 꺼진 것으로 처리했습니다.",
   "note.eleven_labs.overage_unlimited": "추가 사용량에 크레딧 상한이 없습니다.",
   "note.eleven_labs.payg_not_reported": "Pay As You Go 잔액은 이 엔드포인트에서 제공하지 않습니다.",

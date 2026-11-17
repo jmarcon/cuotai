@@ -121,7 +121,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -202,7 +203,7 @@
   "access.summary.copilot_quota": "Persönliches Interaktionskontingent von Copilot über die interne Schnittstelle von GitHub.",
   "access.summary.cursor_personal": "Übersicht des persönlichen Cursor-Abonnements über die interne Schnittstelle der Website.",
   "access.summary.cursor_teams": "Ausgaben des Teams im Zyklus über die Admin-API von Cursor.",
-  "access.summary.eleven_labs": "Liest verbrauchte Credits, Tariflimit und nächste Zurücksetzung über den dokumentierten Abo-Endpunkt von ElevenLabs, dazu Zusatznutzung, sofern aktiviert.",
+  "access.summary.eleven_labs": "Liest verbrauchte Credits, Tariflimit, nächste Zurücksetzung und Stimmplätze über den dokumentierten Abo-Endpunkt von ElevenLabs, dazu Zusatznutzung, sofern aktiviert, Tarifname und -status sowie, ob offene Rechnungen bestehen (ohne Beträge).",
   "access.summary.extension": "Von einer lokalen, vom Benutzer genehmigten Erweiterung gemeldete Nutzung.",
   "access.summary.gemini_ai": "API-Schlüssel von AI Studio.",
   "access.summary.gemini_ai_cli": "Kontingent der Gemini CLI über die interne Code-Assist-Schnittstelle.",
@@ -1019,7 +1020,7 @@
   "field.copilot.query_mode.label": "Abfragemodus",
   "field.copilot.query_mode.option.billing": "Dokumentierte Abrechnung (Standard)",
   "field.copilot.query_mode.option.quota": "Persönliches Kontingent (Opt-in, interne Schnittstelle)",
-  "field.eleven_labs.region.help": "default (Standard): api.elevenlabs.io. us, eu, in und sg: Endpunkte für Datenresidenz; verwenden Sie den der Region des Kontos.",
+  "field.eleven_labs.region.help": "Standard: api.elevenlabs.io. us, eu, in und sg: Endpunkte für Datenresidenz; verwenden Sie die Region Ihres Kontos.",
   "field.eleven_labs.region.label": "Datenregion",
   "field.eleven_labs.region.option.default": "Standard (api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "Europäische Union (Datenresidenz)",
@@ -1512,6 +1513,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs hat das Credit-Limit nicht gemeldet; nur der Verbrauch wird angezeigt.",
   "note.eleven_labs.open_invoices": "ElevenLabs meldet offene Rechnungen.",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs hat einen unlesbaren Betrag für Zusatznutzung gemeldet; die Kosten wurden weggelassen.",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs hat den Betrag für Zusatznutzung in einer Währung gemeldet, die Cuotai nicht kennt; die Kosten wurden weggelassen.",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs hat eine Obergrenze für Zusatznutzung gemeldet, erlaubt aber nicht, das Limit zu erweitern; die Zusatznutzung wurde als deaktiviert behandelt.",
   "note.eleven_labs.overage_unlimited": "Die Zusatznutzung hat keine Credit-Obergrenze.",
   "note.eleven_labs.payg_not_reported": "Pay-As-You-Go-Guthaben: von diesem Endpunkt nicht gemeldet.",

@@ -924,7 +924,7 @@ pub(crate) fn classify(
             verified_on: "2026-10-23",
             ..entry(Official, InferenceKey, Scope::Account,
                 doc("https://elevenlabs.io/docs/api-reference/user/subscription/get"),
-                "eleven_labs", "Reads credits used, plan limit and next reset from the documented ElevenLabs subscription endpoint, plus extra usage when enabled.")
+                "eleven_labs", "Reads credits used, plan limit, next reset and voice slots from the documented ElevenLabs subscription endpoint, plus extra usage when enabled, the plan name and status, and whether invoices are open (no amounts).")
         },
         // PRD 0049 RF9: the console session reads the usage page's own
         // backend, found in the dev.meta.ai bundle (no public contract).
@@ -1002,7 +1002,7 @@ pub(crate) fn classify(
     if access.level != Unavailable {
         access.overage = match provider {
             Provider::Cursor if oauth || param("query_mode", "personal") => OverageReporting::Money,
-            Provider::Kiro => OverageReporting::Money,
+            Provider::Kiro | Provider::ElevenLabs => OverageReporting::Money,
             Provider::Claude if crate::feed::mode_of(provider, params).is_none() => {
                 OverageReporting::ProviderUnits
             }
@@ -1152,6 +1152,24 @@ mod tests {
                     .flat_map(move |m| [false, true].map(|oauth| account(p, m, oauth)))
             })
             .collect()
+    }
+
+    /// PRD 0037 re-validation (V-06): a provider whose adapter fixtures
+    /// emit a metric billed as overage says, in at least one mode, that it
+    /// reports overage; the docs matrix and the details read this.
+    #[test]
+    fn every_provider_emitting_overage_reports_it() {
+        let providers = crate::providers::label_snapshot::providers_with_overage_fixtures();
+        assert!(providers.contains(&Provider::ElevenLabs), "{providers:?}");
+        let all = variants();
+        for provider in providers {
+            assert!(
+                all.iter()
+                    .filter(|account| account.provider == provider)
+                    .any(|account| describe(account).overage != OverageReporting::NotReported),
+                "{provider:?} emits overage metrics but its access descriptor says not reported"
+            );
+        }
     }
 
     /// Only providers that are `Unavailable` in every mode lack a query; a

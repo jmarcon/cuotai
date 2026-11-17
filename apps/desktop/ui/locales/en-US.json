@@ -252,7 +252,7 @@
   "settings.kw.tray-style": "menu bar tray status bar title icon percent meters color accounts order style tightest percent logos meters icon title",
   "settings.kw.tray-colored": "menu bar tray status bar title icon percent meters color accounts order color colored levels",
   "settings.kw.tray-auto": "menu bar tray status bar title icon percent meters color accounts order automatic selection accounts order",
-  "settings.kw.agg-in-all": "9router connections aggregator all list group hide",
+  "settings.kw.agg-in-all": "9router LiteLLM connections aggregator all list group hide",
   "settings.kw.exhaustion": "exhausted empty out of quota alert",
   "settings.kw.recovery": "recovered back available again alert",
   "settings.kw.test": "test notification permission send",

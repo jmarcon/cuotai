@@ -297,7 +297,7 @@
   "settings.kw.tray-style": "menüleiste tray statusleiste titel symbol prozent anzeigen farbe konten reihenfolge stil engste prozent logos anzeigen symbol titel",
   "settings.kw.tray-colored": "menüleiste tray statusleiste titel symbol prozent anzeigen farbe konten reihenfolge farbe farbig stufen",
   "settings.kw.tray-auto": "menüleiste tray statusleiste titel symbol prozent anzeigen farbe konten reihenfolge automatisch auswahl konten reihenfolge",
-  "settings.kw.agg-in-all": "9router verbindungen aggregator alle liste gruppe ausblenden",
+  "settings.kw.agg-in-all": "9router LiteLLM verbindungen aggregator alle liste gruppe ausblenden",
   "settings.kw.exhaustion": "erschöpft leer kontingent aufgebraucht warnung",
   "settings.kw.recovery": "wiederhergestellt zurück wieder verfügbar warnung",
   "settings.kw.test": "test benachrichtigung berechtigung senden",

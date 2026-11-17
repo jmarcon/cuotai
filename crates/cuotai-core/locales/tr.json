@@ -98,7 +98,8 @@
       "metric.label.copilot_quota",
       "metric.label.codebuddy_bonus_pack",
       "metric.label.codebuddy_cadence_n",
-      "metric.label.codebuddy_cadence"
+      "metric.label.codebuddy_cadence",
+      "note.eleven_labs.overage_currency_unknown"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -179,7 +180,7 @@
   "access.summary.copilot_quota": "Copilot kişisel etkileşim kotası, GitHub'ın dahili arayüzü üzerinden.",
   "access.summary.cursor_personal": "Cursor kişisel aboneliğinin özeti, sitenin dahili arayüzü üzerinden.",
   "access.summary.cursor_teams": "Ekibin döngü içindeki harcaması, Cursor Admin API'si üzerinden.",
-  "access.summary.eleven_labs": "Kullanılan kredileri, plan sınırını ve sonraki sıfırlamayı belgelenmiş ElevenLabs abonelik uç noktasından okur; etkinse ek kullanımı da.",
+  "access.summary.eleven_labs": "Kullanılan kredileri, plan sınırını, sonraki sıfırlamayı ve ses yuvalarını belgelenmiş ElevenLabs abonelik uç noktasından okur; etkinse ek kullanımı, plan adını ve durumunu ve açık fatura olup olmadığını da (tutarlar olmadan).",
   "access.summary.extension": "Kullanıcının onayladığı yerel bir uzantının bildirdiği kullanım.",
   "access.summary.gemini_ai": "AI Studio API anahtarı.",
   "access.summary.gemini_ai_cli": "Gemini CLI kotası, Code Assist'in dahili arayüzü üzerinden.",
@@ -996,7 +997,7 @@
   "field.copilot.query_mode.label": "Sorgu modu",
   "field.copilot.query_mode.option.billing": "Belgelenmiş faturalama (varsayılan)",
   "field.copilot.query_mode.option.quota": "Kişisel kota (isteğe bağlı, dahili arayüz)",
-  "field.eleven_labs.region.help": "default (varsayılan): api.elevenlabs.io. us, eu, in ve sg: veri yerleşimi uç noktaları; hesabın bölgesine uygun olanı kullanın.",
+  "field.eleven_labs.region.help": "Varsayılan: api.elevenlabs.io. us, eu, in ve sg: veri yerleşimi uç noktaları; hesabınızın bölgesini kullanın.",
   "field.eleven_labs.region.label": "Veri bölgesi",
   "field.eleven_labs.region.option.default": "Varsayılan (api.elevenlabs.io)",
   "field.eleven_labs.region.option.eu": "Avrupa Birliği (veri yerleşimi)",
@@ -1489,6 +1490,7 @@
   "note.eleven_labs.limit_missing": "ElevenLabs kredi sınırını bildirmedi; yalnızca tüketim gösteriliyor.",
   "note.eleven_labs.open_invoices": "ElevenLabs açık faturalar bildiriyor.",
   "note.eleven_labs.overage_amount_unreadable": "ElevenLabs okunamayan bir ek kullanım tutarı bildirdi; maliyet atlandı.",
+  "note.eleven_labs.overage_currency_unknown": "ElevenLabs ek kullanım tutarını Cuotai'nin bilmediği bir para biriminde bildirdi; maliyet atlandı.",
   "note.eleven_labs.overage_inconsistent": "ElevenLabs bir ek kullanım üst sınırı bildirdi ancak sınırın genişletilmesine izin vermiyor; ek kullanım kapalı sayıldı.",
   "note.eleven_labs.overage_unlimited": "Ek kullanımın kredi üst sınırı yok.",
   "note.eleven_labs.payg_not_reported": "Pay As You Go bakiyesi: bu uç nokta tarafından bildirilmiyor.",

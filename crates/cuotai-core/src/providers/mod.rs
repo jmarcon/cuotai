@@ -27,7 +27,7 @@ pub(crate) mod inference;
 pub(crate) mod jetbrains_ai;
 pub(crate) mod kimchi;
 #[cfg(test)]
-mod label_snapshot;
+pub(crate) mod label_snapshot;
 pub(crate) mod litellm;
 pub(crate) mod meta;
 pub(crate) mod mimo_platform;

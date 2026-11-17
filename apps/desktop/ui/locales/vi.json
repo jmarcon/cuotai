@@ -283,7 +283,7 @@
   "settings.kw.tray-style": "thanh menu khay thanh trạng thái tiêu đề biểu tượng phần trăm thước đo màu thứ tự tài khoản kiểu chặt nhất logo",
   "settings.kw.tray-colored": "thanh menu khay thanh trạng thái tiêu đề biểu tượng phần trăm thước đo màu thứ tự tài khoản có màu mức",
   "settings.kw.tray-auto": "thanh menu khay thanh trạng thái tiêu đề biểu tượng phần trăm thước đo màu thứ tự tài khoản chọn tự động",
-  "settings.kw.agg-in-all": "kết nối 9router bộ tổng hợp tất cả danh sách nhóm ẩn",
+  "settings.kw.agg-in-all": "kết nối 9router LiteLLM bộ tổng hợp tất cả danh sách nhóm ẩn",
   "settings.kw.exhaustion": "hết cạn hạn mức cảnh báo",
   "settings.kw.recovery": "phục hồi hoạt động lại khả dụng lại cảnh báo",
   "settings.kw.test": "kiểm tra thông báo quyền gửi",
