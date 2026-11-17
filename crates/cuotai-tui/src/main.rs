@@ -2075,7 +2075,10 @@ fn sub_reports_text(
             locale,
             "once.pool",
             "  Pool: {summary}",
-            &[("summary", &ui::safe(&pool.summary().resolve(locale)))],
+            &[(
+                "summary",
+                &ui::safe(&pool.summary_at(now, &chrono::Local).resolve(locale)),
+            )],
         );
         out += "\n";
     }

@@ -1748,7 +1748,7 @@
   "aggregators.chip.private_http": "Senha ou chave sem criptografia",
   "pool.available": "{upstream} · {available} de {total} disponíveis",
   "pool.exhausted": "{upstream} · todas esgotadas",
-  "pool.exhausted_returns": "{upstream} · todas esgotadas · volta em {at}",
+  "pool.exhausted_returns": "{upstream} · todas esgotadas · volta {at}",
   "pool.unmeasured": {
     "one": "{upstream} · {count} conexão sem uso conhecido",
     "other": "{upstream} · {count} conexões sem uso conhecido"
