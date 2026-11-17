@@ -1456,6 +1456,7 @@ impl Monitor {
     fn reused_metered(&self, account: &Account, mut report: Report) -> Report {
         metered_record::rebind(&mut report, account);
         report.drop_implausible_instants();
+        report.normalize_figures();
         self.apply_budgets(account, &mut report);
         report
     }
@@ -1548,6 +1549,7 @@ impl Monitor {
         match result {
             Ok(Some(mut sub)) => {
                 sub.drop_implausible_instants();
+                sub.normalize_figures();
                 sub.strip_disguising_text();
                 match report.sub_reports.iter_mut().find(|old| old.id == sub.id) {
                     Some(old) => *old = sub,
@@ -1750,6 +1752,7 @@ impl Monitor {
                     let mut report =
                         checked.into_report(account.name.clone(), Provider::Extension, checked_at);
                     report.drop_implausible_instants();
+                    report.normalize_figures();
                     report
                 }
                 Err(note) => unavailable(note),
@@ -1832,6 +1835,7 @@ impl Monitor {
         // AGENTS.md "Validate at boundaries": an impossible reset from a
         // provider reads as unknown instead of crashing a local clock.
         report.drop_implausible_instants();
+        report.normalize_figures();
         report
     }
 
