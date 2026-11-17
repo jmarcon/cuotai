@@ -124,7 +124,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -917,13 +924,14 @@
   },
   "feed.line.five_hour": "5 giờ {pct}",
   "feed.line.left": "{name} còn {pct}",
+  "feed.line.left_exhausted": "{name} {pct}, hoạt động lại {time}",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "chi tiêu {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "Tuần {pct}",
   "feed.live.caveat": "Ước tính của tác tử theo giá niêm yết, không phải khoản phí.",
-  "feed.live.cost": "≈ ${usd} trong phiên này",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "≈ {usd} trong phiên này",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "ngữ cảnh {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Phiên trực tiếp: {parts}",
@@ -2219,6 +2227,8 @@
   "tray.join": "{first}; {rest}",
   "tray.more": "{item}; +{count} mục khác",
   "tray.outage": "{item}; sự cố nhà cung cấp",
+  "tray.stale": "cũ",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}; 24 giờ qua dưới dạng cột theo giờ",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "Mở",
@@ -2287,6 +2297,18 @@
   "freshness.age.minutes": "{n} phút trước",
   "freshness.age.hours": "{n} giờ trước",
   "freshness.age.days": "{n} ngày trước",
+  "freshness.age.compact.seconds": {
+    "other": "{count} giây"
+  },
+  "freshness.age.compact.minutes": {
+    "other": "{count} phút"
+  },
+  "freshness.age.compact.hours": {
+    "other": "{count} giờ"
+  },
+  "freshness.age.compact.days": {
+    "other": "{count} ngày"
+  },
   "metric.unit.credits": {
     "other": "tín dụng"
   },

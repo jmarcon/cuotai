@@ -141,7 +141,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -934,13 +941,14 @@
   },
   "feed.line.five_hour": "5시간 {pct}",
   "feed.line.left": "{name} {pct} 남음",
+  "feed.line.left_exhausted": "{name} {pct}, {time}에 복귀",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "지출 {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "주 {pct}",
   "feed.live.caveat": "정가 기준 에이전트 추정치이며 청구 금액이 아닙니다.",
-  "feed.live.cost": "이 세션 ≈ ${usd}",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "이 세션 ≈ {usd}",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "컨텍스트 {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "실시간 세션: {parts}",
@@ -2236,6 +2244,8 @@
   "tray.join": "{first}, {rest}",
   "tray.more": "{item}; 외 {count}개",
   "tray.outage": "{item}, 제공업체 장애",
+  "tray.stale": "오래됨",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}, 최근 24시간 시간별 막대",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "열기",
@@ -2304,6 +2314,18 @@
   "freshness.age.minutes": "{n}분 전",
   "freshness.age.hours": "{n}시간 전",
   "freshness.age.days": "{n}일 전",
+  "freshness.age.compact.seconds": {
+    "other": "{count}초"
+  },
+  "freshness.age.compact.minutes": {
+    "other": "{count}분"
+  },
+  "freshness.age.compact.hours": {
+    "other": "{count}시간"
+  },
+  "freshness.age.compact.days": {
+    "other": "{count}일"
+  },
   "metric.unit.credits": {
     "other": "크레딧"
   },

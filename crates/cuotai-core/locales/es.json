@@ -344,13 +344,14 @@
   },
   "feed.line.five_hour": "5 h {pct}",
   "feed.line.left": "{name} {pct} restante",
+  "feed.line.left_exhausted": "{name} {pct}, vuelve {time}",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "gasto {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "Sem {pct}",
   "feed.live.caveat": "Estimación del agente a precio de lista, no un cargo.",
-  "feed.live.cost": "≈ ${usd} en esta sesión",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "≈ {usd} en esta sesión",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "contexto {pct} %",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Sesión en vivo: {parts}",
@@ -2131,6 +2132,8 @@
   "tray.more": "{item}; +{count} más",
   "tray.empty": "Ninguna cuenta en la barra de menús",
   "tray.outage": "{item}; incidente del proveedor",
+  "tray.stale": "desactualizado",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}; las últimas 24 horas en barras por hora",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "Abrir",
@@ -2205,6 +2208,22 @@
   "freshness.age.minutes": "hace {n} min",
   "freshness.age.hours": "hace {n} h",
   "freshness.age.days": "hace {n} d",
+  "freshness.age.compact.seconds": {
+    "one": "{count} s",
+    "other": "{count} s"
+  },
+  "freshness.age.compact.minutes": {
+    "one": "{count} min",
+    "other": "{count} min"
+  },
+  "freshness.age.compact.hours": {
+    "one": "{count} h",
+    "other": "{count} h"
+  },
+  "freshness.age.compact.days": {
+    "one": "{count} d",
+    "other": "{count} d"
+  },
   "metric.unit.credits": {
     "one": "crédito",
     "other": "créditos"

@@ -11,12 +11,13 @@ use super::{FeedReading, WindowId};
 use crate::text::{Localized, ParamValue};
 use crate::tray::{self, AccountView, Level};
 
-/// One other account for the line, with the age of its reading when it
-/// comes from the local history rather than a running server (RF5.2).
+/// One other account for the line (a running server's view, or the last
+/// recorded reading of the local history, RF5.2). A stale one carries its
+/// age from `view.measured_at` ([`tray::stale_suffix`], the menu bar's
+/// rule).
 #[derive(Debug, Clone)]
 pub struct OtherAccount {
     pub view: AccountView,
-    pub age: Option<std::time::Duration>,
 }
 
 /// The composed line and the level that colours it.
@@ -32,15 +33,35 @@ fn pct(value: f64) -> ParamValue {
     ParamValue::l10n(crate::text::number::percent(value.round()))
 }
 
-/// "3m", "2h", "1d": the compact age of a history reading.
-fn compact_age(age: std::time::Duration) -> String {
-    let secs = age.as_secs();
-    match secs {
-        0..=59 => format!("{secs}s"),
-        60..=3_599 => format!("{}m", secs / 60),
-        3_600..=86_399 => format!("{}h", secs / 3_600),
-        _ => format!("{}d", secs / 86_400),
-    }
+/// PRD 0040 re-validation V-04/V-05: the interval Claude's own part is
+/// aged against: the effective interval of the first account the Claude
+/// Code feed answers in `config`, else the configuration's (or the
+/// default) global interval.
+pub fn claude_interval(config: Option<&crate::Config>) -> std::time::Duration {
+    let seconds = match config {
+        Some(config) => config
+            .accounts
+            .iter()
+            .find(|account| super::bound_source(account) == Some(super::FeedSource::ClaudeCode))
+            .map_or(config.refresh_seconds, |account| {
+                account.effective_refresh_seconds(config.refresh_seconds)
+            }),
+        None => crate::model::default_refresh(),
+    };
+    std::time::Duration::from_secs(seconds)
+}
+
+/// PRD 0040 re-validation V-04/V-05: the age Claude's windows show when
+/// they were written (`measured_at`, the oldest window's time,
+/// [`super::AccountReading`]) longer than `interval` ago; `None` while
+/// they are recent.
+pub fn claude_stale_age(
+    measured_at: DateTime<Utc>,
+    interval: std::time::Duration,
+    now: DateTime<Utc>,
+) -> Option<std::time::Duration> {
+    let age = crate::freshness::age(measured_at, now);
+    (age > interval).then_some(age)
 }
 
 /// Claude's part of the line: its windows ("5h 23%", "Wk 41%"), the reset
@@ -49,6 +70,8 @@ struct ClaudePart {
     windows: Vec<String>,
     reset: Option<String>,
     used: f64,
+    /// " (2 h)" when the windows are old; never dropped by the width.
+    stale: Option<String>,
 }
 
 impl ClaudePart {
@@ -60,6 +83,10 @@ impl ClaudePart {
         if let Some(at) = self.reset.as_ref().filter(|_| reset) {
             text.push(' ');
             text.push_str(at);
+        }
+        if let Some(stale) = &self.stale {
+            text.push(' ');
+            text.push_str(stale);
         }
         text
     }
@@ -131,10 +158,16 @@ fn claude_part(
                 (Some(used), Some(limit)) => Localized::with_params(
                     "feed.line.spend_usd",
                     crate::text::params([
-                        ("used", ParamValue::from(format!("{used:.0}"))),
-                        ("limit", ParamValue::from(format!("{limit:.0}"))),
+                        (
+                            "used",
+                            ParamValue::l10n(crate::text::number::money(used, "USD")),
+                        ),
+                        (
+                            "limit",
+                            ParamValue::l10n(crate::text::number::money(limit, "USD")),
+                        ),
                     ]),
-                    "${used}/${limit}",
+                    "{used}/{limit}",
                 ),
                 _ => Localized::with_param(
                     "feed.line.spend",
@@ -164,6 +197,7 @@ fn claude_part(
         windows: parts,
         reset,
         used,
+        stale: None,
     })
 }
 
@@ -186,8 +220,16 @@ pub fn line_reading(
     }
 }
 
-/// "Codex 64% left (3m)": the tightest of `others` with a known share.
-fn other_part(others: &[OtherAccount], locale: &str) -> Option<String> {
+/// "Codex 64% left (3 min)": the tightest of `others` with a known share;
+/// an exhausted one says when it returns ("Codex 0% until 14:30", the
+/// view's `resets_at` as the menu bar's figure uses it); a stale one ends
+/// with its age ([`tray::stale_suffix`]).
+fn other_part(
+    others: &[OtherAccount],
+    now: DateTime<Utc>,
+    at: &dyn Fn(DateTime<Utc>) -> String,
+    locale: &str,
+) -> Option<String> {
     let other = others
         .iter()
         .filter(|other| other.view.remaining.is_some() || other.view.exhausted)
@@ -206,25 +248,44 @@ fn other_part(others: &[OtherAccount], locale: &str) -> Option<String> {
     } else {
         other.view.name.clone()
     };
-    let remaining = if other.view.exhausted {
-        0.0
-    } else {
-        other.view.remaining.unwrap_or(0.0)
-    };
-    let mut text = Localized::with_params(
-        "feed.line.left",
-        crate::text::params([
-            ("name", ParamValue::from(name)),
-            ("pct", ParamValue::l10n(tray::percent_l10n(remaining))),
-        ]),
-        "{name} {pct} left",
-    )
+    let returns = other
+        .view
+        .resets_at
+        .filter(|when| other.view.exhausted && *when > now);
+    let mut text = match returns {
+        Some(when) => Localized::with_params(
+            "feed.line.left_exhausted",
+            crate::text::params([
+                ("name", ParamValue::from(name)),
+                ("pct", ParamValue::l10n(tray::percent_l10n(0.0))),
+                ("time", ParamValue::from(at(when))),
+            ]),
+            "{name} {pct} until {time}",
+        ),
+        None => {
+            let remaining = if other.view.exhausted {
+                0.0
+            } else {
+                other.view.remaining.unwrap_or(0.0)
+            };
+            Localized::with_params(
+                "feed.line.left",
+                crate::text::params([
+                    ("name", ParamValue::from(name)),
+                    ("pct", ParamValue::l10n(tray::percent_l10n(remaining))),
+                ]),
+                "{name} {pct} left",
+            )
+        }
+    }
     .resolve(locale);
-    if let Some(age) = other.age {
-        text.push_str(&format!(" ({})", compact_age(age)));
-    } else if other.view.stale {
+    if other.view.stale {
+        let age = other
+            .view
+            .measured_at
+            .map(|measured| crate::freshness::age(measured, now));
         text.push(' ');
-        text.push_str(tray::STALE_MARK);
+        text.push_str(&tray::stale_suffix(age, locale));
     }
     Some(text)
 }
@@ -233,16 +294,24 @@ fn other_part(others: &[OtherAccount], locale: &str) -> Option<String> {
 /// whole parts, never a piece of one (PRD 0034 re-validation V-01): the
 /// context share first, then the other account, then Claude's reset time,
 /// then Claude's windows from the last; a line with no room is empty.
+/// `claude_age` ([`claude_stale_age`]) ends Claude's part with the age of
+/// old windows, which the width never drops (re-validation V-04/V-05).
 pub fn compose(
     reading: Option<&FeedReading>,
+    claude_age: Option<std::time::Duration>,
     others: &[OtherAccount],
     now: DateTime<Utc>,
     at: impl Fn(DateTime<Utc>) -> String,
     max_width: Option<usize>,
     locale: &str,
 ) -> Line {
-    let claude = reading.and_then(|r| claude_part(r, now, &at, locale));
-    let other = other_part(others, locale);
+    let claude = reading
+        .and_then(|r| claude_part(r, now, &at, locale))
+        .map(|part| ClaudePart {
+            stale: claude_age.map(|age| tray::stale_suffix(Some(age), locale)),
+            ..part
+        });
+    let other = other_part(others, now, &at, locale);
     let ctx = reading
         .and_then(|r| r.session.context_used_pct)
         .map(|used| super::live::context_chip(used).resolve(locale));

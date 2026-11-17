@@ -74,8 +74,11 @@ cuotai --statusline-claude [--account ID]... [--from-server [URL]] [--max-width 
 
 Reads the status-line JSON on standard input (like `--feed`), stores it and prints one line: `5h 24% · Wk 41% ↺ 19:30 · Codex 64% left · ctx 8%`.
 
-- The other accounts come from a running `cuotai --serve` or the desktop's local server with `--from-server` (loopback only, `localhost` read as `127.0.0.1`, the token from `--token-file` or the server's default file, never on a command line and never through a proxy, and sent only after the server proved it holds it; see [Who receives the token](../local-server.md#who-receives-the-token)), or else from the last reading recorded in the history, marked with its age (`(3m)`). It **never queries a provider**: Claude Code calls it often.
-- `--account ID` limits the other accounts; Claude accounts are left out (their windows come from the feed).
+- The other accounts come from a running `cuotai --serve` or the desktop's local server with `--from-server` (loopback only, `localhost` read as `127.0.0.1`, the token from `--token-file` or the server's default file, never on a command line and never through a proxy, and sent only after the server proved it holds it; see [Who receives the token](../local-server.md#who-receives-the-token)), or else from the last reading recorded in the history (within 100 ms of the command's start, then the history answers). It **never queries a provider**: Claude Code calls it often.
+- A stale reading, the other account's or Claude's own windows written longer ago than the account's refresh interval, ends with its age in parentheses, in your language: `Wk 41% (2 h)`, `Codex 64% left (3 min)` (`(stale)` when its time is unknown). The menu bar and `--status-line` mark a stale figure the same way. `--max-width` never drops the age from a part it keeps.
+- An exhausted other account says when it returns: `Codex 0% until 14:30`.
+- The spend limit and the session cost use your language's money format (`$314.12/$500.00`, `314,12 $/500,00 $` in German).
+- `--account ID` limits the other accounts. Like `--status-line`, it takes an account's id, its key or a name no other account has; a value that names no single account is reported on stderr (with the ids) and the command exits `1`. Claude accounts are left out (their windows come from the feed).
 - `--max-width N` drops the context share first, then the other account, then cuts Claude's windows with "…".
 - Colour only with `--color`, on a terminal, with `NO_COLOR` unset.
 

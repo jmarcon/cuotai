@@ -1222,6 +1222,43 @@ mod tests {
         }
     }
 
+    /// PRD 0040 re-validation V-04: a stale reading's title carries its age
+    /// in parentheses (no dot that reads as the separator), in the bar's
+    /// language; the name gives way to it within the budget.
+    #[test]
+    fn a_stale_title_shows_the_readings_age() {
+        let mut accounts = work(Some(0.22));
+        accounts[0].stale = true;
+        accounts[0].measured_at = Some(chrono::Utc::now() - chrono::TimeDelta::minutes(150));
+        let s = summary_of(&accounts, TrayStyle::TightestPercent);
+        let mac = render(&s, false, "en-US", "", Platform::MACOS, &[]);
+        assert_eq!(mac.title.as_deref(), Some("22% (2\u{a0}h) · Claude"));
+        assert_eq!(mac.label, "Claude Work 22% left (old reading)");
+        let de = summarize(
+            &accounts,
+            TrayStyle::TightestPercent,
+            &TraySelection::Auto,
+            "de",
+        );
+        assert_eq!(
+            de.title.as_deref(),
+            Some("22\u{a0}% (2\u{a0}Std.) · Claude")
+        );
+        accounts[0].name = "A very long account name".into();
+        let named = summarize(
+            &accounts,
+            TrayStyle::TightestPercent,
+            &TraySelection::Custom(vec!["acc_a".into()]),
+            "de",
+        );
+        let title = named.title.unwrap();
+        assert!(title.starts_with("22\u{a0}% (2\u{a0}Std.)"), "{title}");
+        assert!(
+            title.chars().count() <= cuotai_core::tray::TITLE_BUDGET,
+            "{title}"
+        );
+    }
+
     /// S-03: on Windows the freshness line comes first and the tooltip is
     /// cut inside 127 UTF-16 units at a character boundary.
     #[test]

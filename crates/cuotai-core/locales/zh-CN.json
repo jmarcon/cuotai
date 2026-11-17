@@ -160,7 +160,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -953,13 +960,14 @@
   },
   "feed.line.five_hour": "5 小时 {pct}",
   "feed.line.left": "{name} 剩余 {pct}",
+  "feed.line.left_exhausted": "{name} {pct}，{time} 恢复",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "支出 {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "周 {pct}",
   "feed.live.caveat": "代理按标价估算，并非实际扣费。",
-  "feed.live.cost": "本次会话 ≈ ${usd}",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "本次会话 ≈ {usd}",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "上下文 {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "实时会话：{parts}",
@@ -2255,6 +2263,8 @@
   "tray.join": "{first}；{rest}",
   "tray.more": "{item}；另有 {count} 个",
   "tray.outage": "{item}；提供商故障",
+  "tray.stale": "过期",
+  "tray.stale_suffix": "（{age}）",
   "tray.strip": "{item}；最近 24 小时的每小时柱状图",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "打开",
@@ -2323,6 +2333,18 @@
   "freshness.age.minutes": "{n} 分钟前",
   "freshness.age.hours": "{n} 小时前",
   "freshness.age.days": "{n} 天前",
+  "freshness.age.compact.seconds": {
+    "other": "{count} 秒"
+  },
+  "freshness.age.compact.minutes": {
+    "other": "{count} 分钟"
+  },
+  "freshness.age.compact.hours": {
+    "other": "{count} 小时"
+  },
+  "freshness.age.compact.days": {
+    "other": "{count} 天"
+  },
   "metric.unit.credits": {
     "other": "积分"
   },

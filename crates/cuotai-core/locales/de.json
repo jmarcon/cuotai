@@ -145,7 +145,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -956,13 +963,14 @@
   },
   "feed.line.five_hour": "5 h {pct}",
   "feed.line.left": "{name} {pct} übrig",
+  "feed.line.left_exhausted": "{name} {pct}, zurück {time}",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "Ausgaben {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "Wo {pct}",
   "feed.live.caveat": "Schätzung des Agenten zum Listenpreis, keine Abrechnung.",
-  "feed.live.cost": "≈ ${usd} in dieser Sitzung",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "≈ {usd} in dieser Sitzung",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "Kontext {pct} %",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Live-Sitzung: {parts}",
@@ -2272,6 +2280,8 @@
   "tray.join": "{first}; {rest}",
   "tray.more": "{item}; +{count} weitere",
   "tray.outage": "{item}; Vorfall beim Anbieter",
+  "tray.stale": "veraltet",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}; die letzten 24 Stunden als Stundenbalken",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "Öffnen",
@@ -2340,6 +2350,22 @@
   "freshness.age.minutes": "vor {n} Min.",
   "freshness.age.hours": "vor {n} Std.",
   "freshness.age.days": "vor {n} T.",
+  "freshness.age.compact.seconds": {
+    "one": "{count} Sek.",
+    "other": "{count} Sek."
+  },
+  "freshness.age.compact.minutes": {
+    "one": "{count} Min.",
+    "other": "{count} Min."
+  },
+  "freshness.age.compact.hours": {
+    "one": "{count} Std.",
+    "other": "{count} Std."
+  },
+  "freshness.age.compact.days": {
+    "one": "{count} T.",
+    "other": "{count} T."
+  },
   "metric.unit.credits": {
     "one": "Credit",
     "other": "Credits"

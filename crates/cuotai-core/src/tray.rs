@@ -37,8 +37,6 @@ pub const AUTO_METERS: usize = 4;
 pub const AUTO_LOGOS: usize = 6;
 /// The unknown figure (DS-CMP-MTR-5).
 pub const UNKNOWN: &str = "—";
-/// The trailing stale mark (RF1.4).
-pub const STALE_MARK: &str = "·";
 /// Separator between title items.
 const SEPARATOR: &str = " · ";
 /// The mark of a name cut to fit (DS-MSG-15).
@@ -501,6 +499,25 @@ pub fn percent(remaining: f64, locale: &str) -> String {
     percent_l10n(remaining).resolve(locale)
 }
 
+/// PRD 0040 re-validation V-04/V-05/V-11: the one stale mark of the menu
+/// bar, `--status-line` and `--statusline-claude`: the reading's age in
+/// parentheses ("(2 h)", `tray.stale_suffix` around
+/// [`crate::freshness::compact_age_label`]), or "(stale)" (`tray.stale`)
+/// when its time is unknown (a server-reported failure without one). It
+/// replaces the old trailing "·", which read as the separator.
+pub fn stale_suffix_l10n(age: Option<std::time::Duration>) -> Localized {
+    let age = match age {
+        Some(age) => crate::freshness::compact_age_label(age),
+        None => Localized::fixed("tray.stale", "stale"),
+    };
+    Localized::with_param("tray.stale_suffix", "age", ParamValue::l10n(age), "({age})")
+}
+
+/// [`stale_suffix_l10n`] in `locale`, without the space before it.
+pub fn stale_suffix(age: Option<std::time::Duration>, locale: &str) -> String {
+    stale_suffix_l10n(age).resolve(locale)
+}
+
 /// The clock the summary writes times with: the short form for the title
 /// (already in the reader's language) and the full form for the label.
 struct Clock<'a> {
@@ -508,6 +525,8 @@ struct Clock<'a> {
     full: &'a dyn Fn(DateTime<Utc>) -> Localized,
     /// The title's language, for its percents.
     locale: &'a str,
+    /// The summary's "now", for the age of a stale reading.
+    now: DateTime<Utc>,
 }
 
 fn figure(view: &AccountView, clock: &Clock<'_>) -> String {
@@ -519,8 +538,11 @@ fn figure(view: &AccountView, clock: &Clock<'_>) -> String {
         (false, Some(r)) => percent(r, clock.locale),
         (false, None) => UNKNOWN.to_owned(),
     };
-    if view.stale && view.remaining.is_some() {
-        format!("{base}{STALE_MARK}")
+    if view.stale && (view.remaining.is_some() || view.exhausted) {
+        let age = view
+            .measured_at
+            .map(|at| crate::freshness::age(at, clock.now));
+        format!("{base} {}", stale_suffix(age, clock.locale))
     } else {
         base
     }
@@ -635,8 +657,9 @@ fn fit_more(parts: &[String], alert: bool, beyond: usize) -> (String, usize) {
 }
 
 /// V-07: the figure and the name inside the budget. The figure (and with it
-/// a return time) is never cut; the name gives way first, ended with "…",
-/// and is dropped when not even one character of it would fit.
+/// a return time and a stale reading's age, PRD 0040 re-validation V-04)
+/// is never cut; the name gives way first, ended with "…", and is dropped
+/// when not even one character of it would fit.
 fn fit_named(fig: &str, name: &str, alert: bool) -> String {
     let prefix = if alert { "! " } else { "" };
     let head = format!("{prefix}{fig}");
@@ -767,6 +790,7 @@ where
         short: &short,
         full: &full,
         locale,
+        now,
     };
     let clock = &clock;
     let views: Vec<AccountView> = selection

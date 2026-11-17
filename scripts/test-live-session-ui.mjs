@@ -35,7 +35,10 @@ const session = (ctx, level) => ({
   model_name: "Opus",
   context: text("feed.live.ctx", `ctx ${ctx}%`, { pct: String(ctx) }),
   level,
-  cost: text("feed.live.cost", "≈ $0.42 this session", { usd: "0.42" }),
+  cost: text("feed.live.cost", "≈ $0.42 this session", {
+    // PRD 0040 re-validation V-12: the core sends the amount as locale money.
+    usd: { id: "amount.money", params: { value: "0.42", currency: "USD" }, fallback: "$0.42" },
+  }),
   written_at: new Date().toISOString(),
 });
 const live = (sessions, more = null) => ({

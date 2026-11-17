@@ -122,7 +122,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -915,13 +922,14 @@
   },
   "feed.line.five_hour": "5 j {pct}",
   "feed.line.left": "{name} sisa {pct}",
+  "feed.line.left_exhausted": "{name} {pct}, kembali {time}",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "belanja {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "Mg {pct}",
   "feed.live.caveat": "Perkiraan agen dengan harga daftar, bukan tagihan.",
-  "feed.live.cost": "≈ ${usd} sesi ini",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "≈ {usd} sesi ini",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "konteks {pct}%",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Sesi langsung: {parts}",
@@ -2217,6 +2225,8 @@
   "tray.join": "{first}; {rest}",
   "tray.more": "{item}; +{count} lainnya",
   "tray.outage": "{item}; insiden penyedia",
+  "tray.stale": "usang",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item}; 24 jam terakhir dalam batang per jam",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "Buka",
@@ -2285,6 +2295,18 @@
   "freshness.age.minutes": "{n} mnt lalu",
   "freshness.age.hours": "{n} j lalu",
   "freshness.age.days": "{n} hr lalu",
+  "freshness.age.compact.seconds": {
+    "other": "{count} dtk"
+  },
+  "freshness.age.compact.minutes": {
+    "other": "{count} mnt"
+  },
+  "freshness.age.compact.hours": {
+    "other": "{count} j"
+  },
+  "freshness.age.compact.days": {
+    "other": "{count} h"
+  },
   "metric.unit.credits": {
     "other": "kredit"
   },

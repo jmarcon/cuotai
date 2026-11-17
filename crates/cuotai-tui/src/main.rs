@@ -146,7 +146,8 @@ struct Args {
     /// /v1/limits or the TOML's id line), its key or a name only it has;
     /// repeat it to pick several, in the given order. Only these are queried
     /// and counted in the exit code. Without it: all of them, in the TOML's
-    /// order.
+    /// order. With --statusline-claude, the other accounts the line may
+    /// show, named the same way.
     #[arg(long = "account", value_name = "ID", requires = "line_modes")]
     status_accounts: Vec<String>,
     /// With --status-line, colors the line (ANSI) when the output is a
@@ -1139,6 +1140,9 @@ pub(crate) fn history_store(file: &ConfigFile, retention: Retention) -> Option<H
 const MAIN_STACK: usize = 8 * 1024 * 1024;
 
 fn main() -> std::process::ExitCode {
+    // PRD 0040 re-validation M-11: `--statusline-claude --from-server`
+    // counts its budget from here.
+    feed_cli::mark_start();
     let worker = std::thread::Builder::new()
         .name("cuotai-main".into())
         .stack_size(MAIN_STACK)

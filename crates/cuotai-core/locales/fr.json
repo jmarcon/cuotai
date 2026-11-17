@@ -1040,7 +1040,14 @@
       "freshness.presented.queried_ago",
       "freshness.presented.read_ago",
       "freshness.state.aging",
-      "freshness.state.stale"
+      "freshness.state.stale",
+      "freshness.age.compact.seconds",
+      "freshness.age.compact.minutes",
+      "freshness.age.compact.hours",
+      "freshness.age.compact.days",
+      "tray.stale",
+      "tray.stale_suffix",
+      "feed.line.left_exhausted"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1851,13 +1858,14 @@
   },
   "feed.line.five_hour": "5 h {pct}",
   "feed.line.left": "{name} {pct} restant",
+  "feed.line.left_exhausted": "{name} {pct}, retour {time}",
   "feed.line.reset": "↺ {time}",
   "feed.line.spend": "dépense {pct}",
-  "feed.line.spend_usd": "${used}/${limit}",
+  "feed.line.spend_usd": "{used}/{limit}",
   "feed.line.week": "Sem {pct}",
   "feed.live.caveat": "Estimation de l’agent au prix catalogue, pas une facturation.",
-  "feed.live.cost": "≈ ${usd} pour cette session",
-  "feed.live.cost_short": "≈${usd}",
+  "feed.live.cost": "≈ {usd} pour cette session",
+  "feed.live.cost_short": "≈{usd}",
   "feed.live.ctx": "contexte {pct} %",
   "feed.live.join": "{first} · {rest}",
   "feed.live.line": "Session en direct : {parts}",
@@ -3167,6 +3175,8 @@
   "tray.join": "{first} ; {rest}",
   "tray.more": "{item} ; +{count} autres",
   "tray.outage": "{item} ; incident du fournisseur",
+  "tray.stale": "obsolète",
+  "tray.stale_suffix": "({age})",
   "tray.strip": "{item} ; les dernières 24 heures en barres horaires",
   "tray.tooltip": "Cuotai — {label}",
   "tray.menu.open": "Ouvrir",
@@ -3235,6 +3245,22 @@
   "freshness.age.minutes": "il y a {n} min",
   "freshness.age.hours": "il y a {n} h",
   "freshness.age.days": "il y a {n} j",
+  "freshness.age.compact.seconds": {
+    "one": "{count} s",
+    "other": "{count} s"
+  },
+  "freshness.age.compact.minutes": {
+    "one": "{count} min",
+    "other": "{count} min"
+  },
+  "freshness.age.compact.hours": {
+    "one": "{count} h",
+    "other": "{count} h"
+  },
+  "freshness.age.compact.days": {
+    "one": "{count} j",
+    "other": "{count} j"
+  },
   "metric.unit.credits": {
     "one": "crédit",
     "other": "crédits"

@@ -640,6 +640,7 @@ async fn a_newer_session_without_limits_keeps_the_windows() {
     let shown = statusline::line_reading(Some(&own), Some(&account)).unwrap();
     let text = statusline::compose(
         Some(&shown),
+        None,
         &[],
         current,
         |t| t.format("%H:%M").to_string(),
@@ -1310,7 +1311,6 @@ fn other(name: &str, remaining: f64) -> OtherAccount {
             remaining: Some(remaining),
             ..AccountView::default()
         },
-        age: None,
     }
 }
 
@@ -1318,6 +1318,7 @@ fn line(input: &str, others: &[OtherAccount], width: Option<usize>) -> statuslin
     let reading = claude::parse(input.as_bytes(), now()).unwrap();
     statusline::compose(
         Some(&reading),
+        None,
         others,
         now(),
         |t| t.format("%H:%M").to_string(),
@@ -1332,7 +1333,7 @@ fn the_status_line_puts_claude_first_then_the_tightest_other() {
     assert_eq!(
         line(&full_input(now()), &others, None).text,
         "5h 24% · Wk 41% · spend $314/$500 ↺ 14:00 · Codex 64% left · ctx 8%"
-            .replace("spend $314/$500", "$314/$500")
+            .replace("spend $314/$500", "$314.12/$500.00")
             .replace(
                 "↺ 14:00",
                 &format!("↺ {}", (now() + TimeDelta::days(20)).format("%H:%M"))
@@ -1349,6 +1350,7 @@ fn the_status_line_percents_follow_the_language() {
     let compose = |locale: &str| {
         statusline::compose(
             Some(&reading),
+            None,
             &others,
             now(),
             |t| t.format("%H:%M").to_string(),
@@ -1376,11 +1378,25 @@ fn the_status_line_golden_fixtures() {
         "spend 63% ↺ 14:00"
     );
     assert_eq!(line(NULL_PERCENTAGE, &[], None).text, "Wk 12%");
+    // PRD 0040 re-validation V-04/V-11: a stale reading ends with its age
+    // in parentheses, in the reader's words; a fresh one with nothing.
     let mut aged = other("Codex", 0.5);
-    aged.age = Some(std::time::Duration::from_secs(180));
+    aged.view.stale = true;
+    aged.view.measured_at = Some(now() - TimeDelta::minutes(3));
+    assert_eq!(
+        line(NULL_PERCENTAGE, &[aged.clone()], None).text,
+        "Wk 12% · Codex 50% left (3\u{a0}min)"
+    );
+    aged.view.measured_at = None;
     assert_eq!(
         line(NULL_PERCENTAGE, &[aged], None).text,
-        "Wk 12% · Codex 50% left (3m)"
+        "Wk 12% · Codex 50% left (stale)"
+    );
+    let mut recent = other("Codex", 0.5);
+    recent.view.measured_at = Some(now() - TimeDelta::minutes(3));
+    assert_eq!(
+        line(NULL_PERCENTAGE, &[recent], None).text,
+        "Wk 12% · Codex 50% left"
     );
 }
 
@@ -1418,6 +1434,7 @@ fn the_status_line_counts_cells_and_never_cuts_a_figure() {
     let ja = |width: Option<usize>| {
         statusline::compose(
             Some(&reading),
+            None,
             &others,
             now(),
             |t| t.format("%H:%M").to_string(),
@@ -1511,6 +1528,11 @@ fn the_context_meter_roles_are_display_only_thresholds() {
         session.cost_text().unwrap().resolve("en-US"),
         "≈ $0.42 this session"
     );
+    // PRD 0040 re-validation V-12: the reader's money format.
+    let de = session.cost_text().unwrap().resolve("de");
+    assert!(de.contains("0,42\u{a0}$"), "{de}");
+    let pt = session.compact().unwrap().resolve("pt-BR");
+    assert!(pt.contains("≈US$\u{a0}0,42"), "{pt}");
 }
 
 // ------------------------------------------------------------- RF8
@@ -1636,4 +1658,86 @@ fn the_live_block_counts_ignored_files() {
     assert!(!serde_json::to_string(&clean)
         .unwrap()
         .contains("unreadable"));
+}
+
+/// PRD 0040 re-validation V-12: the spend limit in the reader's money.
+#[test]
+fn the_status_line_spend_is_locale_money() {
+    let reading = claude::parse(full_input(now()).as_bytes(), now()).unwrap();
+    let text = |locale: &str| {
+        statusline::compose(
+            Some(&reading),
+            None,
+            &[],
+            now(),
+            |t| t.format("%H:%M").to_string(),
+            None,
+            locale,
+        )
+        .text
+    };
+    assert!(
+        text("en-US").contains("$314.12/$500.00"),
+        "{}",
+        text("en-US")
+    );
+    let de = text("de");
+    assert!(de.contains("314,12\u{a0}$/500,00\u{a0}$"), "{de}");
+    assert!(!de.contains("$314"), "{de}");
+}
+
+/// PRD 0040 re-validation V-17: an exhausted other account says when it
+/// returns, from the view's reset time as the menu bar's figure does.
+#[test]
+fn an_exhausted_other_account_says_until_when() {
+    let mut out = other("Codex", 0.0);
+    out.view.exhausted = true;
+    out.view.resets_at = Some(now() + TimeDelta::minutes(90));
+    let until = (now() + TimeDelta::minutes(90)).format("%H:%M").to_string();
+    assert_eq!(
+        line(NULL_PERCENTAGE, &[out.clone()], None).text,
+        format!("Wk 12% · Codex 0% until {until}")
+    );
+    // A past reset is not a return time.
+    out.view.resets_at = Some(now() - TimeDelta::minutes(1));
+    assert_eq!(
+        line(NULL_PERCENTAGE, &[out], None).text,
+        "Wk 12% · Codex 0% left"
+    );
+}
+
+/// PRD 0040 re-validation V-04/V-05: Claude's own windows, written longer
+/// than the account's interval ago, end with their age, which the width
+/// never drops.
+#[test]
+fn old_claude_windows_carry_their_age() {
+    let interval = statusline::claude_interval(None);
+    assert_eq!(interval, std::time::Duration::from_secs(300));
+    assert_eq!(
+        statusline::claude_stale_age(now() - TimeDelta::minutes(4), interval, now()),
+        None
+    );
+    let age = statusline::claude_stale_age(now() - TimeDelta::hours(2), interval, now());
+    assert_eq!(age, Some(std::time::Duration::from_secs(7_200)));
+    let reading = claude::parse(NULL_PERCENTAGE.as_bytes(), now()).unwrap();
+    let compose = |width: Option<usize>, locale: &str| {
+        statusline::compose(
+            Some(&reading),
+            age,
+            &[other("Codex", 0.64)],
+            now(),
+            |t| t.format("%H:%M").to_string(),
+            width,
+            locale,
+        )
+        .text
+    };
+    assert_eq!(compose(None, "en-US"), "Wk 12% (2\u{a0}h) · Codex 64% left");
+    assert_eq!(compose(Some(14), "en-US"), "Wk 12% (2\u{a0}h)");
+    assert_eq!(compose(Some(10), "en-US"), "");
+    assert!(
+        compose(None, "ru").contains("(2\u{a0}ч)"),
+        "{}",
+        compose(None, "ru")
+    );
 }
