@@ -6,7 +6,9 @@
 //!
 //! 1. the header is conventional;
 //! 2. a user-visible commit touching product paths says what changed
-//!    (`Changelog: <sentence>`) or why not (`Changelog: skip <reason>`);
+//!    (`Changelog: <sentence>`) or why not (`Changelog: skip <reason>`); so
+//!    does a `refactor` or `chore` touching them, and a skip reason says
+//!    why no user sees a change (both scoped);
 //!    2b. each entry has one clear category: a valid `[Category]` prefix
 //!    or `Changelog-Category:` name, and a category trailer only with a
 //!    single sentence and no prefixes (scoped);
@@ -60,6 +62,12 @@ pub const RULES_SINCE: &[(&str, &str)] = &[
     // Rule 7, flags, paths and field names outside backticks (62 older
     // sentences name a flag bare).
     ("code-format", "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6"),
+    // Rule 2, `refactor` and `chore` touching product paths say
+    // `Changelog:` or skip (6 older commits do not).
+    ("product-types", "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6"),
+    // Rule 2, a skip reason of at least three words, not a generic phrase
+    // (51 older commits say "integration fix").
+    ("skip-reason", "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6"),
 ];
 
 /// A rule of RF2.1, as the gate labels it.
@@ -431,8 +439,13 @@ pub fn check_message(
         // Rule 2, unless a trailer problem already explains it (a misspelt
         // key, a skip without a reason, a `Changelog:` line that yielded no
         // entry).
-        if commit.is_user_visible()
-            && files.iter().any(|f| is_product(f))
+        let touches_product = files.iter().any(|f| is_product(f));
+        let needs_entry = if scope.applies("product-types") {
+            commit.needs_entry(touches_product)
+        } else {
+            commit.is_user_visible() && touches_product
+        };
+        if needs_entry
             && commit.trailers.sentences.is_empty()
             && commit.trailers.skip.is_none()
             && !out.iter().any(|p| p.rule == Rule::Entry)
@@ -447,6 +460,11 @@ pub fn check_message(
                 "user-visible change without a changelog entry: add a \
                  'Changelog: <one sentence for the user>.' trailer, or 'Changelog: skip <reason>'",
             ));
+        }
+        if let Some(reason) = &commit.trailers.skip {
+            if scope.applies("skip-reason") {
+                out.extend(skip_reason_problem(reason).map(|p| Problem::new(Rule::Entry, p)));
+            }
         }
         // Rule 3 (an empty footer is already a trailer problem).
         if commit.is_breaking()
@@ -507,6 +525,43 @@ pub fn check_message(
         }
     }
     dedup(out)
+}
+
+/// Skip reasons that say nothing about why no user sees a change.
+const GENERIC_SKIP_REASONS: [&str; 11] = [
+    "n/a",
+    "na",
+    "none",
+    "internal",
+    "integration fix",
+    "misc",
+    "minor",
+    "wip",
+    "cleanup",
+    "no changelog",
+    "not needed",
+];
+
+/// Rule 2: a skip reason of at least three words that is not a generic
+/// phrase.
+fn skip_reason_problem(reason: &str) -> Option<String> {
+    let normalized = reason
+        .trim()
+        .trim_end_matches('.')
+        .trim()
+        .to_ascii_lowercase();
+    let words = normalized
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .count();
+    if words >= 3 && !GENERIC_SKIP_REASONS.contains(&normalized.as_str()) {
+        return None;
+    }
+    Some(format!(
+        "'Changelog: skip {reason}' does not say why no user sees a change: say why in at least \
+         three words, e.g. 'test-only change', 'internal refactor, no behaviour change', 'fixes \
+         the previous commit of this pull request'"
+    ))
 }
 
 /// Rule 2b: a `Changelog-Category:` trailer that would silently apply to
@@ -893,6 +948,66 @@ mod tests {
             exempt: BTreeSet::from(["category"]),
         };
         let files = ["crates/cuotai-core/src/lib.rs".to_string()];
+        assert!(check_message(&commit, &files, None, &old).is_empty());
+    }
+
+    #[test]
+    fn refactor_and_chore_on_product_paths_say_changelog_or_skip() {
+        let found = problems("refactor(desktop): show one dialog", "Body.");
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].starts_with("rule 2: user-visible change without"),
+            "{found:?}"
+        );
+        assert!(problems(
+            "refactor(desktop): show one dialog",
+            "Changelog: skip internal refactor, no behaviour change"
+        )
+        .is_empty());
+        // Older commits are exempt.
+        let commit = message("chore(core): tidy", "Body.");
+        let files = ["crates/cuotai-core/src/lib.rs".to_string()];
+        let old = Scope {
+            exempt: BTreeSet::from(["product-types"]),
+        };
+        assert!(check_message(&commit, &files, None, &old).is_empty());
+        // Test-only changes stay free.
+        assert!(problems("test(core): more cases", "Body.").is_empty());
+    }
+
+    #[test]
+    fn a_skip_reason_says_why() {
+        for weak in [
+            "integration fix",
+            "n/a",
+            "internal",
+            "WIP.",
+            "two words",
+            "no changelog",
+        ] {
+            let found = problems("fix(core): a", &format!("Changelog: skip {weak}"));
+            assert_eq!(found.len(), 1, "{weak}: {found:?}");
+            assert!(
+                found[0].starts_with("rule 2: 'Changelog: skip ")
+                    && found[0].contains("e.g. 'test-only change'"),
+                "{found:?}"
+            );
+        }
+        for good in [
+            "test-only change",
+            "internal refactor, no behaviour change",
+            "fixes the previous commit of this pull request",
+        ] {
+            assert!(
+                problems("fix(core): a", &format!("Changelog: skip {good}")).is_empty(),
+                "{good}"
+            );
+        }
+        let commit = message("fix(core): a", "Changelog: skip integration fix");
+        let files = ["crates/cuotai-core/src/lib.rs".to_string()];
+        let old = Scope {
+            exempt: BTreeSet::from(["skip-reason"]),
+        };
         assert!(check_message(&commit, &files, None, &old).is_empty());
     }
 

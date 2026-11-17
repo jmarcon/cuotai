@@ -570,3 +570,40 @@ fn sentences_with_invisible_text_markup_links_or_two_sentences_fail() {
         );
     }
 }
+
+#[test]
+fn refactor_and_chore_on_product_paths_need_changelog_or_a_real_skip() {
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "refactor(desktop): show one startup-failure dialog",
+        "apps/desktop/src-tauri/src/main.rs",
+        "// v2\n",
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("show one startup-failure dialog: rule 2: user-visible change without"),
+        "{error}"
+    );
+    commit(
+        &repo,
+        "chore(core): tidy\n\nChangelog: skip integration fix",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("rule 2: 'Changelog: skip integration fix' does not say why"),
+        "{error}"
+    );
+    commit(
+        &repo,
+        "chore(core): tidy again\n\nChangelog: skip internal refactor, no behaviour change",
+        "crates/cuotai-core/src/lib.rs",
+        "// v3\n",
+    );
+    gate(&repo, "HEAD~1").unwrap();
+    // Outside product paths a chore needs nothing.
+    commit(&repo, "chore: tooling", "xtask/src/x.rs", "// x\n");
+    gate(&repo, "HEAD~1").unwrap();
+}
