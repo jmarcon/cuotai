@@ -545,3 +545,28 @@ fn a_category_trailer_over_several_sentences_fails_with_both_forms() {
     );
     gate(&repo, "HEAD~1").unwrap();
 }
+
+#[test]
+fn sentences_with_invisible_text_markup_links_or_two_sentences_fail() {
+    for (sentence, needle) in [
+        ("A\u{202E}b works.", "invisible"),
+        ("A<!-- hidden --> works.", "HTML tag"),
+        ("See [the docs](docs) now.", "Markdown link"),
+        ("See https://example.com now.", "contains a link"),
+        ("Two sentences. In one trailer.", "two sentences"),
+        ("The --watch option refreshes.", "outside backticks"),
+    ] {
+        let (_d, repo) = support::repo();
+        commit(
+            &repo,
+            &format!("fix(core): a\n\nChangelog: {sentence}"),
+            "crates/cuotai-core/src/lib.rs",
+            "// v2\n",
+        );
+        let error = gate(&repo, "HEAD~1").unwrap_err();
+        assert!(
+            error.contains("rule 7: ") && error.contains(needle),
+            "{error}"
+        );
+    }
+}

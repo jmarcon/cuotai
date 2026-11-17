@@ -57,6 +57,9 @@ pub const RULES_SINCE: &[(&str, &str)] = &[
     // Rule 2b, one `Changelog-Category:` over several sentences or mixed
     // with `[Category]` prefixes (20 older commits do that).
     ("category", "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6"),
+    // Rule 7, flags, paths and field names outside backticks (62 older
+    // sentences name a flag bare).
+    ("code-format", "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6"),
 ];
 
 /// A rule of RF2.1, as the gate labels it.

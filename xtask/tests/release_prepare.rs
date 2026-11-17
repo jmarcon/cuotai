@@ -757,3 +757,54 @@ fn one_commit_can_put_its_entries_in_two_categories() {
     release::check_release(&repo, "HEAD").unwrap();
     xtask::changelog_gate::run(&repo, "main", "HEAD").unwrap();
 }
+
+#[test]
+fn near_duplicate_entries_are_a_warning_only() {
+    let (_d, repo) = repo();
+    let first = commit(
+        &repo,
+        "fix(core): name field\n\nChangelog: The account name field says it is optional only when it is.",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let second = commit(
+        &repo,
+        "fix(tui): name field\n\nChangelog: The account name field says it is optional in the terminal.",
+        "crates/cuotai-core/src/lib.rs",
+        "// v3\n",
+    );
+    commit(
+        &repo,
+        "fix(core): other\n\nChangelog: The refresh button works again.",
+        "crates/cuotai-core/src/lib.rs",
+        "// v4\n",
+    );
+    let outcome = prepare_branch(&repo);
+    let (a, b) = (short(&repo, &first), short(&repo, &second));
+    let warnings: Vec<&String> = outcome
+        .warnings
+        .iter()
+        .filter(|w| w.contains("same five words"))
+        .collect();
+    assert_eq!(warnings.len(), 1, "{:?}", outcome.warnings);
+    assert!(
+        warnings[0].starts_with(&format!("{a} \"The account name field says")),
+        "{warnings:?}"
+    );
+    assert!(
+        warnings[0].contains(&format!(
+            "and {b} \"The account name field says it is optional in"
+        )),
+        "{warnings:?}"
+    );
+    // Both entries are still written.
+    let changelog = read(&repo, "CHANGELOG.md");
+    assert!(
+        changelog.contains(&format!("optional only when it is ({a})")),
+        "{changelog}"
+    );
+    assert!(
+        changelog.contains(&format!("optional in the terminal ({b})")),
+        "{changelog}"
+    );
+}
