@@ -375,8 +375,34 @@ pub struct Binding {
     pub resets_at: Option<DateTime<Utc>>,
     pub reason: BindingReason,
     /// When the account is usable again: set only when blocked and the
-    /// latest return among the exhausted metrics is known. Never "now".
+    /// latest return among the exhausted metrics is known. Never "now", and
+    /// never a time already past when the provider answered (see
+    /// `renewal_due`).
     pub blocked_until: Option<DateTime<Utc>>,
+    /// PRD 0037 RF4: the provider reported a reset at or before the reading
+    /// ([`renewal_due`]): it had not renewed the window when it answered, so
+    /// the binding shows a renewal due, never a block or a countdown.
+    /// Additive.
+    pub renewal_due: bool,
+}
+
+/// PRD 0037 RF4: whether `metric`'s reset time was already past when the
+/// provider answered (`resets_at <= checked_at`): the window is due to
+/// renew but was not renewed in that reading. Clock-free, unlike a reset
+/// that passes after the reading (PRD 0033), which counts as renewed.
+pub fn renewal_due(metric: &Metric, checked_at: DateTime<Utc>) -> bool {
+    metric.resets_at.is_some_and(|at| at <= checked_at)
+}
+
+/// The text of a renewal due ([`renewal_due`]): "Renewal due since {at};
+/// waiting for {provider} to renew the window" (`metric.renewal_due`). `at`
+/// is the reset time in the caller's clock.
+pub fn renewal_due_text(at: impl Into<ParamValue>, provider: crate::Provider) -> Localized {
+    Localized::with_params(
+        "metric.renewal_due",
+        params([("at", at.into()), ("provider", provider.label().into())]),
+        "Renewal due since {at}; waiting for {provider} to renew the window.",
+    )
 }
 
 /// The account's binding metric, using the eligibility of [`classify_metric`]:
@@ -394,6 +420,7 @@ pub fn binding(report: &Report) -> Option<Binding> {
 pub fn binding_where(report: &Report, keep: impl Fn(usize) -> bool) -> Option<Binding> {
     let candidate = binding_candidate(report, &keep)?;
     let metric = &report.metrics[candidate.index];
+    let renewal_due = renewal_due(metric, report.checked_at);
     Some(Binding {
         index: candidate.index,
         label: metric.label.clone(),
@@ -407,7 +434,10 @@ pub fn binding_where(report: &Report, keep: impl Fn(usize) -> bool) -> Option<Bi
         } else {
             BindingReason::Tightest
         },
-        blocked_until: metric.resets_at.filter(|_| candidate.exhausted),
+        blocked_until: metric
+            .resets_at
+            .filter(|_| candidate.exhausted && !renewal_due),
+        renewal_due,
     })
 }
 
@@ -703,6 +733,22 @@ impl Binding {
                 ParamValue::l10n(crate::metric_text::metric_text(&self.label)),
             )
         };
+        if self.reason == BindingReason::Exhausted && self.renewal_due {
+            // PRD 0037 RF4: the reset time had passed when the provider
+            // answered: no block, no past time, just the renewal it owes.
+            let (id, english) = if known {
+                (
+                    "binding.renewal_due",
+                    "{window} window at its limit; renewal due, waiting for the provider",
+                )
+            } else {
+                (
+                    "binding.renewal_due_metric",
+                    "{metric} at its limit; renewal due, waiting for the provider",
+                )
+            };
+            return Localized::with_params(id, params([(slot, value)]), english);
+        }
         let (id, english) = match (self.reason, self.blocked_until, known) {
             (BindingReason::Exhausted, Some(_), true) => (
                 "binding.blocked_until",
@@ -1252,6 +1298,7 @@ mod tests {
             resets_at: resets,
             reason: BindingReason::Exhausted,
             blocked_until: resets,
+            renewal_due: false,
         };
         let mut summaries = vec![blocked(Some(at(14))), blocked(None)];
         for window in [H5, Some(MetricWindow::Daily), WEEK, MONTH, None] {
@@ -1260,6 +1307,14 @@ mod tests {
                 used_ratio: 0.62,
                 reason: BindingReason::Tightest,
                 blocked_until: None,
+                ..blocked(None)
+            });
+        }
+        for window in [WEEK, None] {
+            summaries.push(Binding {
+                window,
+                resets_at: Some(at(14)),
+                renewal_due: true,
                 ..blocked(None)
             });
         }
@@ -1289,6 +1344,15 @@ mod tests {
             "bloqueada por Opus; horário de retorno desconhecido"
         );
         assert_eq!(texts[6].resolve("en-US"), "most restrictive: Opus at 62%");
+        // PRD 0037 RF4: a renewal due names no time and no block.
+        assert_eq!(
+            texts[7].resolve("en-US"),
+            "weekly window at its limit; renewal due, waiting for the provider"
+        );
+        assert_eq!(
+            texts[8].resolve("en-US"),
+            "Opus at its limit; renewal due, waiting for the provider"
+        );
         let rolling = Binding {
             label: "Janela móvel".into(),
             window: Some(MetricWindow::Other),
@@ -1314,6 +1378,43 @@ mod tests {
         );
     }
 
+    /// PRD 0037 RF4: a fresh reading whose reset time was already past when
+    /// the provider answered (it had not renewed): the binding is exhausted
+    /// with no `blocked_until` (never a past block) and a renewal due; a reset
+    /// after the reading still blocks until it.
+    #[test]
+    fn a_reset_already_past_at_the_reading_is_a_renewal_due_not_a_block() {
+        let mut past = quota(WEEK, Some(8.0), Some(8.0), None);
+        let checked_at = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        past.resets_at = Some(checked_at - chrono::TimeDelta::hours(2));
+        let r = report(Status::Ready, vec![past.clone()]);
+        let b = binding(&r).unwrap();
+        assert_eq!(b.reason, BindingReason::Exhausted);
+        assert_eq!(b.blocked_until, None);
+        assert!(b.renewal_due);
+        assert_eq!(b.resets_at, past.resets_at, "the reported values stay");
+        assert!(renewal_due(&past, checked_at));
+        // Exactly at the reading counts too.
+        past.resets_at = Some(checked_at);
+        assert!(
+            binding(&report(Status::Ready, vec![past]))
+                .unwrap()
+                .renewal_due
+        );
+        let ahead = binding(&report(
+            Status::Ready,
+            vec![quota(WEEK, Some(8.0), Some(8.0), Some(14))],
+        ))
+        .unwrap();
+        assert_eq!(ahead.blocked_until, Some(at(14)));
+        assert!(!ahead.renewal_due);
+        let text = renewal_due_text("22:00", crate::Provider::ElevenLabs);
+        assert_eq!(
+            text.resolve("en-US"),
+            "Renewal due since 22:00; waiting for ElevenLabs to renew the window."
+        );
+    }
+
     /// V-04: the consumed share never rounds a sliver to 0 or an unreached
     /// limit to 100.
     #[test]
@@ -1331,6 +1432,7 @@ mod tests {
             resets_at: None,
             reason: BindingReason::Tightest,
             blocked_until: None,
+            renewal_due: false,
             index: 0,
             label_text: crate::metric_text::metric_text("x"),
         };

@@ -22,7 +22,8 @@
         "remaining": 45.0,
         "resets_at": "2026-10-24T09:00:00Z",
         "reason": "tightest",
-        "blocked_until": null
+        "blocked_until": null,
+        "renewal_due": false
       },
       "age_seconds": 120,
       "freshness": "fresh",
@@ -53,7 +54,8 @@
         "remaining": 69.0,
         "resets_at": "2026-10-20T14:00:00Z",
         "reason": "tightest",
-        "blocked_until": null
+        "blocked_until": null,
+        "renewal_due": false
       },
       "age_seconds": 60,
       "freshness": "fresh",

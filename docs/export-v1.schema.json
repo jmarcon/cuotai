@@ -460,7 +460,8 @@
         "remaining": { "type": "number" },
         "resets_at": { "type": ["string", "null"], "format": "date-time" },
         "reason": { "anyOf": [{ "enum": ["exhausted", "tightest"] }, { "type": "string" }] },
-        "blocked_until": { "type": ["string", "null"], "format": "date-time" }
+        "blocked_until": { "type": ["string", "null"], "format": "date-time", "description": "When the account is usable again; null when unknown, when not blocked, and when the reset was already past at the reading (renewal_due)." },
+        "renewal_due": { "type": "boolean", "description": "The provider reported a reset at or before checked_at: it had not renewed the window when it answered (PRD 0037 RF4). Additive." }
       }
     },
     "Pace": {

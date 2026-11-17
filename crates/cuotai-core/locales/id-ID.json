@@ -36,7 +36,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -231,6 +234,8 @@
   "binding.tightest": "paling membatasi: jendela {window} pada {used}%",
   "binding.tightest_metric": "paling membatasi: {metric} pada {used}%",
   "binding.blocked_until_metric": "diblokir hingga {at} oleh {metric}",
+  "binding.renewal_due": "jendela {window} mencapai batasnya; pembaruan jatuh tempo, menunggu penyedia",
+  "binding.renewal_due_metric": "{metric} mencapai batasnya; pembaruan jatuh tempo, menunggu penyedia",
   "binding.blocked_metric": "diblokir oleh {metric}; waktu kembali tidak diketahui",
   "budget.badge": "Anggaran Anda",
   "budget.describe.daily": "Cuotai akan menampilkan kuota anggaran {amount} per hari, mulai tengah malam.",
@@ -1256,6 +1261,7 @@
   "login.zed.oauth.help": "Alur EKSPERIMENTAL berbasis klien bawaan penyedia (antarmuka internal, tanpa dukungan resmi; bisa gagal atau dibatasi kapan saja). Persetujuan dilakukan di peramban/kode perangkat; tidak ada kata sandi atau token yang diketik di Cuotai.",
   "login.zed.oauth.label": "Login bawaan di peramban",
   "metric.renewed_waiting": "Diperbarui pada {time}; menunggu pembacaan berikutnya.",
+  "metric.renewal_due": "Pembaruan jatuh tempo sejak {at}; menunggu {provider} memperbarui jendela.",
   "metric_window.daily": "harian",
   "metric_window.monthly": "bulanan",
   "metric_window.weekly": "mingguan",

@@ -229,7 +229,9 @@
       "dashboard.hint.more_pools",
       "dashboard.metric.no_cap",
       "dashboard.metric.full",
-      "once.cycle_ends"
+      "once.cycle_ends",
+      "dashboard.reset.renewal_due",
+      "once.renewal_due"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -447,6 +449,7 @@
   "dashboard.models.one": "1 modèle",
   "dashboard.reset.now": "maintenant",
   "dashboard.reset.renews": "réinit. ",
+  "dashboard.reset.renewal_due": "renouv. attendu",
   "dashboard.reset.soon": "bientôt",
   "dashboard.sub.also_direct": " · aussi en direct",
   "dashboard.too_small": "Cuotai : élargissez le terminal à au moins 45 × 18. q quitte.",
@@ -567,6 +570,7 @@
   "once.pool": "  Groupe : {summary}",
   "once.provider_status": "  État du fournisseur : {parts}",
   "once.renews": "Réinitialisation : {at}",
+  "once.renewal_due": "Renouvellement attendu depuis {at}",
   "once.source": "  Source : {source}",
   "once.sub.disabled": "désactivée dans 9router",
   "once.sub.duplicate": "aussi surveillé en direct",

@@ -38,7 +38,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -233,6 +236,8 @@
   "binding.tightest": "hạn chế nhất: khung {window} ở mức {used}%",
   "binding.tightest_metric": "hạn chế nhất: {metric} ở mức {used}%",
   "binding.blocked_until_metric": "bị chặn đến {at} bởi {metric}",
+  "binding.renewal_due": "khung {window} đã chạm giới hạn; đến hạn đặt lại, đang chờ nhà cung cấp",
+  "binding.renewal_due_metric": "{metric} đã chạm giới hạn; đến hạn đặt lại, đang chờ nhà cung cấp",
   "binding.blocked_metric": "bị chặn bởi {metric}; chưa rõ khi nào hoạt động lại",
   "budget.badge": "Ngân sách của bạn",
   "budget.describe.daily": "Cuotai sẽ hiển thị hạn mức ngân sách {amount} mỗi ngày, tính từ nửa đêm.",
@@ -1258,6 +1263,7 @@
   "login.zed.oauth.help": "Luồng THỬ NGHIỆM dựa trên ứng dụng gốc của nhà cung cấp (giao diện nội bộ, không hỗ trợ chính thức; có thể lỗi hoặc bị hạn chế bất cứ lúc nào). Việc đồng ý diễn ra trong trình duyệt/mã thiết bị; không có mật khẩu hay token nào được gõ vào Cuotai.",
   "login.zed.oauth.label": "Đăng nhập gốc trong trình duyệt",
   "metric.renewed_waiting": "Đã đặt lại lúc {time}; đang chờ lần đọc tiếp theo.",
+  "metric.renewal_due": "Đến hạn đặt lại từ {at}; đang chờ {provider} đặt lại khung.",
   "metric_window.daily": "hằng ngày",
   "metric_window.monthly": "hằng tháng",
   "metric_window.weekly": "hằng tuần",

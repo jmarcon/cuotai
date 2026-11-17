@@ -439,3 +439,38 @@ fn a_notice_carries_the_advice_as_its_second_line() {
     );
     assert_eq!(with_line(notice.clone(), None), notice);
 }
+
+/// PRD 0037 RF4: an account at its limit whose reset was already past when
+/// the provider answered (it had not renewed) is no candidate until the next
+/// reading, so it is never "Best now"; a reset that passes after the reading
+/// still earns the full renewal credit (PRD 0033).
+#[test]
+fn a_reset_already_past_at_the_reading_earns_no_credit() {
+    let rig = |stuck_reset: TimeDelta| {
+        Rig::new(vec![
+            report(
+                "Stuck",
+                Status::Ready,
+                vec![limit("Session", 100.0, stuck_reset)],
+            ),
+            report(
+                "Busy",
+                Status::Ready,
+                vec![limit("Session", 95.0, hours(3))],
+            ),
+            report(
+                "Busier",
+                Status::Ready,
+                vec![limit("Session", 97.0, hours(3))],
+            ),
+        ])
+    };
+    // The reading is at now − 1 min; its reset at now − 10 min was past.
+    let result = rig(-minutes(10)).best();
+    assert_eq!(result[0].best, 1, "the stuck account is never best");
+    assert!(result[0].candidate(0).is_none());
+    // The reset at now − 30 s passed after the reading: renewed, credited.
+    let result = rig(-TimeDelta::seconds(30)).best();
+    assert_eq!(result[0].best, 0);
+    assert_eq!(result[0].candidate(0).unwrap().score, 1.0);
+}

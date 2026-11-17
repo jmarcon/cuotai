@@ -12,7 +12,9 @@
       "dashboard.hint.more_pools",
       "dashboard.metric.no_cap",
       "dashboard.metric.full",
-      "once.cycle_ends"
+      "once.cycle_ends",
+      "dashboard.reset.renewal_due",
+      "once.renewal_due"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -224,6 +226,7 @@
   "dashboard.models.one": "1 mô hình",
   "dashboard.reset.now": "bây giờ",
   "dashboard.reset.renews": "đặt lại ",
+  "dashboard.reset.renewal_due": "đến hạn đặt lại",
   "dashboard.reset.soon": "sắp tới",
   "dashboard.sub.also_direct": " · cũng trực tiếp",
   "dashboard.too_small": "Cuotai: hãy mở rộng terminal tối thiểu 45 × 18. q để thoát.",
@@ -343,6 +346,7 @@
   "once.pool": "  Nhóm gộp: {summary}",
   "once.provider_status": "  Trạng thái nhà cung cấp: {parts}",
   "once.renews": "Đặt lại: {at}",
+  "once.renewal_due": "Đến hạn đặt lại từ {at}",
   "once.source": "  Nguồn: {source}",
   "once.sub.disabled": "tắt trong 9router",
   "once.sub.duplicate": "cũng được theo dõi trực tiếp",

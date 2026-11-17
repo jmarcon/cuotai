@@ -954,7 +954,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1151,6 +1154,8 @@
   "binding.tightest": "la plus restrictive : fenêtre {window} à {used} %",
   "binding.tightest_metric": "la plus restrictive : {metric} à {used} %",
   "binding.blocked_until_metric": "bloqué jusqu’à {at} par {metric}",
+  "binding.renewal_due": "fenêtre {window} à sa limite ; renouvellement attendu, en attente du fournisseur",
+  "binding.renewal_due_metric": "{metric} à sa limite ; renouvellement attendu, en attente du fournisseur",
   "binding.blocked_metric": "bloqué par {metric} ; heure de retour inconnue",
   "budget.badge": "Votre budget",
   "budget.describe.daily": "Cuotai affichera un quota budgétaire de {amount} par jour, à partir de minuit.",
@@ -2194,6 +2199,7 @@
   "login.zed.oauth.help": "Flux EXPÉRIMENTAL basé sur le client natif du fournisseur (interface interne, sans prise en charge officielle ; peut échouer ou être restreint à tout moment). Le consentement se fait dans le navigateur ou par code d’appareil ; aucun mot de passe ni token n’est saisi dans Cuotai.",
   "login.zed.oauth.label": "Connexion native dans le navigateur",
   "metric.renewed_waiting": "Réinitialisé à {time} ; en attente du prochain relevé.",
+  "metric.renewal_due": "Renouvellement attendu depuis {at} ; en attente que {provider} renouvelle la fenêtre.",
   "metric_window.daily": "quotidienne",
   "metric_window.monthly": "mensuelle",
   "metric_window.weekly": "hebdomadaire",

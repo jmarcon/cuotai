@@ -74,7 +74,10 @@
       "edit_error.base_url_field",
       "query.http_redirect",
       "query.http_server",
-      "query.http_unavailable"
+      "query.http_unavailable",
+      "metric.renewal_due",
+      "binding.renewal_due",
+      "binding.renewal_due_metric"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -269,6 +272,8 @@
   "binding.tightest": "最严格：{window}窗口已用{used}%",
   "binding.tightest_metric": "最严格：{metric}已用{used}%",
   "binding.blocked_until_metric": "受{metric}限制，直至{at}",
+  "binding.renewal_due": "{window}窗口已达限额；应已重置，等待提供商",
+  "binding.renewal_due_metric": "{metric} 已达限额；应已重置，等待提供商",
   "binding.blocked_metric": "受{metric}限制；恢复时间未知",
   "budget.badge": "自定预算",
   "budget.describe.daily": "Cuotai 将显示每天 {amount} 的预算配额，从午夜开始。",
@@ -1294,6 +1299,7 @@
   "login.zed.oauth.help": "基于提供商原生客户端的实验性流程（内部接口，无官方支持；随时可能失败或受到限制）。授权在浏览器或设备代码中完成；不会在 Cuotai 中输入任何密码或令牌。",
   "login.zed.oauth.label": "在浏览器中原生登录",
   "metric.renewed_waiting": "已于 {time} 重置；等待下一次读数。",
+  "metric.renewal_due": "自 {at} 起应重置；等待 {provider} 重置窗口。",
   "metric_window.daily": "每日",
   "metric_window.monthly": "每月",
   "metric_window.weekly": "每周",

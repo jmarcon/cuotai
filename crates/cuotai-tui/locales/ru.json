@@ -18,7 +18,9 @@
       "dashboard.hint.more_pools",
       "dashboard.metric.no_cap",
       "dashboard.metric.full",
-      "once.cycle_ends"
+      "once.cycle_ends",
+      "dashboard.reset.renewal_due",
+      "once.renewal_due"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -248,6 +250,7 @@
   "dashboard.models.one": "1 модель",
   "dashboard.reset.now": "сейчас",
   "dashboard.reset.renews": "обновится ",
+  "dashboard.reset.renewal_due": "ожидается обновление",
   "dashboard.reset.soon": "скоро",
   "dashboard.sub.also_direct": " · также напрямую",
   "dashboard.too_small": "Cuotai: увеличьте терминал минимум до 45 × 18. q — выход.",
@@ -370,6 +373,7 @@
   "once.pool": "  Пул: {summary}",
   "once.provider_status": "  Статус провайдера: {parts}",
   "once.renews": "Обновится: {at}",
+  "once.renewal_due": "Обновление ожидается с {at}",
   "once.source": "  Источник: {source}",
   "once.sub.disabled": "отключено в 9router",
   "once.sub.duplicate": "также отслеживается напрямую",

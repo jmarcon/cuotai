@@ -1050,6 +1050,19 @@ mod tests {
         assert!(saved["alerts"]["marks"][0]["metric"].is_string());
     }
 
+    /// PRD 0037 RF4: a reset the provider reported already past at the
+    /// reading (a renewal due) is no upcoming reset notice; a future one in
+    /// the same reading still is.
+    #[test]
+    fn a_reset_already_past_at_the_reading_is_not_upcoming() {
+        let metrics = vec![
+            quota("due", Some(100.0), Some(now() - mins(30))),
+            quota("at reading", Some(100.0), Some(now())),
+            quota("ahead", Some(40.0), Some(now() + mins(30))),
+        ];
+        assert_eq!(labels(metrics, &Prefs::default()), ["ahead"]);
+    }
+
     fn labels(metrics: Vec<Metric>, prefs: &Prefs) -> Vec<String> {
         let (config, reports) = setup(vec![metrics]);
         upcoming(&config, &reports, now(), prefs)
