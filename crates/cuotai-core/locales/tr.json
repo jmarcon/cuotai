@@ -174,7 +174,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2861,6 +2862,7 @@
     "other": "{count} gün önce ayarlandı"
   },
   "cost.error.rate_too_small": "Kur çok küçük: en az 0.000001 kullanın.",
+  "cost.error.label_characters": "Bir etiket görünmez karakterler veya yön karakterleri içeremez.",
   "cost.block.sessions": {
     "one": "{count} oturum",
     "other": "{count} oturum"

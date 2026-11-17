@@ -52,7 +52,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -2739,6 +2740,7 @@
     "other": "definido há {count} dias"
   },
   "cost.error.rate_too_small": "O câmbio é pequeno demais: use pelo menos 0.000001.",
+  "cost.error.label_characters": "Um rótulo não pode conter caracteres invisíveis ou de direção.",
   "cost.block.sessions": {
     "one": "{count} sessão",
     "other": "{count} sessões"

@@ -225,7 +225,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -3028,6 +3029,7 @@
     "other": "задан {count} дня назад"
   },
   "cost.error.rate_too_small": "Курс слишком мал: укажите не меньше 0.000001.",
+  "cost.error.label_characters": "Метка не может содержать невидимые символы и символы направления.",
   "cost.block.sessions": {
     "one": "{count} сеанс",
     "few": "{count} сеанса",

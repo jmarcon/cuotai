@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 
 #[path = "hidden_tests.rs"]
 mod hidden;
+#[path = "hidden_chars_tests.rs"]
+mod hidden_chars;
 
 /// Marks every content field of the synthetic logs; it must never reach
 /// the index, a report, a debug rendering or a text.

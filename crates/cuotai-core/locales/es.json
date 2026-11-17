@@ -52,7 +52,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -2739,6 +2740,7 @@
     "other": "definido hace {count} días"
   },
   "cost.error.rate_too_small": "El tipo de cambio es demasiado pequeño: use al menos 0.000001.",
+  "cost.error.label_characters": "Una etiqueta no puede contener caracteres invisibles ni de dirección.",
   "cost.block.sessions": {
     "one": "{count} sesión",
     "other": "{count} sesiones"

@@ -644,36 +644,7 @@ fn account_key(provider: Provider, name: &str) -> String {
 /// S-01); a longer one is cut and ends with `…`.
 pub const NOTE_PARAM_MAX_CHARS: usize = 200;
 
-/// Whether `c` is a control (`Cc`) or format (`Cf`) character: besides
-/// [`crate::text::is_disguising`], the bidi marks, zero-width characters,
-/// the byte-order mark, invisible operators, interlinear annotation and
-/// tag characters. None of them is visible text in a note.
-fn is_hidden(c: char) -> bool {
-    crate::text::is_disguising(c)
-        || matches!(
-            c,
-            '\u{00AD}'
-                | '\u{0600}'..='\u{0605}'
-                | '\u{061C}'
-                | '\u{06DD}'
-                | '\u{070F}'
-                | '\u{0890}'..='\u{0891}'
-                | '\u{08E2}'
-                | '\u{180E}'
-                | '\u{200B}'..='\u{200F}'
-                | '\u{2060}'..='\u{2064}'
-                | '\u{206A}'..='\u{206F}'
-                | '\u{FEFF}'
-                | '\u{FFF9}'..='\u{FFFB}'
-                | '\u{110BD}'
-                | '\u{110CD}'
-                | '\u{13430}'..='\u{1343F}'
-                | '\u{1BCA0}'..='\u{1BCA3}'
-                | '\u{1D173}'..='\u{1D17A}'
-                | '\u{E0001}'
-                | '\u{E0020}'..='\u{E007F}'
-        )
-}
+use crate::text::is_hidden;
 
 /// Drop the [`crate::text::is_disguising`] characters of `text`, in place.
 fn strip_disguising(text: &mut String) {

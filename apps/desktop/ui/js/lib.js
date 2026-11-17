@@ -3935,6 +3935,8 @@ const demo = {
   cost_set_label: async ({ digest, label }) => {
     const text = (label ?? "").trim();
     if (text.length > 48) throw JSON.stringify(demoL10n("cost.error.invalid_label", { max: "48" }, "A label has 1 to 48 characters."));
+    // PRD 0042 re-validation S-05: the core refuses control, direction and invisible characters (`text::is_hidden`).
+    if (/[\p{Cc}\p{Cf}]/u.test(text)) throw JSON.stringify(demoL10n("cost.error.label_characters", {}, "A label cannot contain invisible or direction characters."));
     if (text) demoCost.labels[digest] = text; else delete demoCost.labels[digest];
   },
   cost_set_hidden: async ({ digest, hidden }) => { if (hidden) demoCost.hidden.add(digest); else demoCost.hidden.delete(digest); },

@@ -218,7 +218,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2847,6 +2848,7 @@
     "other": "{count} 日前に設定"
   },
   "cost.error.rate_too_small": "レートが小さすぎます。0.000001 以上を指定してください。",
+  "cost.error.label_characters": "ラベルには不可視文字や方向制御文字を使用できません。",
   "cost.block.sessions": {
     "other": "セッション {count} 件"
   },

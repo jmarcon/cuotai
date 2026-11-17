@@ -193,7 +193,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2822,6 +2823,7 @@
     "other": "{count}일 전 설정"
   },
   "cost.error.rate_too_small": "환율이 너무 작습니다. 0.000001 이상을 사용하세요.",
+  "cost.error.label_characters": "레이블에는 보이지 않는 문자나 방향 문자를 사용할 수 없습니다.",
   "cost.block.sessions": {
     "other": "세션 {count}개"
   },

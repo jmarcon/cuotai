@@ -51,7 +51,8 @@
       "cost.live.rate_few",
       "cost.live.rate_young",
       "cost.hidden.note",
-      "cost.hidden.unhide"
+      "cost.hidden.unhide",
+      "cost.error.label_characters"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -2738,6 +2739,7 @@
     "other": "impostato {count} giorni fa"
   },
   "cost.error.rate_too_small": "Il cambio è troppo piccolo: usa almeno 0.000001.",
+  "cost.error.label_characters": "Un’etichetta non può contenere caratteri invisibili o di direzione.",
   "cost.block.sessions": {
     "one": "{count} sessione",
     "other": "{count} sessioni"
