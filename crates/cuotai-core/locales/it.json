@@ -22,7 +22,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -941,9 +943,9 @@
   "note.budget.provider_month": "{budget}: conteggiato sul mese di fatturazione del provider, che può iniziare in un altro fuso orario.",
   "note.budget.target_missing": "{budget}: la metrica seguita da questo budget manca in questa lettura.",
   "note.budget.topup_detected": "{budget}: è stata rilevata una ricarica; non conta come consumo.",
-  "note.budget.unit_mismatch": "{budget}: la metrica è riportata in un’altra unità, quindi questo budget non può contare.",
   "note.budget.partial": "{budget}: parte del consumo di questo periodo non è stata registrata, quindi ne è stato consumato almeno questo.",
   "note.budget.negative": "{budget}: la metrica mostra un credito netto in questo periodo, quindi questo budget non può conteggiarla.",
+  "note.budget.unit_mismatch_named": "{budget}: la metrica è riportata in {metric_unit} e questo budget è in {budget_unit}, quindi non può contare.",
   "note.claude_code.answered_by_api": "Risposta dalla query di Claude: nessuna lettura recente da Claude Code.",
   "note.claude_code.answered_by_feed": "Risposta dalla riga di stato di Claude Code (nessuna richiesta di rete).",
   "note.claude_code.fed": "Alimentato dalla riga di stato documentata di Claude Code: nessuna richiesta di rete, nessun token riutilizzato.",
@@ -2646,6 +2648,7 @@
   "budget.error.row": "{field}: un budget su una riga del dettaglio richiede un kind, l'ambito della riga (key, virtual_key, project, workspace o team) e il suo id, su un provider che offre dettagli.",
   "budget.error.duplicate_floor": "{field}: un’altra soglia controlla già lo stesso saldo con lo stesso importo.",
   "budget.error.duplicate_label": "{field}: un altro budget di questo account ha già questa etichetta.",
+  "budget.error.unit_mismatch": "{field}: la metrica è riportata in {metric_unit} e questo budget è in {budget_unit}; impostalo in {metric_unit}.",
   "budget.period_since": "da {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",

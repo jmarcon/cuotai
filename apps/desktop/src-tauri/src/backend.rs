@@ -4659,6 +4659,31 @@ impl Backend {
             let config = &l.file.config;
             let base = with_named_peer(config, &input)?;
             let account = input_account(&base, &input, completed)?;
+            // PRD 0041 F-07: edited budget rows in another unit than their
+            // metric's last good reading are refused, naming both units.
+            if input.budgets.is_some() {
+                let reading = input
+                    .index
+                    .filter(|&index| {
+                        config
+                            .accounts
+                            .get(index)
+                            .is_some_and(|old| old.provider == account.provider)
+                    })
+                    .and_then(|index| l.cycle.latest_ready(index))
+                    .map(|report| report.metrics.as_slice());
+                if let Some(problem) = cuotai_core::budget::editor::check(
+                    account.provider,
+                    &account.budgets,
+                    &account.floors,
+                    reading,
+                )
+                .into_iter()
+                .next()
+                {
+                    return Err(l10n_to_json(&problem.note));
+                }
+            }
             // PRD 0036 RF2.2: an aggregator that is new or reached in
             // another way is saved only after a successful Test connection
             // of exactly this account.
@@ -5467,6 +5492,24 @@ impl Backend {
             .map(|view| cuotai_core::tray::strip_bars(&view.rhythm))
             .unwrap_or_default();
         crate::tray_bar::set_strip(app, bars);
+    }
+
+    /// PRD 0041 F-07: the metrics of the last good reading of account
+    /// `index`, when it is still of `provider` (a dialog that switched the
+    /// provider checks nothing against the old one's reading).
+    pub async fn budget_reading(
+        &self,
+        index: usize,
+        provider: Provider,
+    ) -> Option<Vec<cuotai_core::Metric>> {
+        let g = self.inner.lock().await;
+        let l = g.loaded.as_ref()?;
+        if l.file.config.accounts.get(index)?.provider != provider {
+            return None;
+        }
+        l.cycle
+            .latest_ready(index)
+            .map(|report| report.metrics.clone())
     }
 
     /// PRD 0041 RF6: what **Set a budget…** opens with for the metric
@@ -6796,26 +6839,21 @@ pub struct AccountForm {
 #[derive(Serialize)]
 pub struct BudgetCheck {
     sentences: Vec<cuotai_core::text::Localized>,
-    problems: Vec<BudgetProblemView>,
+    problems: Vec<cuotai_core::budget::editor::RowProblem>,
     /// RF5.1: the metric choices the provider can report (every one when
     /// the core does not know its shapes) and the floor kinds.
     targets: Vec<cuotai_core::budget::editor::Target>,
     floor_targets: Vec<cuotai_core::budget::editor::FloorTarget>,
 }
 
-#[derive(Serialize)]
-pub struct BudgetProblemView {
-    field: String,
-    note: cuotai_core::text::Localized,
-}
-
 /// PRD 0041 RF5.1: check the dialog's draft rows for an account of
-/// `provider` (no save). The unit of each sentence is the row's unit, else
-/// `default_unit` (the metric's).
+/// `provider` (no save); with `reading` (the edited account's last good
+/// metrics), a budget in another unit than its metric is refused (F-07).
 pub fn check_budgets(
     provider: Provider,
     budgets: &[cuotai_core::budget::Budget],
     floors: &[cuotai_core::budget::Floor],
+    reading: Option<&[cuotai_core::Metric]>,
 ) -> BudgetCheck {
     BudgetCheck {
         targets: cuotai_core::budget::editor::targets(provider, "", "en-US"),
@@ -6826,13 +6864,7 @@ pub fn check_budgets(
                 cuotai_core::budget::describe(budget, budget.unit.as_deref().unwrap_or_default())
             })
             .collect(),
-        problems: cuotai_core::budget::problems(provider, budgets, floors)
-            .into_iter()
-            .map(|problem| BudgetProblemView {
-                note: problem.note(),
-                field: problem.field,
-            })
-            .collect(),
+        problems: cuotai_core::budget::editor::check(provider, budgets, floors, reading),
     }
 }
 
@@ -7865,6 +7897,10 @@ pub fn tray_view() -> TrayView {
         popover_view: prefs.popover_view.unwrap_or_default(),
     }
 }
+
+#[cfg(test)]
+#[path = "budget_check_tests.rs"]
+mod budget_check_tests;
 
 #[cfg(test)]
 mod tests {

@@ -196,7 +196,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1609,9 +1611,9 @@
   "note.budget.provider_month": "{budget}: посчитано за расчётный месяц провайдера, который может начинаться в другом часовом поясе.",
   "note.budget.target_missing": "{budget}: метрики, за которой следит этот бюджет, нет в этом показании.",
   "note.budget.topup_detected": "{budget}: обнаружено пополнение; оно не считается расходом.",
-  "note.budget.unit_mismatch": "{budget}: метрика сообщается в другой единице, поэтому этот бюджет не может считать.",
   "note.budget.partial": "{budget}: часть расхода за этот период не записана, поэтому израсходовано не меньше этого.",
   "note.budget.negative": "{budget}: метрика показывает чистый кредит за этот период, поэтому бюджет не может её учесть.",
+  "note.budget.unit_mismatch_named": "{budget}: метрика сообщается в {metric_unit}, а этот бюджет задан в {budget_unit}, поэтому он не может считать.",
   "note.claude_code.answered_by_api": "Ответ получен запросом Claude: свежих показаний от Claude Code нет.",
   "note.claude_code.answered_by_feed": "Ответ получен из строки состояния Claude Code (без сетевых запросов).",
   "note.claude_code.fed": "Данные из документированной строки состояния Claude Code: без сетевых запросов и повторного использования токенов.",
@@ -2928,6 +2930,7 @@
   "budget.error.row": "{field}: бюджету на строке детализации нужны kind, область строки (key, virtual_key, project, workspace или team) и её id у провайдера, который поддерживает детализацию.",
   "budget.error.duplicate_floor": "{field}: другой порог уже следит за тем же балансом на той же сумме.",
   "budget.error.duplicate_label": "{field}: у другого бюджета этой учётной записи уже есть такое название.",
+  "budget.error.unit_mismatch": "{field}: метрика сообщается в {metric_unit}, а этот бюджет задан в {budget_unit}; укажите его в {metric_unit}.",
   "budget.period_since": "с {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}.{month} {time}",

@@ -527,6 +527,13 @@ impl Wizard {
 
     /// PRD 0027 RF1.3: offer `entries` (discovered extensions that can
     /// still be added) in the picker of a new account.
+    /// PRD 0041 F-07: the edited account's last good reading, against
+    /// which the Budgets step checks each budget's unit.
+    pub(crate) fn with_reading(mut self, metrics: Option<Vec<cuotai_core::Metric>>) -> Self {
+        self.budget_step = std::mem::take(&mut self.budget_step).with_reading(metrics);
+        self
+    }
+
     pub(crate) fn with_extensions(
         mut self,
         entries: Vec<cuotai_core::extensions::CatalogEntry>,

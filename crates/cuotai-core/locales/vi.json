@@ -147,7 +147,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1497,9 +1499,9 @@
   "note.budget.provider_month": "{budget}: được tính theo tháng thanh toán của nhà cung cấp, có thể bắt đầu ở múi giờ khác.",
   "note.budget.target_missing": "{budget}: chỉ số mà ngân sách này theo dõi không có trong số đo này.",
   "note.budget.topup_detected": "{budget}: phát hiện một lần nạp thêm; lần này không tính là sử dụng.",
-  "note.budget.unit_mismatch": "{budget}: chỉ số được báo cáo theo đơn vị khác nên ngân sách này không thể đếm.",
   "note.budget.partial": "{budget}: một phần mức sử dụng của kỳ này không được ghi lại, nên đã dùng ít nhất chừng này.",
   "note.budget.negative": "{budget}: chỉ số cho thấy khoản tín dụng ròng trong kỳ này, nên ngân sách này không thể tính.",
+  "note.budget.unit_mismatch_named": "{budget}: chỉ số được báo cáo theo {metric_unit} còn ngân sách này theo {budget_unit}, nên không thể đếm.",
   "note.claude_code.answered_by_api": "Trả lời bằng truy vấn Claude: không có số liệu mới từ Claude Code.",
   "note.claude_code.answered_by_feed": "Trả lời bằng chính dòng trạng thái của Claude Code (không có yêu cầu mạng).",
   "note.claude_code.fed": "Lấy từ dòng trạng thái có tài liệu của Claude Code: không yêu cầu mạng, không tái sử dụng token.",
@@ -2717,6 +2719,7 @@
   "budget.error.row": "{field}: ngân sách trên một hàng của bảng chi tiết cần kind, phạm vi của dòng (key, virtual_key, project, workspace hoặc team) và id của nó, ở nhà cung cấp có bảng chi tiết.",
   "budget.error.duplicate_floor": "{field}: một mức sàn khác đã theo dõi cùng số dư ở cùng mức tiền.",
   "budget.error.duplicate_label": "{field}: một ngân sách khác của tài khoản này đã có nhãn này.",
+  "budget.error.unit_mismatch": "{field}: chỉ số được báo cáo theo {metric_unit} còn ngân sách này theo {budget_unit}; hãy đặt theo {metric_unit}.",
   "budget.period_since": "từ {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}/{month} {time}",

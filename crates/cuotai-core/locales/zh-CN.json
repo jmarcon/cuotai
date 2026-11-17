@@ -183,7 +183,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -1533,9 +1535,9 @@
   "note.budget.provider_month": "{budget}：按提供商的账单月计算，可能从其他时区开始。",
   "note.budget.target_missing": "{budget}：此读数中缺少该预算跟踪的指标。",
   "note.budget.topup_detected": "{budget}：检测到充值；不计为用量。",
-  "note.budget.unit_mismatch": "{budget}：该指标以其他单位报告，因此此预算无法计算。",
   "note.budget.partial": "{budget}：本周期的部分用量未被记录，因此至少已使用这么多。",
   "note.budget.negative": "{budget}：该指标本周期显示为净抵扣额，因此此预算无法计算。",
+  "note.budget.unit_mismatch_named": "{budget}：该指标以 {metric_unit} 报告，而此预算为 {budget_unit}，因此无法计算。",
   "note.claude_code.answered_by_api": "由 Claude 查询作答：Claude Code 没有最近的读数。",
   "note.claude_code.answered_by_feed": "由 Claude Code 自己的状态栏作答（不发网络请求）。",
   "note.claude_code.fed": "由 Claude Code 有文档的状态栏推送：不发网络请求，不复用令牌。",
@@ -2753,6 +2755,7 @@
   "budget.error.row": "{field}：明细行上的预算需要 kind、行的范围（key、virtual_key、project、workspace 或 team）及其 id，且提供方须支持明细。",
   "budget.error.duplicate_floor": "{field}：已有其他下限以相同金额监控同一余额。",
   "budget.error.duplicate_label": "{field}：此账户已有其他预算使用这个名称。",
+  "budget.error.unit_mismatch": "{field}：该指标以 {metric_unit} 报告，而此预算为 {budget_unit}；请改用 {metric_unit}。",
   "budget.period_since": "自{day}起",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{month}/{day} {time}",

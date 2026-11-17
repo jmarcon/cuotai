@@ -322,7 +322,7 @@ fn a_balance_counts_its_drops_and_a_top_up_is_not_use() {
 }
 
 #[test]
-fn a_missing_target_or_unit_never_shows_zero() {
+fn a_missing_target_or_another_unit_never_shows_zero() {
     let now = at(2026, 10, 21, 12, 0);
     let account = account(vec![budget(BudgetKind::Spend, 50.0, BudgetPeriod::Monthly)]);
     let mut reading = report(vec![balance(5.0)], now);
@@ -330,7 +330,8 @@ fn a_missing_target_or_unit_never_shows_zero() {
     assert_eq!(derived(&reading).used, None);
     assert_eq!(note_ids(&reading), ["note.budget.target_missing"]);
 
-    // The unit filter selects nothing: the target is missing too.
+    // F-07: a budget in another currency than its metric is named as
+    // such, never read as a missing metric, and never counts.
     let mut eur = budget(BudgetKind::Spend, 50.0, BudgetPeriod::Monthly);
     eur.unit = Some("EUR".into());
     let mut reading = report(vec![spend(10.0, None, None)], now);
@@ -342,6 +343,7 @@ fn a_missing_target_or_unit_never_shows_zero() {
         &Utc,
     );
     assert_eq!(derived(&reading).used, None);
+    assert_eq!(note_ids(&reading), ["note.budget.unit_mismatch_named"]);
 
     // A failed reading gets no budget metric.
     let mut failed = report(vec![], now);

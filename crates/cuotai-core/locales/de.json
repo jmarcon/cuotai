@@ -168,7 +168,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -1539,9 +1541,9 @@
   "note.budget.provider_month": "{budget}: Gezählt über den Abrechnungsmonat des Anbieters, der in einer anderen Zeitzone beginnen kann.",
   "note.budget.target_missing": "{budget}: Die Metrik, der dieses Budget folgt, fehlt in dieser Messung.",
   "note.budget.topup_detected": "{budget}: Eine Aufladung wurde erkannt; sie zählt nicht als Verbrauch.",
-  "note.budget.unit_mismatch": "{budget}: Die Metrik wird in einer anderen Einheit gemeldet, daher kann dieses Budget nicht zählen.",
   "note.budget.partial": "{budget}: Ein Teil des Verbrauchs in diesem Zeitraum wurde nicht erfasst, daher wurde mindestens so viel verbraucht.",
   "note.budget.negative": "{budget}: Die Metrik zeigt in diesem Zeitraum eine Nettogutschrift, daher kann dieses Budget sie nicht zählen.",
+  "note.budget.unit_mismatch_named": "{budget}: Die Metrik wird in {metric_unit} gemeldet und dieses Budget ist in {budget_unit}, daher kann es nicht zählen.",
   "note.claude_code.answered_by_api": "Beantwortet durch die Claude-Abfrage: kein aktueller Messwert von Claude Code.",
   "note.claude_code.answered_by_feed": "Beantwortet durch die eigene Statuszeile von Claude Code (keine Netzwerkanfrage).",
   "note.claude_code.fed": "Gespeist von der dokumentierten Statuszeile von Claude Code: keine Netzwerkanfrage, keine Token-Wiederverwendung.",
@@ -2792,6 +2794,7 @@
   "budget.error.row": "{field}: Ein Budget auf einer Zeile der Aufschlüsselung braucht ein kind, den Bereich der Zeile (key, virtual_key, project, workspace oder team) und ihre ID, bei einem Anbieter mit Aufschlüsselungen.",
   "budget.error.duplicate_floor": "{field}: Eine andere Untergrenze überwacht bereits dasselbe Guthaben mit demselben Betrag.",
   "budget.error.duplicate_label": "{field}: Ein anderes Budget dieses Kontos trägt bereits diese Bezeichnung.",
+  "budget.error.unit_mismatch": "{field}: Die Metrik wird in {metric_unit} gemeldet und dieses Budget ist in {budget_unit}; setze es in {metric_unit}.",
   "budget.period_since": "seit {day}",
   "alerts.at.weekday": "{weekday}, {time}",
   "alerts.at.date": "{day}.{month}., {time}",

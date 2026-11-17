@@ -297,6 +297,11 @@ pub enum BudgetRule {
     /// Two budgets of one account with the same own label (ignoring
     /// case).
     DuplicateLabel,
+    /// F-07: the metric the budget selects is reported in another unit
+    /// (an EUR budget on a USD spend). Only the editors find it, from the
+    /// account's last reading ([`editor::check`]); a hand-edited TOML gets
+    /// the reading-time note `note.budget.unit_mismatch_named` instead.
+    UnitMismatch,
 }
 
 impl BudgetRule {
@@ -350,6 +355,12 @@ impl BudgetRule {
             Self::DuplicateLabel => (
                 "budget.error.duplicate_label",
                 "{field}: another budget of this account already has this label.",
+            ),
+            // The editors name both units ([`editor::check`]); without the
+            // reading only the unit rule can be stated.
+            Self::UnitMismatch => (
+                "budget.error.unit",
+                "{field}: the unit must be a currency code such as USD or the metric's own unit.",
             ),
         };
         Localized::with_param(id, "field", field, fallback)
@@ -608,6 +619,22 @@ fn unit_matches(metric: &Metric, unit: Option<&str>) -> bool {
 /// kind (unscoped first) matching the unit and label filters. Derived
 /// metrics are never targets.
 pub fn target<'m>(budget: &Budget, metrics: &'m [Metric]) -> Option<&'m Metric> {
+    find_target(budget, metrics, true)
+}
+
+/// F-07 (RF1.2): the metric `budget` would target if its `unit` were left
+/// out, when its own unit selects none: the budget is in another currency
+/// or unit than its metric. `None` when the budget has a target, has no
+/// unit, or nothing of its kind and filters is reported at all.
+pub fn unit_mismatch<'m>(budget: &Budget, metrics: &'m [Metric]) -> Option<&'m Metric> {
+    budget.unit.as_ref()?;
+    if find_target(budget, metrics, true).is_some() {
+        return None;
+    }
+    find_target(budget, metrics, false)
+}
+
+fn find_target<'m>(budget: &Budget, metrics: &'m [Metric], with_unit: bool) -> Option<&'m Metric> {
     let kind = match (budget.kind, budget.scope) {
         (Some(kind), None) => kind.metric_kind(),
         (None, Some(BudgetScope::Account)) => MetricKind::Spend,
@@ -617,7 +644,7 @@ pub fn target<'m>(budget: &Budget, metrics: &'m [Metric]) -> Option<&'m Metric> 
         metrics.iter().filter(move |metric| {
             metric.derived_from.is_none()
                 && metric.kind == kind
-                && unit_matches(metric, budget.unit.as_deref())
+                && (!with_unit || unit_matches(metric, budget.unit.as_deref()))
                 && label_matches(metric, budget.label_contains.as_deref())
         })
     };
@@ -1162,7 +1189,10 @@ fn derive<Tz: TimeZone>(
     notes: &mut Vec<Localized>,
 ) -> Metric {
     let target = target(budget, metrics).cloned();
-    let target_label = target.as_ref().map_or_else(
+    // F-07: a metric of the budget's kind reported in another unit names
+    // the budget and its note, but is never counted.
+    let mismatch = unit_mismatch(budget, metrics);
+    let target_label = target.as_ref().or(mismatch).map_or_else(
         || {
             budget
                 .label_contains
@@ -1222,14 +1252,28 @@ fn derive<Tz: TimeZone>(
         unlimited: false,
     };
     match (&target, bounds) {
-        (None, _) => push_note_to(
-            notes,
-            note(
-                "note.budget.target_missing",
-                &display,
-                "{budget}: the metric this budget follows is missing from this reading.",
+        (None, _) => match (mismatch, budget.unit.as_deref()) {
+            (Some(other), Some(unit)) => push_note_to(
+                notes,
+                Localized::with_params(
+                    "note.budget.unit_mismatch_named",
+                    params([
+                        ("budget", ParamValue::Text(display.clone())),
+                        ("metric_unit", ParamValue::Text(other.unit.clone())),
+                        ("budget_unit", ParamValue::Text(unit.to_owned())),
+                    ]),
+                    "{budget}: the metric is reported in {metric_unit} and this budget is in {budget_unit}, so it cannot count.",
+                ),
             ),
-        ),
+            _ => push_note_to(
+                notes,
+                note(
+                    "note.budget.target_missing",
+                    &display,
+                    "{budget}: the metric this budget follows is missing from this reading.",
+                ),
+            ),
+        },
         (Some(_), None) => push_note_to(
             notes,
             note(
@@ -1239,80 +1283,70 @@ fn derive<Tz: TimeZone>(
             ),
         ),
         (Some(target), Some((start, end))) => {
-            if budget.unit.as_deref().is_some_and(|unit| !target.unit.eq_ignore_ascii_case(unit)) {
-                push_note_to(
+            // `target` matched the budget's unit, so it counts in that unit.
+            match used_in_period(budget, target, start, end, now, history) {
+                Ok(Use { used, partial, how }) => {
+                    metric.used = Some(used);
+                    if partial {
+                        // A lower bound: what is left is not known.
+                        if let Some(from) = &mut metric.derived_from {
+                            from.partial = true;
+                        }
+                        push_note_to(
+                            notes,
+                            note(
+                                "note.budget.partial",
+                                &display,
+                                "{budget}: part of this period's use was not recorded, so at least this much was used.",
+                            ),
+                        );
+                    } else {
+                        metric.remaining = Some((budget.amount - used).max(0.0));
+                    }
+                    match how {
+                        Derivation::ProviderMonth => push_note_to(
+                            notes,
+                            note(
+                                "note.budget.provider_month",
+                                &display,
+                                "{budget}: counted over the provider's billing month, which may start in another time zone.",
+                            ),
+                        ),
+                        Derivation::Counted { topped_up: true } => push_note_to(
+                            notes,
+                            note(
+                                "note.budget.topup_detected",
+                                &display,
+                                "{budget}: a top-up was detected; it does not count as use.",
+                            ),
+                        ),
+                        _ => {}
+                    }
+                }
+                Err("negative") => push_note_to(
                     notes,
                     note(
-                        "note.budget.unit_mismatch",
+                        "note.budget.negative",
                         &display,
-                        "{budget}: the metric is reported in another unit, so this budget cannot count.",
+                        "{budget}: the metric shows a net credit this period, so this budget cannot count it.",
                     ),
-                );
-            } else {
-                match used_in_period(budget, target, start, end, now, history) {
-                    Ok(Use { used, partial, how }) => {
-                        metric.used = Some(used);
-                        if partial {
-                            // A lower bound: what is left is not known.
-                            if let Some(from) = &mut metric.derived_from {
-                                from.partial = true;
-                            }
-                            push_note_to(
-                                notes,
-                                note(
-                                    "note.budget.partial",
-                                    &display,
-                                    "{budget}: part of this period's use was not recorded, so at least this much was used.",
-                                ),
-                            );
-                        } else {
-                            metric.remaining = Some((budget.amount - used).max(0.0));
-                        }
-                        match how {
-                            Derivation::ProviderMonth => push_note_to(
-                                notes,
-                                note(
-                                    "note.budget.provider_month",
-                                    &display,
-                                    "{budget}: counted over the provider's billing month, which may start in another time zone.",
-                                ),
-                            ),
-                            Derivation::Counted { topped_up: true } => push_note_to(
-                                notes,
-                                note(
-                                    "note.budget.topup_detected",
-                                    &display,
-                                    "{budget}: a top-up was detected; it does not count as use.",
-                                ),
-                            ),
-                            _ => {}
-                        }
-                    }
-                    Err("negative") => push_note_to(
-                        notes,
-                        note(
-                            "note.budget.negative",
-                            &display,
-                            "{budget}: the metric shows a net credit this period, so this budget cannot count it.",
-                        ),
+                ),
+                Err("no_baseline") => push_note_to(
+                    notes,
+                    note(
+                        "note.budget.no_baseline",
+                        &display,
+                        "{budget}: counting starts with the first reading of this period.",
                     ),
-                    Err("no_baseline") => push_note_to(
-                        notes,
-                        note(
-                            "note.budget.no_baseline",
-                            &display,
-                            "{budget}: counting starts with the first reading of this period.",
-                        ),
+                ),
+                Err(_) => push_note_to(
+                    notes,
+                    note(
+                        "note.budget.target_missing",
+                        &display,
+                        "{budget}: the metric this budget follows is missing from this reading.",
                     ),
-                    Err(_) => push_note_to(
-                        notes,
-                        note(
-                            "note.budget.target_missing",
-                            &display,
-                            "{budget}: the metric this budget follows is missing from this reading.",
-                        ),
-                    ),
-                }
+                ),
             }
         }
     }

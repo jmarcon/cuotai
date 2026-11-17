@@ -1062,8 +1062,15 @@ pub async fn run(
                                 .extension_manager()
                                 .map(|manager| manager.picker_entries(&file.config))
                                 .unwrap_or_default();
+                            // PRD 0041 F-07: the Budgets step checks units
+                            // against the account's last good reading.
+                            let reading = editing
+                                .and_then(|index| refresh_cycle.latest_ready(index))
+                                .map(|report| report.metrics.clone());
                             wizard = Some(
-                                Wizard::new(&file.config, editing).with_extensions(entries),
+                                Wizard::new(&file.config, editing)
+                                    .with_extensions(entries)
+                                    .with_reading(reading),
                             );
                             authorized = None;
                         }

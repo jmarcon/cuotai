@@ -145,7 +145,9 @@
       "budget.period_since",
       "binding.tightest_budget",
       "binding.blocked_until_budget",
-      "binding.blocked_budget"
+      "binding.blocked_budget",
+      "note.budget.unit_mismatch_named",
+      "budget.error.unit_mismatch"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -1516,9 +1518,9 @@
   "note.budget.provider_month": "{budget}: başka bir saat diliminde başlayabilen sağlayıcının fatura ayı üzerinden sayıldı.",
   "note.budget.target_missing": "{budget}: bu bütçenin izlediği metrik bu ölçümde yok.",
   "note.budget.topup_detected": "{budget}: bir yükleme algılandı; kullanım sayılmaz.",
-  "note.budget.unit_mismatch": "{budget}: metrik başka bir birimde bildiriliyor, bu yüzden bu bütçe sayamaz.",
   "note.budget.partial": "{budget}: bu dönemin kullanımının bir kısmı kaydedilmedi, bu yüzden en az bu kadar kullanıldı.",
   "note.budget.negative": "{budget}: metrik bu dönemde net alacak gösteriyor, bu yüzden bu bütçe onu sayamaz.",
+  "note.budget.unit_mismatch_named": "{budget}: metrik {metric_unit} cinsinden bildiriliyor ve bu bütçe {budget_unit} cinsinden, bu yüzden sayamaz.",
   "note.claude_code.answered_by_api": "Claude sorgusuyla yanıtlandı: Claude Code’dan yakın tarihli ölçüm yok.",
   "note.claude_code.answered_by_feed": "Claude Code’un kendi durum satırıyla yanıtlandı (ağ isteği yok).",
   "note.claude_code.fed": "Claude Code’un belgelenmiş durum satırından besleniyor: ağ isteği yok, belirteç yeniden kullanılmıyor.",
@@ -2769,6 +2771,7 @@
   "budget.error.row": "{field}: döküm satırındaki bir bütçe için kind, satırın kapsamı (key, virtual_key, project, workspace veya team) ve kimliği gerekir; sağlayıcı döküm sunmalıdır.",
   "budget.error.duplicate_floor": "{field}: aynı bakiyeyi aynı tutarda izleyen başka bir alt sınır zaten var.",
   "budget.error.duplicate_label": "{field}: bu hesabın başka bir bütçesi zaten bu adı taşıyor.",
+  "budget.error.unit_mismatch": "{field}: metrik {metric_unit} cinsinden bildiriliyor ve bu bütçe {budget_unit} cinsinden; bütçeyi {metric_unit} cinsinden belirleyin.",
   "budget.period_since": "başlangıç: {day}",
   "alerts.at.weekday": "{weekday} {time}",
   "alerts.at.date": "{day}.{month} {time}",

@@ -90,10 +90,10 @@ function floorHtml(row, i) {
   </li>`;
 }
 
-/** Mounts the section in `host`. `budgetDraft` / `floorDraft` (RF5.3) add one prefilled row and open the section;
+/** Mounts the section in `host`; `index` is the edited account (`null` for a new one). `budgetDraft` / `floorDraft` (RF5.3) add one prefilled row and open the section;
  *  `budgetHint` (RF6) carries the core's "From your plan price…" and "Last 30 days…" lines shown under that row.
  *  `rows()` returns `{ budgets, floors }` once the person touched the section, else `null` (the account keeps its own). */
-export function mountBudgets(host, { provider, budgets = [], floors = [], budgetDraft = null, budgetHint = null, floorDraft = null }) {
+export function mountBudgets(host, { index = null, provider, budgets = [], floors = [], budgetDraft = null, budgetHint = null, floorDraft = null }) {
   let bRows = budgets.map(budgetRow);
   let fRows = floors.map(floorRow);
   let touched = false;
@@ -129,7 +129,8 @@ export function mountBudgets(host, { provider, budgets = [], floors = [], budget
     const mine = ++seq;
     let result;
     try {
-      result = await checkBudgets(provider, bRows.map(budgetOf), fRows.map(floorOf));
+      // F-07: the edited account's index lets the core check each unit against its last good reading.
+      result = await checkBudgets(index, provider, bRows.map(budgetOf), fRows.map(floorOf));
     } catch {
       return;
     }
