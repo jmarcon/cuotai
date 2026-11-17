@@ -24,7 +24,9 @@
       "note.aggregator.metrics_truncated",
       "note.aggregator.instance_truncated",
       "note.aggregator.duplicate_ids",
-      "note.litellm.truncated"
+      "note.litellm.truncated",
+      "metric.label.monthly",
+      "metric.label.week_model_7d"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -612,7 +614,7 @@
   "edit_error.config_account_name_repeated": "{field} konumundaki ad, {other_field} konumundaki adı yineliyor (büyük-küçük harf fark etmez); birini değiştirin.",
   "edit_error.config_account_name_required": "Başka bir {provider} hesabınız olduğu için {field} konumundaki hesabın bir adı olmalı; ona bir name satırı ekleyin.",
   "edit_error.config_accounts_shape": "Mevcut 'accounts' anahtarı bir tablo listesi değil.",
-  "edit_error.config_base_url": "9router hesabının base_url değeri http(s)://host[:bağlantı noktası][/önek] biçiminde olmalı; kullanıcı, sorgu veya parça içermemeli; HTTP yalnızca loopback'te veya allow_private_http ile özel ağda geçerlidir.",
+  "edit_error.config_base_url": "{provider} hesabının base_url değeri http(s)://host[:bağlantı noktası][/önek] biçiminde olmalı; kullanıcı, sorgu veya parça içermemeli; HTTP yalnızca loopback'te veya allow_private_http ile özel ağda geçerlidir.",
   "edit_error.config_bounds": "refresh_seconds >= 30, concurrency 1 ile 32 arasında ve timeout_seconds 1 ile 300 arasında olmalıdır.",
   "edit_error.config_client": "Geçersiz yapılandırma; HTTPS istemcisi başlatılamadı.",
   "edit_error.config_extension": "Geçerli bir extension_id'si olmayan, başka bir uzantının kimliğini yineleyen veya uyumsuz kimlik bilgisi alanları içeren uzantı hesabı.",
@@ -629,7 +631,7 @@
   "edit_error.config_roundtrip": "Oluşturulan belge yapılandırmadan farklı.",
   "edit_error.config_serialize": "Yapılandırma serileştirilemedi.",
   "edit_error.config_session": "[accounts.session] içinde geçersiz veya yinelenen oturum başvurusu; oturumu hesap sihirbazında yeniden girin.",
-  "edit_error.config_tls": "TLS'i geçersiz 9router hesabı: tls_pin_sha256 64 onaltılık basamak olmalı; tls_ca_file ve tls_pin_sha256 birlikte veya HTTPS olmadan kullanılamaz.",
+  "edit_error.config_tls": "TLS'i geçersiz {provider} hesabı: tls_pin_sha256 64 onaltılık basamak olmalı; tls_ca_file ve tls_pin_sha256 birlikte veya HTTPS olmadan kullanılamaz.",
   "edit_error.config_toml_invalid": "Dosya geçerli bir TOML değil.",
   "edit_error.conflict": "{path} dosyası yüklendikten sonra değişti; kaydetmeden önce yeniden yükleyin.",
   "edit_error.account_moved": "Düzenlenen hesap artık yapılandırma dosyasında bu konumda değil; dosyayı yeniden yükleyin ve hesabı yeniden açın.",
@@ -1446,7 +1448,10 @@
   "note.kimi.no_membership_quota_endpoint": "Bu anahtarla herkese açık bir Kimi Code/Membership kota uç noktası yok; abonelik kullanım sorgusu konsol ve tescilli CLI ile sınırlıdır.",
   "note.kimi.platform_key_scope": "kimi.com / kimi.ai platform anahtarı kimi.com üyelik kotasından bağımsızdır; anahtarı platform uç noktasında kullanın.",
   "note.litellm.no_budgets": "LiteLLM'de sağlayıcı başına bütçe (provider_budget_config) yok; gösterilecek bir şey yok.",
-  "note.litellm.summary": "LiteLLM'de bütçesi olan {total} sağlayıcı.",
+  "note.litellm.summary": {
+    "one": "LiteLLM'de bütçesi olan {count} sağlayıcı.",
+    "other": "LiteLLM'de bütçesi olan {count} sağlayıcı."
+  },
   "note.litellm.truncated": "LiteLLM, okunan sınırdan (200) fazla sağlayıcıya sahip; kalanlar dışarıda bırakıldı.",
   "note.metered.interval_raised": "Yapılandırılan {configured} sn aralığı, bu sağlayıcı sorgu başına ücretlendirdiği için {effective} sn'ye yükseltildi.",
   "note.mimo_platform.cash_balance": "Nakit bakiye: {amount} {currency}.",
@@ -1470,7 +1475,10 @@
   "note.nine_router.off": "9router'da kapalı.",
   "note.nine_router.private_http": "Özel ağınızda düz HTTP, sizin tercihinizle: parola veya anahtar bu ağda şifresiz iletilir. Sabitlenmiş bir sertifikayla HTTPS tercih edin.",
   "note.nine_router.reconnect": "Bu hesabı 9router'da yeniden bağlayın.",
-  "note.nine_router.summary": "{total} 9router bağlantısından {ready} tanesinin kullanım verisi var.",
+  "note.nine_router.summary": {
+    "one": "{count} 9router bağlantısından {ready} tanesinin kullanım verisi var.",
+    "other": "{count} 9router bağlantısından {ready} tanesinin kullanım verisi var."
+  },
   "note.nine_router.truncated": "9router, okunan sınırdan (1000) fazla bağlantıya sahip; kalanlar dışarıda bırakıldı.",
   "note.nine_router.version": "9router {version}.",
   "note.nine_router.version_untested": "9router {version}, Cuotai'nin test edildiği en eski sürüm olan {min} sürümünden eski; güncelleyene kadar bazı okumalar başarısız olabilir.",
@@ -1757,7 +1765,10 @@
   "pool.available": "{upstream} · {total} içinden {available} kullanılabilir",
   "pool.exhausted": "{upstream} · hepsi tükendi",
   "pool.exhausted_returns": "{upstream} · hepsi tükendi · {at} dönüyor",
-  "pool.unmeasured": "{upstream} · kullanımı bilinmeyen {total} bağlantı",
+  "pool.unmeasured": {
+    "one": "{upstream} · kullanımı bilinmeyen {count} bağlantı",
+    "other": "{upstream} · kullanımı bilinmeyen {count} bağlantı"
+  },
   "privacy.erase.vault_unavailable": "Hiçbir şey silinmedi: sistemin kimlik bilgisi kasası Cuotai kayıtlarını listeleyemiyor. Kasanın kilidini açın (Linux'ta bir D-Bus oturumunda GNOME Keyring gibi bir Secret Service başlatın) ve yeniden deneyin.",
   "privacy.erase.word": "SİL",
   "privacy.erase.word_mismatch": "Onay sözcüğü eşleşmiyor; hiçbir şey silinmedi.",
@@ -2059,13 +2070,22 @@
   "status.rate_limited": "Hız sınırlı",
   "status.ready": "Güncel",
   "status.unsupported": "Kullanılamıyor",
-  "test.litellm.connected": "LiteLLM: bütçesi olan {providers} sağlayıcı bulundu.",
+  "test.litellm.connected": {
+    "one": "LiteLLM: bütçesi olan {count} sağlayıcı bulundu.",
+    "other": "LiteLLM: bütçesi olan {count} sağlayıcı bulundu."
+  },
   "test.litellm.key_required": "LiteLLM ana anahtarını veya bir sanal anahtarı girin.",
   "test.litellm.key_wrong": "LiteLLM anahtarı reddedildi.",
   "test.litellm.not_litellm": "Adres yanıt veriyor, ancak bir LiteLLM proxy'sine benzemiyor (/provider/budgets yok).",
   "test.nine_router.certificate_changed": "Örneğin sertifikası değişti ve artık sabitlenenle eşleşmiyor. Yeni SHA-256 parmak izi: {fingerprint}. Güvenmeden önce sunucuda kontrol edin.",
-  "test.nine_router.connected": "9router {version}: kullanım verisi olan {connections} bağlantı bulundu.",
-  "test.nine_router.connected_untested": "9router {version}: kullanımı olan {connections} bağlantı bulundu. Bu sürüm, Cuotai'nin test edildiği en eski sürüm olan {min} sürümünden eski; bazı okumalar başarısız olabilir.",
+  "test.nine_router.connected": {
+    "one": "9router {version}: kullanım verisi olan {count} bağlantı bulundu.",
+    "other": "9router {version}: kullanım verisi olan {count} bağlantı bulundu."
+  },
+  "test.nine_router.connected_untested": {
+    "one": "9router {version}: kullanım verisi olan {count} bağlantı bulundu. Bu sürüm, Cuotai'nin test edildiği en eski sürüm olan {min} sürümünden eski; bazı okumalar başarısız olabilir.",
+    "other": "9router {version}: kullanım verisi olan {count} bağlantı bulundu. Bu sürüm, Cuotai'nin test edildiği en eski sürüm olan {min} sürümünden eski; bazı okumalar başarısız olabilir."
+  },
   "test.nine_router.listener_foreign": "{port} numaralı bağlantı noktasını dinleyen programın size ait olduğu doğrulanamadı (başka bir kullanıcıya ait olabilir); parola veya oturum gönderilmedi. 9router'ı kendi kullanıcınızla başlatın ya da ona sabitlenmiş bir sertifikayla HTTPS üzerinden erişin.",
   "test.nine_router.not_nine_router": "Adres yanıt veriyor, ancak bir 9router'a benzemiyor.",
   "test.nine_router.password_required": "Bu örnek pano parolası gerektiriyor; \"Pano parolası\" seçeneğini seçin.",
@@ -2230,7 +2250,9 @@
   "metric.label.total_tokens": "Toplam token",
   "metric.label.key_total_spend": "Anahtarın toplam harcaması",
   "metric.label.month_spend": "Aylık harcama",
+  "metric.label.monthly": "Aylık",
   "metric.label.week_spend": "Haftalık harcama",
+  "metric.label.week_model_7d": "Hafta — {label} (7 gün)",
   "metric.label.spend_30d_other": "30 günlük harcama — Diğer",
   "metric.label.spend_30d": "30 günlük harcama — {name}",
   "metric.label.key_limit": "Anahtar sınırı",

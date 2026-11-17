@@ -62,7 +62,9 @@
       "note.aggregator.metrics_truncated",
       "note.aggregator.instance_truncated",
       "note.aggregator.duplicate_ids",
-      "note.litellm.truncated"
+      "note.litellm.truncated",
+      "metric.label.monthly",
+      "metric.label.week_model_7d"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -635,7 +637,7 @@
   "edit_error.config_account_name_repeated": "{field} 处的名称与 {other_field} 处的名称重复（不区分大小写）；请修改其中一个。",
   "edit_error.config_account_name_required": "{field} 处的账户需要名称，因为您还有另一个 {provider} 账户；请为它添加 name 行。",
   "edit_error.config_accounts_shape": "现有的 'accounts' 键不是表的列表。",
-  "edit_error.config_base_url": "9router 的 base_url 必须是 http(s)://主机[:端口][/前缀]，不含用户名、查询或片段；HTTP 只在回环地址上有效，或在设置 allow_private_http 时用于私有网络。",
+  "edit_error.config_base_url": "{provider} 的 base_url 必须是 http(s)://主机[:端口][/前缀]，不含用户名、查询或片段；HTTP 只在回环地址上有效，或在设置 allow_private_http 时用于私有网络。",
   "edit_error.config_bounds": "refresh_seconds 必须 >= 30，concurrency 在 1 到 32 之间，timeout_seconds 在 1 到 300 之间。",
   "edit_error.config_client": "配置无效；无法初始化 HTTPS 客户端。",
   "edit_error.config_extension": "扩展账户没有有效的 extension_id、与其他扩展的 id 重复，或包含不兼容的凭据字段。",
@@ -652,7 +654,7 @@
   "edit_error.config_roundtrip": "渲染出的文档与配置不一致。",
   "edit_error.config_serialize": "无法序列化配置。",
   "edit_error.config_session": "[accounts.session] 中的会话引用无效或重复；请在账户向导中重新填写会话。",
-  "edit_error.config_tls": "9router 账户的 TLS 无效：tls_pin_sha256 必须是 64 位十六进制数字，tls_ca_file 与 tls_pin_sha256 不能同时使用，也不能在没有 HTTPS 时使用。",
+  "edit_error.config_tls": "{provider} 账户的 TLS 无效：tls_pin_sha256 必须是 64 位十六进制数字，tls_ca_file 与 tls_pin_sha256 不能同时使用，也不能在没有 HTTPS 时使用。",
   "edit_error.config_toml_invalid": "该文件不是有效的 TOML。",
   "edit_error.conflict": "文件 {path} 在加载后已更改；请在保存前重新加载。",
   "edit_error.account_moved": "正在编辑的账户已不在配置文件中的这个位置；请重新加载文件并再次打开该账户。",
@@ -1463,7 +1465,9 @@
   "note.kimi.no_membership_quota_endpoint": "没有可用此密钥查询 Kimi Code/Membership 额度的公开接口；订阅用量仅限在控制台和专有 CLI 中查看。",
   "note.kimi.platform_key_scope": "kimi.com / kimi.ai 平台的密钥与 kimi.com 会员额度相互独立；请在平台接口上使用该密钥。",
   "note.litellm.no_budgets": "LiteLLM 没有按提供商的预算（provider_budget_config）；没有可显示的内容。",
-  "note.litellm.summary": "LiteLLM 中有 {total} 个设有预算的提供商。",
+  "note.litellm.summary": {
+    "other": "LiteLLM 中有 {count} 个设有预算的提供商。"
+  },
   "note.litellm.truncated": "LiteLLM 的提供商数量超过了读取上限（200）；其余的已省略。",
   "note.metered.interval_raised": "由于此提供商按查询计费，已将设置的间隔 {configured} 秒提高到 {effective} 秒。",
   "note.mimo_platform.cash_balance": "现金余额：{amount} {currency}。",
@@ -1487,7 +1491,9 @@
   "note.nine_router.off": "在 9router 中已关闭。",
   "note.nine_router.private_http": "按所选设置，在私有网络上使用普通 HTTP：密码或密钥会在该网络上以未加密方式传输。建议使用带固定证书的 HTTPS。",
   "note.nine_router.reconnect": "请在 9router 中重新连接此账户。",
-  "note.nine_router.summary": "9router 的 {total} 个连接中有 {ready} 个有用量。",
+  "note.nine_router.summary": {
+    "other": "9router 的 {count} 个连接中有 {ready} 个有用量。"
+  },
   "note.nine_router.truncated": "9router 的连接数超过了读取上限（1000）；其余的已省略。",
   "note.nine_router.version": "9router {version}。",
   "note.nine_router.version_untested": "9router {version} 早于 {min}，即 Cuotai 测试过的最旧版本；在更新之前，部分读数可能会失败。",
@@ -1773,7 +1779,9 @@
   "pool.available": "{upstream} · {total} 个中 {available} 个可用",
   "pool.exhausted": "{upstream} · 全部用尽",
   "pool.exhausted_returns": "{upstream} · 全部用尽 · {at} 恢复",
-  "pool.unmeasured": "{upstream} · {total} 个连接的用量未知",
+  "pool.unmeasured": {
+    "other": "{upstream} · {count} 个连接的用量未知"
+  },
   "privacy.erase.vault_unavailable": "未删除任何内容：系统凭据库无法列出 Cuotai 的条目。请解锁凭据库（在 Linux 上，在 D-Bus 会话中启动 GNOME Keyring 等 Secret Service）后重试。",
   "privacy.erase.word": "删除",
   "privacy.erase.word_mismatch": "确认词不匹配；未删除任何内容。",
@@ -2071,13 +2079,19 @@
   "status.rate_limited": "受限",
   "status.ready": "最新",
   "status.unsupported": "不可用",
-  "test.litellm.connected": "LiteLLM：找到 {providers} 个设有预算的提供商。",
+  "test.litellm.connected": {
+    "other": "LiteLLM：找到 {count} 个设有预算的提供商。"
+  },
   "test.litellm.key_required": "请填写 LiteLLM 的主密钥或虚拟密钥。",
   "test.litellm.key_wrong": "LiteLLM 密钥被拒绝。",
   "test.litellm.not_litellm": "该地址有响应，但看起来不是 LiteLLM 代理（没有 /provider/budgets）。",
   "test.nine_router.certificate_changed": "实例的证书已更改，与固定的证书不再一致。新的 SHA-256 指纹：{fingerprint}。信任前请在服务器上核对。",
-  "test.nine_router.connected": "9router {version}：找到 {connections} 个有用量的连接。",
-  "test.nine_router.connected_untested": "9router {version}：找到 {connections} 个有用量的连接。此版本早于 {min}，即 Cuotai 测试过的最旧版本；部分读数可能会失败。",
+  "test.nine_router.connected": {
+    "other": "9router {version}：找到 {count} 个有用量的连接。"
+  },
+  "test.nine_router.connected_untested": {
+    "other": "9router {version}：找到 {count} 个有用量的连接。此版本早于 {min}，即 Cuotai 测试过的最旧版本；部分读数可能会失败。"
+  },
   "test.nine_router.listener_foreign": "无法确认在端口 {port} 上监听的程序属于当前用户（它可能属于其他用户）；未发送密码或会话。请以当前用户身份启动 9router，或通过使用固定证书的 HTTPS 访问它。",
   "test.nine_router.not_nine_router": "该地址有响应，但看起来不是 9router。",
   "test.nine_router.password_required": "此实例需要仪表板密码；请选择“仪表板密码”。",
@@ -2242,7 +2256,9 @@
   "metric.label.total_tokens": "Token 总数",
   "metric.label.key_total_spend": "密钥总支出",
   "metric.label.month_spend": "本月支出",
+  "metric.label.monthly": "每月",
   "metric.label.week_spend": "本周支出",
+  "metric.label.week_model_7d": "周 — {label}（7 天）",
   "metric.label.spend_30d_other": "30 天支出 — 其他",
   "metric.label.spend_30d": "30 天支出 — {name}",
   "metric.label.key_limit": "密钥限额",

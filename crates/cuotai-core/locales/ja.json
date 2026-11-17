@@ -69,7 +69,9 @@
       "note.aggregator.metrics_truncated",
       "note.aggregator.instance_truncated",
       "note.aggregator.duplicate_ids",
-      "note.litellm.truncated"
+      "note.litellm.truncated",
+      "metric.label.monthly",
+      "metric.label.week_model_7d"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -642,7 +644,7 @@
   "edit_error.config_account_name_repeated": "{field} の名前は {other_field} の名前と重複しています（大文字と小文字は区別しません）。どちらかを変更してください。",
   "edit_error.config_account_name_required": "{provider} のアカウントがほかにもあるため、{field} のアカウントには名前が必要です。name の行を追加してください。",
   "edit_error.config_accounts_shape": "既存の 'accounts' キーはテーブルのリストではありません。",
-  "edit_error.config_base_url": "9router の base_url は、ユーザー、クエリ、フラグメントを含まない http(s)://host[:port][/prefix] にしてください。HTTP はループバック、または allow_private_http を指定した場合のプライベートネットワークでのみ有効です。",
+  "edit_error.config_base_url": "{provider} の base_url は、ユーザー、クエリ、フラグメントを含まない http(s)://host[:port][/prefix] にしてください。HTTP はループバック、または allow_private_http を指定した場合のプライベートネットワークでのみ有効です。",
   "edit_error.config_bounds": "refresh_seconds は 30 以上、concurrency は 1〜32、timeout_seconds は 1〜300 にしてください。",
   "edit_error.config_client": "設定が無効です。HTTPS クライアントを初期化できませんでした。",
   "edit_error.config_extension": "拡張機能のアカウントに有効な extension_id がないか、別の拡張機能の id と重複しているか、互換性のない認証情報の項目が含まれています。",
@@ -659,7 +661,7 @@
   "edit_error.config_roundtrip": "出力したドキュメントが設定と一致しません。",
   "edit_error.config_serialize": "設定をシリアライズできませんでした。",
   "edit_error.config_session": "[accounts.session] のセッション参照が無効か重複しています。アカウントのウィザードでセッションを指定し直してください。",
-  "edit_error.config_tls": "9router アカウントの TLS が無効です。tls_pin_sha256 は 16 進数 64 桁にしてください。tls_ca_file と tls_pin_sha256 は同時に使えず、HTTPS なしでも使えません。",
+  "edit_error.config_tls": "{provider} アカウントの TLS が無効です。tls_pin_sha256 は 16 進数 64 桁にしてください。tls_ca_file と tls_pin_sha256 は同時に使えず、HTTPS なしでも使えません。",
   "edit_error.config_toml_invalid": "ファイルが有効な TOML ではありません。",
   "edit_error.conflict": "ファイル {path} は読み込み後に変更されました。保存する前に再読み込みしてください。",
   "edit_error.account_moved": "編集中のアカウントは設定ファイルのこの位置にもうありません。ファイルを再読み込みして、アカウントを開き直してください。",
@@ -1470,7 +1472,9 @@
   "note.kimi.no_membership_quota_endpoint": "このキーで Kimi Code/Membership のクォータを照会する公開エンドポイントはありません。サブスクリプションの使用量はコンソールと専用 CLI でのみ確認できます。",
   "note.kimi.platform_key_scope": "kimi.com / kimi.ai プラットフォームのキーは kimi.com のメンバーシップのクォータとは独立しています。キーはプラットフォームのエンドポイントで使用してください。",
   "note.litellm.no_budgets": "LiteLLM にプロバイダー別の予算（provider_budget_config）がありません。表示するものはありません。",
-  "note.litellm.summary": "LiteLLM で予算のあるプロバイダー {total} 件。",
+  "note.litellm.summary": {
+    "other": "LiteLLM で予算のあるプロバイダー {count} 件。"
+  },
   "note.litellm.truncated": "LiteLLM のプロバイダー数が読み取りの上限（200）を超えています。残りは省略しました。",
   "note.metered.interval_raised": "このプロバイダーは照会ごとに課金されるため、設定した間隔 {configured} 秒を {effective} 秒に引き上げました。",
   "note.mimo_platform.cash_balance": "現金残高：{amount} {currency}。",
@@ -1494,7 +1498,9 @@
   "note.nine_router.off": "9router でオフになっています。",
   "note.nine_router.private_http": "設定により、プライベートネットワークで暗号化なしの HTTP を使用しています。パスワードまたはキーはそのネットワーク上を暗号化されずに流れます。固定した証明書を使う HTTPS をおすすめします。",
   "note.nine_router.reconnect": "9router でこのアカウントを再接続してください。",
-  "note.nine_router.summary": "9router の接続 {total} 件中 {ready} 件に使用量があります。",
+  "note.nine_router.summary": {
+    "other": "9router の接続 {count} 件中 {ready} 件に使用量があります。"
+  },
   "note.nine_router.truncated": "9router の接続数が読み取りの上限（1000）を超えています。残りは省略しました。",
   "note.nine_router.version": "9router {version}。",
   "note.nine_router.version_untested": "9router {version} は、Cuotai がテストした最も古いバージョン {min} より古いです。更新するまで一部の取得に失敗することがあります。",
@@ -1780,7 +1786,9 @@
   "pool.available": "{upstream} · {total} 件中 {available} 件利用可能",
   "pool.exhausted": "{upstream} · すべて上限到達",
   "pool.exhausted_returns": "{upstream} · すべて上限到達 · {at} に回復",
-  "pool.unmeasured": "{upstream} · {total} 件の接続の使用量は不明",
+  "pool.unmeasured": {
+    "other": "{upstream} · {count} 件の接続の使用量は不明"
+  },
   "privacy.erase.vault_unavailable": "何も消去されていません：システムの資格情報保管庫が Cuotai の項目を一覧できません。保管庫のロックを解除して (Linux では D-Bus セッションで GNOME Keyring などの Secret Service を起動して) からもう一度お試しください。",
   "privacy.erase.word": "削除",
   "privacy.erase.word_mismatch": "確認の単語が一致しません。何も削除していません。",
@@ -2078,13 +2086,19 @@
   "status.rate_limited": "制限中",
   "status.ready": "最新",
   "status.unsupported": "利用不可",
-  "test.litellm.connected": "LiteLLM：予算のあるプロバイダーが {providers} 件見つかりました。",
+  "test.litellm.connected": {
+    "other": "LiteLLM：予算のあるプロバイダーが {count} 件見つかりました。"
+  },
   "test.litellm.key_required": "LiteLLM のマスターキーまたは仮想キーを指定してください。",
   "test.litellm.key_wrong": "LiteLLM のキーが拒否されました。",
   "test.litellm.not_litellm": "アドレスは応答しましたが、LiteLLM プロキシではないようです（/provider/budgets がありません）。",
   "test.nine_router.certificate_changed": "インスタンスの証明書が変更され、固定した証明書と一致しなくなりました。新しい SHA-256 フィンガープリント：{fingerprint}。信頼する前にサーバーで確認してください。",
-  "test.nine_router.connected": "9router {version}：使用量のある接続が {connections} 件見つかりました。",
-  "test.nine_router.connected_untested": "9router {version}：使用量のある接続が {connections} 件見つかりました。このバージョンは Cuotai がテストした最も古いバージョン {min} より古いため、一部の取得に失敗することがあります。",
+  "test.nine_router.connected": {
+    "other": "9router {version}：使用量のある接続が {count} 件見つかりました。"
+  },
+  "test.nine_router.connected_untested": {
+    "other": "9router {version}：使用量のある接続が {count} 件見つかりました。このバージョンは Cuotai がテストした最も古いバージョン {min} より古いため、一部の取得に失敗することがあります。"
+  },
   "test.nine_router.listener_foreign": "ポート {port} で待ち受けているプログラムが現在のユーザーのものであると確認できませんでした（別のユーザーのものである可能性があります）。パスワードもセッションも送信していません。9router を現在のユーザーで起動するか、固定した証明書を使って HTTPS で接続してください。",
   "test.nine_router.not_nine_router": "アドレスは応答しましたが、9router ではないようです。",
   "test.nine_router.password_required": "このインスタンスにはダッシュボードのパスワードが必要です。「ダッシュボードのパスワード」を選んでください。",
@@ -2249,7 +2263,9 @@
   "metric.label.total_tokens": "合計トークン",
   "metric.label.key_total_spend": "キーの支出の合計",
   "metric.label.month_spend": "今月の支出",
+  "metric.label.monthly": "月間",
   "metric.label.week_spend": "今週の支出",
+  "metric.label.week_model_7d": "週 — {label}（7 日間）",
   "metric.label.spend_30d_other": "30 日間の支出 — その他",
   "metric.label.spend_30d": "30 日間の支出 — {name}",
   "metric.label.key_limit": "キーの上限",

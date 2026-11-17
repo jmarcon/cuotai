@@ -24,7 +24,9 @@
       "note.aggregator.metrics_truncated",
       "note.aggregator.instance_truncated",
       "note.aggregator.duplicate_ids",
-      "note.litellm.truncated"
+      "note.litellm.truncated",
+      "metric.label.monthly",
+      "metric.label.week_model_7d"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -597,7 +599,7 @@
   "edit_error.config_account_name_repeated": "Nama di {field} mengulang nama di {other_field} (huruf besar dan kecil tidak dibedakan); ubah salah satunya.",
   "edit_error.config_account_name_required": "Akun di {field} perlu nama karena Anda punya akun {provider} lain; tambahkan baris name padanya.",
   "edit_error.config_accounts_shape": "Kunci 'accounts' yang ada bukan daftar tabel.",
-  "edit_error.config_base_url": "base_url akun 9router harus berupa http(s)://host[:port][/prefiks], tanpa pengguna, kueri, atau fragmen; HTTP hanya berlaku di loopback atau, dengan allow_private_http, di jaringan privat.",
+  "edit_error.config_base_url": "base_url akun {provider} harus berupa http(s)://host[:port][/prefiks], tanpa pengguna, kueri, atau fragmen; HTTP hanya berlaku di loopback atau, dengan allow_private_http, di jaringan privat.",
   "edit_error.config_bounds": "refresh_seconds harus >= 30, concurrency antara 1 dan 32, dan timeout_seconds antara 1 dan 300.",
   "edit_error.config_client": "Konfigurasi tidak valid; klien HTTPS tidak dapat diinisialisasi.",
   "edit_error.config_extension": "Akun ekstensi tanpa extension_id yang valid, dengan id ekstensi lain yang berulang, atau dengan kolom kredensial yang tidak kompatibel.",
@@ -614,7 +616,7 @@
   "edit_error.config_roundtrip": "Dokumen yang dihasilkan berbeda dari konfigurasi.",
   "edit_error.config_serialize": "Tidak dapat menserialisasi konfigurasi.",
   "edit_error.config_session": "Referensi sesi tidak valid atau berulang di [accounts.session]; masukkan sesi lagi di wizard akun.",
-  "edit_error.config_tls": "Akun 9router dengan TLS tidak valid: tls_pin_sha256 harus 64 digit heksadesimal, dan tls_ca_file serta tls_pin_sha256 tidak boleh dipakai bersamaan atau tanpa HTTPS.",
+  "edit_error.config_tls": "Akun {provider} dengan TLS tidak valid: tls_pin_sha256 harus 64 digit heksadesimal, dan tls_ca_file serta tls_pin_sha256 tidak boleh dipakai bersamaan atau tanpa HTTPS.",
   "edit_error.config_toml_invalid": "File bukan TOML yang valid.",
   "edit_error.conflict": "File {path} berubah sejak dimuat; muat ulang sebelum menyimpan.",
   "edit_error.account_moved": "Akun yang sedang diedit tidak lagi berada di posisi ini dalam file konfigurasi; muat ulang file lalu buka akun itu lagi.",
@@ -1425,7 +1427,9 @@
   "note.kimi.no_membership_quota_endpoint": "Tidak ada endpoint kuota Kimi Code/Membership publik dengan kunci ini; kueri penggunaan langganan terbatas pada konsol dan CLI proprietari.",
   "note.kimi.platform_key_scope": "Kunci platform kimi.com / kimi.ai tidak bergantung pada kuota keanggotaan kimi.com; gunakan kunci itu pada endpoint platform.",
   "note.litellm.no_budgets": "LiteLLM tidak memiliki anggaran per penyedia (provider_budget_config); tidak ada yang ditampilkan.",
-  "note.litellm.summary": "{total} penyedia dengan anggaran di LiteLLM.",
+  "note.litellm.summary": {
+    "other": "{count} penyedia dengan anggaran di LiteLLM."
+  },
   "note.litellm.truncated": "LiteLLM memiliki lebih banyak penyedia daripada batas yang dibaca (200); sisanya dihilangkan.",
   "note.metered.interval_raised": "Interval {configured} dtk yang dikonfigurasi dinaikkan menjadi {effective} dtk karena penyedia ini menagih per kueri.",
   "note.mimo_platform.cash_balance": "Saldo tunai: {amount} {currency}.",
@@ -1449,7 +1453,9 @@
   "note.nine_router.off": "Nonaktif di 9router.",
   "note.nine_router.private_http": "HTTP biasa di jaringan privat Anda, atas pilihan Anda: kata sandi atau kunci dikirim tanpa enkripsi di jaringan itu. Sebaiknya gunakan HTTPS dengan sertifikat yang disematkan.",
   "note.nine_router.reconnect": "Sambungkan ulang akun ini di 9router.",
-  "note.nine_router.summary": "{ready} dari {total} koneksi 9router dengan data penggunaan.",
+  "note.nine_router.summary": {
+    "other": "{ready} dari {count} koneksi 9router dengan data penggunaan."
+  },
   "note.nine_router.truncated": "9router memiliki lebih banyak koneksi daripada batas yang dibaca (1000); sisanya dihilangkan.",
   "note.nine_router.version": "9router {version}.",
   "note.nine_router.version_untested": "9router {version} lebih lama dari {min}, versi tertua yang pernah diuji dengan Cuotai; beberapa pembacaan mungkin gagal sampai Anda memperbaruinya.",
@@ -1735,7 +1741,9 @@
   "pool.available": "{upstream} · {available} dari {total} tersedia",
   "pool.exhausted": "{upstream} · semuanya habis",
   "pool.exhausted_returns": "{upstream} · semuanya habis · kembali {at}",
-  "pool.unmeasured": "{upstream} · {total} koneksi dengan penggunaan tidak diketahui",
+  "pool.unmeasured": {
+    "other": "{upstream} · {count} koneksi dengan penggunaan tidak diketahui"
+  },
   "privacy.erase.vault_unavailable": "Tidak ada yang dihapus: brankas kredensial sistem tidak dapat menampilkan entri Cuotai. Buka kuncinya (di Linux, jalankan Secret Service seperti GNOME Keyring dalam sesi D-Bus) lalu coba lagi.",
   "privacy.erase.word": "HAPUS",
   "privacy.erase.word_mismatch": "Kata konfirmasi tidak cocok; tidak ada yang dihapus.",
@@ -2033,13 +2041,19 @@
   "status.rate_limited": "Dibatasi laju",
   "status.ready": "Terbaru",
   "status.unsupported": "Tidak tersedia",
-  "test.litellm.connected": "LiteLLM: {providers} penyedia dengan anggaran ditemukan.",
+  "test.litellm.connected": {
+    "other": "LiteLLM: {count} penyedia dengan anggaran ditemukan."
+  },
   "test.litellm.key_required": "Masukkan master key LiteLLM atau virtual key.",
   "test.litellm.key_wrong": "Kunci LiteLLM ditolak.",
   "test.litellm.not_litellm": "Alamat menjawab, tetapi tidak terlihat seperti proxy LiteLLM (tanpa /provider/budgets).",
   "test.nine_router.certificate_changed": "Sertifikat instans berubah dan tidak lagi cocok dengan yang disematkan. Sidik jari SHA-256 baru: {fingerprint}. Periksa di server sebelum memercayainya.",
-  "test.nine_router.connected": "9router {version}: ditemukan {connections} koneksi dengan data penggunaan.",
-  "test.nine_router.connected_untested": "9router {version}: ditemukan {connections} koneksi dengan penggunaan. Versi ini lebih lama dari {min}, versi tertua yang pernah diuji dengan Cuotai; beberapa pembacaan mungkin gagal.",
+  "test.nine_router.connected": {
+    "other": "9router {version}: ditemukan {count} koneksi dengan data penggunaan."
+  },
+  "test.nine_router.connected_untested": {
+    "other": "9router {version}: ditemukan {count} koneksi dengan data penggunaan. Versi ini lebih lama dari {min}, versi tertua yang pernah diuji dengan Cuotai; beberapa pembacaan mungkin gagal."
+  },
   "test.nine_router.listener_foreign": "Program yang mendengarkan di port {port} tidak dapat dipastikan milik Anda (mungkin milik pengguna lain); kata sandi atau sesi tidak dikirim. Jalankan 9router sebagai pengguna Anda sendiri, atau akses lewat HTTPS dengan sertifikat yang disematkan.",
   "test.nine_router.not_nine_router": "Alamat menjawab, tetapi tidak terlihat seperti 9router.",
   "test.nine_router.password_required": "Instans ini memerlukan kata sandi dasbor; pilih \"Kata sandi dasbor\".",
@@ -2204,7 +2218,9 @@
   "metric.label.total_tokens": "Total token",
   "metric.label.key_total_spend": "Total pengeluaran kunci",
   "metric.label.month_spend": "Pengeluaran bulan ini",
+  "metric.label.monthly": "Bulanan",
   "metric.label.week_spend": "Pengeluaran minggu ini",
+  "metric.label.week_model_7d": "Minggu — {label} (7 hari)",
   "metric.label.spend_30d_other": "Pengeluaran 30 hari — Lainnya",
   "metric.label.spend_30d": "Pengeluaran 30 hari — {name}",
   "metric.label.key_limit": "Batas kunci",

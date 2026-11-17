@@ -247,6 +247,23 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         );
     }
 
+    // Re-validation V-08: the aggregator's own name, never 9router for a
+    // LiteLLM account.
+    if let crate::ConfigError::BaseUrl { provider } = error {
+        return Localized::with_params(
+            "edit_error.config_base_url",
+            params([("provider", crate::text::provider_l10n(*provider).into())]),
+            "The {provider} base_url must be http(s)://host[:port][/prefix] without user, query or fragment; HTTP is only valid on loopback or, with allow_private_http, on a private network.",
+        );
+    }
+    if let crate::ConfigError::Tls { provider } = error {
+        return Localized::with_params(
+            "edit_error.config_tls",
+            params([("provider", crate::text::provider_l10n(*provider).into())]),
+            "Invalid TLS for the {provider} account: tls_pin_sha256 must have 64 hexadecimal digits, and tls_ca_file and tls_pin_sha256 cannot be used together or without HTTPS.",
+        );
+    }
+
     let id = match error {
         crate::ConfigError::Bounds => "edit_error.config_bounds",
         crate::ConfigError::AccountNameCharacters => "edit_error.config_account_name_characters",
@@ -265,11 +282,11 @@ pub fn config_error_note(error: &crate::ConfigError) -> Localized {
         | crate::ConfigError::Budget { .. }
         | crate::ConfigError::Breakdown { .. }
         | crate::ConfigError::ReservedName { .. }
+        | crate::ConfigError::BaseUrl { .. }
+        | crate::ConfigError::Tls { .. }
         | crate::ConfigError::Parse { .. } => {
             unreachable!()
         }
-        crate::ConfigError::BaseUrl => "edit_error.config_base_url",
-        crate::ConfigError::Tls => "edit_error.config_tls",
     };
     Localized::fixed(id, error.to_string())
 }
@@ -369,8 +386,6 @@ mod tests {
             (crate::ConfigError::Session, "edit_error.config_session"),
             (crate::ConfigError::Extension, "edit_error.config_extension"),
             (crate::ConfigError::Region, "edit_error.config_region"),
-            (crate::ConfigError::BaseUrl, "edit_error.config_base_url"),
-            (crate::ConfigError::Tls, "edit_error.config_tls"),
             (
                 crate::ConfigError::OpenRouter,
                 "edit_error.config_open_router",
@@ -384,6 +399,18 @@ mod tests {
 
         // Errors with parameters: the English text is the resolved fallback.
         for (error, id) in [
+            (
+                crate::ConfigError::BaseUrl {
+                    provider: crate::Provider::LiteLlm,
+                },
+                "edit_error.config_base_url",
+            ),
+            (
+                crate::ConfigError::Tls {
+                    provider: crate::Provider::NineRouter,
+                },
+                "edit_error.config_tls",
+            ),
             (
                 crate::ConfigError::AccountNameRequired {
                     field: "accounts[0]".into(),
@@ -409,6 +436,24 @@ mod tests {
             let note = config_error_note(&error);
             assert_eq!(note.id, id);
             assert_eq!(note.text(), error.to_string());
+        }
+
+        // Re-validation V-08: a LiteLLM account's address and TLS errors
+        // name LiteLLM in every language, never 9router.
+        for error in [
+            crate::ConfigError::BaseUrl {
+                provider: crate::Provider::LiteLlm,
+            },
+            crate::ConfigError::Tls {
+                provider: crate::Provider::LiteLlm,
+            },
+        ] {
+            let note = config_error_note(&error);
+            for locale in std::iter::once("en-US").chain(crate::text::catalog_locales()) {
+                let text = note.resolve(locale);
+                assert!(text.contains("LiteLLM"), "{locale}: {text}");
+                assert!(!text.contains("9router"), "{locale}: {text}");
+            }
         }
 
         let metered = crate::ConfigError::MeteredRefreshFloor {

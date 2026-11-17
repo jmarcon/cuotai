@@ -524,13 +524,14 @@ impl Pool {
             };
         }
         if self.available == 0 {
-            return Localized::with_params(
+            return Localized::plural(
                 "pool.unmeasured",
                 params([
                     ("upstream", ParamValue::from(name.clone())),
-                    ("total", ParamValue::from(self.total.to_string())),
+                    ("count", ParamValue::from(self.total.to_string())),
                 ]),
-                "{upstream} · {total} connections with unknown usage",
+                "{upstream} · {count} connection with unknown usage",
+                "{upstream} · {count} connections with unknown usage",
             );
         }
         Localized::with_params(

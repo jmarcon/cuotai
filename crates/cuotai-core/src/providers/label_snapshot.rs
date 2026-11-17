@@ -347,3 +347,147 @@ fn raw_metric_texts_never_reach_a_surface() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// PRD 0036 re-validation V-10: a 9router label that names a window never
+/// falls back to `metric.verbatim`, and the PRD 0034 sentinels cover the
+/// connections: an instance whose connection carries every fixture label
+/// is exported, and no raw 9router label (one the reader's language words
+/// differently) is a display text of the export or of the widget file.
+#[test]
+fn nine_router_window_labels_are_localized_on_connections() {
+    use crate::metric_text::metric_text;
+    use crate::{Account, Config, Provider, Report, Status, SubReport};
+    use chrono::TimeZone;
+
+    let metrics: Vec<Metric> = super::nine_router::label_fixtures()
+        .into_iter()
+        .flat_map(|(_, metrics)| metrics)
+        .collect();
+    // 9router writes its window labels in lowercase; the fixture's older
+    // "Session" stands for a label it does not write and stays verbatim.
+    for metric in metrics.iter().filter(|m| m.label != "Session") {
+        if super::nine_router::window_of(&metric.label).is_some() {
+            assert_ne!(
+                metric_text(&metric.label).id,
+                "metric.verbatim",
+                "{:?}",
+                metric.label
+            );
+        }
+    }
+
+    let now = chrono::Utc
+        .with_ymd_and_hms(2026, 10, 20, 12, 0, 0)
+        .unwrap();
+    let account = Account {
+        id: None,
+        name: "home".into(),
+        provider: Provider::NineRouter,
+        ..Account::default()
+    };
+    let config = Config {
+        accounts: vec![account.clone()],
+        ..Config::default()
+    };
+    let sub = SubReport {
+        id: "0123456789abcdef".into(),
+        upstream: "claude".into(),
+        provider: Some(Provider::Claude),
+        label: "work".into(),
+        status: Status::Ready,
+        metrics: metrics.clone(),
+        notes_l10n: Vec::new(),
+        checked_at: now,
+        as_of: None,
+        enabled_upstream: Some(true),
+        duplicate_of: None,
+        plan: None,
+        via: Some("9router".into()),
+        identity: None,
+    };
+    let report = Report {
+        account_id: None,
+        diagnostic: None,
+        account: account.name.clone(),
+        provider: Provider::NineRouter,
+        checked_at: now,
+        status: Status::Ready,
+        metrics: Vec::new(),
+        notes: Vec::new(),
+        notes_l10n: Vec::new(),
+        source: String::new(),
+        session_expires_at: None,
+        sub_reports: vec![sub],
+        as_of: None,
+        overage_hint: None,
+        breakdown: Vec::new(),
+    };
+    let mut cycle = crate::refresh::RefreshCycle::new(&config, std::time::Instant::now());
+    let token = cycle.begin(0).unwrap();
+    cycle.finish_account(0, Some(report), token, std::time::Instant::now());
+    let export = crate::export::v1::Export::from_cycle(
+        &config,
+        &crate::config_file::ConfigIdentity::Explicit("guard".into()),
+        &cycle,
+        &[],
+        now,
+        crate::export::v1::Options::default(),
+    );
+
+    fn shown(value: &serde_json::Value, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(text) => out.push(text.clone()),
+            serde_json::Value::Array(items) => items.iter().for_each(|v| shown(v, out)),
+            serde_json::Value::Object(members) => {
+                for (key, v) in members {
+                    if !matches!(key.as_str(), "label" | "unit" | "period" | "params") {
+                        shown(v, out);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    // The window labels 9router writes in parentheses: distinctive enough
+    // that no other text contains them.
+    let sentinels = |locale: &str| -> Vec<String> {
+        metrics
+            .iter()
+            .map(|m| m.label.clone())
+            .filter(|raw| raw.contains('(') && metric_text(raw).resolve(locale) != *raw)
+            .collect()
+    };
+    let mut problems = Vec::new();
+    let mut texts = Vec::new();
+    shown(&serde_json::to_value(&export).unwrap(), &mut texts);
+    let probe = sentinels("en-US");
+    assert!(!probe.is_empty());
+    for raw in &probe {
+        for text in &texts {
+            if text.contains(raw.as_str()) {
+                problems.push(format!("export: {raw:?} in {text:?}"));
+            }
+        }
+    }
+    let widgets = crate::widget_snapshot::WidgetSnapshot::from_export(&export, 8);
+    for (locale, snapshot) in [
+        ("en-US", widgets.clone()),
+        ("de", widgets.in_language("de")),
+    ] {
+        let mut texts = Vec::new();
+        shown(&serde_json::to_value(&snapshot).unwrap(), &mut texts);
+        for raw in sentinels(locale) {
+            for text in &texts {
+                if text.contains(raw.as_str()) {
+                    problems.push(format!("widget {locale}: {raw:?} in {text:?}"));
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+    // The connection's display texts are in the export at all.
+    assert!(
+        texts.iter().any(|text| text.contains("Week (7 days)")),
+        "the export carries the connection's localized labels"
+    );
+}

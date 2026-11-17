@@ -75,7 +75,9 @@
       "note.aggregator.metrics_truncated",
       "note.aggregator.instance_truncated",
       "note.aggregator.duplicate_ids",
-      "note.litellm.truncated"
+      "note.litellm.truncated",
+      "metric.label.monthly",
+      "metric.label.week_model_7d"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -693,7 +695,7 @@
   "edit_error.config_account_name_repeated": "Имя в {field} повторяет имя в {other_field} (регистр не учитывается); измените одно из них.",
   "edit_error.config_account_name_required": "Записи {field} нужно имя, потому что у вас есть другая запись {provider}; добавьте ей строку name.",
   "edit_error.config_accounts_shape": "Существующий ключ «accounts» не является списком таблиц.",
-  "edit_error.config_base_url": "params.base_url записи 9router должен иметь вид http(s)://host[:port][/prefix] без пользователя, запроса и фрагмента; HTTP допустим только на loopback или, с allow_private_http, в частной сети.",
+  "edit_error.config_base_url": "params.base_url записи {provider} должен иметь вид http(s)://host[:port][/prefix] без пользователя, запроса и фрагмента; HTTP допустим только на loopback или, с allow_private_http, в частной сети.",
   "edit_error.config_bounds": "refresh_seconds должен быть >= 30, concurrency — от 1 до 32, timeout_seconds — от 1 до 300.",
   "edit_error.config_client": "Недопустимая конфигурация; не удалось инициализировать клиент HTTPS.",
   "edit_error.config_extension": "Запись расширения без допустимого extension_id, с повторяющимся id другого расширения или с несовместимыми полями учётных данных.",
@@ -710,7 +712,7 @@
   "edit_error.config_roundtrip": "Созданный документ расходится с конфигурацией.",
   "edit_error.config_serialize": "Не удалось сериализовать конфигурацию.",
   "edit_error.config_session": "Недопустимая или повторяющаяся ссылка на сеанс в [accounts.session]; укажите сеанс заново в мастере учётных записей.",
-  "edit_error.config_tls": "Запись 9router с недопустимым TLS: tls_pin_sha256 должен содержать 64 шестнадцатеричные цифры, а tls_ca_file и tls_pin_sha256 нельзя использовать вместе или без HTTPS.",
+  "edit_error.config_tls": "Недопустимый TLS в записи {provider}: tls_pin_sha256 должен содержать 64 шестнадцатеричные цифры, а tls_ca_file и tls_pin_sha256 нельзя использовать вместе или без HTTPS.",
   "edit_error.config_toml_invalid": "Недопустимый файл TOML.",
   "edit_error.conflict": "Файл {path} изменился после загрузки; перезагрузите перед сохранением.",
   "edit_error.account_moved": "Редактируемая учётная запись больше не находится на этом месте в файле конфигурации; перезагрузите файл и откройте учётную запись снова.",
@@ -1539,7 +1541,12 @@
   "note.kimi.no_membership_quota_endpoint": "Публичного эндпоинта квоты Kimi Code/Membership для этого ключа нет; запрос использования подписки доступен только в консоли и в проприетарном CLI.",
   "note.kimi.platform_key_scope": "Ключ платформы kimi.com / kimi.ai не зависит от квоты членства kimi.com; используйте ключ на эндпоинте платформы.",
   "note.litellm.no_budgets": "В LiteLLM нет бюджетов по провайдерам (provider_budget_config); показывать нечего.",
-  "note.litellm.summary": "Провайдеров с бюджетом в LiteLLM: {total}.",
+  "note.litellm.summary": {
+    "one": "{count} провайдер с бюджетом в LiteLLM.",
+    "few": "{count} провайдера с бюджетом в LiteLLM.",
+    "many": "{count} провайдеров с бюджетом в LiteLLM.",
+    "other": "{count} провайдера с бюджетом в LiteLLM."
+  },
   "note.litellm.truncated": "В LiteLLM больше провайдеров, чем прочитанный лимит (200); остальные опущены.",
   "note.metered.interval_raised": "Заданный интервал {configured} с повышен до {effective} с, так как провайдер берёт плату за каждый запрос.",
   "note.mimo_platform.cash_balance": "Оплаченный баланс: {amount} {currency}.",
@@ -1563,7 +1570,12 @@
   "note.nine_router.off": "Выключено в 9router.",
   "note.nine_router.private_http": "Обычный HTTP в вашей частной сети — по вашему выбору: пароль или ключ передаётся в этой сети без шифрования. Лучше используйте HTTPS с закреплённым сертификатом.",
   "note.nine_router.reconnect": "Подключите эту запись в 9router заново.",
-  "note.nine_router.summary": "Подключений 9router с использованием: {ready} из {total}.",
+  "note.nine_router.summary": {
+    "one": "Подключений 9router с использованием: {ready} из {count}.",
+    "few": "Подключений 9router с использованием: {ready} из {count}.",
+    "many": "Подключений 9router с использованием: {ready} из {count}.",
+    "other": "Подключений 9router с использованием: {ready} из {count}."
+  },
   "note.nine_router.truncated": "В 9router больше подключений, чем прочитанный лимит (1000); остальные опущены.",
   "note.nine_router.version": "9router {version}.",
   "note.nine_router.version_untested": "9router {version} старше {min} — самой старой версии, с которой тестировался Cuotai; некоторые запросы могут не выполняться, пока вы его не обновите.",
@@ -1852,7 +1864,12 @@
   "pool.available": "{upstream} · доступно {available} из {total}",
   "pool.exhausted": "{upstream} · все исчерпаны",
   "pool.exhausted_returns": "{upstream} · все исчерпаны · вернётся через {at}",
-  "pool.unmeasured": "{upstream} · подключений без известного использования: {total}",
+  "pool.unmeasured": {
+    "one": "{upstream} · {count} подключение без известного использования",
+    "few": "{upstream} · {count} подключения без известного использования",
+    "many": "{upstream} · {count} подключений без известного использования",
+    "other": "{upstream} · {count} подключения без известного использования"
+  },
   "privacy.erase.vault_unavailable": "Ничего не удалено: системное хранилище учётных данных не может перечислить записи Cuotai. Разблокируйте его (в Linux запустите Secret Service, например GNOME Keyring, в сеансе D-Bus) и повторите попытку.",
   "privacy.erase.word": "УДАЛИТЬ",
   "privacy.erase.word_mismatch": "Слово подтверждения не совпадает; ничего не удалено.",
@@ -2162,13 +2179,28 @@
   "status.rate_limited": "Лимит частоты",
   "status.ready": "Актуально",
   "status.unsupported": "Недоступно",
-  "test.litellm.connected": "LiteLLM: найдено провайдеров с бюджетом: {providers}.",
+  "test.litellm.connected": {
+    "one": "LiteLLM: найден {count} провайдер с бюджетом.",
+    "few": "LiteLLM: найдено {count} провайдера с бюджетом.",
+    "many": "LiteLLM: найдено {count} провайдеров с бюджетом.",
+    "other": "LiteLLM: найдено {count} провайдера с бюджетом."
+  },
   "test.litellm.key_required": "Укажите мастер-ключ или виртуальный ключ LiteLLM.",
   "test.litellm.key_wrong": "Ключ LiteLLM отклонён.",
   "test.litellm.not_litellm": "Адрес отвечает, но, похоже, это не прокси LiteLLM (нет /provider/budgets).",
   "test.nine_router.certificate_changed": "Сертификат экземпляра изменился и не совпадает с закреплённым. Новый отпечаток SHA-256: {fingerprint}. Сверьте его на сервере, прежде чем доверять.",
-  "test.nine_router.connected": "9router {version}: найдено подключений с использованием: {connections}.",
-  "test.nine_router.connected_untested": "9router {version}: найдено подключений с использованием: {connections}. Эта версия старше {min} — самой старой, с которой тестировался Cuotai; некоторые запросы могут не выполняться.",
+  "test.nine_router.connected": {
+    "one": "9router {version}: найдено {count} подключение с использованием.",
+    "few": "9router {version}: найдено {count} подключения с использованием.",
+    "many": "9router {version}: найдено {count} подключений с использованием.",
+    "other": "9router {version}: найдено {count} подключения с использованием."
+  },
+  "test.nine_router.connected_untested": {
+    "one": "9router {version}: найдено {count} подключение с использованием. Эта версия старше {min} — самой старой, с которой тестировался Cuotai; некоторые запросы могут не выполняться.",
+    "few": "9router {version}: найдено {count} подключения с использованием. Эта версия старше {min} — самой старой, с которой тестировался Cuotai; некоторые запросы могут не выполняться.",
+    "many": "9router {version}: найдено {count} подключений с использованием. Эта версия старше {min} — самой старой, с которой тестировался Cuotai; некоторые запросы могут не выполняться.",
+    "other": "9router {version}: найдено {count} подключения с использованием. Эта версия старше {min} — самой старой, с которой тестировался Cuotai; некоторые запросы могут не выполняться."
+  },
   "test.nine_router.listener_foreign": "Не удалось подтвердить, что программа, которая слушает порт {port}, принадлежит вам (она может принадлежать другому пользователю); пароль или сеанс не отправлены. Запустите 9router от своего пользователя или подключайтесь к нему по HTTPS с закреплённым сертификатом.",
   "test.nine_router.not_nine_router": "Адрес отвечает, но, похоже, это не 9router.",
   "test.nine_router.password_required": "Этот экземпляр требует пароль панели; выберите «Пароль панели».",
@@ -2333,7 +2365,9 @@
   "metric.label.total_tokens": "Всего токенов",
   "metric.label.key_total_spend": "Общие расходы ключа",
   "metric.label.month_spend": "Расходы за месяц",
+  "metric.label.monthly": "Месячный",
   "metric.label.week_spend": "Расходы за неделю",
+  "metric.label.week_model_7d": "Неделя — {label} (7 дней)",
   "metric.label.spend_30d_other": "Расходы за 30 дней — прочие",
   "metric.label.spend_30d": "Расходы за 30 дней — {name}",
   "metric.label.key_limit": "Лимит ключа",

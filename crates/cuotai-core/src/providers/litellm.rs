@@ -277,11 +277,12 @@ pub(crate) async fn fetch_at(
         .filter(|sub| !hidden.contains(&sub.id))
         .collect();
     let mut notes = Notes::new();
-    notes.push_params(
+    notes.push_note(crate::text::Localized::plural(
         "note.litellm.summary",
-        params([("total", ParamValue::from(sub_reports.len() as u64))]),
-        "{total} providers with a budget in LiteLLM.",
-    );
+        params([("count", ParamValue::from(sub_reports.len() as u64))]),
+        "{count} provider with a budget in LiteLLM.",
+        "{count} providers with a budget in LiteLLM.",
+    ));
     if budgets.truncated {
         notes.push(
             "note.litellm.truncated",

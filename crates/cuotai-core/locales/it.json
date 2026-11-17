@@ -430,7 +430,7 @@
   "edit_error.config_parse": "Documento TOML non valido; controlla i campi e i tipi nell'esempio.",
   "edit_error.config_roundtrip": "Il documento generato diverge dalla configurazione.",
   "edit_error.config_serialize": "Impossibile serializzare la configurazione.",
-  "edit_error.config_tls": "TLS non valido nell'account 9router: tls_pin_sha256 deve avere 64 cifre esadecimali, e tls_ca_file e tls_pin_sha256 non possono essere usati insieme né senza HTTPS.",
+  "edit_error.config_tls": "TLS non valido nell'account {provider}: tls_pin_sha256 deve avere 64 cifre esadecimali, e tls_ca_file e tls_pin_sha256 non possono essere usati insieme né senza HTTPS.",
   "edit_error.config_toml_invalid": "Il file non è un TOML valido.",
   "edit_error.conflict": "Il file {path} è cambiato dopo il caricamento; ricaricalo prima di salvare.",
   "edit_error.account_moved": "L’account in modifica non si trova più in questo punto del file di configurazione; ricarica il file e riapri l’account.",
@@ -1949,7 +1949,7 @@
   "access.risk.nine_router": "Interfaccia interna e non documentata di 9router; leggere l'uso può far rinnovare a 9router gli accessi dei provider che conserva.",
   "credential_help.nine_router": "Lascia vuoto quando l'accesso al pannello di 9router è disattivato; su un computer che usi solo tu, 9router su questo computer senza accesso con password è una scelta ragionevole. Con una password, indica solo il NOME della variabile che la contiene (il valore non entra mai nel TOML) e usa una password che non usi da nessun'altra parte. Prima di inviarla, Cuotai verifica che l'indirizzo risponda come 9router e, su questo computer, che il programma in ascolto sia tuo; un altro tuo programma potrebbe comunque spacciarsi per 9router, quindi tieni 9router in esecuzione mentre Cuotai lo legge. Fuori da questo computer, meglio HTTPS con un certificato fissato. Leggere l'uso può far rinnovare a 9router gli accessi che conserva.",
   "provider.nine_router": "9router",
-  "edit_error.config_base_url": "Il base_url di 9router deve essere http(s)://host[:porta][/prefisso] senza utente, query o frammento; HTTP vale solo su loopback o, con allow_private_http, in una rete privata.",
+  "edit_error.config_base_url": "Il base_url di {provider} deve essere http(s)://host[:porta][/prefisso] senza utente, query o frammento; HTTP vale solo su loopback o, con allow_private_http, in una rete privata.",
   "field.nine_router.base_url.label": "Indirizzo di 9router",
   "field.nine_router.base_url.help": "Predefinito http://127.0.0.1:20128. Usa http(s)://host[:porta][/prefisso], senza utente, query o frammento. Fuori da questa macchina serve HTTPS.",
   "field.nine_router.allow_private_http.label": "Connessione non cifrata nella rete privata",
@@ -1994,7 +1994,10 @@
   "query.litellm.base_url": "Indirizzo base di LiteLLM non valido: indica http(s)://host[:porta][/prefisso].",
   "query.litellm.base_url_forbidden": "L’indirizzo base di LiteLLM non può contenere utente, password, query o frammento.",
   "query.litellm.base_url_insecure": "Fuori da questa macchina LiteLLM richiede HTTPS (HTTP solo su rete privata, con l’opzione esplicita). Non è stato inviato nulla.",
-  "note.litellm.summary": "{total} provider con budget in LiteLLM.",
+  "note.litellm.summary": {
+    "one": "{count} provider con budget in LiteLLM.",
+    "other": "{count} provider con budget in LiteLLM."
+  },
   "note.litellm.truncated": "LiteLLM ha più provider del limite letto (200); gli altri sono stati omessi.",
   "note.litellm.no_budgets": "LiteLLM non ha budget per provider (provider_budget_config); niente da mostrare.",
   "query.nine_router.base_url": "Indirizzo base di 9router non valido: indica http(s)://host[:porta][/prefisso].",
@@ -2013,18 +2016,30 @@
   "note.nine_router.no_usage": "9router non ha l'uso per questa connessione.",
   "note.nine_router.gone": "La connessione non esiste più in 9router.",
   "note.nine_router.off": "Disattivata in 9router.",
-  "note.nine_router.summary": "{ready} di {total} connessioni di 9router con uso.",
+  "note.nine_router.summary": {
+    "one": "{ready} di {count} connessione di 9router con uso.",
+    "other": "{ready} di {count} connessioni di 9router con uso."
+  },
   "note.nine_router.version": "9router {version}.",
   "note.nine_router.version_untested": "9router {version} è precedente a {min}, la versione più vecchia con cui Cuotai è stato provato; alcune letture potrebbero non riuscire finché non lo aggiorni.",
   "note.nine_router.truncated": "9router ha più connessioni del limite letto (1000); le altre sono state omesse.",
   "note.nine_router.exposed": "Questa istanza di 9router risponde alle richieste di gestione senza password. Chiunque la raggiunga può leggere e modificare le sue connessioni.",
   "note.nine_router.private_http": "HTTP semplice nella tua rete privata, per tua scelta: la password o la chiave viaggia senza cifratura in quella rete. Meglio usare HTTPS con un certificato fissato.",
-  "test.litellm.connected": "LiteLLM: {providers} provider con budget trovati.",
+  "test.litellm.connected": {
+    "one": "LiteLLM: {count} provider con budget trovato.",
+    "other": "LiteLLM: {count} provider con budget trovati."
+  },
   "test.litellm.not_litellm": "L'indirizzo risponde, ma non sembra un proxy LiteLLM (nessun /provider/budgets).",
   "test.litellm.key_wrong": "La chiave di LiteLLM è stata rifiutata.",
   "test.litellm.key_required": "Inserisci la master key o una chiave virtuale di LiteLLM.",
-  "test.nine_router.connected": "9router {version}: trovate {connections} connessioni con uso.",
-  "test.nine_router.connected_untested": "9router {version}: trovate {connections} connessioni con utilizzo. Questa versione è precedente a {min}, la più vecchia con cui Cuotai è stato provato; alcune letture potrebbero non riuscire.",
+  "test.nine_router.connected": {
+    "one": "9router {version}: trovata {count} connessione con uso.",
+    "other": "9router {version}: trovate {count} connessioni con uso."
+  },
+  "test.nine_router.connected_untested": {
+    "one": "9router {version}: trovata {count} connessione con uso. Questa versione è precedente a {min}, la più vecchia con cui Cuotai è stato provato; alcune letture potrebbero non riuscire.",
+    "other": "9router {version}: trovate {count} connessioni con uso. Questa versione è precedente a {min}, la più vecchia con cui Cuotai è stato provato; alcune letture potrebbero non riuscire."
+  },
   "test.nine_router.listener_foreign": "Non è stato possibile confermare che il programma in ascolto sulla porta {port} sia tuo (potrebbe appartenere a un altro utente); la password o la sessione non è stata inviata. Avvia 9router con il tuo utente, oppure raggiungilo tramite HTTPS con un certificato fissato.",
   "test.nine_router.not_nine_router": "L'indirizzo risponde, ma non sembra un 9router.",
   "test.nine_router.password_required": "Questa istanza richiede la password del pannello; scegli \"Password del pannello\".",
@@ -2034,7 +2049,10 @@
   "pool.available": "{upstream} · {available} di {total} disponibili",
   "pool.exhausted": "{upstream} · tutte esaurite",
   "pool.exhausted_returns": "{upstream} · tutte esaurite · torna {at}",
-  "pool.unmeasured": "{upstream} · {total} connessioni con uso sconosciuto",
+  "pool.unmeasured": {
+    "one": "{upstream} · {count} connessione con uso sconosciuto",
+    "other": "{upstream} · {count} connessioni con uso sconosciuto"
+  },
   "overage.on_extra": "Extra in uso · {amount}",
   "overage.limit_hit_on_extra": "Limite raggiunto · in extra {amount}",
   "overage.scope_limit_hit_on_extra": "Limite di {model} raggiunto · in extra {amount}",
@@ -2215,7 +2233,9 @@
   "metric.label.total_tokens": "Token totali",
   "metric.label.key_total_spend": "Spesa totale della chiave",
   "metric.label.month_spend": "Spesa nel mese",
+  "metric.label.monthly": "Mensile",
   "metric.label.week_spend": "Spesa nella settimana",
+  "metric.label.week_model_7d": "Settimana — {label} (7 giorni)",
   "metric.label.spend_30d_other": "Spesa a 30 giorni — Altri",
   "metric.label.spend_30d": "Spesa a 30 giorni — {name}",
   "metric.label.key_limit": "Limite della chiave",

@@ -47,7 +47,9 @@
       "note.aggregator.metrics_truncated",
       "note.aggregator.instance_truncated",
       "note.aggregator.duplicate_ids",
-      "note.litellm.truncated"
+      "note.litellm.truncated",
+      "metric.label.monthly",
+      "metric.label.week_model_7d"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -635,7 +637,7 @@
   "edit_error.config_account_name_repeated": "Der Name unter {field} wiederholt den Namen unter {other_field} (Groß- und Kleinschreibung zählt nicht); ändern Sie einen davon.",
   "edit_error.config_account_name_required": "Das Konto unter {field} braucht einen Namen, weil Sie ein weiteres {provider}-Konto haben; fügen Sie ihm eine name-Zeile hinzu.",
   "edit_error.config_accounts_shape": "Der vorhandene Schlüssel „accounts“ ist keine Liste von Tabellen.",
-  "edit_error.config_base_url": "params.base_url des 9router-Kontos muss http(s)://host[:port][/präfix] sein, ohne Benutzer, Abfrage oder Fragment; HTTP gilt nur auf Loopback oder, mit allow_private_http, in einem privaten Netz.",
+  "edit_error.config_base_url": "params.base_url des {provider}-Kontos muss http(s)://host[:port][/präfix] sein, ohne Benutzer, Abfrage oder Fragment; HTTP gilt nur auf Loopback oder, mit allow_private_http, in einem privaten Netz.",
   "edit_error.config_bounds": "refresh_seconds muss >= 30 sein, concurrency zwischen 1 und 32 und timeout_seconds zwischen 1 und 300.",
   "edit_error.config_client": "Ungültige Konfiguration; der HTTPS-Client konnte nicht initialisiert werden.",
   "edit_error.config_extension": "Erweiterungskonto ohne gültige extension_id, mit der id einer anderen Erweiterung oder mit unverträglichen Zugangsdatenfeldern.",
@@ -652,7 +654,7 @@
   "edit_error.config_roundtrip": "Erzeugtes Dokument weicht von der Konfiguration ab.",
   "edit_error.config_serialize": "Serialisierung der Konfiguration fehlgeschlagen.",
   "edit_error.config_session": "Ungültiger oder wiederholter Sitzungsverweis in [accounts.session]; geben Sie die Sitzung im Kontoassistenten erneut an.",
-  "edit_error.config_tls": "9router-Konto mit ungültigem TLS: tls_pin_sha256 muss 64 Hexadezimalziffern haben, und tls_ca_file und tls_pin_sha256 dürfen weder zusammen noch ohne HTTPS verwendet werden.",
+  "edit_error.config_tls": "{provider}-Konto mit ungültigem TLS: tls_pin_sha256 muss 64 Hexadezimalziffern haben, und tls_ca_file und tls_pin_sha256 dürfen weder zusammen noch ohne HTTPS verwendet werden.",
   "edit_error.config_toml_invalid": "Ungültige TOML-Datei.",
   "edit_error.conflict": "Die Datei {path} hat sich seit dem Laden geändert; laden Sie vor dem Speichern neu.",
   "edit_error.account_moved": "Das bearbeitete Konto steht nicht mehr an dieser Stelle der Konfigurationsdatei; laden Sie die Datei neu und öffnen Sie das Konto erneut.",
@@ -1469,7 +1471,10 @@
   "note.kimi.no_membership_quota_endpoint": "Kein öffentlicher Endpunkt für das Kimi-Code-/Membership-Kontingent mit diesem Schlüssel; die Nutzungsabfrage des Abonnements bleibt der Konsole und der proprietären CLI vorbehalten.",
   "note.kimi.platform_key_scope": "Der Plattformschlüssel von kimi.com / kimi.ai ist unabhängig vom Mitgliedschaftskontingent von kimi.com; verwenden Sie den Schlüssel am Plattform-Endpunkt.",
   "note.litellm.no_budgets": "LiteLLM hat keine Budgets pro Anbieter (provider_budget_config); nichts anzuzeigen.",
-  "note.litellm.summary": "{total} Anbieter mit Budget in LiteLLM.",
+  "note.litellm.summary": {
+    "one": "{count} Anbieter mit Budget in LiteLLM.",
+    "other": "{count} Anbieter mit Budget in LiteLLM."
+  },
   "note.litellm.truncated": "LiteLLM hat mehr Anbieter als das gelesene Limit (200); die übrigen wurden weggelassen.",
   "note.metered.interval_raised": "Das konfigurierte Intervall von {configured} s wurde auf {effective} s erhöht, weil der Anbieter pro Abfrage abrechnet.",
   "note.mimo_platform.cash_balance": "Bezahltes Guthaben: {amount} {currency}.",
@@ -1493,7 +1498,10 @@
   "note.nine_router.off": "In 9router ausgeschaltet.",
   "note.nine_router.private_http": "Einfaches HTTP in Ihrem privaten Netz, auf Ihren Wunsch: Das Passwort oder der Schlüssel wird in diesem Netz unverschlüsselt übertragen. Verwenden Sie besser HTTPS mit einem angehefteten Zertifikat.",
   "note.nine_router.reconnect": "Verbinden Sie dieses Konto in 9router neu.",
-  "note.nine_router.summary": "{ready} von {total} 9router-Verbindungen mit Nutzung.",
+  "note.nine_router.summary": {
+    "one": "{ready} von {count} 9router-Verbindung mit Nutzung.",
+    "other": "{ready} von {count} 9router-Verbindungen mit Nutzung."
+  },
   "note.nine_router.truncated": "9router hat mehr Verbindungen als das gelesene Limit (1000); die übrigen wurden weggelassen.",
   "note.nine_router.version": "9router {version}.",
   "note.nine_router.version_untested": "9router {version} ist älter als {min}, die älteste Version, mit der Cuotai getestet wurde; einige Abfragen können fehlschlagen, bis Sie es aktualisieren.",
@@ -1780,7 +1788,10 @@
   "pool.available": "{upstream} · {available} von {total} verfügbar",
   "pool.exhausted": "{upstream} · alle erschöpft",
   "pool.exhausted_returns": "{upstream} · alle erschöpft · zurück in {at}",
-  "pool.unmeasured": "{upstream} · {total} Verbindungen ohne bekannte Nutzung",
+  "pool.unmeasured": {
+    "one": "{upstream} · {count} Verbindung ohne bekannte Nutzung",
+    "other": "{upstream} · {count} Verbindungen ohne bekannte Nutzung"
+  },
   "privacy.erase.vault_unavailable": "Nichts wurde gelöscht: Der Anmeldedatenspeicher des Systems kann die Einträge von Cuotai nicht auflisten. Entsperren Sie ihn (unter Linux einen Secret Service wie GNOME Keyring in einer D-Bus-Sitzung starten) und versuchen Sie es erneut.",
   "privacy.erase.word": "LÖSCHEN",
   "privacy.erase.word_mismatch": "Das Bestätigungswort stimmt nicht; es wurde nichts gelöscht.",
@@ -2082,13 +2093,22 @@
   "status.rate_limited": "Ratenlimit",
   "status.ready": "Aktuell",
   "status.unsupported": "Nicht verfügbar",
-  "test.litellm.connected": "LiteLLM: {providers} Anbieter mit Budget gefunden.",
+  "test.litellm.connected": {
+    "one": "LiteLLM: {count} Anbieter mit Budget gefunden.",
+    "other": "LiteLLM: {count} Anbieter mit Budget gefunden."
+  },
   "test.litellm.key_required": "Geben Sie den Master-Schlüssel oder einen virtuellen Schlüssel von LiteLLM an.",
   "test.litellm.key_wrong": "Der Schlüssel von LiteLLM wurde abgelehnt.",
   "test.litellm.not_litellm": "Die Adresse antwortet, scheint aber kein LiteLLM-Proxy zu sein (kein /provider/budgets).",
   "test.nine_router.certificate_changed": "Das Zertifikat der Instanz hat sich geändert und stimmt nicht mit dem angehefteten überein. Neuer SHA-256-Fingerabdruck: {fingerprint}. Prüfen Sie ihn auf dem Server, bevor Sie ihm vertrauen.",
-  "test.nine_router.connected": "9router {version}: {connections} Verbindungen mit Nutzung gefunden.",
-  "test.nine_router.connected_untested": "9router {version}: {connections} Verbindungen mit Nutzung gefunden. Diese Version ist älter als {min}, die älteste, mit der Cuotai getestet wurde; einige Abfragen können fehlschlagen.",
+  "test.nine_router.connected": {
+    "one": "9router {version}: {count} Verbindung mit Nutzung gefunden.",
+    "other": "9router {version}: {count} Verbindungen mit Nutzung gefunden."
+  },
+  "test.nine_router.connected_untested": {
+    "one": "9router {version}: {count} Verbindung mit Nutzung gefunden. Diese Version ist älter als {min}, die älteste, mit der Cuotai getestet wurde; einige Abfragen können fehlschlagen.",
+    "other": "9router {version}: {count} Verbindungen mit Nutzung gefunden. Diese Version ist älter als {min}, die älteste, mit der Cuotai getestet wurde; einige Abfragen können fehlschlagen."
+  },
   "test.nine_router.listener_foreign": "Das Programm, das an Port {port} lauscht, konnte nicht als Ihres bestätigt werden (es könnte einem anderen Benutzer gehören); das Passwort oder die Sitzung wurde nicht gesendet. Starten Sie 9router unter Ihrem eigenen Benutzer, oder erreichen Sie es über HTTPS mit einem angehefteten Zertifikat.",
   "test.nine_router.not_nine_router": "Die Adresse antwortet, scheint aber kein 9router zu sein.",
   "test.nine_router.password_required": "Diese Instanz verlangt das Dashboard-Passwort; wählen Sie „Dashboard-Passwort“.",
@@ -2253,7 +2273,9 @@
   "metric.label.total_tokens": "Tokens gesamt",
   "metric.label.key_total_spend": "Gesamtausgaben des Schlüssels",
   "metric.label.month_spend": "Ausgaben im Monat",
+  "metric.label.monthly": "Monatlich",
   "metric.label.week_spend": "Ausgaben in der Woche",
+  "metric.label.week_model_7d": "Woche — {label} (7 Tage)",
   "metric.label.spend_30d_other": "Ausgaben 30 Tage — Sonstige",
   "metric.label.spend_30d": "Ausgaben 30 Tage — {name}",
   "metric.label.key_limit": "Limit des Schlüssels",

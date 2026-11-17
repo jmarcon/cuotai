@@ -12,6 +12,11 @@ litellm | 18426cc5760aa292 | Spend | Some(Daily) | USD | Included | Orçamento d
 mimo_platform | 0e654021e24fb0c3 | Quota | Some(Monthly) | créditos | Included | Plano de tokens MiMo
 mimo_platform | f7cb75fb22a89df1 | Balance | None | USD | Included | Saldo da plataforma
 nine_router | e767f57c22a212f7 | Quota | Some(Window5h) |  | Included | Session
+nine_router | dfa75299e6aae3f0 | Quota | Some(Window5h) | % | Included | session (5h)
+nine_router | 06e5e92eff9c8f51 | Quota | Some(Weekly) | % | Included | weekly (7d)
+nine_router | 9aa6d3a6d144e9b4 | Quota | Some(Weekly) | % | Included | weekly Gemini (7d)
+nine_router | a3f57414bf0f580c | Quota | Some(Weekly) | % | Included | weekly Opus (7d)
+nine_router | f82ecf2e030262b1 | Quota | Some(Weekly) | % | Included | weekly Sonnet (7d)
 open_router.key | 7adb201160b9d600 | Quota | Some(Monthly) | USD | Included | Limite da chave
 open_router.key | c880d8aa493191da | Spend | Some(Daily) | USD | Included | Gasto hoje
 open_router.key | b5d0ce687fcee23d | Spend | Some(Weekly) | USD | Included | Gasto na semana
