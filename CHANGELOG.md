@@ -13,6 +13,22 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.2] - 2026-11-18
+
+### Fixed
+
+- A key that is missing from the system vault is now called a missing key, not a missing web session, and the desktop opens the account on the key to type it again (PRD 0047 G1, G4, G5, G7; fb33339).
+- Saving an account with an empty key in the desktop shows Cuotai's own message in your language instead of the system's (PRD 0047 G1, G4, G5, G7; fb33339).
+- The terminal wizard suggests readable variable names for account names with accents, and editing an account whose secret is in the system vault no longer writes a variable it would ignore (PRD 0047 T2, E1, E4; 5f79e15).
+- In the account dialog's web-session box, "Sign in and capture session" and its explanation are no longer shown in bold, the session field is announced by its title alone, and the messages after a failed capture point to the box above (PRD 0048 RF1, RF7.2, RF8; PRD 0056 RF6; fc635a2).
+
+### Security
+
+- A key pasted by mistake where a variable name belongs is no longer repeated in notes, `--once`, `--json`, the setup check or the restore plan; that account says its variable name is not valid, and every other account keeps working (PRD 0047 G6, T3, T4, E5; f48e4ea).
+- Moving a key into Cuotai or forgetting a web session now acts only on the account the dialog is editing, even if the accounts changed meanwhile, and only from the main window; a restore closes open account dialogs (PRD 0047 G5; PRD 0016 RF4.2; PRD 0001 C1; 7fec5e7).
+- A page in the sign-in window can no longer open arbitrary addresses in your browser: only that capture's own sign-in pages open there, at most one a second, and only the main window can start or cancel a capture (PRD 0048 RF3, RF5; PRD 0056 RF5; PRD 0001 C1; a8184d1).
+- The Alibaba Coding Plan sign-in window of each region loads only that region's console, not the other region's (PRD 0048 RF3.4; 9684901).
+
 ## [0.87.1] - 2026-11-18
 
 ### Fixed
@@ -1187,7 +1203,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.1...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.2...HEAD
+[0.87.2]: https://github.com/jmarcon/cuotai/compare/v0.87.1...v0.87.2
 [0.87.1]: https://github.com/jmarcon/cuotai/compare/v0.87.0...v0.87.1
 [0.87.0]: https://github.com/jmarcon/cuotai/compare/v0.86.10...v0.87.0
 [0.86.10]: https://github.com/jmarcon/cuotai/compare/v0.86.9...v0.86.10
