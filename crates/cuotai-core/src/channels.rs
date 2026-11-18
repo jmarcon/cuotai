@@ -34,6 +34,9 @@ mod aggregator_filter_tests;
 #[path = "channels/labels_tests.rs"]
 mod labels_tests;
 #[cfg(test)]
+#[path = "channels/consent_preview_tests.rs"]
+mod consent_preview_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::oauth::{OAuthToken, TokenStore};
@@ -563,7 +566,22 @@ pub fn validate_url(kind: ChannelKind, raw: &str) -> Result<ValidUrl, Localized>
             }
         }
     }
-    Ok(ValidUrl { url, host, warning })
+    Ok(ValidUrl {
+        host: shown_host(&url, host),
+        url,
+        warning,
+    })
+}
+
+/// The host shown to the person: `host` plus `:port` when the address
+/// names a port other than the scheme's default (`Url::port` already omits
+/// the default), so a self-hosted server on `127.0.0.1:8080` reads as such
+/// in the consent and the list (PRD 0044 RF5.1).
+fn shown_host(url: &url::Url, host: String) -> String {
+    match url.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host,
+    }
 }
 
 /// Check a label: 1 to [`MAX_LABEL_CHARS`] characters, no control
@@ -652,7 +670,7 @@ impl Vault {
     pub(crate) fn loose_url(&self, channel: &Channel) -> Option<ValidUrl> {
         let raw = self.get(&Self::url_key(&channel.id)).ok()??;
         let url = url::Url::parse(&raw).ok()?;
-        let host = url.host_str()?.to_owned();
+        let host = shown_host(&url, url.host_str()?.to_owned());
         Some(ValidUrl {
             url,
             host,
