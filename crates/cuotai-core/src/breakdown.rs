@@ -364,18 +364,21 @@ pub fn digest_id(raw: &str) -> String {
 /// Prefixes of credentials (`sk-…`, `sk-or-…`, `sk-ant-…`, `or-…`).
 const KEY_PREFIXES: [&str; 6] = ["sk-", "sk_", "or-", "pk-", "rk-", "key-"];
 
-/// Whether `word` looks like a credential: a known key prefix followed by
-/// at least six more characters, or a long run (32 or more) of letters and
-/// digits.
+/// Whether `word` looks like a credential: a known key prefix at its start
+/// followed by at least six more characters, a known key prefix anywhere at
+/// a word boundary ([`crate::diagnostics::redact::has_key_prefix`]: a key
+/// glued to other text, `key=sk-…`, `AKIA…`, `ghp_…`, a JWT), or a long run
+/// (32 or more) of letters, digits, `+`, `/` and `=` (an AWS secret key).
+/// `-`, `_` and `.` break a run, so long hyphenated names stay.
 fn secret_like(word: &str) -> bool {
     let lower = word.to_ascii_lowercase();
     let prefixed = KEY_PREFIXES
         .iter()
         .any(|prefix| lower.starts_with(prefix) && word.len() >= prefix.len() + 6);
     let long_run = word
-        .split(|c: char| !c.is_ascii_alphanumeric())
+        .split(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=')))
         .any(|run| run.len() >= 32);
-    prefixed || long_run
+    prefixed || long_run || crate::diagnostics::redact::has_key_prefix(word)
 }
 
 /// The last four letters or digits of `text`, for "…ab12".
@@ -407,21 +410,24 @@ pub fn fallback_label(scope: ScopeKind, id: &str) -> String {
     }
 }
 
-/// RF1.3: the label a row may show. Control, direction and format
-/// characters go; e-mail addresses and URLs are removed (a label that is
-/// only an e-mail becomes [`fallback_label`]); a word shaped like a key (`sk-…`, `or-…`, long
-/// random runs) is replaced by "…" and its last four characters; the
-/// result is cut at [`LABEL_MAX`] characters. Empty input gives
-/// [`fallback_label`].
+/// RF1.3: the label a row may show. A control character becomes a space
+/// and every other hidden character ([`crate::text::is_hidden`]: direction
+/// overrides and marks, zero-width characters, the byte-order mark) is
+/// dropped; e-mail addresses and URLs are removed (a label that is only an
+/// e-mail becomes [`fallback_label`]); a word shaped like a key
+/// (`sk-…`, `or-…`, a key glued to other text such as
+/// `key=sk-…`, AWS keys, tokens, long random runs) is replaced by "…" and
+/// its last four characters; the result is cut at [`LABEL_MAX`]
+/// characters. Empty input gives [`fallback_label`].
 pub fn redact_label(raw: &str, scope: ScopeKind, id: &str) -> String {
-    // PRD 0038 re-validation (S-01): a control character still separates
-    // words, and every other direction or format character
-    // ([`crate::text::is_disguising`]) is dropped.
+    // PRD 0038 re-validation (S-01), PRD 0045 (S-03): a control character
+    // still separates words, and every other hidden character
+    // ([`crate::text::is_hidden`]) is dropped.
     let clean: String = raw
         .chars()
         .filter_map(|c| match c {
             c if c.is_control() => Some(' '),
-            c if crate::text::is_disguising(c) => None,
+            c if crate::text::is_hidden(c) => None,
             c => Some(c),
         })
         .collect();
@@ -877,6 +883,16 @@ mod tests {
             ("sk-or-v1-0123456789abcdef", "…cdef"),
             ("prod sk-ant-api03-XYZWabcd", "prod …abcd"),
             ("or-abcdef123456", "…3456"),
+            ("key=sk-abcdefghijklmnopqrstuv", "…stuv"),
+            ("litellm:sk-1234567890abcdefghijkl", "…ijkl"),
+            ("AKIAIOSFODNN7EXAMPLE", "…MPLE"),
+            ("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "…EKEY"),
+            ("Proj\u{200B}A", "ProjA"),
+            ("a\u{200F}b\u{FEFF}", "ab"),
+            (
+                "my-very-long-project-name-for-team-alpha",
+                "my-very-long-project-name-for-team-alpha",
+            ),
             ("", "Project …c123"),
             (
                 "a label that is far too long to be shown on a single row as is",
@@ -885,6 +901,8 @@ mod tests {
         ] {
             assert_eq!(redact_label(raw, ScopeKind::Project, id), expected, "{raw}");
         }
+        let jwt = "ci eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlMTIz";
+        assert!(!redact_label(jwt, ScopeKind::Key, id).contains("eyJ"));
         assert_eq!(fallback_label(ScopeKind::Key, ""), "Key");
         assert!(
             redact_label(&"x".repeat(100), ScopeKind::Key, "k")
