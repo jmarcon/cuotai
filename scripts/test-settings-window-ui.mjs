@@ -158,6 +158,37 @@ assert.deepEqual(capability.windows, ["main", "tray", "settings"]);
 assert.ok(capability.permissions.includes("notification:allow-is-permission-granted"));
 assert.ok(!capability.permissions.some((p) => p === "notification:default" || /^notification:allow-(notify|show|batch|request-permission)/.test(p)),
   "the webview cannot post notifications or ask for permission");
+// security-invariant: SEC-WEBVIEW
+// PRD 0050 re-validation S-03: the webviews hold only the grants their scripts use: events, the drag
+// region (`data-tauri-drag-region` calls start_dragging and, on double click, internal_toggle_maximize), the open
+// dialog (`T.dialog.open`) and the notification permission query. The tray, its menu and the app menu are built in
+// Rust, which the capability does not govern. A new grant needs a UI caller added in the same change.
+assert.deepEqual([...capability.permissions].sort(), [
+  "core:event:default",
+  "core:window:allow-start-dragging",
+  "core:window:allow-internal-toggle-maximize",
+  "dialog:allow-open",
+  "notification:allow-is-permission-granted",
+].sort(), "the capability grants more (or less) than the UI uses");
+{
+  const files = [];
+  const walk = async (dir) => {
+    for (const entry of await readdir(ui(dir), { withFileTypes: true })) {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.name.endsWith(".js")) files.push(path);
+    }
+  };
+  await walk("js");
+  assert.ok(files.length > 40, `only ${files.length} UI scripts found`);
+  for (const file of files) {
+    const text = await readFile(ui(file), "utf8");
+    const plugin = text.match(/plugin:(menu|tray|image|app|path|webview|window|resources)\|/);
+    assert.ok(!plugin, `${file} calls ${plugin?.[0]} directly`);
+    const api = text.match(/(?:__TAURI__|\bT)\??\.(menu|tray|image|app|path|webview|window|webviewWindow)\b/);
+    assert.ok(!api, `${file} uses ${api?.[0]}, which the capability does not grant`);
+  }
+}
 // RF10.1 (as far as RF1 needs): the old dialog and its event are gone.
 for (const file of await readdir(ui("js"))) {
   if (!file.endsWith(".js")) continue;
