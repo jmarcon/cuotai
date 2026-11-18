@@ -2097,7 +2097,7 @@
   "field.nine_router.dedup.option.off": "Mostra entrambi",
   "field.nine_router.show_both.label": "Mostra in entrambi i posti (facoltativo)",
   "field.nine_router.show_both.help": "Elenco separato da virgole degli identificatori delle connessioni ripetute che continuano ad apparire fuori dalla sezione di 9router.",
-  "credential_help.litellm": "Chiave del tuo proxy LiteLLM: indica solo il NOME della variabile che la contiene; il valore non entra mai nel TOML. Meglio una chiave virtuale limitata alle rotte di lettura che la chiave master. Viene letta solo la rotta dei budget per provider e la chiave va solo all'indirizzo del proxy; fuori da questo computer, usa HTTPS.",
+  "credential_help.litellm": "Chiave del tuo proxy LiteLLM: indica solo il NOME della variabile che la contiene; il valore non entra mai nel TOML. Meglio una chiave virtuale limitata alle rotte di lettura che la chiave master. Viene letta solo la rotta dei budget per provider, più gli elenchi di chiavi e team quando è attivo il dettaglio, e la chiave va solo all'indirizzo del proxy; fuori da questo computer, usa HTTPS.",
   "field.litellm.base_url.label": "Indirizzo di LiteLLM",
   "field.litellm.base_url.help": "Predefinito http://127.0.0.1:4000. Usa http(s)://host[:porta][/prefisso], senza utente, query o frammento. Fuori da questa macchina serve HTTPS.",
   "field.litellm.allow_private_http.label": "Connessione non cifrata sulla rete privata",

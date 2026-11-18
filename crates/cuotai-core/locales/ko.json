@@ -680,7 +680,7 @@
   "credential_help.kimchi": "Kimchi 계정의 KIMCHI_API_KEY이며 생성 없이 llm.kimchi.dev에서 크레딧과 예산을 조회합니다.",
   "credential_help.kimi": "KIMI_API_KEY(Moonshot/Kimi). 기본값: 국제 계정 잔액. Coding(선택): 플랫폼 키 또는 OAuth 액세스 토큰(token_env에 이름 입력)을 받으며 키가 우선합니다.",
   "credential_help.kiro": "Kiro/CodeWhisperer 액세스 토큰입니다(리프레시 토큰이 아님). 환경 변수 자격 증명은 google(기본값), github, import, api_key, external_idp를 지원합니다. AWS Builder ID와 IAM Identity Center는 기본 로그인으로 사용할 수 있습니다.",
-  "credential_help.litellm": "LiteLLM 프록시의 키입니다. 키가 담긴 변수의 이름만 입력하세요. 값은 TOML에 들어가지 않습니다. 마스터 키보다 읽기 경로로 제한한 가상 키를 권장합니다. 제공업체별 예산 경로만 읽으며, 키는 프록시 주소로만 전송됩니다. 이 컴퓨터 밖에서는 HTTPS를 사용하세요.",
+  "credential_help.litellm": "LiteLLM 프록시의 키입니다. 키가 담긴 변수의 이름만 입력하세요. 값은 TOML에 들어가지 않습니다. 마스터 키보다 읽기 경로로 제한한 가상 키를 권장합니다. 제공업체별 예산 경로만 읽고, 세부 내역을 켜면 키와 팀 목록도 읽으며, 키는 프록시 주소로만 전송됩니다. 이 컴퓨터 밖에서는 HTTPS를 사용하세요.",
   "credential_help.mini_max": "API 키/PAT: 내보낸 변수의 이름만 입력하세요. 생성용 키로는 사용량을 조회하지 못할 수 있으니 보고서의 제한 사항을 확인하세요.",
   "credential_help.mistral": "사용량 조회에는 생성 키가 아니라 Admin API Key가 필요합니다. 관리자 키를 MISTRAL_API_KEY에 넣거나 매개변수에서 admin_key_env를 설정하세요.",
   "credential_help.nine_router": "9router 대시보드 로그인이 꺼져 있으면 비워 두세요. 혼자 쓰는 컴퓨터라면 이 컴퓨터에서 로그인 없이 9router를 쓰는 것도 합리적인 선택입니다. 비밀번호가 있으면 그것이 담긴 변수의 이름만 입력하고(값은 TOML에 들어가지 않습니다) 다른 곳에서 쓰지 않는 비밀번호를 사용하세요. 보내기 전에 Cuotai는 주소가 9router처럼 응답하는지, 그리고 이 컴퓨터에서는 수신 대기 중인 프로그램이 현재 사용자의 것인지 확인합니다. 그래도 현재 사용자의 다른 프로그램이 9router를 사칭할 수 있으므로 Cuotai가 읽는 동안 9router를 계속 실행해 두세요. 이 컴퓨터 밖에서는 고정 인증서를 사용한 HTTPS를 권장합니다. 사용량을 읽으면 9router가 보관 중인 로그인을 갱신할 수 있습니다.",
