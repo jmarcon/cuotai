@@ -57,6 +57,7 @@ async fn refresh_all(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
 /// PRD 0036 RF8.5: hide a connection or show it beside its direct account.
 #[tauri::command]
 async fn set_connection_flag(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     index: usize,
@@ -64,6 +65,7 @@ async fn set_connection_flag(
     sub: String,
     on: bool,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.set_connection_flag(&app, index, &key, &sub, on).await
 }
 
@@ -141,7 +143,8 @@ async fn detect_sources(
 
 /// PRD 0027 RF6.5: answer (or change) "Check this device…". Error: `unwritable`.
 #[tauri::command]
-fn set_detect_enabled(on: bool) -> Result<(), String> {
+fn set_detect_enabled(window: WebviewWindow, on: bool) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     settings::save_detect_enabled(on).map_err(str::to_owned)
 }
 
@@ -168,10 +171,12 @@ async fn extension_disclosure(
 
 #[tauri::command]
 async fn enable_extension(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     id: String,
 ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     // PRD 0050 RF2.5: only an id; Rust discloses, asks natively and holds
     // the candidate.
     b.enable_extension(&app, &id).await
@@ -179,10 +184,12 @@ async fn enable_extension(
 
 #[tauri::command]
 async fn disable_extension(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     id: String,
 ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     b.disable_extension(&app, &id).await
 }
 
@@ -196,22 +203,26 @@ async fn extension_secrets(
 
 #[tauri::command]
 async fn set_extension_override(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     index: usize,
     id: String,
     on: bool,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     b.set_extension_override(&app, index, &id, on).await
 }
 
 #[tauri::command]
 async fn set_extension_secret(
+    window: WebviewWindow,
     b: Shared<'_>,
     id: String,
     name: String,
     value: String,
 ) -> Result<cuotai_core::extensions::management::ActionResult, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     b.set_extension_secret(&id, &name, &value).await
 }
 
@@ -298,10 +309,12 @@ async fn forget_extension_secrets(
 
 #[tauri::command]
 async fn test_extension(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     id: String,
 ) -> Result<cuotai_core::extensions::output::Checked, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     b.test_extension(&app, &id).await
 }
 
@@ -346,20 +359,32 @@ fn draft_access(
 
 #[tauri::command]
 async fn login_start(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     request: LoginStartInput,
 ) -> Result<u64, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.login_start(&app, request).await
 }
 
 #[tauri::command]
-async fn login_submit_code(b: Shared<'_>, code: String) -> Result<(), String> {
+async fn login_submit_code(
+    window: WebviewWindow,
+    b: Shared<'_>,
+    code: String,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.login_submit_code(code).await
 }
 
 #[tauri::command]
-async fn login_cancel(b: Shared<'_>, attempt: Option<u64>) -> Result<(), String> {
+async fn login_cancel(
+    window: WebviewWindow,
+    b: Shared<'_>,
+    attempt: Option<u64>,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.login_cancel(attempt).await;
     Ok(())
 }
@@ -566,7 +591,12 @@ struct BackupWritten {
 /// the webview sends no path), then write the backup there (private,
 /// atomic, never over Cuotai's own files). `None` when the person cancels.
 #[tauri::command]
-async fn backup_write(app: AppHandle, with_history: bool) -> Result<Option<BackupWritten>, String> {
+async fn backup_write(
+    window: WebviewWindow,
+    app: AppHandle,
+    with_history: bool,
+) -> Result<Option<BackupWritten>, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     backup_with(&file_dialog::DialogPicker::new(&app), with_history).await
 }
 
@@ -657,9 +687,11 @@ struct RestorePick {
 /// (nothing is written). `None` when the person cancels.
 #[tauri::command]
 async fn restore_plan(
+    window: WebviewWindow,
     app: AppHandle,
     pending: tauri::State<'_, file_dialog::PendingRestore>,
 ) -> Result<Option<RestorePick>, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     restore_pick(
         &file_dialog::DialogPicker::new(&app),
         &pending,
@@ -971,12 +1003,25 @@ async fn retry_purge(
 }
 
 #[tauri::command]
-async fn set_refresh_seconds(app: AppHandle, b: Shared<'_>, seconds: u64) -> Result<(), String> {
+async fn set_refresh_seconds(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    seconds: u64,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_refresh_seconds(&app, seconds).await
 }
 
 #[tauri::command]
-async fn move_account(app: AppHandle, b: Shared<'_>, from: usize, to: usize) -> Result<(), String> {
+async fn move_account(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    from: usize,
+    to: usize,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     b.move_account(&app, from, to).await
 }
 
@@ -993,10 +1038,12 @@ async fn reload_config(app: AppHandle, b: Shared<'_>) -> Result<backend::View, S
 /// PRD 0051 RF5.4: use (`adopt`) or decline the history of the moved file.
 #[tauri::command]
 async fn history_relocation(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     adopt: bool,
 ) -> Result<Option<cuotai_core::text::Localized>, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.answer_relocation(&app, adopt).await
 }
 
@@ -1509,7 +1556,8 @@ fn autostart_status(app: AppHandle) -> Result<bool, String> {
 /// PRD 0022 (audit #37): turn "Start at login" on or off and return what the system now reports.
 /// Error: `autostart_failed`.
 #[tauri::command]
-fn autostart_set(app: AppHandle, enabled: bool) -> Result<bool, String> {
+fn autostart_set(window: WebviewWindow, app: AppHandle, enabled: bool) -> Result<bool, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     autostart::apply(&app, enabled)
 }
 
@@ -1533,7 +1581,8 @@ fn autostart_stale(app: AppHandle) -> bool {
 /// PRD 0054 RF4.3: rewrite the existing login entry for this copy of the app; never creates a removed
 /// one. Returns what the system now reports. Error: `autostart_failed`.
 #[tauri::command]
-fn autostart_repair(app: AppHandle) -> Result<bool, String> {
+fn autostart_repair(window: WebviewWindow, app: AppHandle) -> Result<bool, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     autostart::repair(&app)
 }
 
@@ -1651,7 +1700,13 @@ fn set_advice_enabled(enabled: bool) -> Result<(), String> {
 /// stop computing and sharing it, through `live_sessions` in the TOML.
 /// Errors: the core's typed edit errors.
 #[tauri::command]
-async fn set_live_session(app: AppHandle, b: Shared<'_>, show: bool) -> Result<(), String> {
+async fn set_live_session(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    show: bool,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_live_sessions(&app, show).await
 }
 
@@ -1666,7 +1721,10 @@ fn dismiss_feed_banner(source: String) -> Result<(), String> {
 /// the stored Claude Code readings; the answer says whether there were
 /// any. Errors: `unwritable`.
 #[tauri::command]
-fn forget_claude_code_readings() -> Result<cuotai_core::text::Localized, String> {
+fn forget_claude_code_readings(
+    window: WebviewWindow,
+) -> Result<cuotai_core::text::Localized, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     use cuotai_core::feed::{self, FeedSource, FeedStore};
     let store = FeedStore::in_data_dir().ok_or("unwritable")?;
     feed::forget(&store, FeedSource::ClaudeCode).map_err(|_| "unwritable".to_owned())
@@ -1747,7 +1805,13 @@ fn terminal_cli(
 /// 365), saved in `desktop.json`; prunes at once. Errors:
 /// `invalid_history_days`, `unwritable`.
 #[tauri::command]
-async fn set_history_days(app: AppHandle, b: Shared<'_>, days: u32) -> Result<(), String> {
+async fn set_history_days(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    days: u32,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_history_days(&app, days).await
 }
 
@@ -1760,6 +1824,7 @@ async fn set_history_days(app: AppHandle, b: Shared<'_>, days: u32) -> Result<()
 /// `stale`).
 #[tauri::command]
 async fn history_export(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     index: Option<usize>,
@@ -1767,6 +1832,7 @@ async fn history_export(
     days: Option<u32>,
     format: cuotai_core::history::ExportFormat,
 ) -> Result<Option<backend::Exported>, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.history_export(
         &file_dialog::DialogPicker::new(&app),
         index,
@@ -1849,14 +1915,26 @@ async fn erase_all_data(
 /// PRD 0006 RF5.3: record new readings on this device or not (saved in
 /// `desktop.json`); off keeps what was recorded. Error: `unwritable`.
 #[tauri::command]
-async fn set_history_recording(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(), String> {
+async fn set_history_recording(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    on: bool,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_history_recording(&app, on).await
 }
 
 /// PRD 0011 RF4.3: turn the public provider status queries on or off
 /// (saved in `desktop.json`, off by default). Error: `unwritable`.
 #[tauri::command]
-async fn set_status_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(), String> {
+async fn set_status_enabled(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    on: bool,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_status_enabled(&app, on).await
 }
 
@@ -1874,6 +1952,7 @@ async fn serve_status(b: Shared<'_>) -> Result<local_server::ServeView, String> 
 /// refusal as JSON.
 #[tauri::command]
 async fn set_serve(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     enabled: bool,
@@ -1881,6 +1960,7 @@ async fn set_serve(
     allow_browsers: bool,
     allowed_origins: Option<Vec<String>>,
 ) -> Result<local_server::ServeView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     // PRD 0050 RF4.2: an older caller without the list keeps the stored one.
     let allowed_origins = match allowed_origins {
         Some(list) => list,
@@ -1894,10 +1974,12 @@ async fn set_serve(
 /// default, answered only with a token), saved in `desktop.json`.
 #[tauri::command]
 async fn set_serve_stats(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     stats: bool,
 ) -> Result<local_server::ServeView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_serve_stats(&app, stats).await
 }
 
@@ -1905,10 +1987,12 @@ async fn set_serve_stats(
 /// `errors`, `all`), saved in `desktop.json` and applied in place.
 #[tauri::command]
 async fn set_serve_access_log(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     mode: String,
 ) -> Result<local_server::ServeView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_serve_access_log(&app, &mode).await
 }
 
@@ -2015,12 +2099,14 @@ async fn widgets_status(b: Shared<'_>) -> Result<widgets::WidgetsView, String> {
 /// `invalid_widget_accounts`, `unwritable`.
 #[tauri::command]
 async fn set_widgets(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     enabled: bool,
     include_identity: bool,
     max_accounts: usize,
 ) -> Result<widgets::WidgetsView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_widgets(&app, enabled, include_identity, max_accounts)
         .await
 }
@@ -2047,10 +2133,12 @@ async fn delete_widget_data(
 /// `desktop.json`); on runs only confirmed rules. Error: `unwritable`.
 #[tauri::command]
 async fn set_hooks_enabled(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     on: bool,
 ) -> Result<hooks::HooksView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.set_hooks_enabled(&app, on).await
 }
 
@@ -2058,7 +2146,12 @@ async fn set_hooks_enabled(
 /// in a native dialog Rust builds; the webview supplies no digest. Error:
 /// the core's `hooks.error.*` or `execution.*` text as JSON.
 #[tauri::command]
-async fn confirm_hooks(app: AppHandle, b: Shared<'_>) -> Result<hooks::HooksView, String> {
+async fn confirm_hooks(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+) -> Result<hooks::HooksView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.confirm_hooks(&app).await
 }
 
@@ -2067,11 +2160,13 @@ async fn confirm_hooks(app: AppHandle, b: Shared<'_>) -> Result<hooks::HooksView
 /// text as JSON.
 #[tauri::command]
 async fn save_hooks(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     revision: Option<String>,
     rules: Vec<cuotai_core::hooks::RuleDraft>,
 ) -> Result<hooks::HooksView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.save_hooks(&app, revision, rules).await
 }
 
@@ -2079,10 +2174,12 @@ async fn save_hooks(
 /// Errors: `hooks_off`, `hook_unknown`.
 #[tauri::command]
 async fn test_hook(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     name: String,
 ) -> Result<hooks::HooksView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.test_hook(&app, name).await
 }
 
@@ -2090,7 +2187,13 @@ async fn test_hook(
 /// for permission first and stays off unless it is `granted`; returns the
 /// permission (`granted`, `denied`, `prompt`) or `off`. Error: `unwritable`.
 #[tauri::command]
-async fn set_notify_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<String, String> {
+async fn set_notify_enabled(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    on: bool,
+) -> Result<String, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     let permission = permission_for(&app, on);
     b.update_notices(&app, |n| n.switch_resets(permission))
         .await?;
@@ -2101,7 +2204,13 @@ async fn set_notify_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<S
 /// permission request as reset notices: on stays off unless the system
 /// answers `granted`. Returns the permission or `off`. Error: `unwritable`.
 #[tauri::command]
-async fn set_alerts_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<String, String> {
+async fn set_alerts_enabled(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    on: bool,
+) -> Result<String, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     let permission = permission_for(&app, on);
     b.update_notices(&app, |n| n.switch_alerts(permission))
         .await?;
@@ -2115,11 +2224,13 @@ async fn set_alerts_enabled(app: AppHandle, b: Shared<'_>, on: bool) -> Result<S
 /// `unwritable`.
 #[tauri::command]
 async fn set_projected_alert(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     on: bool,
     minutes: u16,
 ) -> Result<String, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     let permission = permission_for(&app, on);
     b.update_notices(&app, |n| n.switch_projected(permission, minutes))
         .await?;
@@ -2140,6 +2251,7 @@ fn permission_for(app: &AppHandle, on: bool) -> &'static str {
 /// `invalid_threshold`, `unwritable`.
 #[tauri::command]
 async fn set_alert_options(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     thresholds: Vec<u8>,
@@ -2147,6 +2259,7 @@ async fn set_alert_options(
     recovery: bool,
     overage: Option<bool>,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.update_notices(&app, |n| {
         let mut alerts = n.alerts().with_choices(&thresholds, exhaustion, recovery)?;
         // PRD 0023 RF7.4: the extra-usage notices (absent keeps the saved value).
@@ -2178,11 +2291,13 @@ async fn set_metric_alert(
 /// Error: `unwritable`.
 #[tauri::command]
 async fn set_pool_alerts(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     account_key: String,
     each: bool,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.update_notices(&app, |n| n.set_pool_alerts(&account_key, each))
         .await
 }
@@ -2191,11 +2306,13 @@ async fn set_pool_alerts(
 /// ("Alert on breakdown rows"). Error: `unwritable`.
 #[tauri::command]
 async fn set_breakdown_alerts(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     account_key: String,
     on: bool,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.update_notices(&app, |n| n.set_breakdown_alerts(&account_key, on))
         .await
 }
@@ -2205,12 +2322,14 @@ async fn set_breakdown_alerts(
 /// Errors: `invalid_notify`, `unwritable`.
 #[tauri::command]
 async fn set_notify_options(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     lead_minutes: u32,
     when: String,
     include_other: bool,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.update_notices(&app, |n| {
         let prefs = n.prefs().with_choices(lead_minutes, &when, include_other)?;
         n.set_prefs(prefs)
@@ -2222,11 +2341,13 @@ async fn set_notify_options(
 /// Error: `unwritable`.
 #[tauri::command]
 async fn set_account_notify(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     account_key: String,
     on: bool,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.update_notices(&app, |n| n.set_account(&account_key, on))
         .await
 }
@@ -2234,7 +2355,13 @@ async fn set_account_notify(
 /// PRD 0032 RF7.1: "Hide account names in notifications". Error:
 /// `unwritable`.
 #[tauri::command]
-async fn set_notify_private(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(), String> {
+async fn set_notify_private(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    on: bool,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.update_notices(&app, |n| {
         let prefs = cuotai_core::notify_prefs::NotifyPrefs {
             private: on,
@@ -2253,10 +2380,12 @@ async fn set_notify_private(app: AppHandle, b: Shared<'_>, on: bool) -> Result<(
 /// `unwritable`.
 #[tauri::command]
 async fn set_quiet_hours(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     quiet: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     let quiet = cuotai_core::quiet::QuietSchedule::from_value_strict(&quiet)
         .map_err(|refusal| refusal.to_json())?;
     let always_on = quiet.always_on();
@@ -2268,10 +2397,12 @@ async fn set_quiet_hours(
 /// core key `account_key`: its "crossed while closed" marker is seen.
 #[tauri::command]
 async fn acknowledge_missed(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     account_key: String,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.update_notices(&app, |n| {
         n.acknowledge_missed(&account_key);
         Ok(())
@@ -2342,11 +2473,13 @@ fn set_callback_style(
 /// is what makes the system decide the permission. Error: `notify_off`.
 #[tauri::command]
 async fn send_test_notification(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     title: String,
     body: String,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     use notify::Notifier;
     if !b.notices_enabled().await {
         return Err("notify_off".into());
@@ -2361,8 +2494,10 @@ async fn send_test_notification(
 /// changes, the days off (weekday slugs `mon`..`sun`) and the weekly digest
 /// (weekday 0 = Monday … 6, hour 0–23), saved in the `notify` section of
 /// `desktop.json`. Errors: `invalid_notify`, `unwritable`.
+#[allow(clippy::too_many_arguments)] // Tauri passes each field as an argument.
 #[tauri::command]
 async fn set_insight_prefs(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     limit_changes: bool,
@@ -2371,6 +2506,7 @@ async fn set_insight_prefs(
     digest_weekday: u8,
     digest_hour: u8,
 ) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     if digest_weekday > 6 || digest_hour > 23 {
         return Err("invalid_notify".into());
     }
@@ -2391,7 +2527,12 @@ async fn set_insight_prefs(
 /// PRD 0043 RF4.3: **Send a test digest** now, from the history. Errors:
 /// `notify_off`, `no_history`, `notify_failed`.
 #[tauri::command]
-async fn send_test_digest(app: AppHandle, b: Shared<'_>) -> Result<(), String> {
+async fn send_test_digest(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     if !b.notices_enabled().await {
         return Err("notify_off".into());
     }
@@ -2427,6 +2568,7 @@ async fn cost_plans(cost: Cost<'_>, b: Shared<'_>) -> Result<local_cost::PlansVi
 /// is `None`. Error: `cost.error.invalid_plan` as JSON.
 #[tauri::command]
 async fn cost_set_plan(
+    window: WebviewWindow,
     cost: Cost<'_>,
     b: Shared<'_>,
     id: String,
@@ -2434,6 +2576,7 @@ async fn cost_set_plan(
     currency: String,
     cycle_day: Option<u8>,
 ) -> Result<local_cost::PlansView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     let plan = price.map(|price| (price, currency, cycle_day));
     cost.set_plan(&b.accounts().await, &id, plan)
 }
@@ -2458,11 +2601,13 @@ async fn cost_set_display(
 /// (`consent_changed` when the directories changed while it was open).
 #[tauri::command]
 async fn cost_enable(
+    window: WebviewWindow,
     app: AppHandle,
     b: Shared<'_>,
     cost: Cost<'_>,
     source: cuotai_core::cost::SourceId,
 ) -> Result<local_cost::CostView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     // PRD 0050 RF2: one native confirmation at a time, owned by Rust.
     let _gate = b
         .confirm_gate()
@@ -2476,9 +2621,11 @@ async fn cost_enable(
 /// PRD 0015 RF2.4: turn `source` off and erase everything derived from it.
 #[tauri::command]
 async fn cost_disable(
+    window: WebviewWindow,
     cost: Cost<'_>,
     source: cuotai_core::cost::SourceId,
 ) -> Result<local_cost::CostView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     cost.disable(source)
 }
 
@@ -2487,10 +2634,12 @@ async fn cost_disable(
 /// derived from it. Error: `cost.error.relative_path` as JSON.
 #[tauri::command]
 async fn cost_set_paths(
+    window: WebviewWindow,
     cost: Cost<'_>,
     source: cuotai_core::cost::SourceId,
     paths: Vec<String>,
 ) -> Result<local_cost::CostView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     cost.set_paths(source, paths)
 }
 
@@ -2498,10 +2647,12 @@ async fn cost_set_paths(
 /// 730). Error: `cost.error.retention_bounds` as JSON.
 #[tauri::command]
 async fn cost_set_options(
+    window: WebviewWindow,
     cost: Cost<'_>,
     period: cuotai_core::cost::Period,
     retention_days: u32,
 ) -> Result<local_cost::CostView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     cost.set_options(period, retention_days)
 }
 
@@ -2657,10 +2808,12 @@ fn updater_status(u: Updates<'_>) -> updater::UpdateView {
 /// `updater_consent_required`, `unwritable`.
 #[tauri::command]
 fn updater_set_automatic(
+    window: WebviewWindow,
     app: AppHandle,
     u: Updates<'_>,
     on: bool,
 ) -> Result<updater::UpdateView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     u.set_automatic(&app, on)
 }
 
@@ -2668,24 +2821,36 @@ fn updater_set_automatic(
 /// "No" leaves it off. The backend opens its request gate only after persistence.
 #[tauri::command]
 fn updater_answer_automatic(
+    window: WebviewWindow,
     app: AppHandle,
     u: Updates<'_>,
     on: bool,
 ) -> Result<updater::UpdateView, String> {
+    window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
     u.answer_automatic(&app, on)
 }
 
 /// PRD 0018 RF3.1: "Check now". With the feature off it answers `updater_off` and
 /// makes no request at all.
 #[tauri::command]
-async fn updater_check_now(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView, String> {
+async fn updater_check_now(
+    window: WebviewWindow,
+    app: AppHandle,
+    u: Updates<'_>,
+) -> Result<updater::UpdateView, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     u.check_now(&app).await
 }
 
 /// PRD 0018 RF2.3: "Atualizar agora" — baixa, verifica a assinatura e instala. Erros:
 /// `no_update`, `already_running`, `stale`, `unavailable`.
 #[tauri::command]
-fn updater_install(app: AppHandle, u: Updates<'_>) -> Result<updater::UpdateView, String> {
+fn updater_install(
+    window: WebviewWindow,
+    app: AppHandle,
+    u: Updates<'_>,
+) -> Result<updater::UpdateView, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     u.install(&app)
 }
 
@@ -2705,7 +2870,13 @@ fn updater_dismiss(app: AppHandle, u: Updates<'_>) -> updater::UpdateView {
 /// with `login_in_progress`; with no package ready it answers `no_update`. The backend stops the
 /// update cycle and persists the state before any restart.
 #[tauri::command]
-async fn updater_restart(app: AppHandle, b: Shared<'_>, u: Updates<'_>) -> Result<(), String> {
+async fn updater_restart(
+    window: WebviewWindow,
+    app: AppHandle,
+    b: Shared<'_>,
+    u: Updates<'_>,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     let login = b.login_in_progress().await;
     u.restart(
         &app,
@@ -3641,68 +3812,28 @@ mod tests {
         }
     }
 
-    /// PRD 0020 re-validation S-01: every destructive command checks the
-    /// window that called it, first, with its scope; a new destructive
-    /// command added to these lists without the check fails here.
+    /// PRD 0020 re-validation S-01, PRD 0050 re-validation S-01/S-02: every
+    /// command of `generate_handler!` is classified exactly once in
+    /// `window_scope`, no entry there is stale, and every scoped command
+    /// checks the window that called it, first, with its scope. A new command
+    /// missing from the tables fails here.
     // security-invariant: SEC-WINDOW-SCOPE
     #[test]
-    fn destructive_commands_check_their_window_first() {
+    fn every_command_has_a_window_scope() {
+        use crate::window_scope;
         let source = include_str!("lib.rs");
-        let scopes: &[(&str, &[&str])] = &[
-            (
-                "MAIN_ONLY",
-                &[
-                    "cancel_session_capture",
-                    "capture_session",
-                    "delete_account",
-                    "forget_extension_secrets",
-                    "forget_session",
-                    "forget_shared_capture",
-                    // PRD 0047 re-validation S-02.
-                    "migrate_session",
-                    "retry_purge",
-                    "save_account",
-                    "test_aggregator",
-                    "test_session",
-                ],
-            ),
-            (
-                "MAIN_ONLY",
-                // PRD 0025 re-validation S-05: the first-run consent.
-                &["first_run_turn_on"],
-            ),
-            ("MAIN_OR_SETTINGS", &["restore_apply", "first_run_record"]),
-            (
-                "SETTINGS_ONLY",
-                &[
-                    "history_erase",
-                    "cost_erase",
-                    // PRD 0042 re-validation S-08.
-                    "cost_breakdown",
-                    "cost_set_label",
-                    "cost_set_hidden",
-                    "cost_set_source_options",
-                    "vault_prune",
-                    "vault_remove",
-                    "erase_all_data",
-                    "erase_serve_access_log",
-                    "generate_serve_token",
-                    "revoke_serve_token",
-                    "copy_serve_token",
-                    "delete_widget_data",
-                    "channel_remove",
-                    // PRD 0044 re-validation S-05.
-                    "channel_add",
-                    "channel_edit",
-                    "channel_set_enabled",
-                    "channel_test",
-                    "set_config_file",
-                    "set_data_dir",
-                    "set_user_dir",
-                ],
-            ),
-        ];
-        for (scope, commands) in scopes {
+        assert_eq!(
+            window_scope::unclassified(source),
+            Vec::<&str>::new(),
+            "each command needs one entry in window_scope::SCOPED or ANY_WINDOW"
+        );
+        let handler = window_scope::handler_names(source);
+        assert!(handler.len() > 100, "{}", handler.len());
+        let stale: Vec<_> = window_scope::classified()
+            .filter(|c| !handler.contains(c))
+            .collect();
+        assert!(stale.is_empty(), "not in generate_handler!: {stale:?}");
+        for (scope, _, commands) in window_scope::SCOPED {
             for command in *commands {
                 let start = source
                     .find(&format!("async fn {command}("))
