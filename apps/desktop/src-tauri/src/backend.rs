@@ -8427,7 +8427,13 @@ mod tests {
         assert_eq!(breakdown["rows"][1]["figure"]["limit"], 100.0);
         assert_eq!(
             breakdown["top"]["fallback"],
-            "Top: Proj-A $412 · Proj-B $92"
+            "Top: Proj-A $412.00 · Proj-B $92.00"
+        );
+        // PRD 0045 re-validation (V-04): each item arrives nested, its
+        // amount as `amount.money` for the UI to format.
+        assert_eq!(
+            breakdown["top"]["params"]["items"]["params"]["first"]["params"]["amount"]["id"],
+            "amount.money"
         );
         assert!(breakdown["truncated"].is_null());
         // PRD 0045 RF5.2: the switch starts off and a spend row offers a

@@ -318,7 +318,7 @@ pub(crate) async fn fetch_at(
                     notes.push_note(crate::breakdown::paged_note());
                 }
             }
-            Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+            Err(error) => notes.push_note(crate::breakdown::unavailable_note(kind, &error)),
         }
     }
     if allow_private && base.scheme() == "http" && !base_is_loopback(&base) {
@@ -1060,18 +1060,31 @@ mod tests {
             .respond_with(ResponseTemplate::new(401))
             .mount(&server)
             .await;
+        Mock::given(method("GET"))
+            .and(path(KEYS_PATH))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "keys": [{ "token": "t1", "key_alias": "ci", "spend": 1.0 }],
+                "total_count": 1, "current_page": 1, "total_pages": 1
+            })))
+            .mount(&server)
+            .await;
         let http = reqwest::Client::new();
         let mut acct = account(&server, &[]);
-        acct.breakdown = vec![crate::BreakdownKind::Teams];
+        acct.breakdown = vec![crate::BreakdownKind::Keys, crate::BreakdownKind::Teams];
         let data = fetch_at(&acct, &context(&http), Utc::now()).await.unwrap();
         assert_eq!(data.sub_reports.len(), 5);
-        assert!(data.breakdown.is_empty());
-        let note = data
+        // The keys still list; only the teams failed, and the note says so.
+        assert_eq!(data.breakdown.len(), 1);
+        let notes: Vec<_> = data
             .notes_l10n
             .iter()
-            .find(|n| n.id == "note.breakdown.unavailable")
-            .unwrap();
-        assert!(note.text().contains("credential"));
+            .filter(|n| n.id == "note.breakdown.unavailable")
+            .collect();
+        assert_eq!(notes.len(), 1);
+        assert_eq!(
+            notes[0].text(),
+            "The Teams breakdown is unavailable right now (the credential may not read it); the account total is still correct."
+        );
     }
 
     /// Re-validation S-02: a proxy on loopback is read through the direct

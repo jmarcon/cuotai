@@ -196,7 +196,10 @@ async fn open_router_at(
                             notes.push_note(crate::breakdown::paged_note());
                         }
                     }
-                    Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+                    Err(error) => notes.push_note(crate::breakdown::unavailable_note(
+                        crate::BreakdownKind::Keys,
+                        &error,
+                    )),
                 }
                 let (texts, l10n) = notes.finish();
                 data.notes.extend(texts);
