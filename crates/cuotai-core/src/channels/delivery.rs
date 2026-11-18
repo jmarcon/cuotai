@@ -471,8 +471,11 @@ impl Dispatcher {
     }
 
     /// One delivery with its retries, logged once with its last attempt.
+    ///
+    /// The delivery slot ([`MAX_IN_FLIGHT`]) is held per attempt, for the
+    /// request only: a failing channel frees it while it waits to retry,
+    /// so it never delays the other channels (re-validation S-04).
     async fn send(&self, channel: &Channel, out: &Outgoing) -> Outcome {
-        let _permit = self.0.permits.acquire().await;
         let at =
             |outcome: LogOutcome, status: Option<u16>, attempt: u8, error: Option<&str>| Entry {
                 at: Utc::now(),
@@ -520,10 +523,12 @@ impl Dispatcher {
             for (name, value) in &request.headers {
                 builder = builder.header(*name, value);
             }
-            let (status, error) = match builder.send().await {
-                Ok(response) => {
-                    let status = response.status();
-                    drop(response);
+            let answer = {
+                let _permit = self.0.permits.acquire().await;
+                builder.send().await.map(|response| response.status())
+            };
+            let (status, error) = match answer {
+                Ok(status) => {
                     if status.is_success() {
                         self.append(at(
                             LogOutcome::Delivered,
