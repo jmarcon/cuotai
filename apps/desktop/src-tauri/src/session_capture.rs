@@ -21,9 +21,11 @@
 //!   script, no `eval`); the cookies are read from the native store;
 //! - navigation is limited to [`SessionDescriptor::capture_allows`] of the
 //!   capture in progress (the parked shared window: `about:blank` only);
-//!   `window.open` never opens a webview (HTTPS links go to the browser,
-//!   except a Google sign-in popup of a shared capture, which opens in the
-//!   same window, PRD 0056 RF5), downloads are refused;
+//!   `window.open` never opens a webview (a Google sign-in popup of a
+//!   shared capture opens in the same window, PRD 0056 RF5; an HTTPS page
+//!   on the capture's own allow-list goes to the browser, at most one a
+//!   second; every other popup, and every popup of the parked window, is
+//!   dropped), downloads are refused;
 //! - the store is non-persistent (`incognito`, plus a fresh data directory
 //!   on Windows and Linux) and is cleared and removed when the window ends;
 //! - cookie values are never logged nor kept outside the returned paste.
@@ -208,7 +210,8 @@ pub enum Popup {
     /// PRD 0056 RF5: the shared window itself goes there (a Google sign-in
     /// popup the capture allows).
     InPlace,
-    /// PRD 0048 RF3: an HTTPS page opens in the user's browser.
+    /// PRD 0048 RF3: an HTTPS page on the capture's own allow-list opens
+    /// in the user's browser (at most one a second, [`throttle`]).
     Browser,
     /// Anything else is dropped.
     Drop,
@@ -223,11 +226,28 @@ pub fn popup(target: Option<Capture>, url: &str) -> Popup {
             }
         }
     }
-    if url.starts_with("https://") {
-        Popup::Browser
-    } else {
-        Popup::Drop
+    match target {
+        Some(Capture { descriptor, spec })
+            if url.starts_with("https://") && descriptor.capture_allows_with(spec, url) =>
+        {
+            Popup::Browser
+        }
+        _ => Popup::Drop,
     }
+}
+
+/// RF3: the shortest time between two popups a window sends to the browser.
+pub const POPUP_GAP: Duration = Duration::from_secs(1);
+
+/// RF3: whether a popup at `now` may go to the browser: true, and `now`
+/// recorded, when the window sent none in the last [`POPUP_GAP`].
+pub fn throttle(last: &Mutex<Option<Instant>>, now: Instant) -> bool {
+    let mut last = last.lock();
+    if last.is_some_and(|at| now.saturating_duration_since(at) < POPUP_GAP) {
+        return false;
+    }
+    *last = Some(now);
+    true
 }
 
 /// PRD 0056 RF3: the positions in `store` of the cookies a parked window
@@ -557,6 +577,7 @@ async fn private_capture<R: Runtime>(
     let state = app.state::<State>();
     sweep_dirs(state.shared_dir().as_deref());
     let dir = fresh_dir();
+    let last_popup = Mutex::new(None);
     let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::External(start))
         .title(target.descriptor.site)
         .inner_size(480.0, 720.0)
@@ -569,7 +590,9 @@ async fn private_capture<R: Runtime>(
             allowed
         })
         .on_new_window(move |url, _| {
-            if popup(Some(target), url.as_str()) == Popup::Browser {
+            if popup(Some(target), url.as_str()) == Popup::Browser
+                && throttle(&last_popup, Instant::now())
+            {
                 let _ = crate::about::open_dashboard(url.as_str());
             }
             NewWindowResponse::Deny
@@ -618,6 +641,8 @@ fn build_shared<R: Runtime>(
     let nav_target = Arc::clone(target);
     let popup_target = Arc::clone(target);
     let popup_app = app.clone();
+    // One for the window's whole life, across the captures it serves.
+    let last_popup = Mutex::new(None);
     let mut builder = WebviewWindowBuilder::new(app, SHARED_LABEL, WebviewUrl::External(start))
         .title(site)
         .inner_size(480.0, 720.0)
@@ -644,7 +669,9 @@ fn build_shared<R: Runtime>(
                     }
                 }
                 Popup::Browser => {
-                    let _ = crate::about::open_dashboard(url.as_str());
+                    if throttle(&last_popup, Instant::now()) {
+                        let _ = crate::about::open_dashboard(url.as_str());
+                    }
                 }
                 Popup::Drop => {}
             }
@@ -1209,30 +1236,48 @@ mod tests {
     }
 
     /// PRD 0056 RF5: a Google sign-in popup opens in the shared window;
-    /// other HTTPS popups go to the browser; the rest is dropped.
+    /// PRD 0048 RF3: only an HTTPS page on the capture's own allow-list
+    /// goes to the browser; everything else, and every popup of the parked
+    /// window, is dropped.
     #[test]
-    fn popups_open_in_place_only_for_google_sign_in_of_a_shared_capture() {
+    fn popups_open_in_place_for_google_and_in_the_browser_only_for_allowed_pages() {
         let qwen = capture_descriptor(Provider::AlibabaTokenPlan, "session_env", None).unwrap();
         let cn =
             capture_descriptor(Provider::AlibabaCodingPlan, "session_env", Some("cn")).unwrap();
         let google = "https://accounts.google.com/o/oauth2/v2/auth?client_id=x";
         assert_eq!(popup(Some(qwen), google), Popup::InPlace);
-        // Parked, or a private capture: the browser, as before.
-        assert_eq!(popup(None, google), Popup::Browser);
-        assert_eq!(popup(Some(cn), google), Popup::Browser);
+        // github.com is on Qwen Cloud's sign-in list.
         assert_eq!(
             popup(Some(qwen), "https://github.com/login/oauth/authorize"),
             Popup::Browser
         );
         assert_eq!(
-            popup(Some(qwen), "https://myaccount.google.com/"),
+            popup(Some(cn), "https://auth.alipay.com/login/index.htm"),
             Popup::Browser
         );
-        assert_eq!(
-            popup(Some(qwen), "http://accounts.google.com/"),
-            Popup::Drop
-        );
-        assert_eq!(popup(Some(qwen), "javascript:alert(1)"), Popup::Drop);
+        // The parked window, and Google on the mainland list: dropped.
+        assert_eq!(popup(None, google), Popup::Drop);
+        assert_eq!(popup(Some(cn), google), Popup::Drop);
+        for dropped in [
+            "https://myaccount.google.com/",
+            "https://evil.example/",
+            "about:blank",
+            "http://accounts.google.com/",
+            "javascript:alert(1)",
+        ] {
+            assert_eq!(popup(Some(qwen), dropped), Popup::Drop, "{dropped}");
+        }
+    }
+
+    /// PRD 0048 RF3: a window sends at most one popup a second.
+    #[test]
+    fn popup_launches_are_throttled() {
+        let last = Mutex::new(None);
+        let t0 = Instant::now();
+        assert!(throttle(&last, t0));
+        assert!(!throttle(&last, t0 + Duration::from_millis(200)));
+        assert!(throttle(&last, t0 + Duration::from_millis(1001)));
+        assert!(!throttle(&last, t0 + Duration::from_millis(1500)));
     }
 
     /// PRD 0056 RF3: parking keeps Google's cookies and forgets every
