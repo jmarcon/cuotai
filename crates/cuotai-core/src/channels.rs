@@ -26,16 +26,19 @@ pub mod log;
 pub mod payload;
 
 #[cfg(test)]
-mod digest_filter_tests;
-#[cfg(test)]
 #[path = "channels/aggregator_filter_tests.rs"]
 mod aggregator_filter_tests;
 #[cfg(test)]
-#[path = "channels/labels_tests.rs"]
-mod labels_tests;
-#[cfg(test)]
 #[path = "channels/consent_preview_tests.rs"]
 mod consent_preview_tests;
+#[cfg(test)]
+#[path = "channels/delivery_slot_tests.rs"]
+mod delivery_slot_tests;
+#[cfg(test)]
+mod digest_filter_tests;
+#[cfg(test)]
+#[path = "channels/labels_tests.rs"]
+mod labels_tests;
 #[cfg(test)]
 mod tests;
 
