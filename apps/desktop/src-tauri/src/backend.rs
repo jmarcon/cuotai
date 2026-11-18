@@ -6108,10 +6108,13 @@ impl Backend {
         &self,
         app: &AppHandle,
         index: usize,
+        account_id: Option<String>,
         change: SessionChange,
     ) -> Result<AccountForm, String> {
         self.ensure_loaded().await;
-        let refresh_target = self.drive_session_change(index, change).await?;
+        let refresh_target = self
+            .drive_session_change(index, account_id.as_deref(), change)
+            .await?;
         self.emit(app).await;
         if let Some(target) = refresh_target {
             self.refresh_account(app, target).await?;
@@ -6122,10 +6125,12 @@ impl Backend {
     /// Testable half of [`Backend::change_session`]: the core changes the
     /// vault, the runtime is staged, then the TOML is saved; any failure
     /// after the vault change undoes it (new entries removed, forgotten
-    /// ones back).
+    /// ones back). PRD 0047 re-validation S-01: `account_id` (the dialog's)
+    /// must still be the account at `index`, or nothing is changed.
     pub(crate) async fn drive_session_change(
         &self,
         index: usize,
+        account_id: Option<&str>,
         change: SessionChange,
     ) -> Result<Option<usize>, String> {
         let mut g = self.inner.lock().await;
@@ -6143,6 +6148,7 @@ impl Backend {
             .as_mut()
             .ok_or_else(crate::desk_text::config_not_loaded)?;
         let prev = l.file.config.clone();
+        check_target(&prev, Some(index), account_id)?;
         let staged = match change {
             SessionChange::Migrate => {
                 // PRD 0047 G5: sessions and API keys alike.
@@ -9992,7 +9998,7 @@ mod tests {
 
         backend
             .inner
-            .drive_session_change(0, SessionChange::Migrate)
+            .drive_session_change(0, None, SessionChange::Migrate)
             .await
             .unwrap();
         std::env::remove_var(env);
@@ -10034,7 +10040,7 @@ mod tests {
 
         let error = backend
             .inner
-            .drive_session_change(0, SessionChange::Migrate)
+            .drive_session_change(0, None, SessionChange::Migrate)
             .await
             .unwrap_err();
         std::env::remove_var(env);
@@ -10430,7 +10436,7 @@ mod tests {
 
         let moved = backend
             .inner
-            .drive_session_change(0, SessionChange::Migrate)
+            .drive_session_change(0, None, SessionChange::Migrate)
             .await;
         std::env::remove_var(env);
         moved.unwrap();
@@ -10544,6 +10550,110 @@ mod tests {
         let mut report = ready("MiMo", Vec::new());
         report.provider = Provider::XiaomiMimo;
         Some(user_session::clear_for_save(&report, false).expect("a passed test clears"))
+    }
+
+    // PRD 0047 re-validation S-01: moving a key into Cuotai and forgetting a
+    // web session act only on the account the dialog edits. An id that no
+    // longer names the account at `index` (the accounts moved meanwhile) is
+    // refused before anything is staged: the vault and the TOML stay as they
+    // were.
+    /// Another account, at index 0, so the session account sits at index 1.
+    fn groq_before_the_session() -> Account {
+        Account {
+            id: None,
+            name: "Groq".into(),
+            provider: Provider::Groq,
+            credential_env: Some("CUOTAI_TEST_DESKTOP_TARGET_UNUSED".into()),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn drive_session_change_refuses_a_moved_account_for_migrate() {
+        let env = "CUOTAI_TEST_DESKTOP_MIGRATE_TARGET";
+        std::env::set_var(env, "api-platform_serviceToken=sk-FAKE-0047-b; userId=1");
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(
+            store.clone(),
+            vec![groq_before_the_session(), session_env_account(env)],
+        )
+        .await;
+        let path = backend.file_path().await;
+        let before = std::fs::read_to_string(&path).unwrap();
+        let config = backend.loaded_config().await;
+        let wrong = config.accounts[0].id().to_string();
+        let right = config.accounts[1].id().to_string();
+
+        let error = backend
+            .inner
+            .drive_session_change(1, Some(&wrong), SessionChange::Migrate)
+            .await
+            .unwrap_err();
+        assert!(error.contains("edit_error.account_moved"), "{error}");
+        assert!(store.entries.lock().is_empty());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+        assert!(backend.loaded_config().await.accounts[1].session.is_none());
+
+        backend
+            .inner
+            .drive_session_change(1, Some(&right), SessionChange::Migrate)
+            .await
+            .unwrap();
+        std::env::remove_var(env);
+        assert_eq!(store.entries.lock().len(), 1);
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains(env), "the variable reference is gone");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn drive_session_change_refuses_a_moved_account_for_forget() {
+        let store = Arc::new(MemoryStore::default());
+        let backend = build_backend(
+            store.clone(),
+            vec![
+                groq_before_the_session(),
+                session_env_account("MIMO_COOKIE"),
+            ],
+        )
+        .await;
+        let mut input = pasted_input("api-platform_serviceToken=sk-FAKE-0047-b; userId=1");
+        input.index = Some(1);
+        backend
+            .inner
+            .drive_save_account(input, cleared())
+            .await
+            .unwrap();
+        assert_eq!(store.entries.lock().len(), 1);
+        let path = backend.file_path().await;
+        let before = std::fs::read_to_string(&path).unwrap();
+        let config = backend.loaded_config().await;
+        let wrong = config.accounts[0].id().to_string();
+        let right = config.accounts[1].id().to_string();
+
+        let error = backend
+            .inner
+            .drive_session_change(1, Some(&wrong), SessionChange::Forget)
+            .await
+            .unwrap_err();
+        assert!(error.contains("edit_error.account_moved"), "{error}");
+        assert_eq!(store.entries.lock().len(), 1);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+
+        // An id that does not parse is refused the same way.
+        let error = backend
+            .inner
+            .drive_session_change(1, Some("not an id"), SessionChange::Forget)
+            .await
+            .unwrap_err();
+        assert!(!error.is_empty());
+        assert_eq!(store.entries.lock().len(), 1);
+
+        backend
+            .inner
+            .drive_session_change(1, Some(&right), SessionChange::Forget)
+            .await
+            .unwrap();
+        assert!(store.entries.lock().is_empty());
     }
 
     // SES-02: a paste reaches the vault only with the clearance of the test
@@ -10710,7 +10820,7 @@ mod tests {
         std::fs::write(&path, format!("{saved}\n# edited elsewhere\n")).unwrap();
         let error = backend
             .inner
-            .drive_session_change(0, SessionChange::Forget)
+            .drive_session_change(0, None, SessionChange::Forget)
             .await
             .unwrap_err();
         assert!(error.contains("edit_error.conflict"), "{error}");
@@ -10720,7 +10830,7 @@ mod tests {
         std::fs::write(&path, saved).unwrap();
         backend
             .inner
-            .drive_session_change(0, SessionChange::Forget)
+            .drive_session_change(0, None, SessionChange::Forget)
             .await
             .unwrap();
         assert!(store.entries.lock().is_empty());
@@ -10751,7 +10861,7 @@ mod tests {
 
         backend
             .inner
-            .drive_session_change(0, SessionChange::Forget)
+            .drive_session_change(0, None, SessionChange::Forget)
             .await
             .unwrap();
         assert!(store.entries.lock().is_empty());

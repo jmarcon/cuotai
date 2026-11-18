@@ -742,9 +742,10 @@ render();
 bindSettingsShortcut();
 // Switching the accounts file there (no longer modal) would leave an open editor, delete confirmation or details
 // dialog here bound to an index of the old file: they close, as the old modal dialog guaranteed (closing an editor
-// cancels its sign-in and writes nothing).
+// cancels its sign-in and writes nothing). A restore that wrote the accounts file sends the same key (PRD 0047
+// re-validation S-01); its own dialog stays open, since its next steps open accounts of the restored file.
 onSettingsChanged((key) => {
-  if (key === "config_file") for (const d of document.querySelectorAll("dialog[open]")) d.close();
+  if (key === "config_file") for (const d of document.querySelectorAll("dialog[open]:not(.restore-dlg)")) d.close();
   loadLocalCost();
   render();
 });

@@ -378,27 +378,35 @@ async fn account_index(b: Shared<'_>, account_id: String) -> Result<Option<usize
 
 /// PRD 0016 RF1.2: move the account's session variables into the vault,
 /// called only after the dialog's explicit confirmation.
+///
+/// PRD 0047 re-validation S-01/S-02: from the main window only, and only on
+/// the account `account_id` names (the dialog's), wherever the accounts moved.
 #[tauri::command]
 async fn migrate_session(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     index: usize,
+    account_id: Option<String>,
 ) -> Result<AccountForm, String> {
-    b.change_session(&app, index, backend::SessionChange::Migrate)
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
+    b.change_session(&app, index, account_id, backend::SessionChange::Migrate)
         .await
 }
 
 /// PRD 0016 RF4.2: forget the account's web session (its vault entries are
-/// deleted), called only after the dialog's explicit confirmation.
+/// deleted), called only after the dialog's explicit confirmation, on the
+/// account `account_id` names (PRD 0047 re-validation S-01).
 #[tauri::command]
 async fn forget_session(
     app: AppHandle,
     window: WebviewWindow,
     b: Shared<'_>,
     index: usize,
+    account_id: Option<String>,
 ) -> Result<AccountForm, String> {
     window_scope::require(&window, window_scope::MAIN_ONLY)?;
-    b.change_session(&app, index, backend::SessionChange::Forget)
+    b.change_session(&app, index, account_id, backend::SessionChange::Forget)
         .await
 }
 
@@ -711,6 +719,13 @@ async fn restore_apply(
     if config {
         // The accounts file changed under the app: read it again.
         let _ = b.reload_config(&app).await;
+        // PRD 0047 re-validation S-01: as after an accounts-file switch, every
+        // window closes its open account dialogs, whose indexes may now name
+        // other accounts.
+        let _ = app.emit(
+            "settings-changed",
+            serde_json::json!({ "key": "config_file" }),
+        );
     }
     Ok(done)
 }
@@ -833,30 +848,41 @@ async fn open_aggregator_dashboard(b: Shared<'_>, index: usize) -> Result<(), St
 }
 
 /// PRD 0036 RF2.2: the account dialog's Test connection of an aggregator.
+/// PRD 0047 re-validation S-02: only from the main window, whose account
+/// dialog is the one caller.
 #[tauri::command]
 async fn test_aggregator(
+    window: WebviewWindow,
     b: Shared<'_>,
     input: AccountInput,
 ) -> Result<backend::AggregatorTestView, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.test_aggregator(input).await
 }
 
 /// PRD 0016 RF2.1: one read-only query of the dialog's draft with its pasted
-/// sessions; nothing is stored.
+/// sessions; nothing is stored. Only from the main window (PRD 0047
+/// re-validation S-02).
 #[tauri::command]
 async fn test_session(
+    window: WebviewWindow,
     b: Shared<'_>,
     input: AccountInput,
 ) -> Result<backend::SessionTestView, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.test_session(input).await
 }
 
+/// PRD 0047 re-validation S-02: it writes and deletes vault entries, so only
+/// the main window's account dialog saves.
 #[tauri::command]
 async fn save_account(
     app: AppHandle,
+    window: WebviewWindow,
     b: Shared<'_>,
     input: AccountInput,
 ) -> Result<backend::SaveAccountResult, String> {
+    window_scope::require(&window, window_scope::MAIN_ONLY)?;
     b.save_account(&app, input).await
 }
 
@@ -3616,7 +3642,12 @@ mod tests {
                     "forget_extension_secrets",
                     "forget_session",
                     "forget_shared_capture",
+                    // PRD 0047 re-validation S-02.
+                    "migrate_session",
                     "retry_purge",
+                    "save_account",
+                    "test_aggregator",
+                    "test_session",
                 ],
             ),
             (
