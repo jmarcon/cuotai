@@ -54,7 +54,7 @@
   "cli.restore.confirm": "¿Reemplazar {path}? [y/N] ",
   "cli.restore.done": "Archivos restaurados: {count}.",
   "cli.restore.keep": "conservar (idéntico)",
-  "cli.restore.needs": "Los secretos no viajan; después de restaurar:",
+  "cli.restore.needs": "Pendiente después de restaurar (los secretos y los consentimientos no viajan):",
   "cli.restore.needs_terminal": "La restauración reemplazaría archivos: confirma cada uno en una terminal o añade --yes.",
   "cli.restore.newer": "Sin cambios (los escribió un Cuotai más reciente, aquí o en la copia):",
   "cli.restore.nothing": "Nada que restaurar.",

@@ -104,7 +104,7 @@
   "cli.restore.confirm": "{path} を置き換えますか？ [y/N] ",
   "cli.restore.done": "復元したファイル：{count}。",
   "cli.restore.keep": "保持（同一）",
-  "cli.restore.needs": "シークレットは移行されません。復元後に次を行ってください：",
+  "cli.restore.needs": "復元後に残っている作業（シークレットと同意は移行されません）：",
   "cli.restore.needs_terminal": "復元するとファイルが置き換わります。ターミナルで一つずつ確認するか、--yes を付けてください。",
   "cli.restore.newer": "変更せず保持 (新しいバージョンの Cuotai がここまたはバックアップに書き込みました):",
   "cli.restore.nothing": "復元するものはありません。",

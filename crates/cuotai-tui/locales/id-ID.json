@@ -57,7 +57,7 @@
   "cli.restore.confirm": "Ganti {path}? [y/N] ",
   "cli.restore.done": "File dipulihkan: {count}.",
   "cli.restore.keep": "pertahankan (identik)",
-  "cli.restore.needs": "Rahasia tidak ikut dipindahkan; setelah pemulihan:",
+  "cli.restore.needs": "Yang masih perlu dilakukan setelah pemulihan (rahasia dan persetujuan tidak ikut dipindahkan):",
   "cli.restore.needs_terminal": "Pemulihan akan mengganti file: konfirmasi masing-masing di terminal, atau tambahkan --yes.",
   "cli.restore.newer": "Dibiarkan apa adanya (ditulis oleh Cuotai yang lebih baru, di sini atau di cadangan):",
   "cli.restore.nothing": "Tidak ada yang perlu dipulihkan.",

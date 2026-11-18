@@ -63,6 +63,10 @@ fn a_backup_restores_on_another_home_and_says_what_is_still_needed() {
     let plan = String::from_utf8_lossy(&check.stdout);
     assert!(plan.contains("config/cuotai.toml"), "{plan}");
     assert!(
+        plan.contains("Still to do after the restore (secrets and consents do not travel):"),
+        "{plan}"
+    );
+    assert!(
         plan.contains("Set SEEDED_KEY for account 1 (groq)."),
         "{plan}"
     );

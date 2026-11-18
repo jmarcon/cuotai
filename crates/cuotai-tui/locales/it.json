@@ -54,7 +54,7 @@
   "cli.restore.confirm": "Sostituire {path}? [y/N] ",
   "cli.restore.done": "File ripristinati: {count}.",
   "cli.restore.keep": "mantieni (identico)",
-  "cli.restore.needs": "I segreti non viaggiano; dopo il ripristino:",
+  "cli.restore.needs": "Ancora da fare dopo il ripristino (segreti e consensi non viaggiano):",
   "cli.restore.needs_terminal": "Il ripristino sostituirebbe dei file: conferma ciascuno in un terminale oppure aggiungi --yes.",
   "cli.restore.newer": "Lasciati invariati (li ha scritti un Cuotai più recente, qui o nel backup):",
   "cli.restore.nothing": "Niente da ripristinare.",

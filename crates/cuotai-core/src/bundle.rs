@@ -804,13 +804,17 @@ enum MergeWith {
 pub struct NextStep {
     /// `env` (a variable to set, or in the desktop a key to type),
     /// `sign_in`, `channel` (a notification channel's address to type
-    /// again, PRD 0044), or `cost_sources` (turn the local cost sources on
-    /// on this computer, PRD 0030; `account` 0 and no provider).
+    /// again, PRD 0044), `cost_sources` (turn the local cost sources on
+    /// on this computer, PRD 0030; `account` 0 and no provider), or
+    /// `setting` (a consent or exposure switch the backup had on, which a
+    /// restore leaves as this computer has it, PRD 0046 RF3.1; `account` 0
+    /// and the setting id, such as `serve`, in `provider`).
     pub kind: &'static str,
     /// The account's position in the backup's file (0-based); for a
     /// `channel`, the channel's position in the desktop settings.
     pub account: usize,
-    /// The provider slug; for a `channel`, its kind (`ntfy`, `slack`…).
+    /// The provider slug; for a `channel`, its kind (`ntfy`, `slack`…);
+    /// for a `setting`, the setting id.
     pub provider: String,
 }
 
@@ -919,14 +923,19 @@ fn desktop_newer_major(bytes: &[u8]) -> bool {
 }
 
 /// `local` with the members of `incoming` over it, leaving the members that
-/// belong to this machine (the markers stand for them).
-fn merge_desktop(local: Option<&[u8]>, incoming: &[u8]) -> Option<Vec<u8>> {
-    let mut merged: serde_json::Map<String, serde_json::Value> = match local {
+/// belong to this machine (the markers stand for them) and this machine's
+/// consents and exposure switches ([`DESKTOP_CONSENT_PATHS`]). The second
+/// element lists, in table order and once each, the setting ids the backup
+/// had on and that stay off here (a `setting` step each).
+fn merge_desktop(local: Option<&[u8]>, incoming: &[u8]) -> Option<(Vec<u8>, Vec<&'static str>)> {
+    let local: serde_json::Map<String, serde_json::Value> = match local {
         Some(bytes) => serde_json::from_slice(bytes).ok()?,
         None => serde_json::Map::new(),
     };
+    let mut merged = local.clone();
     let incoming: serde_json::Map<String, serde_json::Value> =
         serde_json::from_slice(incoming).ok()?;
+    let backup = incoming.clone();
     for (key, value) in incoming {
         // This machine's members and paths stay as they are here: a
         // crafted or foreign backup could otherwise move every store.
@@ -954,7 +963,175 @@ fn merge_desktop(local: Option<&[u8]>, incoming: &[u8]) -> Option<Vec<u8>> {
         }
         merged.insert(key, value);
     }
-    serde_json::to_vec_pretty(&merged).ok()
+    // PRD 0046 RF3.1 (owner decision 2026-11-18): a restore never turns on
+    // anything that exposes data or needs consent. Each listed path takes
+    // this computer's value, and an absent one stays absent (off or "ask").
+    for (path, _) in DESKTOP_CONSENT_PATHS {
+        remove_path(&mut merged, path);
+        if let Some(value) = json_path(&local, path) {
+            insert_path(&mut merged, path, value.clone());
+        }
+    }
+    let mut held = Vec::new();
+    for (path, id) in DESKTOP_CONSENT_PATHS {
+        if consent_on(path, json_path(&backup, path))
+            && !consent_on(path, json_path(&merged, path))
+            && !held.contains(&id)
+        {
+            held.push(id);
+        }
+    }
+    Some((serde_json::to_vec_pretty(&merged).ok()?, held))
+}
+
+/// PRD 0046 RF3.1: the members of `desktop.json` that expose data or are a
+/// consent of this computer, each with the setting id it reports under (in
+/// the order of the Settings pages). A restore keeps this computer's value
+/// of each one, and an absent value stays absent: every one is off, or an
+/// unanswered question, when absent (`ServePrefs`, `UpdaterPrefs`,
+/// `DetectPrefs`, `WidgetPrefs`, `status_queries`, `hooks`, core
+/// `NotifyPrefs` and `AlertSettings`). Sub-choices that expose nothing (the
+/// port, thresholds, leads, quiet hours, the digest day) still travel, so
+/// turning a switch back on finds the person's choices.
+const DESKTOP_CONSENT_PATHS: [(&[&str], &str); 17] = [
+    (&["serve", "enabled"], "serve"),
+    (&["serve", "allow_browsers"], "serve_browsers"),
+    // A foreign origin is never kept for later, either.
+    (&["serve", "allowed_origins"], "serve_browsers"),
+    (&["serve", "stats"], "serve_stats"),
+    (&["serve", "access_log"], "serve_access_log"),
+    (&["updater", "automatic"], "updates"),
+    // Absent, this computer asks its own one-time question; an explicit
+    // `automatic: false` would count as answered.
+    (&["updater", "consent_answered"], "updates"),
+    (&["updater", "last_check"], "updates"),
+    (&["detect", "enabled"], "detect"),
+    (&["widgets", "enabled"], "widgets"),
+    (&["widgets", "include_identity"], "widget_identity"),
+    (&["status_queries"], "status_queries"),
+    (&["notify", "enabled"], "notify"),
+    (&["notify", "private"], "notify_names"),
+    (&["notify", "digest", "enabled"], "digest"),
+    (&["alerts", "enabled"], "alerts"),
+    (&["hooks"], "hooks"),
+];
+
+/// The value at `path` in `object`, if every step is an object member.
+fn json_path<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    path: &[&str],
+) -> Option<&'a serde_json::Value> {
+    let (first, rest) = path.split_first()?;
+    rest.iter()
+        .try_fold(object.get(*first)?, |value, key| value.get(*key))
+}
+
+/// `object` without the member at `path` (nothing when it is not there).
+fn remove_path(object: &mut serde_json::Map<String, serde_json::Value>, path: &[&str]) {
+    match path {
+        [] => {}
+        [last] => {
+            object.remove(*last);
+        }
+        [first, rest @ ..] => {
+            if let Some(inner) = object
+                .get_mut(*first)
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                remove_path(inner, rest);
+            }
+        }
+    }
+}
+
+/// `object` with `value` at `path`, creating (or replacing a non-object
+/// with) the objects on the way.
+fn insert_path(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    path: &[&str],
+    value: serde_json::Value,
+) {
+    match path {
+        [] => {}
+        [last] => {
+            object.insert((*last).to_owned(), value);
+        }
+        [first, rest @ ..] => {
+            let inner = object
+                .entry((*first).to_owned())
+                .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+            if !inner.is_object() {
+                *inner = serde_json::Value::Object(serde_json::Map::new());
+            }
+            if let Some(inner) = inner.as_object_mut() {
+                insert_path(inner, rest, value);
+            }
+        }
+    }
+}
+
+/// Whether the value at `path` turns its setting on: `true`; for the
+/// access log any mode but `off`; for `notify.private`, `false` (names
+/// shown); for the origins a non-empty list. The update consent and the
+/// last check date say nothing on their own (`updater.automatic` does).
+fn consent_on(path: &[&str], value: Option<&serde_json::Value>) -> bool {
+    let Some(value) = value else {
+        return false;
+    };
+    match path.last().copied() {
+        Some("access_log") => value.as_str().is_some_and(|mode| mode != "off"),
+        Some("private") => value.as_bool() == Some(false),
+        Some("allowed_origins") => value.as_array().is_some_and(|list| !list.is_empty()),
+        Some("consent_answered" | "last_check") => false,
+        _ => value.as_bool() == Some(true),
+    }
+}
+
+/// The English name of each setting id of [`DESKTOP_CONSENT_PATHS`], as its
+/// Settings page writes it.
+fn setting_name(id: &str) -> Localized {
+    let (key, english) = match id {
+        "serve" => ("bundle.setting.serve", "Serve usage locally"),
+        "serve_browsers" => ("bundle.setting.serve_browsers", "Allow web browsers"),
+        "serve_stats" => ("bundle.setting.serve_stats", "Share usage statistics"),
+        "serve_access_log" => ("bundle.setting.serve_access_log", "Access log"),
+        "updates" => ("bundle.setting.updates", "Check for updates daily"),
+        "detect" => ("bundle.setting.detect", "Detect local AI tools"),
+        "widgets" => ("bundle.setting.widgets", "Publish widget data"),
+        "widget_identity" => (
+            "bundle.setting.widget_identity",
+            "Include identity (e-mail)",
+        ),
+        "status_queries" => (
+            "bundle.setting.status_queries",
+            "Check provider status pages",
+        ),
+        "notify" => ("bundle.setting.notify", "Notify quota reset"),
+        "notify_names" => (
+            "bundle.setting.notify_names",
+            "Show account names in notifications",
+        ),
+        "digest" => ("bundle.setting.digest", "Weekly digest"),
+        "alerts" => ("bundle.setting.alerts", "Usage alerts"),
+        _ => ("bundle.setting.hooks", "Run hooks"),
+    };
+    Localized::fixed(key, english)
+}
+
+/// RF3.3: a switch the backup had on and that stays off on this computer.
+fn setting_need(id: &'static str) -> (Localized, NextStep) {
+    (
+        Localized::with_params(
+            "bundle.need.setting",
+            params([("setting", ParamValue::l10n(setting_name(id)))]),
+            "{setting} was on in the backup and stays off on this computer; turn it on in Settings if you want it.",
+        ),
+        NextStep {
+            kind: "setting",
+            account: 0,
+            provider: id.to_owned(),
+        },
+    )
 }
 
 fn account_changes(local: Option<&[u8]>, incoming: &[u8]) -> Option<AccountChanges> {
@@ -1078,6 +1255,8 @@ pub fn plan(
     }
     let mut unplaced = Vec::new();
     let mut newer = Vec::new();
+    // PRD 0046 RF3.1: the switches the backup had on that stay off here.
+    let mut held_settings = Vec::new();
     for (path, bytes) in &bundle.files {
         if only.is_some_and(|part| !part.holds(path)) {
             continue;
@@ -1119,7 +1298,10 @@ pub fn plan(
             continue;
         }
         let new = if path == "prefs/desktop.json" {
-            merge_desktop(current.as_deref(), bytes).ok_or(BundleError::Invalid)?
+            let (merged, held) =
+                merge_desktop(current.as_deref(), bytes).ok_or(BundleError::Invalid)?;
+            held_settings = held;
+            merged
         } else if path == COST_SETTINGS {
             merge_cost_settings(current.as_deref(), bytes).ok_or(BundleError::Invalid)?
         } else {
@@ -1168,6 +1350,7 @@ pub fn plan(
             .map(|desktop| channel_needs(desktop))
             .unwrap_or_default(),
     );
+    steps.extend(held_settings.into_iter().map(setting_need));
     if bundle.files.contains_key(COST_SETTINGS)
         && only.is_none_or(|part| part == Part::Prefs)
         && locations.data_root.is_some()
@@ -1388,3 +1571,6 @@ impl Plan {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod consent_tests;
