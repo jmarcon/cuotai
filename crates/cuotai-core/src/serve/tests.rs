@@ -2262,6 +2262,7 @@ fn leaky_stats() -> StatsAnswer {
                 average_peak: Some(0.5),
                 days_with_data: 1,
                 days: vec![peak.clone()],
+                extra_spent: None,
             })
             .collect(),
         daily: vec![peak],

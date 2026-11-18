@@ -2744,6 +2744,7 @@ mod tests {
                     average_peak: Some(0.4),
                     days_with_data: 1,
                     days: days.clone(),
+                    extra_spent: None,
                 })
                 .collect(),
             daily: days,

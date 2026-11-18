@@ -3,11 +3,11 @@ use crate::config_file::ConfigIdentity;
 use crate::model::{Billing, Metric, MetricKind, MetricWindow, Provider};
 use crate::resets::Ledger;
 
-fn at(day: u32, hour: u32) -> DateTime<Utc> {
+pub(super) fn at(day: u32, hour: u32) -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 10, day, hour, 0, 0).unwrap()
 }
 
-fn daily(used: f64, limit: f64, day: u32) -> Metric {
+pub(super) fn daily(used: f64, limit: f64, day: u32) -> Metric {
     Metric {
         label: "Diário".into(),
         used: Some(used),
@@ -25,7 +25,7 @@ fn daily(used: f64, limit: f64, day: u32) -> Metric {
     }
 }
 
-fn account() -> Account {
+pub(super) fn account() -> Account {
     Account {
         name: "Work".into(),
         provider: Provider::Claude,
@@ -35,7 +35,7 @@ fn account() -> Account {
 
 /// A fixture week (Mon 2026-10-19 … Sun 2026-10-25): use climbs every
 /// morning, Thursday hits the limit, the limit moves on Friday.
-fn fixture(dir: &std::path::Path) -> HistoryStore {
+pub(super) fn fixture(dir: &std::path::Path) -> HistoryStore {
     let store = HistoryStore::new(
         dir.join("history.sqlite3"),
         &ConfigIdentity::Explicit("digest".into()),

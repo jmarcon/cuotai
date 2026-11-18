@@ -77,6 +77,12 @@ pub struct AccountStats {
     pub days_with_data: u32,
     /// One entry per day of the range, oldest first.
     pub days: Vec<DayPeak>,
+    /// RF1.5 for this account alone, in first-seen order; `None` when no
+    /// overage amount was recorded. Not serialized (`--stats --json` and
+    /// `/v1/stats` carry the overall figure only); the weekly digest
+    /// recomputes a channel's totals from it (PRD 0043 G3).
+    #[serde(skip)]
+    pub extra_spent: Option<Vec<ExtraSpent>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -163,10 +169,36 @@ pub fn summarize<Tz: TimeZone>(
     tz: &Tz,
 ) -> Result<StatsSummary, HistoryError> {
     let today = now.with_timezone(tz).date_naive();
-    let dates: Vec<NaiveDate> = (0..i64::from(range.days()))
-        .rev()
-        .map(|back| today - TimeDelta::days(back))
+    let first_day = today - TimeDelta::days(i64::from(range.days()) - 1);
+    let mut summary = summarize_between(store, accounts, first_day, today, now, tz)?;
+    summary.range = range;
+    Ok(summary)
+}
+
+/// Statistics of `accounts` over the local days `first_day..=last_day`,
+/// counting what was recorded up to `end` (PRD 0043 G2: the weekly digest
+/// covers its own week exactly, not the 7 days before `end`). `last_day`
+/// is "today" for the day labels. [`StatsSummary::range`] is the shortest
+/// [`StatsRange`] that holds the days. Reads the history only.
+pub fn summarize_between<Tz: TimeZone>(
+    store: &HistoryStore,
+    accounts: &[Account],
+    first_day: NaiveDate,
+    last_day: NaiveDate,
+    end: DateTime<Utc>,
+    tz: &Tz,
+) -> Result<StatsSummary, HistoryError> {
+    let now = end;
+    let today = last_day;
+    let span = (last_day - first_day).num_days().max(0);
+    let dates: Vec<NaiveDate> = (0..=span)
+        .map(|offset| first_day + TimeDelta::days(offset))
         .collect();
+    let range = if dates.len() <= StatsRange::Days7.days() as usize {
+        StatsRange::Days7
+    } else {
+        StatsRange::Days30
+    };
     let range_start = day_start(tz, dates[0]);
     let day_index = |at: DateTime<Utc>| {
         let date = at.with_timezone(tz).date_naive();
@@ -179,6 +211,7 @@ pub fn summarize<Tz: TimeZone>(
     for (account_index, account) in accounts.iter().enumerate() {
         let mut best: Vec<Option<f64>> = vec![None; dates.len()];
         let mut hits = 0;
+        let mut own_extra: Vec<ExtraSpent> = Vec::new();
         let histories = store.account_history(account, range_start - LOOKBACK..=now)?;
         for metric in histories.iter().filter(|m| m.billing == Billing::Overage) {
             // Highest amount of each billing cycle seen within the range. A
@@ -206,12 +239,14 @@ pub fn summarize<Tz: TimeZone>(
                 .iter()
                 .any(|p| p.taken_at >= range_start && known(p.used));
             if seen {
-                match extra.iter_mut().find(|e| e.unit == metric.unit) {
-                    Some(entry) => entry.amount += spent,
-                    None => extra.push(ExtraSpent {
-                        unit: metric.unit.clone(),
-                        amount: spent,
-                    }),
+                for sums in [&mut extra, &mut own_extra] {
+                    match sums.iter_mut().find(|e| e.unit == metric.unit) {
+                        Some(entry) => entry.amount += spent,
+                        None => sums.push(ExtraSpent {
+                            unit: metric.unit.clone(),
+                            amount: spent,
+                        }),
+                    }
                 }
             }
         }
@@ -269,6 +304,7 @@ pub fn summarize<Tz: TimeZone>(
             average_peak: mean(best.iter().flatten().copied()),
             days_with_data: best.iter().flatten().count() as u32,
             days,
+            extra_spent: (!own_extra.is_empty()).then_some(own_extra),
         });
     }
 

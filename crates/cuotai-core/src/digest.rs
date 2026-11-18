@@ -17,7 +17,7 @@
 use crate::history::{HistoryError, HistoryStore};
 use crate::insights::{DaysOff, DigestPrefs, LimitChange, RhythmQuery, RhythmRange};
 use crate::model::{Account, Report};
-use crate::stats::{ExtraSpent, StatsRange};
+use crate::stats::ExtraSpent;
 use crate::text::{params, Localized, ParamValue};
 use chrono::{DateTime, Datelike, NaiveDate, TimeDelta, TimeZone, Utc};
 use serde::Serialize;
@@ -166,16 +166,15 @@ pub fn weekly<Tz: TimeZone>(
         DigestWeek::Current => (this_monday, today, now),
     };
     let start = crate::budget::local_midnight(first_day, tz).unwrap_or(end);
-    // PRD 0026 statistics over the 7 days ending at `end`, trimmed to the week.
-    let summary = crate::stats::summarize(store, accounts, StatsRange::Days7, end, tz)?;
-    let in_week = |day: &crate::stats::DayPeak| day.day >= first_day && day.day <= last_day;
+    // PRD 0026 statistics over exactly the week's days, up to `end` (hits
+    // and extra spent included: G2, the current week starts on Monday).
+    let summary = crate::stats::summarize_between(store, accounts, first_day, last_day, end, tz)?;
     let mut out_accounts = Vec::new();
     let mut recorded = false;
     for (index, (account, stats)) in accounts.iter().zip(&summary.accounts).enumerate() {
-        let days: Vec<crate::stats::DayPeak> =
-            stats.days.iter().filter(|d| in_week(d)).cloned().collect();
+        let days = &stats.days;
         recorded |= days.iter().any(|d| d.share.is_some());
-        let (heaviest, lightest) = extremes(&days);
+        let (heaviest, lightest) = extremes(days);
         let query = RhythmQuery {
             scope: Some(index),
             metric: None,
@@ -236,13 +235,7 @@ pub fn weekly<Tz: TimeZone>(
             allowances,
         });
     }
-    let overall: Vec<crate::stats::DayPeak> = summary
-        .daily
-        .iter()
-        .filter(|d| in_week(d))
-        .cloned()
-        .collect();
-    let (heaviest, lightest) = extremes(&overall);
+    let (heaviest, lightest) = extremes(&summary.daily);
     let query = RhythmQuery {
         scope: None,
         metric: None,
@@ -545,3 +538,6 @@ pub fn due_slot<Tz: TimeZone>(
 #[cfg(test)]
 #[path = "digest_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "digest_week_tests.rs"]
+mod week_tests;
