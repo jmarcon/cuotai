@@ -52,7 +52,7 @@ assert.match(main, /const removeExtensionAccount = \(index, label, secretsOf = n
 // PRD 0050 RF2.5: approving sends only the id; the shell discloses, asks natively and keeps the candidate.
 assert.match(lib, /export const enableExtension = \(id\) => call\("enable_extension", \{ id \}\)/);
 assert.doesNotMatch(dialog, /candidate/i, "the webview never holds an extension candidate");
-assert.match(shell, /async fn enable_extension\(\s*app: AppHandle,\s*b: Shared<'_>,\s*id: String,/, "the command takes no candidate");
+assert.match(shell, /async fn enable_extension\(\s*(?:window: WebviewWindow,\s*)?app: AppHandle,\s*b: Shared<'_>,\s*id: String,/, "the command takes no candidate");
 // PRD 0050 RF8.3: a credential-name risk line stands apart (warning class and a note role, not color alone).
 assert.match(dialog, /startsWith\("extensions\.consent\.credential_risk"\)/);
 assert.match(dialog, /"hint warn-txt extension-risk"/);

@@ -57,7 +57,12 @@ const libRs = await readFile(new URL("../apps/desktop/src-tauri/src/lib.rs", imp
 assert.match(libRs, /"account" \| "open" => show_main_window\(app\.clone\(\)\)/, "the tray menu's Open uses the same command");
 assert.match(libRs, /\n\s+show_main_window,\n/, "the command is registered");
 const scopes = await readFile(new URL("../apps/desktop/src-tauri/src/window_scope.rs", import.meta.url), "utf8");
-assert.doesNotMatch(scopes, /show_main_window/, "the command is not refused to the tray");
+// PRD 0050 re-validation S-02: every command is classified; this one sits in ANY_WINDOW, never in a scope.
+const scoped = scopes.slice(scopes.indexOf("pub(crate) const SCOPED"), scopes.indexOf("pub(crate) const ANY_WINDOW"));
+const anyWindow = scopes.slice(scopes.indexOf("pub(crate) const ANY_WINDOW"));
+assert.ok(scoped.length > 0 && anyWindow.length > 0, "the window-scope tables are found");
+assert.doesNotMatch(scoped, /"show_main_window"/, "the command is not refused to the tray");
+assert.match(anyWindow, /"show_main_window"/, "the command is classified for any window");
 const i18nDir = new URL("../apps/desktop/ui/locales/", import.meta.url);
 const { readdir } = await import("node:fs/promises");
 const catalogs = (await readdir(i18nDir)).filter((f) => /^[a-z]{2}(-[A-Z]{2})?\.json$/.test(f));
