@@ -262,7 +262,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -1305,8 +1306,6 @@
   "field.zed.user_id.label": "Zed 用户的数字 ID",
   "field.meta.team_id.label": "团队 ID（可选）",
   "field.meta.team_id.help": "仅在使用 dev.meta.ai 会话时。留空 = 会话唯一的团队。如需选择，打开 dev.meta.ai/usage，复制地址栏中 team_id= 后面的数字。",
-  "field.meta.project_id.label": "项目 ID（可选）",
-  "field.meta.project_id.help": "仅在使用 dev.meta.ai 会话时。留空 = 整个团队。如需读取某个项目，复制 dev.meta.ai/usage 地址中 project_id= 后面的数字。",
   "field.meta.session_env.label": "dev.meta.ai 会话变量（可选）",
   "field.meta.session_env.help": "留空 = 在账户向导中通过“登录”捕获的会话（系统保险库）。如果想用变量，请填写保存 dev.meta.ai Cookie（llama_dev_sess）的变量名称；切勿在此粘贴 Cookie。",
   "history.error.export": "无法写入历史导出文件。",
@@ -1789,7 +1788,6 @@
   "note.meta.key_valid": "Meta Model API 的模型列表接受了该密钥；不消耗任何 token。",
   "note.meta.rate_limit_headers_missing": "此响应没有 `x-ratelimit-*` 标头；团队的速率限制窗口未知。",
   "note.meta.rate_limit_team": "速率限制按团队计算，由团队的所有密钥共享。",
-  "note.meta.no_usage_api": "Meta 未公开用量、支出或余额 API；请在 dev.meta.ai 控制台查看用量和账单。",
   "note.meta.no_key_session_only": "此账户没有 API 密钥；用量来自 dev.meta.ai 会话，并跳过密钥检查。",
   "note.meta.sign_in_for_usage": "Meta 未提供有文档的用量、支出或余额 API；请在账户中登录 dev.meta.ai 以读取控制台用量。",
   "note.meta.console_undocumented": "用量读取自 dev.meta.ai 控制台的内部接口；可能随时变更，恕不另行通知。",
@@ -1799,6 +1797,7 @@
   },
   "note.meta.usage_unavailable": "dev.meta.ai 控制台未返回用量；卡片仅显示密钥检查。",
   "note.meta.usage_empty": "dev.meta.ai 控制台未返回本月的用量序列；用量未知，而不是零。",
+  "note.meta.project_ignored": "已忽略项目 ID：dev.meta.ai 控制台按团队报告用量，因此卡片显示整个团队。",
   "note.router_keys.kimi_internal_route": "在 9router 中观察到的 Kimi 内部路由；可能随提供商的更改和限制而变化。",
   "note.router_keys.kimi_no_numeric_quota": "Kimi 的响应中没有数字额度区块；缺失并不意味着无限。",
   "note.router_keys.kimi_plan": "套餐：{plan}。",
@@ -2209,7 +2208,6 @@
   "query.meta.http": "Meta Model API 返回 HTTP {code}。",
   "query.meta.console_http": "dev.meta.ai 控制台返回 HTTP {code}；未读取任何内容。",
   "query.meta.team_id_invalid": "\"团队 ID\" 不是 dev.meta.ai 团队 ID；请复制用量页面地址中 team_id= 后面的数字。",
-  "query.meta.project_id_invalid": "\"项目 ID\" 不是 dev.meta.ai 项目 ID；请复制用量页面地址中 project_id= 后面的数字。",
   "query.meta.session_expired": "dev.meta.ai 会话已过期或被撤销；请在账户中重新登录。",
   "query.router_keys.kimi_access_denied": "查询返回 HTTP 403。请检查访问和权限。",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding：认证已过期。请更新令牌或 API 密钥。",

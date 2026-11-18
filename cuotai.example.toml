@@ -202,7 +202,7 @@ credential_env = "META_API_KEY"
 # "Sign in" in the desktop account wizard (session kept in the system vault), or name a
 # variable holding the `llama_dev_sess` cookie. Undocumented console interface; it may change.
 # example: meta-session
-# params = { session_env = "META_SESSION", team_id = "<team_id= of dev.meta.ai/usage>", project_id = "<optional>" }
+# params = { session_env = "META_SESSION", team_id = "<team_id= of dev.meta.ai/usage>" }
 # example-end
 
 [[accounts]]

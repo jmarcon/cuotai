@@ -224,7 +224,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1267,8 +1268,6 @@
   "field.zed.user_id.label": "ID numerik pengguna Zed",
   "field.meta.team_id.label": "ID tim (opsional)",
   "field.meta.team_id.help": "Hanya dengan sesi dev.meta.ai. Kosong = satu-satunya tim sesi. Untuk memilih, buka dev.meta.ai/usage dan salin angka setelah team_id= di bilah alamat.",
-  "field.meta.project_id.label": "ID proyek (opsional)",
-  "field.meta.project_id.help": "Hanya dengan sesi dev.meta.ai. Kosong = seluruh tim. Untuk membaca satu proyek, salin angka setelah project_id= di alamat dev.meta.ai/usage.",
   "field.meta.session_env.label": "Variabel sesi dev.meta.ai (opsional)",
   "field.meta.session_env.help": "Kosong = sesi yang ditangkap dengan \"Masuk\" di wizard akun (brankas sistem). Jika memilih variabel, isi NAMA variabel yang menyimpan cookie dev.meta.ai (llama_dev_sess); jangan pernah menempelkan cookie di sini.",
   "history.error.export": "Tidak dapat menulis ekspor riwayat.",
@@ -1751,7 +1750,6 @@
   "note.meta.key_valid": "Kunci diterima oleh daftar model Meta Model API; tidak ada token yang terpakai.",
   "note.meta.rate_limit_headers_missing": "Respons ini tidak membawa header `x-ratelimit-*`; jendela rate limit tim tidak diketahui.",
   "note.meta.rate_limit_team": "Rate limit berlaku per tim dan dipakai bersama oleh semua kunci tim.",
-  "note.meta.no_usage_api": "Meta tidak mendokumentasikan API penggunaan, pengeluaran, atau saldo; lihat penggunaan dan tagihan di konsol dev.meta.ai.",
   "note.meta.no_key_session_only": "Tidak ada kunci API untuk akun ini; pemakaian berasal dari sesi dev.meta.ai dan pemeriksaan kunci dilewati.",
   "note.meta.sign_in_for_usage": "Meta tidak mendokumentasikan API penggunaan, pengeluaran, atau saldo; masuk ke dev.meta.ai dari akun untuk membaca penggunaan konsol.",
   "note.meta.console_undocumented": "Penggunaan dibaca dari antarmuka internal konsol dev.meta.ai; dapat berubah tanpa pemberitahuan.",
@@ -1761,6 +1759,7 @@
   },
   "note.meta.usage_unavailable": "Konsol dev.meta.ai tidak mengembalikan penggunaan; kartu hanya menampilkan pemeriksaan kunci.",
   "note.meta.usage_empty": "Konsol dev.meta.ai tidak mengembalikan seri penggunaan untuk bulan ini; penggunaan tidak diketahui, bukan nol.",
+  "note.meta.project_ignored": "ID proyek diabaikan: konsol dev.meta.ai melaporkan penggunaan per tim, jadi kartu menampilkan seluruh tim.",
   "note.router_keys.kimi_internal_route": "Rute internal Kimi yang teramati di 9router; dapat berubah dan tunduk pada pembatasan penyedia.",
   "note.router_keys.kimi_no_numeric_quota": "Respons Kimi tanpa blok kuota numerik; tidak adanya data bukan berarti tanpa batas.",
   "note.router_keys.kimi_plan": "Paket: {plan}.",
@@ -2171,7 +2170,6 @@
   "query.meta.http": "Meta Model API mengembalikan HTTP {code}.",
   "query.meta.console_http": "Konsol dev.meta.ai mengembalikan HTTP {code}; tidak ada yang dibaca.",
   "query.meta.team_id_invalid": "\"ID tim\" bukan ID tim dev.meta.ai; salin angka setelah team_id= di alamat halaman penggunaan.",
-  "query.meta.project_id_invalid": "\"ID proyek\" bukan ID proyek dev.meta.ai; salin angka setelah project_id= di alamat halaman penggunaan.",
   "query.meta.session_expired": "Sesi dev.meta.ai kedaluwarsa atau dicabut; masuk lagi dari akun.",
   "query.router_keys.kimi_access_denied": "Kueri mengembalikan HTTP 403. Periksa akses dan izin.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: autentikasi kedaluwarsa. Perbarui token atau kunci API.",

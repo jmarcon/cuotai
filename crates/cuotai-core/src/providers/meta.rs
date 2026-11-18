@@ -277,18 +277,18 @@ async fn console_usage(
             }
         }
     };
-    // `project_id` stays a validated optional param, but the console's own
-    // usage request carries only the team (owner, 2026-10-27), so it is not
-    // sent.
-    if let Param::Invalid = param_id(account, "project_id") {
-        return Err(QueryError {
-            diagnostic: None,
-            status: Status::NeedsConfiguration,
-            note: Localized::fixed(
-                "query.meta.project_id_invalid",
-                "The Project ID is not a dev.meta.ai project id; copy the number after project_id= in the usage page address.",
-            ),
-        });
+    // The console's own usage request carries only the team (owner,
+    // 2026-10-27) and has no project filter, so a legacy `project_id` is
+    // ignored, never sent, and the card says so (re-validation R49-02).
+    if account
+        .params
+        .get("project_id")
+        .is_some_and(|v| !v.trim().is_empty())
+    {
+        notes.push(
+            "note.meta.project_ignored",
+            "The Project ID is ignored: the dev.meta.ai console reports usage per team, so the card shows the whole team.",
+        );
     }
     let period = MonthToDate::at(Utc::now());
     let query = usage_query(&period);
@@ -1235,16 +1235,56 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn invalid_ids_make_no_console_request() {
-        for (key, value) in [("team_id", "../x"), ("project_id", "1&a=b")] {
-            let mut extra = vec![(key, value)];
-            if key == "project_id" {
-                extra.push(("team_id", "1001"));
-            }
-            let err = console(&session_account(&extra), None, ResponseTemplate::new(200))
-                .await
-                .expect_err("invalid");
-            assert_eq!(err.status, Status::NeedsConfiguration, "{key}");
+    async fn invalid_team_id_makes_no_console_request() {
+        let err = console(
+            &session_account(&[("team_id", "../x")]),
+            None,
+            ResponseTemplate::new(200),
+        )
+        .await
+        .expect_err("invalid");
+        assert_eq!(err.status, Status::NeedsConfiguration);
+    }
+
+    /// PRD 0049 re-validation R49-02: a legacy Project ID, valid or not, is
+    /// ignored and never sent; the card says the whole team is shown.
+    #[tokio::test]
+    async fn a_legacy_project_id_is_ignored_and_noted() {
+        for project in ["2002", "1&a=b"] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/v1/models"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(models()))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/api/portal/teams/1001/usage/batch"))
+                .and(query_param_is_missing("project_id"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(zero_sample()))
+                .expect(1)
+                .mount(&server)
+                .await;
+            let http = reqwest::Client::new();
+            let ctx = Context {
+                http: &http,
+                direct: &http,
+                credentials: &KeyAndSession,
+                timeout: Duration::from_secs(5),
+            };
+            let data = fetch_at(
+                &session_account(&[("team_id", "1001"), ("project_id", project)]),
+                &ctx,
+                &format!("{}/v1/models", server.uri()),
+                &server.uri(),
+            )
+            .await
+            .expect("usage read");
+            assert!(data.metrics.iter().any(|m| m.kind == MetricKind::Spend));
+            assert!(data
+                .notes_l10n
+                .iter()
+                .any(|n| n.id == "note.meta.project_ignored"));
+            data.assert_id_free(&["1001", project, &server.uri()]);
         }
     }
 

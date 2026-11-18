@@ -102,7 +102,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -1143,7 +1144,6 @@
   "note.meta.key_valid": "Clave aceptada por el listado de modelos de Meta Model API; no se consumen tokens.",
   "note.meta.rate_limit_headers_missing": "Esta respuesta no trajo cabeceras `x-ratelimit-*`; la ventana de rate limit del equipo es desconocida.",
   "note.meta.rate_limit_team": "Los rate limits son por equipo y los comparten todas las claves del equipo.",
-  "note.meta.no_usage_api": "Meta no documenta una API de uso, gasto ni saldo; consulte el uso y la facturación en la consola dev.meta.ai.",
   "note.meta.no_key_session_only": "Esta cuenta no tiene clave de API; el uso viene de la sesión de dev.meta.ai y se omite la comprobación de la clave.",
   "note.meta.sign_in_for_usage": "Meta no documenta una API de uso, gasto ni saldo; inicie sesión en dev.meta.ai desde la cuenta para leer el uso de la consola.",
   "note.meta.console_undocumented": "Uso leído en la interfaz interna de la consola dev.meta.ai; puede cambiar sin aviso.",
@@ -1154,6 +1154,7 @@
   },
   "note.meta.usage_unavailable": "La consola dev.meta.ai no devolvió el uso; la tarjeta muestra solo la verificación de la clave.",
   "note.meta.usage_empty": "La consola de dev.meta.ai no devolvió ninguna serie de uso para este mes; el uso es desconocido, no cero.",
+  "note.meta.project_ignored": "Se ignora el ID del proyecto: la consola dev.meta.ai informa el uso por equipo, así que la tarjeta muestra todo el equipo.",
   "note.router_keys.kimi_internal_route": "Ruta interna de Kimi observada en 9router; sujeta a cambios y restricciones del proveedor.",
   "note.router_keys.kimi_no_numeric_quota": "Respuesta de Kimi sin bloque de cuota numérica; ausente no significa ilimitado.",
   "note.router_keys.kimi_plan": "Plan: {plan}.",
@@ -1496,7 +1497,6 @@
   "query.meta.http": "Meta Model API devolvió HTTP {code}.",
   "query.meta.console_http": "La consola dev.meta.ai devolvió HTTP {code}; no se leyó nada.",
   "query.meta.team_id_invalid": "\"ID del equipo\" no es un ID de equipo de dev.meta.ai; copie el número tras team_id= en la dirección de la página de uso.",
-  "query.meta.project_id_invalid": "\"ID del proyecto\" no es un ID de proyecto de dev.meta.ai; copie el número tras project_id= en la dirección de la página de uso.",
   "query.meta.session_expired": "Sesión de dev.meta.ai caducada o revocada; vuelva a iniciar sesión desde la cuenta.",
   "query.router_keys.kimi_access_denied": "La consulta devolvió HTTP 403. Verifique el acceso y los permisos.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: autenticación expirada. Renueve el token o la clave de API.",
@@ -2141,8 +2141,6 @@
   "field.litellm.show_both.help": "Lista separada por comas de los identificadores que siguen apareciendo fuera de la sección de LiteLLM.",
   "field.meta.team_id.label": "ID del equipo (opcional)",
   "field.meta.team_id.help": "Solo con la sesión de dev.meta.ai. Vacío = el único equipo de la sesión. Para elegir uno, abra dev.meta.ai/usage y copie el número tras team_id= en la barra de direcciones.",
-  "field.meta.project_id.label": "ID del proyecto (opcional)",
-  "field.meta.project_id.help": "Solo con la sesión de dev.meta.ai. Vacío = todo el equipo. Para leer un proyecto, copie el número tras project_id= en la dirección de dev.meta.ai/usage.",
   "field.meta.session_env.label": "Variable de la sesión de dev.meta.ai (opcional)",
   "field.meta.session_env.help": "Vacío = la sesión capturada con \"Iniciar sesión\" en el asistente de la cuenta (bóveda del sistema). Si prefiere una variable, indique el NOMBRE de la variable con la cookie de dev.meta.ai (llama_dev_sess); nunca pegue la cookie aquí.",
   "access.summary.litellm": "Presupuesto y gasto en USD por proveedor de tu proxy LiteLLM, por su ruta documentada de presupuestos por proveedor.",
