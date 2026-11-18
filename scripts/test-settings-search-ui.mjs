@@ -140,9 +140,11 @@ assert.match(css, /\.set-row-desc \{[^}]*overflow-wrap: anywhere/);
 assert.ok(!/\.set-row-desc \{[^}]*(nowrap|ellipsis)/.test(css), "row descriptions must wrap, never truncate (DS-MSG-15)");
 assert.match(css, /\.set-window :where\(textarea, select, input[^)]*\)\) \{[^}]*background: var\(--input-bg\);[^}]*color: var\(--fg\)/);
 assert.match(css, /\.set-window :where\([^{]*\):disabled \{[^}]*opacity: 0\.45/);
-assert.match(css, /\.chk \{[^}]*width: 20px;[^}]*height: 20px/);
-assert.match(css, /\.chk:checked::after \{[^}]*border: solid var\(--accent-fg\)/);
-assert.ok(!/radial-gradient/.test(css), "the check is a glyph, not a radio dot");
+// PRD 0045 re-validation (V-03): the check lives in components.css, which every window loads (the account dialog too).
+const components = await readFile(ui("css/components.css"), "utf8");
+assert.match(components, /\.chk \{[^}]*width: 20px;[^}]*height: 20px/);
+assert.match(components, /\.chk:checked::after \{[^}]*border: solid var\(--accent-fg\)/);
+assert.ok(!/radial-gradient/.test(css) && !/\.chk[^{]*\{[^}]*radial-gradient/.test(components), "the check is a glyph, not a radio dot");
 const check = await readFile(new URL("../apps/desktop/tools/ui-shots/check.mjs", import.meta.url), "utf8");
 assert.ok(!check.includes('".set-row-desc"'), "row descriptions must not be on the overflow check's allowed list");
 

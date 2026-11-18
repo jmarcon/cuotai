@@ -434,49 +434,18 @@
   transform: translateX(18px);
 }
 .sw:disabled,
-.sw[aria-disabled="true"],
-.chk:disabled {
+.sw[aria-disabled="true"] {
   opacity: 0.45;
   cursor: default;
 }
 .sw:focus-visible,
-.chk:focus-visible,
 .seg [role="radio"]:focus-visible,
 .set-info:focus-visible,
 .set-disc > summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-/* RF3.2 membership check (DS-CMP-CHK-1). */
-.chk {
-  position: relative;
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin: 0;
-  border: var(--border-w) solid var(--border);
-  border-radius: 50%;
-  background: var(--input-bg);
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
-}
-.chk:checked {
-  border-color: var(--accent);
-  background: var(--accent);
-}
-/* The check glyph: a rotated corner in --accent-fg (a check, never a radio dot; PRD 0020 re-validation V-03). */
-.chk:checked::after {
-  content: "";
-  position: absolute;
-  top: 3px;
-  left: 6px;
-  width: 5px;
-  height: 9px;
-  border: solid var(--accent-fg);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
+/* The membership check (DS-CMP-CHK-1) lives in components.css: the account dialog uses it too. */
 
 /* RF3.2 segmented control (DS-CMP-SEG-1). */
 .seg {

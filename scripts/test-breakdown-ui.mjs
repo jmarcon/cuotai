@@ -93,6 +93,21 @@ for (const locale of locales) {
   assert.ok(!html.includes("@"), `${locale}: no address`);
 }
 await i18n.setLocale?.("en-US");
+// PRD 0045 re-validation V-06 (DS-CMP-SUB-4): a spend row shows its bare amount, never the card's "Usage: …"; the capped
+// row keeps its meter; an exhausted figure keeps its word.
+{
+  const html = breakdownHtml(report(five));
+  const amounts = [...html.matchAll(/<span class="brk-amount">([^<]*)<\/span>/g)].map((m) => m[1]);
+  assert.equal(amounts.length, 4, "every uncapped row shows an amount");
+  assert.ok(amounts[0].startsWith("$412"), `the spend row's figure is its amount: ${amounts[0]}`);
+  assert.ok(amounts.every((a) => !/usage/i.test(a)), "no Usage prefix");
+  assert.equal((html.match(/class="gauge"/g) ?? []).length, 1, "the capped row keeps its meter");
+  const out = { ...capped(100, 100), remaining: 0, state: "exhausted", ratio: 0, no_cap: true };
+  const gone = breakdownHtml(report({ ...five, rows: [row("x", "Proj-X", out)], by_percent: [0] }));
+  assert.match(gone, /<span class="brk-amount">Exhausted<\/span>/);
+}
+// A reading without metrics of its own (a LiteLLM proxy: its budgets are its connections) still lists the rows.
+assert.equal((detailHtml({ ...report(five), provider: "litellm", metrics: [] }, { eye: true }).match(/data-breakdown-row=/g) ?? []).length, 5);
 assert.deepEqual(orderOf(five, "percent"), [1, 0, 2, 3, 4]);
 assert.deepEqual(orderOf(five, "spend"), [0, 1, 2, 3, 4]);
 assert.deepEqual(orderOf({ rows: five.rows, by_percent: [0] }, "percent"), [0, 1, 2, 3, 4], "a malformed order falls back to spend");

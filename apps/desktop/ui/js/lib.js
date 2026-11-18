@@ -2219,6 +2219,65 @@ if (DEMO_QUERY.has("openrouter")) {
     if (windows) DEMO_WINDOWS.set(r, windows);
   }
 }
+// PRD 0045 re-validation (V-07): `?breakdown` swaps the demo accounts for two accounts with a breakdown, shaped like the
+// backend's `BreakdownView` (the core's spend order, its percentage order, the card's "Top: …" line and the truncation
+// note): a LiteLLM proxy whose 26 virtual keys fill 24 rows plus "Others (2)" (one capped at 92 %, one exhausted, one
+// disabled with its note, one with the fallback label, a budget offered on every uncapped row), and an OpenRouter
+// management key with 5 key rows. example.com identities only; no label looks like a key.
+if (DEMO_QUERY.has("breakdown")) {
+  const usd = demoText("metric.verbatim", "USD");
+  const monthEnd = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString(); })();
+  const spendM = (used) => ({ label: "Gasto total", label_text: demoText("metric.label.total_spend", "Total spending"), used, limit: null, remaining: null,
+    unit: "USD", unit_text: usd, kind: "spend", window: null, period: null, resets_at: null, state: "available", ratio: null, uncapped: true, no_cap: false });
+  const capM = (label, id, english, used, limit) => ({ label, label_text: demoText(id, english), used, limit, remaining: Math.max(0, limit - used),
+    unit: "USD", unit_text: usd, kind: "quota", window: "monthly", period: null, resets_at: monthEnd, resets_label: demoResetsLabel(monthEnd),
+    state: used >= limit ? "exhausted" : "available", ratio: Math.max(0, (limit - used) / limit), uncapped: false, no_cap: false });
+  const DISABLED = coreNote("note.breakdown.disabled", "Disabled on the provider: it cannot be used until it is enabled again.");
+  /** One row of the view: its figure is the capped metric, else the spend; a budget is offered on an uncapped row. */
+  const row = (scope, id, label, metric, notes = []) => ({ scope, id, label: demoText("metric.verbatim", label), others: false, figure: metric,
+    metrics: [metric], notes, demo_label: label,
+    ...(metric.limit == null ? { budget_draft: { kind: "spend", label_contains: "Total spending", amount: 0, unit: "USD", period: "monthly", row: { scope, id } } } : {}) });
+  /** The backend's view of `rows` (in spend order) and the "Others" row, if any, last. */
+  const view = (rows, others) => {
+    const frac = (r) => (r.figure?.limit ? r.figure.used / r.figure.limit : null);
+    const byPercent = rows.map((_, i) => i).sort((a, b) => (frac(rows[b]) ?? -1) - (frac(rows[a]) ?? -1) || a - b);
+    // `breakdown::amount_text`: whole dollars from $100 or for a whole amount, cents otherwise.
+    const amount = (v) => (v >= 100 || Number.isInteger(v) ? v.toFixed(0) : v.toFixed(2));
+    const items = rows.slice(0, 2).map((r) => `${r.demo_label} $${amount(r.figure.used)}`).join(" · ");
+    return { rows: (others ? [...rows, others] : rows).map(({ demo_label, ...r }) => r), by_percent: others ? [...byPercent, rows.length] : byPercent,
+      top: coreNote("breakdown.top", `Top: ${items}`, { items }), alert_rows: false,
+      truncated: others ? coreNote("breakdown.truncated", `Showing the top ${rows.length} of ${rows.length + 2}; the rest are summed in Others.`,
+        { shown: String(rows.length), total: String(rows.length + 2) }) : null };
+  };
+  const NAMES = ["proj-alpha", "ci-runner", "search-api", "batch-nightly", "support-bot", "docs-site", "eval-suite", "mobile-app", "data-sync",
+    "billing-svc", "lab-notebooks", "ingest", "staging", "translator", "summarizer", "web-chat", "qa-tools", "reports", "partner-a", "partner-b",
+    "intern-sandbox", "metrics"];
+  const vk = (n) => `vk${String(n).padStart(2, "0")}`;
+  const keys = NAMES.map((name, n) => row("virtual_key", vk(n), name, spendM(Number((412 / (1 + n * 0.45)).toFixed(2)))));
+  keys[1] = row("virtual_key", vk(1), "ci-runner", capM("Orçamento da chave", "metric.label.key_budget", "Key budget", 276, 300));
+  keys[3] = row("virtual_key", vk(3), "batch-nightly", capM("Orçamento da chave", "metric.label.key_budget", "Key budget", 150, 150));
+  keys[5] = row("virtual_key", vk(5), "docs-site", spendM(keys[5].figure.used), [DISABLED]);
+  keys.push(row("virtual_key", vk(22), "Virtual key …7f3a", spendM(1.25)), row("virtual_key", vk(23), "legacy-import", spendM(0.4)));
+  const keyOthers = { scope: "virtual_key", id: "others", label: coreNote("breakdown.others", "Others (2)", { count: "2" }), others: true,
+    figure: spendM(0.35), metrics: [spendM(0.35)], notes: [] };
+  const budget = (used, limit) => [dm("budget (30d)", used, limit, 240, "spend", "monthly", "USD")];
+  const conns = [["openai", "open_ai_api", 42.5, 100], ["anthropic", "anthropic_api", 180, 200]]
+    .map(([upstream, mapped, used, limit], n) => demoConnection(`lit${n}`, upstream, upstream, mapped, budget(used, limit), {}, "gateway", "litellm"));
+  const litellm = { ...demoInstance("litellm", "gateway", conns, { host: "127.0.0.1:4000",
+    notes: [coreNote("note.litellm.summary", `${conns.length} providers with a budget in LiteLLM.`, { count: String(conns.length) })] }), breakdown: view(keys, keyOthers) };
+  const orRows = [
+    row("key", "ork1", "prod-backend", spendM(86.4)),
+    row("key", "ork2", "agents", capM("Limite da chave", "metric.label.key_limit", "Key limit", 46, 50)),
+    row("key", "ork3", "playground", spendM(12.1)),
+    row("key", "ork4", "Key …91c2", spendM(3.05), [DISABLED]),
+    row("key", "ork5", "experiments", spendM(0.8)),
+  ];
+  const balanceM = { label: "Saldo de créditos", label_text: demoText("metric.label.credit_balance", "Credit balance"), unit: "créditos",
+    unit_text: demoText("metric.unit.credits", "credits"), used: null, limit: null, remaining: 37.25, kind: "balance", window: null, period: null,
+    resets_at: null, state: "available", ratio: 0, uncapped: true, no_cap: false };
+  const openrouter = { ...dr("org@example.com", "open_router", [balanceM]), breakdown: view(orRows, null) };
+  demoReports.splice(0, demoReports.length, litellm, openrouter);
+}
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
 // `?paste-session`: the core offers the MiMo account a new paste, so the card and the details show Paste session.
 if (DEMO_QUERY.has("paste-session")) for (const r of demoReports) if (r.provider === "xiaomi_mimo") r.paste_session = true;
@@ -3584,6 +3643,20 @@ const demoOpenRouterKeys = () => ({
     label: dl("secret_input.credential.open_router.management.label", "Management key"),
     help: dl("secret_input.credential.open_router.management.help", "An OpenRouter management key: it reads the account balance and cannot make inference calls. Cuotai keeps it in the system vault and sends it only to OpenRouter.") },
 });
+// PRD 0045 RF6.3 (re-validation V-07): the demo mirror of `account_edit::breakdown_options` for the Breakdown field:
+// LiteLLM's keys and teams, OpenRouter's keys with the account product (management key), the metered reason for AWS
+// Bedrock, and the "nothing to break down" reason (field hidden) for every other draft.
+const demoBreakdownOptions = (provider, fields = []) => {
+  const mode = (kind, label, requests) => ({ kind, label: dl(`breakdown.kind.${kind}`, label),
+    requests: { id: "access.breakdown_requests", params: { count: String(requests) }, fallback: `Extra requests per refresh: up to ${requests}` } });
+  const account = (Array.isArray(fields) ? fields : []).find((f) => f.key === "product")?.choice === 1;
+  const modes = provider === "litellm" ? [mode("keys", "API keys", 3), mode("teams", "Teams", 1)]
+    : provider === "open_router" && account ? [mode("keys", "API keys", 3)] : [];
+  const reason = modes.length ? null : provider === "aws_bedrock"
+    ? dl("access.breakdown_metered", "This provider bills every query, so Cuotai offers no breakdown for it.")
+    : dl("access.breakdown_none", "This account's interface reports no keys, projects, workspaces or teams to break down; per-user data is never read.");
+  return { modes, reason };
+};
 const demoOpenRouterChoice = (key, options) => options.map(([value, text], index) => ({ id: `field.open_router.${key}.option.${value}`, index, value,
   label: dl(`field.open_router.${key}.option.${value}`, text) }));
 const demoOpenRouterSchema = (keys = demoOpenRouterKeys()) => ({ credential_kind: "env", default_env: "OPENROUTER_API_KEY", aggregator: false,
@@ -3711,7 +3784,7 @@ const demo = {
   disable_extension: async ({ id }) => ({ id, message: dl("extensions.action.disabled", `Extension ${id} disabled.`), account: null }),
   test_extension: async ({ id }) => ({ source: `extension:${id}`, status: "ready", metrics: [], notes: [], violations: [] }),
   // ponytail: demo mirror of `access` for the browser (default modes only, generic pt summary); the app asks the core.
-  draft_access: async ({ provider }) => {
+  draft_access: async ({ provider, fields = [] }) => {
     const level = demoLevelOf(provider);
     const reason = level === "unavailable" ? dlx(`access.reason.${provider}`, "demo.access.reason", "No public usage query for this credential (demo).") : null;
     return {
@@ -3720,6 +3793,7 @@ const demo = {
       notes: [dlx(`access.credential_hint.${level === "official" ? "admin_key" : "inference_key"}`, "demo.access.credential_hint", "Credencial da consulta (demo)."), ...(reason ? [reason] : [])],
       cost_advisory: provider === "aws_bedrock" ? dlx("access.cost_advisory", "demo.access.cost_advisory", "Provedor cobrado por consulta (demo).") : null,
       save_confirmation: reason && { id: "access.confirm_unavailable", params: { reason }, fallback: `${reason.fallback} The account will be saved, but it will show this reason instead of numbers.` },
+      breakdown: demoBreakdownOptions(provider, fields),
     };
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.

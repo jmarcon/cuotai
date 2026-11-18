@@ -23,9 +23,10 @@
   gap: var(--space-0);
   font-weight: 400;
 }
-/* The text fields of a form; a membership check (`.chk`, DS-CMP-CHK-1) or a switch (`.sw`) inside a `.f` keeps its own
-   shape (PRD 0044 re-validation V-02); `:where` keeps the rule as weak as before, so field overrides still win. */
-.f input:where(:not(.chk, .sw)),
+/* The text fields of a form. Any check box or radio inside a `.f` (a membership check `.chk`, DS-CMP-CHK-1, a switch
+   `.sw`, the Breakdown options) keeps its own shape: the test is the input's type, not a list of classes (PRD 0044
+   re-validation V-02, PRD 0045 re-validation V-03). `:where` keeps the rule as weak as before, so field overrides win. */
+.f input:where(:not([type="checkbox"], [type="radio"])),
 .f select {
   height: 34px;
   padding: 0 var(--space-3);
@@ -35,7 +36,7 @@
   color: var(--fg);
   font: inherit;
 }
-.f input:where(:not(.chk, .sw)):focus,
+.f input:where(:not([type="checkbox"], [type="radio"])):focus,
 .f select:focus {
   outline: 2px solid var(--focus);
   outline-offset: -1px;
@@ -95,6 +96,29 @@ fieldset.auth legend {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg-muted);
+}
+/* PRD 0045 RF6.3 (re-validation V-03): the Breakdown multi-select, framed like the Authentication group; its options
+   are DS-CMP-CHK-1 round checks stacked in a column, each with its extra requests per refresh. */
+fieldset.brk-field {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+fieldset.brk-field legend {
+  padding: 0 calc(var(--space-1) + var(--space-0));
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+#breakdown-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.brk-opt {
+  flex-wrap: wrap;
+  color: var(--fg);
 }
 label.mode {
   display: flex;

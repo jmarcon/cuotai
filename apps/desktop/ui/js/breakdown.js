@@ -16,12 +16,14 @@ export function orderOf(b, by = sortBy) {
     : b.rows.map((_, i) => i);
 }
 
-/** One DS-CMP-SUB row. A row with a cap draws the meter of its remaining share; any other row its amount. */
+/** One DS-CMP-SUB row. A row with a cap draws the meter of its remaining share; any other row its amount (DS-CMP-SUB-4:
+ *  the bare amount, never the card's "Usage: …" wording; PRD 0045 re-validation V-06). Only an exhausted figure keeps
+ *  its text ("Exhausted"). */
 function rowHtml(row, so, po, i) {
   const m = row.figure;
   const label = tl(row.label);
   const pct = m ? remainingPct(m) : null;
-  const text = m ? textualMetric(m) : null;
+  const text = m?.state === "exhausted" ? textualMetric(m) : null;
   const amount = m ? fmtAmount(m) : "—";
   const state = m?.state === "exhausted" ? "exhausted" : pct == null ? "unknown" : "fresh";
   const figure = m && text == null && pct != null

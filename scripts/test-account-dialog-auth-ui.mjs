@@ -263,4 +263,16 @@ assert.equal(await answer, "replace");
 // The dialog asks for the right thing per state: the test result's certificate, never a bare fingerprint.
 assert.match(dialog, /const offer = result\.ok \? null : result\.certificate;/);
 assert.match(dialog, /\["trust", "replace"\]\.includes\(await confirmCertificate\(offer\)\)/);
+// PRD 0045 re-validation (V-03): each Breakdown option is a DS-CMP-CHK-1 round check (`input.chk` inside `label.check`)
+// in the framed `fieldset.brk-field`, not a consent-style row; the form's field rule leaves every check box alone.
+assert.match(dialog, /<fieldset class="f brk-field" data-field="breakdown" id="breakdown-box" hidden>/);
+assert.match(dialog, /`<label class="check brk-opt"><input type="checkbox" class="chk" data-breakdown value="\$\{esc\(m\.kind\)\}"/);
+assert.doesNotMatch(dialog, /class="extension-confirm"><input type="checkbox" data-breakdown/);
+const dialogCss = await readFile(ui("css/dialog.css"), "utf8");
+assert.match(dialogCss, /^\.f input:where\(:not\(\[type="checkbox"\], \[type="radio"\]\)\),$/m);
+assert.match(dialogCss, /^\.f input:where\(:not\(\[type="checkbox"\], \[type="radio"\]\)\):focus,$/m);
+assert.doesNotMatch(dialogCss, /:not\(\.chk/);
+// The round check is shared: components.css (loaded by every window) draws it, settings.css no longer does.
+assert.match(await readFile(ui("css/components.css"), "utf8"), /^\.chk \{\n[^}]*width: 20px;[^}]*border-radius: 50%;/m);
+assert.doesNotMatch(await readFile(ui("css/settings.css"), "utf8"), /^\.chk[ :{,]/m);
 console.log("account dialog auth UI: ok");

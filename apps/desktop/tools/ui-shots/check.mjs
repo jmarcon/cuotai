@@ -202,6 +202,13 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["dialog-add-9router", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]']],
   ["dialog-add-litellm", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="litellm"]']],
   ["dialog-add-9router-warn", "index.html?aggtest=locked", 1200, 820, {}, ["[data-add]", '.pick[data-provider="nine_router"]', "#aggregator-test"]],
+  // PRD 0045 re-validation (V-07): the Breakdown (`?breakdown`: a LiteLLM proxy with 24 key rows plus Others, an
+  // OpenRouter management key with 5): the proxy's details, the OpenRouter rows in the 380 px popover and the row's
+  // "Top: …" line in the Detailed preset (the account rows draw it; the main window's cards have no such line).
+  // `dialog-add-litellm` and `dialog-add-bedrock` draw the Breakdown field.
+  ["details-breakdown", "index.html?breakdown", 1200, 820, {}, '.agg-section[data-card="litellm::gateway"] .agg-head [data-details]'],
+  ["tray-breakdown", "tray.html?breakdown", 380, 600, {}, '[data-open="open_router::org@example.com"]'],
+  ["card-breakdown-detailed", "tray.html?breakdown&rows=detailed", 380, 600, {}],
   // Aggregator instances of every size (`?agg=`): none, 12 (a duplicate and one off), 40 (long labels), an exhausted
   // pool and a LiteLLM proxy; the 12-connection instance expanded in the popover, its details and a connection's.
   ["main-agg-0", "index.html?agg=0,1", 1200, 820, {}],
