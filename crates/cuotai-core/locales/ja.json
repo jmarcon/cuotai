@@ -262,7 +262,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2901,6 +2902,7 @@
   "vault.remove.not_indexed": "そのキーは保存済み認証情報の一覧にありません。",
   "bundle.need.cost_sources": "復元後もローカルコストのソースはオフのままです。このコンピューターで1つずつオンにしてください（設定 › ローカルコスト、または cuotai --cost-sources）。",
   "bundle.need.setting": "{setting} はバックアップではオンでしたが、このコンピューターではオフのままです。必要な場合は設定でオンにしてください。",
+  "bundle.need.env_invalid": "アカウント {number}（{provider}）の変数名を修正してください。有効ではありません。",
   "bundle.setting.serve": "使用量をローカルで提供",
   "bundle.setting.serve_browsers": "Web ブラウザーを許可",
   "bundle.setting.serve_stats": "使用統計を共有",

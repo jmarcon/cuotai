@@ -1134,7 +1134,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -3830,6 +3831,7 @@
   "vault.remove.not_indexed": "Cette clé ne figure pas dans la liste des identifiants enregistrés.",
   "bundle.need.cost_sources": "Les sources de coût local restent désactivées après une restauration : activez chacune sur cet ordinateur (Réglages › Coût local ou cuotai --cost-sources).",
   "bundle.need.setting": "{setting} était activé dans la sauvegarde et reste désactivé sur cet ordinateur ; activez-le dans les Réglages si vous le souhaitez.",
+  "bundle.need.env_invalid": "Corrigez le nom de variable du compte {number} ({provider}), qui n’est pas valide.",
   "bundle.setting.serve": "Servir l’utilisation en local",
   "bundle.setting.serve_browsers": "Autoriser les navigateurs web",
   "bundle.setting.serve_stats": "Partager les statistiques d’utilisation",

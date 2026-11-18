@@ -143,6 +143,15 @@ fn action_label(action: Action, locale: &str) -> &'static str {
     }
 }
 
+/// One value of a backup as the terminal shows it: without control, bidi
+/// or direction-mark characters (PRD 0046 M-01). Applied field by field,
+/// never to a whole text, whose line breaks are control characters too;
+/// every interpolated value of the plan, the prompts and the host lines
+/// goes through it.
+fn shown(value: &str) -> std::borrow::Cow<'_, str> {
+    cuotai_core::text::strip_disguising(value)
+}
+
 pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
     let mut text = l10n::trf_in(
         locale,
@@ -150,8 +159,8 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
         "Restore plan for {path} (made {date} by Cuotai {version}):",
         &[
             ("path", &file.display()),
-            ("date", &plan.created_at),
-            ("version", &plan.cuotai_version),
+            ("date", &shown(&plan.created_at)),
+            ("version", &shown(&plan.cuotai_version)),
         ],
     ) + "\n";
     if plan.items.is_empty() {
@@ -162,8 +171,8 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
         text += &format!(
             "  {:<10} {} → {}\n",
             action_label(item.action, locale),
-            item.path,
-            item.target
+            shown(&item.path),
+            shown(&item.target)
         );
         if let Some(merge) = &item.merge {
             text += "             ";
@@ -200,7 +209,7 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
         );
         text.push('\n');
         for host in &plan.hosts {
-            text += &format!("  ! {}\n", host.text.resolve(locale));
+            text += &format!("  ! {}\n", shown(&host.text.resolve(locale)));
         }
     }
     if !plan.unplaced.is_empty() {
@@ -211,7 +220,7 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
         );
         text.push('\n');
         for path in &plan.unplaced {
-            text += &format!("  - {path}\n");
+            text += &format!("  - {}\n", shown(path));
         }
     }
     if !plan.newer.is_empty() {
@@ -222,7 +231,7 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
         );
         text.push('\n');
         for path in &plan.newer {
-            text += &format!("  - {path}\n");
+            text += &format!("  - {}\n", shown(path));
         }
     }
     if !plan.needs.is_empty() {
@@ -233,7 +242,7 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
         );
         text.push('\n');
         for need in &plan.needs {
-            text += &format!("  • {}\n", need.resolve(locale));
+            text += &format!("  • {}\n", shown(&need.resolve(locale)));
         }
     }
     text
@@ -308,8 +317,15 @@ pub(crate) fn restore(
             "cli.restore.hosts_confirm",
             "Send these accounts' keys to the addresses above? [y/N] ",
         );
-        write!(stdout, "{question}")?;
-        stdout.flush()?;
+        // R-01: with --json, stdout holds the JSON plan only.
+        if json {
+            let mut err = io::stderr().lock();
+            write!(err, "{question}")?;
+            err.flush()?;
+        } else {
+            write!(stdout, "{question}")?;
+            stdout.flush()?;
+        }
         let mut answer = String::new();
         hosts_confirmed =
             input.read_line(&mut answer).is_ok() && answer.trim().eq_ignore_ascii_case("y");
@@ -340,9 +356,14 @@ pub(crate) fn restore(
             locale,
             "cli.restore.confirm",
             "Replace {path}? [y/N] ",
-            &[("path", &item.target)],
+            &[("path", &shown(&item.target))],
         );
-        let mut out = io::stdout().lock();
+        // R-01: with --json, stdout holds the JSON plan only.
+        let mut out: Box<dyn Write> = if json {
+            Box::new(io::stderr().lock())
+        } else {
+            Box::new(io::stdout().lock())
+        };
         let _ = write!(out, "{question}");
         let _ = out.flush();
         let mut answer = String::new();
@@ -350,8 +371,13 @@ pub(crate) fn restore(
     });
     match applied {
         Ok(count) => {
+            let mut out: Box<dyn Write> = if json {
+                Box::new(io::stderr().lock())
+            } else {
+                Box::new(stdout)
+            };
             writeln!(
-                stdout,
+                out,
                 "{}",
                 l10n::trf_in(
                     locale,
@@ -365,3 +391,7 @@ pub(crate) fn restore(
         Err(error) => fail(error),
     }
 }
+
+#[cfg(test)]
+#[path = "backup_tests.rs"]
+mod backup_tests;

@@ -236,7 +236,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2932,6 +2933,7 @@
   "vault.remove.not_indexed": "यह कुंजी सहेजे गए क्रेडेंशियल की सूची में नहीं है।",
   "bundle.need.cost_sources": "रीस्टोर के बाद स्थानीय लागत स्रोत बंद रहते हैं: इस कंप्यूटर पर हर एक को चालू करें (सेटिंग्स › स्थानीय लागत या cuotai --cost-sources)।",
   "bundle.need.setting": "{setting} बैकअप में चालू था और इस कंप्यूटर पर बंद रहता है; चाहें तो इसे सेटिंग्स में चालू करें।",
+  "bundle.need.env_invalid": "खाता {number} ({provider}) का वेरिएबल नाम ठीक करें; यह मान्य नहीं है।",
   "bundle.setting.serve": "स्थानीय सर्वर चलाएँ",
   "bundle.setting.serve_browsers": "वेब ब्राउज़र को अनुमति दें",
   "bundle.setting.serve_stats": "उपयोग के आँकड़े साझा करें",

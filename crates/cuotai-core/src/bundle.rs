@@ -290,7 +290,13 @@ impl Locations {
             ("prefs", "pricing.json", None) => {
                 self.data_root.as_ref()?.join("cost").join("pricing.json")
             }
-            ("user", folder @ ("themes" | "locales"), Some(name)) if safe_name(name) => {
+            // The same rule as the backup side: a theme is `.css`, a
+            // language `.json` (PRD 0046 L-01).
+            ("user", folder @ ("themes" | "locales"), Some(name))
+                if safe_name(name)
+                    && Path::new(name).extension().and_then(|e| e.to_str())
+                        == Some(user_extension(folder)) =>
+            {
                 self.user_dir.as_ref()?.join(folder).join(name)
             }
             _ => return None,
@@ -316,13 +322,38 @@ fn allowed(path: &str) -> bool {
     path == COST_LABELS || history_id(path).is_some() || probe.target(path).is_some()
 }
 
-/// A file name of a user theme or language: one plain component.
+/// A file name of a user theme or language: one plain component that every
+/// supported system can hold and a terminal shows as it is. No control,
+/// bidi or direction-mark character ([`crate::text::strip_disguising`]),
+/// none of `/\<>:"|?*`, no leading `.`, no trailing `.` or space, and no
+/// Windows reserved stem (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`,
+/// `LPT1`–`LPT9`, alone or with an extension, in any case).
 fn safe_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or_default();
+    let reserved = ["CON", "PRN", "AUX", "NUL"]
+        .iter()
+        .any(|word| stem.eq_ignore_ascii_case(word))
+        || ["COM", "LPT"].iter().any(|word| {
+            stem.len() == 4
+                && stem.is_char_boundary(3)
+                && stem[..3].eq_ignore_ascii_case(word)
+                && matches!(stem.as_bytes()[3], b'1'..=b'9')
+        });
     !name.is_empty()
-        && name != "."
-        && name != ".."
-        && !name.contains(['/', '\\', ':', '\0'])
         && !name.starts_with('.')
+        && !name.ends_with(['.', ' '])
+        && !name.contains(['/', '\\', '<', '>', ':', '"', '|', '?', '*', '\0'])
+        && *crate::text::strip_disguising(name) == *name
+        && !reserved
+}
+
+/// The file extension of the user folder `folder` (`themes` or `locales`).
+fn user_extension(folder: &str) -> &'static str {
+    if folder == "themes" {
+        "css"
+    } else {
+        "json"
+    }
 }
 
 fn kind_of(path: &str) -> &'static str {
@@ -655,12 +686,38 @@ impl Bundle {
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .ok_or(BundleError::Invalid)?;
         let schema = value["schema"].as_u64().ok_or(BundleError::Invalid)?;
+        // An older format than any release wrote is damaged, not newer.
+        if schema < u64::from(SCHEMA) {
+            return Err(BundleError::Invalid);
+        }
         if schema != u64::from(SCHEMA) {
             return Err(BundleError::Schema { schema });
         }
         let manifest: Manifest = serde_json::from_value(value).map_err(|_| BundleError::Invalid)?;
+        // The date and version are shown in the plan: only what a release
+        // writes (an RFC 3339 date; `0.80.0` or `0.80.0 (dev abc1234,
+        // modified)`), never a terminal escape.
+        let version_char = |c: char| {
+            c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | ' ' | '(' | ')' | ',')
+        };
+        if DateTime::parse_from_rfc3339(&manifest.created_at).is_err()
+            || !(1..=64).contains(&manifest.cuotai_version.len())
+            || !manifest.cuotai_version.chars().all(version_char)
+        {
+            return Err(BundleError::Invalid);
+        }
         let listed: BTreeSet<&str> = manifest.files.iter().map(|e| e.path.as_str()).collect();
         if listed.len() != manifest.files.len() || listed.len() != files.len() {
+            return Err(BundleError::Invalid);
+        }
+        // Two user files that differ only in case are one file on macOS and
+        // Windows (PRD 0046 L-02).
+        let folded: BTreeSet<String> = listed
+            .iter()
+            .filter(|path| path.starts_with("user/"))
+            .map(|path| path.to_lowercase())
+            .collect();
+        if folded.len() != listed.iter().filter(|p| p.starts_with("user/")).count() {
             return Err(BundleError::Invalid);
         }
         for entry in &manifest.files {
@@ -847,8 +904,14 @@ fn channel_needs(desktop: &[u8]) -> Vec<(Localized, NextStep)> {
         .iter()
         .enumerate()
         .filter_map(|(index, channel)| {
-            let kind = channel["kind"].as_str()?;
-            let label = channel["label"].as_str().unwrap_or(kind);
+            // Only a channel this release would load: a crafted label must
+            // not reach the plan (PRD 0046 M-01).
+            let channel: crate::channels::Channel = serde_json::from_value(channel.clone()).ok()?;
+            if !crate::channels::well_formed(&channel) {
+                return None;
+            }
+            let kind = channel.kind.slug();
+            let label = channel.label.trim();
             Some((
                 Localized::with_params(
                     "bundle.need.channel",
@@ -1347,7 +1410,19 @@ fn needs(config: &[u8], var: &dyn Fn(&str) -> Option<String>) -> Vec<(Localized,
                 step("sign_in", index, account),
             ));
         } else if let Some(variable) = account.credential_env.as_deref() {
-            if var(variable).is_none_or(|value| value.is_empty()) {
+            // PRD 0047 S-06: a name that is not a usable variable name may
+            // be a pasted key or carry terminal escapes, so it is never
+            // shown; the account still needs fixing.
+            if !crate::account_edit::usable_env_name(variable.trim()) {
+                needs.push((
+                    Localized::with_params(
+                        "bundle.need.env_invalid",
+                        params(who),
+                        "Fix the variable name of account {number} ({provider}); it is not valid.",
+                    ),
+                    step("env", index, account),
+                ));
+            } else if var(variable).is_none_or(|value| value.is_empty()) {
                 let [number, provider] = who;
                 needs.push((
                     Localized::with_params(
@@ -1370,9 +1445,12 @@ pub fn plan(
     only: Option<Part>,
     var: &dyn Fn(&str) -> Option<String>,
 ) -> Result<Plan, BundleError> {
+    // A date more than five minutes ahead is not trustworthy either: it
+    // would make every local edit look older than the backup (L-03).
     let created_at = DateTime::parse_from_rfc3339(&bundle.manifest.created_at)
         .map(|at| at.with_timezone(&Utc))
-        .ok();
+        .ok()
+        .filter(|at| *at <= Utc::now() + chrono::TimeDelta::minutes(5));
     let mut items = Vec::new();
     let history = history_store(locations);
     let cost_index = locations
@@ -1425,7 +1503,8 @@ pub fn plan(
             unplaced.push(path.clone());
             continue;
         };
-        let current = match std::fs::read(&target) {
+        let target_path = resolved_target(path, &target)?;
+        let current = match std::fs::read(&target_path) {
             Ok(bytes) => Some(bytes),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(_) => {
@@ -1455,11 +1534,15 @@ pub fn plan(
         } else {
             bytes.clone()
         };
+        // Without a trustworthy date, a differing file counts as changed
+        // here, so the plan never pre-checks its replacement (L-03).
         let changed_since = || {
-            let modified = std::fs::metadata(&target).and_then(|m| m.modified()).ok();
+            let modified = std::fs::metadata(&target_path)
+                .and_then(|m| m.modified())
+                .ok();
             match (modified, created_at) {
                 (Some(modified), Some(created)) => DateTime::<Utc>::from(modified) > created,
-                _ => false,
+                _ => true,
             }
         };
         let action = match &current {
@@ -1481,7 +1564,7 @@ pub fn plan(
             accounts,
             merge: None,
             merge_with: None,
-            target_path: target,
+            target_path,
             current,
             new,
         });
@@ -1521,6 +1604,32 @@ pub fn plan(
         locations: locations.clone(),
         cost_index,
     })
+}
+
+/// Where a restore writes the bundle file `path` whose place here is
+/// `target` (PRD 0046 M-05). The accounts, hooks and user files follow a
+/// symbolic link to its destination, as [`crate::config_file::ConfigFile`]
+/// saves do, so the link stays a link. A data-folder preference that is a
+/// link is refused, as [`crate::private_fs`] refuses it; the desktop
+/// settings go through [`crate::private_fs::update_locked`], which refuses
+/// one too.
+fn resolved_target(path: &str, target: &Path) -> Result<PathBuf, BundleError> {
+    let io = || BundleError::Io {
+        path: home_relative(target),
+    };
+    if path.starts_with("config/") || path.starts_with("user/") {
+        return match std::fs::canonicalize(target) {
+            Ok(real) => Ok(real),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(target.to_path_buf()),
+            Err(_) => Err(io()),
+        };
+    }
+    if path != "prefs/desktop.json"
+        && std::fs::symlink_metadata(target).is_ok_and(|meta| meta.file_type().is_symlink())
+    {
+        return Err(io());
+    }
+    Ok(target.to_path_buf())
 }
 
 /// The identity the app gives the accounts file at `config` once it
@@ -1741,6 +1850,8 @@ impl Plan {
     }
 }
 
+#[cfg(test)]
+mod names_tests;
 #[cfg(test)]
 mod tests;
 

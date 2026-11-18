@@ -475,6 +475,25 @@ pub fn valid_env_name(value: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+/// A variable name Cuotai may show and read (PRD 0047 S-06): a
+/// [`valid_env_name`] of at most 128 bytes that is not shaped like a key
+/// ([`crate::bundle::looks_secret`], `redact::has_key_prefix`) and has no `_`-separated segment of 20
+/// or more characters mixing ASCII lowercase letters and digits. Real names
+/// separate words with `_`; opaque keys do not. A name that fails is never
+/// repeated back, since it may be a pasted key.
+pub fn usable_env_name(value: &str) -> bool {
+    let opaque = |segment: &str| {
+        segment.len() >= 20
+            && segment.bytes().any(|b| b.is_ascii_lowercase())
+            && segment.bytes().any(|b| b.is_ascii_digit())
+    };
+    valid_env_name(value)
+        && value.len() <= 128
+        && !crate::bundle::looks_secret(value)
+        && !crate::diagnostics::redact::has_key_prefix(value)
+        && !value.split('_').any(opaque)
+}
+
 /// Keys managed by the editor: stripped from the cloned `params` on every
 /// save so they get re-written from the current form. Includes native-login
 /// exclusive keys (region/auth_method/...) — empty in env mode until a new

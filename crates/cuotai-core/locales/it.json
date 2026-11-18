@@ -95,7 +95,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -2791,6 +2792,7 @@
   "vault.remove.not_indexed": "Questa chiave non è nell'elenco delle credenziali salvate.",
   "bundle.need.cost_sources": "Le fonti di costo locale restano spente dopo un ripristino: accendi ciascuna su questo computer (Impostazioni › Costo locale o cuotai --cost-sources).",
   "bundle.need.setting": "{setting} era attivo nel backup e resta spento su questo computer; attivalo nelle Impostazioni se lo desideri.",
+  "bundle.need.env_invalid": "Correggi il nome della variabile dell'account {number} ({provider}); non è valido.",
   "bundle.setting.serve": "Servi utilizzo localmente",
   "bundle.setting.serve_browsers": "Consenti i browser web",
   "bundle.setting.serve_stats": "Condividi le statistiche di utilizzo",

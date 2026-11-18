@@ -124,6 +124,7 @@ export const DESKTOP_WORDING = {
   "doctor.proxy.proxied": w("coreText.doctorProxied", "HTTPS requests go through a proxy."),
   "doctor.fix.proxy": w("coreText.doctorFixProxy", "Fix the proxy address set on this computer, then restart Cuotai."),
   "bundle.need.env": w("coreText.restoreKey", "Type the key of account {number} ({provider}) again."),
+  "bundle.need.env_invalid": w("coreText.restoreKey", "Type the key of account {number} ({provider}) again."),
   // Sign-in.
   "oauth_error.config.client_secret_name_only": LOGIN_SECRET,
   "oauth_error.google.client_secret_env_empty": LOGIN_SECRET,

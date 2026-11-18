@@ -220,7 +220,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2859,6 +2860,7 @@
   "vault.remove.not_indexed": "Khóa đó không có trong danh sách thông tin xác thực đã lưu.",
   "bundle.need.cost_sources": "Các nguồn chi phí cục bộ vẫn tắt sau khi khôi phục: hãy bật từng nguồn trên máy tính này (Cài đặt › Chi phí cục bộ hoặc cuotai --cost-sources).",
   "bundle.need.setting": "{setting} đã bật trong bản sao lưu và vẫn tắt trên máy tính này; hãy bật trong Cài đặt nếu bạn muốn.",
+  "bundle.need.env_invalid": "Sửa tên biến của tài khoản {number} ({provider}); tên này không hợp lệ.",
   "bundle.setting.serve": "Phục vụ mức sử dụng cục bộ",
   "bundle.setting.serve_browsers": "Cho phép trình duyệt web",
   "bundle.setting.serve_stats": "Chia sẻ thống kê sử dụng",

@@ -587,12 +587,13 @@ fn shown_host(url: &url::Url, host: String) -> String {
     }
 }
 
-/// Check a label: 1 to [`MAX_LABEL_CHARS`] characters, no control
-/// characters; returns it trimmed.
+/// Check a label: 1 to [`MAX_LABEL_CHARS`] characters, no control or bidi
+/// override/isolate character ([`crate::text::is_disguising`]); returns it
+/// trimmed.
 pub fn validate_label(label: &str) -> Result<String, Localized> {
     let label = label.trim();
     let chars = label.chars().count();
-    if chars == 0 || chars > MAX_LABEL_CHARS || label.chars().any(char::is_control) {
+    if chars == 0 || chars > MAX_LABEL_CHARS || label.chars().any(crate::text::is_disguising) {
         return Err(Localized::fixed(
             "channels.error.label",
             "Give the channel a name of 1 to 64 characters.",
@@ -730,7 +731,7 @@ pub fn from_document(value: &serde_json::Value) -> Vec<Channel> {
 /// is [`new_id`]'s 16 lowercase hex characters, the label passes
 /// [`validate_label`] and the host holds only host-name characters (an
 /// IPv6 address keeps its brackets).
-fn well_formed(channel: &Channel) -> bool {
+pub(crate) fn well_formed(channel: &Channel) -> bool {
     let id = channel.id.len() == 16
         && channel
             .id

@@ -269,7 +269,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -3079,6 +3080,7 @@
   "vault.remove.not_indexed": "Этого ключа нет в списке сохранённых учётных данных.",
   "bundle.need.cost_sources": "После восстановления источники локальной стоимости остаются выключенными: включите каждый на этом компьютере (Настройки › Локальная стоимость или cuotai --cost-sources).",
   "bundle.need.setting": "Параметр «{setting}» был включён в копии и остаётся выключенным на этом компьютере; при желании включите его в настройках.",
+  "bundle.need.env_invalid": "Исправьте имя переменной учётной записи {number} ({provider}); оно недопустимо.",
   "bundle.setting.serve": "Отдавать использование локально",
   "bundle.setting.serve_browsers": "Разрешить веб-браузеры",
   "bundle.setting.serve_stats": "Делиться статистикой использования",
