@@ -831,6 +831,11 @@ impl ServePrefs {
         let json = |note: cuotai_core::text::Localized| {
             serde_json::to_string(&note).unwrap_or_else(|_| note.fallback.to_string())
         };
+        // PRD 0050 RF4.1 (re-validation V-02): the token first, so the first refusal
+        // points to Generate token rather than to the origins.
+        if allow_browsers && !self.token {
+            return Err(json(ServeError::BrowserTokenRequired.l10n()));
+        }
         let entries: Vec<&str> = allowed_origins
             .iter()
             .map(|entry| entry.trim())
@@ -841,9 +846,6 @@ impl ServePrefs {
         } else {
             parse_origins(&entries).map_err(|(_, error)| json(error.l10n()))?
         };
-        if allow_browsers && !self.token {
-            return Err(json(ServeError::BrowserTokenRequired.l10n()));
-        }
         Ok(Self {
             enabled,
             port,
@@ -3091,6 +3093,14 @@ mod tests {
             error_id(base.clone().with_choices(true, 6738, true, &origin)),
             "serve.error.browser_token_required"
         );
+        // Re-validation V-02: without a token, the token is named first, whatever the origins.
+        for origins in [vec![], vec!["*".to_string()]] {
+            assert_eq!(
+                error_id(base.clone().with_choices(true, 6738, true, &origins)),
+                "serve.error.browser_token_required",
+                "{origins:?}"
+            );
+        }
         let tokened = ServePrefs {
             token: true,
             ..base

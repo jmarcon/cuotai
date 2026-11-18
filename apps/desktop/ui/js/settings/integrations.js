@@ -70,11 +70,14 @@ export function integrationHtml(sv, message = []) {
       + row({ key: "serve-access-log", label: te("settings.serve.accessLog.title"), info: te("settings.serve.accessLog.help"), msg: "serve-access-log-msg",
         desc: sv.access_log_bytes > 0 ? te("settings.serve.accessLog.size", { size: fmtBytes(sv.access_log_bytes) }) : te("settings.serve.accessLog.empty"),
         control: (a) => seg("serve-access-log", ["off", "errors", "all"].map((mode) => [mode, te(`settings.serve.accessLog.${mode}`)]), sv.access_log ?? "off", a),
-        body: buttons(`<button class="btn sm danger-btn" data-serve-access-log-erase ${sv.access_log_bytes > 0 ? "" : "disabled"}>${icon("trash")} ${te("settings.serve.accessLog.erase")}</button>`) })
+        // Re-validation V-01 (DS-CMP-BTN-5): with nothing recorded, Erase log stays focusable and says why.
+        body: buttons(`<button class="btn sm danger-btn${sv.access_log_bytes > 0 ? "" : " is-disabled"}" data-serve-access-log-erase${sv.access_log_bytes > 0 ? "" : ` aria-disabled="true" title="${te("settings.serve.accessLog.empty")}"`}>${icon("trash")} ${te("settings.serve.accessLog.erase")}</button>`) })
       // PRD 0050 RF4: browsers need the token and the exact origins of the user's pages; the core validates both.
       + row({ key: "browsers", label: te("settings.serve.browsers"), info: te("settings.serve.browsersHelp"), msg: "serve-browsers-msg",
         desc: !sv.token && !sv.allow_browsers ? te("settings.serve.browsersNeedsToken") : "",
-        control: (a) => sw("serve-browsers", sv.allow_browsers, a),
+        // Re-validation V-02: without a token the switch cannot be turned on; like the stats switch, it stays focusable
+        // with `aria-disabled` and points to Generate token instead of opening its warning.
+        control: (a) => sw("serve-browsers", sv.allow_browsers, a, browsersBlocked(sv) ? 'aria-disabled="true"' : ""),
         // RF5.3: the warning shows only in the state it applies to.
         body: `${sv.origins_notice ? `<p class="hint warn-txt" role="status" data-serve-origins-notice>${icon("warn")} ${te("settings.serve.origins.notice")}</p>` : ""}
         ${sv.allow_browsers ? `<p class="hint warn-txt">${tle(sv.browsers_warning)}</p>` : ""}
@@ -92,6 +95,8 @@ export function integrationHtml(sv, message = []) {
         </div>` })), message);
 }
 
+/** "Allow web browsers" cannot be turned on without a token (turning it off always works). */
+const browsersBlocked = (sv) => !sv.token && !sv.allow_browsers;
 /** "Share usage statistics" cannot be turned on without a token (turning it off always works). */
 const statsBlocked = (sv) => !sv.token && !sv.stats;
 /** Why the stats switch is blocked or not served yet: no token, or (saved on) a server that is off. */
@@ -164,7 +169,8 @@ async function bindIntegration(sec, ctx, danger) {
     stats.onclick = (e) => { refuse(e); }; // an `on…` handler that returns false would cancel every click
     stats.onchange = (e) => { if (!refuse(e)) run(() => setServeStats(e.target.checked), "serve-stats-msg"); };
     sec.querySelector("#serve-access-log").onchange = (e) => run(() => setServeAccessLog(e.currentTarget.value), "serve-access-log-msg");
-    sec.querySelector("[data-serve-access-log-erase]").onclick = async () => {
+    sec.querySelector("[data-serve-access-log-erase]").onclick = async (e) => {
+      if (e.currentTarget.getAttribute("aria-disabled") === "true") return;
       if (!(await askDialog("serve-access-log-erase", te("settings.serve.accessLog.eraseTitle"), `<p>${te("settings.serve.accessLog.eraseBody")}</p>`,
         te("settings.serve.accessLog.erase")))) return;
       run(eraseServeAccessLog, "serve-access-log-msg");
@@ -180,7 +186,17 @@ async function bindIntegration(sec, ctx, danger) {
     if (copyUrl) copyUrl.onclick = () => navigator.clipboard?.writeText(sv.url).then(() => copied(copyUrl), () => { sec.querySelector("#serve-msg").textContent = t("settings.serve.copyFailed"); });
     // PRD 0012 RF3.3: pages are only let in after the warning was read and confirmed.
     const confirm = sec.querySelector("#serve-browsers-confirm");
-    sec.querySelector("#serve-browsers").onchange = (e) => {
+    const browsers = sec.querySelector("#serve-browsers");
+    const refuseBrowsers = (e) => {
+      if (browsers.getAttribute("aria-disabled") !== "true") return false;
+      e.preventDefault();
+      browsers.checked = sv.allow_browsers;
+      sec.querySelector("#serve-browsers-msg").textContent = t("settings.serve.browsersNeedsToken");
+      return true;
+    };
+    browsers.onclick = (e) => { refuseBrowsers(e); };
+    browsers.onchange = (e) => {
+      if (refuseBrowsers(e)) return;
       if (!e.target.checked) { run(() => setServe(sv.enabled, sv.port, false, origins()), "serve-browsers-msg"); return; }
       e.target.checked = false;
       confirm.hidden = false;

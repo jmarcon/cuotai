@@ -92,3 +92,45 @@ export function parseHtml(html) {
 /** Predicates for `parseHtml` trees: an element carrying attribute `name`, or class `c`. */
 export const hasAttr = (name) => (n) => name in n.attrs;
 export const hasClass = (c) => (n) => n.cls.includes(c);
+
+/** A stand-in for a container element whose markup a binding replaces with `innerHTML` and then wires through
+ *  `querySelector`: enough to call the handlers a binding sets (`onclick`, `onchange`) without a browser. Selectors
+ *  are one `#id`, `[attr]` or `.class`; each element keeps its handlers and state (`hidden`, `checked`, `value`,
+ *  `textContent`, attributes) until the next `innerHTML`. `focused` is the last element `focus()` was called on. */
+export function markupRoot() {
+  let tree = parseHtml("");
+  let html = "";
+  const wrapped = new Map();
+  const root = {
+    focused: null,
+    get innerHTML() { return html; },
+    set innerHTML(next) { html = next; tree = parseHtml(next); wrapped.clear(); },
+    querySelector(sel) { return wrap(tree.find(matcher(sel))); },
+    querySelectorAll(sel) { return tree.all(matcher(sel)).map(wrap); },
+    contains: () => false,
+  };
+  const matcher = (sel) => sel.startsWith("#") ? (n) => n.attrs.id === sel.slice(1)
+    : sel.startsWith("[") ? hasAttr(sel.slice(1, -1)) : hasClass(sel.slice(1));
+  const wrap = (node) => {
+    if (!node) return null;
+    if (wrapped.has(node)) return wrapped.get(node);
+    const attrs = { ...node.attrs };
+    const el = {
+      node, onclick: null, onchange: null,
+      hidden: "hidden" in attrs, checked: "checked" in attrs, disabled: "disabled" in attrs,
+      value: node.tag === "textarea" ? node.text() : attrs.value ?? "", textContent: node.text(),
+      getAttribute: (name) => attrs[name] ?? null,
+      setAttribute: (name, value) => { attrs[name] = String(value); },
+      hasAttribute: (name) => name in attrs,
+      removeAttribute: (name) => { delete attrs[name]; },
+      addEventListener: () => {},
+      focus: () => { root.focused = el; },
+      closest: () => null,
+      querySelector: () => null,
+      getClientRects: () => [],
+    };
+    wrapped.set(node, el);
+    return el;
+  };
+  return root;
+}
