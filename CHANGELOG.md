@@ -13,6 +13,41 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.0] - 2026-11-18
+
+### Added
+
+- Each macOS widget can now be edited to choose its accounts or quota, the order, what is left or what was used, a compact layout, hiding idle accounts, the reset time, the age line and, for History, the period (PRD 0014 RF3.2, RF3.3, RF3.4; 5c3e9a3).
+
+### Changed
+
+- The macOS widgets show what is left of each quota in the same colours as the app, with the quota's name, when it renews and one age line, and without the Cuotai name on the widget (PRD 0014 RF3.2, RF3.3, RF3.4; 5c3e9a3).
+- A History widget asks for its account again once after this update (PRD 0014 RF3.2, RF3.3, RF3.4; 5c3e9a3).
+
+### Fixed
+
+- The 24-hour strip under the menu-bar popover's accounts draws the bars of the hours with use; only the hours without readings showed before (PRD 0043 RF4.2; b0f0b88).
+- The `cuotai --digest --week current` command counts only this week's limit hits and extra spending; it included the days before Monday (PRD 0043 RF3.1, RF3.2; 5e199e3).
+- The Rhythm charts, `cuotai --stats --rhythm` and the digest's busiest hours no longer put the use of a gap in the readings into the hour after it (PRD 0043 RF1.1, RF1.2; 97f375a).
+- Limit-change notes no longer say "limit" twice for limit metrics, and the limit-change date, the digest's busiest hours, the digest hour picker and the text Rhythm chart follow your language's date, hour and column format (PRD 0043 RF2.2, RF3.1, RF5; 4cef036).
+- Send a test digest is unavailable, like Send a test notification, while every notification is off (PRD 0043 RF4.3; 202e746).
+- The `cuotai --channel-add` command accepts `--yes`, so a channel can be added with the address piped on standard input, as the guide shows; it was always refused (PRD 0044 RF5.2, RF5.3; fa61d80).
+- A notification channel limited to an aggregator account also receives the alerts of that aggregator's connections; it received none (PRD 0044 RF1.3; 81fa9c6).
+- The notification channels' delivery log, Send test errors and channel summaries are written in your language, the default filters read "All kinds", and "webhook" is no longer capitalised mid-sentence (PRD 0044 RF3.3, RF4.1, RF5.1, RF5.2; f9c87ef).
+- The notification channels page lines its texts up with its rows, shows round checkboxes in the channel editor (and the hooks editor), says why Add channel is unavailable at five channels, and gives Slack and Discord their own icons (PRD 0044 RF5.1; 462db1c).
+- Adding a notification channel shows the address's port and an example of a notification the channel will actually receive (PRD 0044 RF4.1, RF5.1; 7b8c181).
+- A failing notification channel no longer delays the other channels while it waits to retry (PRD 0044 RF3.1; ffac551).
+- The macOS widgets no longer draw the age over other lines or at the widget's edge, and long lists no longer cut off their last line (PRD 0014 RF3.2, RF3.3, RF3.4; 5c3e9a3).
+- Widgets on the desktop now read the same published data, so an Account widget no longer shows an older reading than the Summary beside it (PRD 0014 RF3.2, RF3.3, RF3.4; 5c3e9a3).
+
+### Security
+
+- A notification channel limited to some accounts receives the weekly digest of those accounts only; it received every account's figures and names before (PRD 0043 RF3.2; PRD 0044 RF6.1; 319a811).
+- A restored history label with hidden text-direction characters is refused, so it cannot reorder the digest, limit-change notes or channel messages (PRD 0043 RF2.2, RF3.1; 780a84c).
+- The terminal no longer shows the channel address you paste into `cuotai --channel-add`, so it stays out of the scrollback (PRD 0044 RF5.2; 9186195).
+- Notification channels scrub e-mail addresses, web addresses and key-shaped text from metric labels and from every message text, not only from the account name field (PRD 0044 RF2.2, RF6.1; 3ad8710).
+- The desktop accepts new, changed, switched or tested notification channels only from the Settings window, where the consent is shown (PRD 0044 RF4.1, RF4.3, RF7; 18e9f3d).
+
 ## [0.86.10] - 2026-11-18
 
 ### Fixed
@@ -1130,7 +1165,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.10...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.0...HEAD
+[0.87.0]: https://github.com/jmarcon/cuotai/compare/v0.86.10...v0.87.0
 [0.86.10]: https://github.com/jmarcon/cuotai/compare/v0.86.9...v0.86.10
 [0.86.9]: https://github.com/jmarcon/cuotai/compare/v0.86.8...v0.86.9
 [0.86.8]: https://github.com/jmarcon/cuotai/compare/v0.86.7...v0.86.8
