@@ -33,6 +33,8 @@ Addresses with a user name or password, a `#` fragment, more than 2048 bytes or 
 
 From the CLI: `--filter kinds=threshold,exhausted,floor --filter accounts=acc_x --filter min_severity=warning --filter names=on`.
 
+The weekly digest a channel receives covers only the accounts its filter admits, and its totals count those accounts alone.
+
 ## What is sent
 
 Every channel gets the notification's title and text in your language. When names are hidden, the text carries neither the account name nor the metric label. E-mail-shaped text and web addresses are replaced, and no credential, variable name or raw provider text is ever included.

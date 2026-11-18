@@ -6,7 +6,9 @@
 //! `quiet::digest`, the PRD 0043 digest) in the person's language, with
 //! the channel's `include_names` deciding whether account names and metric
 //! labels appear. Never a credential, variable name, URL, e-mail or raw
-//! provider text: an account name passes the log redactor first.
+//! provider text: the account name field passes the log redactor; texts
+//! pass [`scrub`]. A channel limited to some accounts receives only their
+//! notices, the weekly digest included.
 
 use super::{ChannelKind, Filters, NoticeKind, Severity};
 use crate::alerts::{self, AlertEvent, AlertKind};
@@ -262,6 +264,15 @@ where
             if !filters.admits(NoticeKind::Digest) {
                 return None;
             }
+            // A channel limited to some accounts gets the digest of those
+            // accounts only, its totals recomputed from them (PRD 0043 G3).
+            let filtered;
+            let digest: &crate::digest::Digest = if filters.accounts.is_empty() {
+                digest
+            } else {
+                filtered = digest.retain_accounts(|id| filters.admits_account(id))?;
+                &filtered
+            };
             let lines: Vec<String> = digest
                 .short_lines(locale)
                 .iter()
