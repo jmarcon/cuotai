@@ -104,6 +104,9 @@ pub struct CaptureSpec {
     /// alive and hidden for the app session; `None` keeps a private,
     /// one-shot window (PRD 0048 RF2).
     pub shared: Option<SharedSignIn>,
+    /// PRD 0048 RF3.4: the descriptor hosts this capture may load; empty:
+    /// all of the descriptor's `hosts`.
+    pub consoles: &'static [&'static str],
 }
 
 /// PRD 0056 RF1: an identity provider whose sign-in several captures may
@@ -198,7 +201,8 @@ impl SessionDescriptor {
 
     /// PRD 0048 RF3: whether the capture window may load `url` (a top-level
     /// page or a frame): HTTPS on the default port without user info, to
-    /// one of the descriptor's hosts or the capture's sign-in hosts, plus
+    /// one of the capture's consoles (the descriptor's hosts unless the
+    /// capture names its own, RF3.4) or the capture's sign-in hosts, plus
     /// the empty frames pages create (`about:blank`, `about:srcdoc`).
     /// `false` without a capture. `region` selects the capture (RF3.4).
     pub fn capture_allows_in(&self, region: Option<&str>, url: &str) -> bool {
@@ -225,7 +229,12 @@ impl SessionDescriptor {
             return false;
         };
         let host = host.to_ascii_lowercase();
-        self.hosts.contains(&host.as_str())
+        let consoles = if spec.consoles.is_empty() {
+            self.hosts
+        } else {
+            spec.consoles
+        };
+        consoles.contains(&host.as_str())
             || spec.login_hosts.contains(&host.as_str())
             || spec
                 .login_suffixes
@@ -391,6 +400,7 @@ const XIAOMI_PLATFORM_CAPTURE: CaptureSpec = CaptureSpec {
     done_when: &[],
     // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
     shared: Some(SharedSignIn::Google),
+    consoles: &[],
 };
 
 const XIAOMI_PLATFORM: SessionDescriptor = SessionDescriptor {
@@ -438,6 +448,11 @@ const ALIBABA_CODING_PLAN_INTL_CAPTURE: CaptureSpec = CaptureSpec {
     done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
     // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
     shared: Some(SharedSignIn::Google),
+    // RF3.4: the international console only, never the mainland one.
+    consoles: &[
+        "modelstudio.console.alibabacloud.com",
+        "bailian-singapore-cs.alibabacloud.com",
+    ],
 };
 
 /// PRD 0048 RF3.4: the mainland console sign-in. Evidence (2026-10-27,
@@ -468,6 +483,11 @@ const ALIBABA_CODING_PLAN_CN_CAPTURE: CaptureSpec = CaptureSpec {
     done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
     // PRD 0056 RF1: no Google sign-in on the mainland console.
     shared: None,
+    // RF3.4: the mainland console only, never the international one.
+    consoles: &[
+        "bailian.console.aliyun.com",
+        "bailian-cs.console.aliyun.com",
+    ],
 };
 
 /// The Coding Plan dashboards of `alibaba_plans` (`CODING_PLAN_DASHBOARD_*`).
@@ -530,6 +550,7 @@ const QWEN_CLOUD_CAPTURE: CaptureSpec = CaptureSpec {
     done_when: &["login_aliyunid_pk", "login_aliyunid_ticket"],
     // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
     shared: Some(SharedSignIn::Google),
+    consoles: &[],
 };
 
 /// The Token Plan usage page (owner, 2026-10-27).
@@ -587,6 +608,7 @@ const META_CONSOLE_CAPTURE: CaptureSpec = CaptureSpec {
     done_when: &[],
     // PRD 0056 RF1: the sign-in page offers Google; the capture shares it.
     shared: Some(SharedSignIn::Google),
+    consoles: &[],
 };
 
 /// The console's usage page (owner, 2026-10-27); signed out it redirects
