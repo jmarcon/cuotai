@@ -110,7 +110,7 @@
   "cli.restore.skip": "スキップ（バックアップ後にここで変更）",
   "cli.restore.unplaced": "対象外 (この構成にはここに置く場所がありません):",
   "cli.token_file_needs_mode": "--token-file には --serve または --status-line --from-server が必要です。",
-  "cli.yes_needs_action": "--yes は --history-erase または --erase-all-data と一緒にのみ使えます。",
+  "cli.yes_needs_action": "--yes は --history-erase、--erase-all-data、--restore、--channel-add のいずれかと一緒にのみ使えます。",
   "cost.currency.off": "第2通貨をオフにしました。USD のみ表示します。",
   "cost.currency.saved": "第2通貨を保存しました：{line}（表示のみ。合計は USD のままです）。",
   "cost.options.saved": "ローカル費用：期間 {period}（{slug}）、インデックスは {days} 日間保持。",

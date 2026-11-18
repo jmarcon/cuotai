@@ -63,7 +63,7 @@
   "cli.restore.skip": "omitir (cambiado aquí después de la copia)",
   "cli.restore.unplaced": "Omitidos (esta configuración no tiene lugar para ellos aquí):",
   "cli.token_file_needs_mode": "--token-file requiere --serve o --status-line --from-server.",
-  "cli.yes_needs_action": "--yes solo funciona con --history-erase o --erase-all-data.",
+  "cli.yes_needs_action": "--yes solo funciona con --history-erase, --erase-all-data, --restore o --channel-add.",
   "cost.currency.off": "Segunda moneda desactivada; solo USD.",
   "cost.currency.saved": "Segunda moneda guardada: {line} (solo visualización; los totales siguen en USD).",
   "cost.options.saved": "Costo local: período {period} ({slug}), índice conservado durante {days} días.",

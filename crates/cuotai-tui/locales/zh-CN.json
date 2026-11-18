@@ -84,7 +84,7 @@
   "cli.restore.skip": "跳过（备份后在此处被修改）",
   "cli.restore.unplaced": "已略过（此配置在这里没有存放它们的位置）：",
   "cli.token_file_needs_mode": "--token-file 需要 --serve 或 --status-line --from-server。",
-  "cli.yes_needs_action": "--yes 只能与 --history-erase 或 --erase-all-data 一起使用。",
+  "cli.yes_needs_action": "--yes 只能与 --history-erase、--erase-all-data、--restore 或 --channel-add 一起使用。",
   "cost.currency.off": "已关闭第二币种；仅显示 USD。",
   "cost.currency.saved": "已保存第二币种：{line}（仅用于显示；合计仍以 USD 计）。",
   "cost.options.saved": "本地费用：周期 {period}（{slug}），索引保留 {days} 天。",
