@@ -4134,12 +4134,13 @@ const demo = {
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw "invalid_port";
     // ponytail: demo mirror of the core's PRD 0050 RF4 refusals; the app's rules live in `serve::Origin`.
     const fail = (id, fallback) => { throw JSON.stringify({ id, params: {}, fallback }); };
+    // Re-validation V-02: the token comes first, as in the core, so the first refusal points to Generate token.
+    if (allowBrowsers && demoSettings.serve.secret == null) fail("serve.error.browser_token_required", "Allowing browsers needs an access token for the local server: generate one first.");
     const list = allowedOrigins.map((o) => o.trim()).filter(Boolean);
     if (list.some((o) => !/^(https:\/\/[a-z0-9.-]+|http:\/\/(localhost|127\.0\.0\.1|\[::1\]))(:\d{1,5})?\/?$/i.test(o))) {
       fail("serve.origin.error.scheme", "Use https://host[:port], or http:// only for localhost and loopback addresses.");
     }
     if (allowBrowsers && !list.length) fail("serve.origin.error.empty", "Add at least one trusted origin before allowing browsers.");
-    if (allowBrowsers && demoSettings.serve.secret == null) fail("serve.error.browser_token_required", "Allowing browsers needs an access token for the local server: generate one first.");
     Object.assign(demoSettings.serve, { enabled, port, allow_browsers: allowBrowsers, allowed_origins: list.map((o) => o.replace(/\/$/, "").toLowerCase()) });
     // PRD 0012 RF5: turning the server on creates its token when there is none.
     if (enabled && demoSettings.serve.secret == null) demoSettings.serve.secret = `cuotai_demo_${crypto.randomUUID().replaceAll("-", "")}`;
