@@ -6,9 +6,10 @@
 //! `quiet::digest`, the PRD 0043 digest) in the person's language, with
 //! the channel's `include_names` deciding whether account names and metric
 //! labels appear. Never a credential, variable name, URL, e-mail or raw
-//! provider text: the account name field passes the log redactor; texts
-//! pass [`scrub`]. A channel limited to some accounts receives only their
-//! notices, the weekly digest included.
+//! provider text: every text and label passes [`scrub`] (e-mail, web
+//! address, key-shaped text, hidden direction marks); names and labels
+//! appear only when the channel shows names. A channel limited to some
+//! accounts receives only their notices, the weekly digest included.
 
 use super::{ChannelKind, Filters, NoticeKind, Severity};
 use crate::alerts::{self, AlertEvent, AlertKind};
@@ -99,13 +100,14 @@ fn most_severe(events: &[AlertEvent]) -> Option<&AlertEvent> {
 }
 
 fn scrubbed_name(account: &Account) -> String {
-    crate::diagnostics::redact::text(&account.display_name())
+    scrub(&account.display_name())
 }
 
-/// RF2.2: no e-mail address leaves in a text (an account named after one
-/// shows `[email]`), nor a web address. Hidden text-direction and control
-/// characters go first ([`crate::text::strip_disguising`], PRD 0043
-/// re-validation S-02), line by line so a multi-line body keeps its lines.
+/// RF2.2: what every channel text and label passes: hidden direction
+/// marks and control characters are dropped line by line (so a multi-line
+/// body keeps its lines), an e-mail address shows `[email]` (an account
+/// named after one too), a whole web address and key-shaped text show
+/// `[redacted]` ([`crate::diagnostics::redact::tokens`]).
 pub fn scrub(text: &str) -> String {
     use std::sync::OnceLock;
     static PATTERNS: OnceLock<(regex::Regex, regex::Regex)> = OnceLock::new();
@@ -121,8 +123,8 @@ pub fn scrub(text: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     let text = email.replace_all(&text, crate::diagnostics::redact::EMAIL);
-    url.replace_all(&text, crate::diagnostics::redact::SECRET)
-        .into_owned()
+    let text = url.replace_all(&text, crate::diagnostics::redact::SECRET);
+    crate::diagnostics::redact::tokens(&text)
 }
 
 fn base(
@@ -160,7 +162,7 @@ fn with_account(mut out: Outgoing, account: &Account, names: bool) -> Outgoing {
 fn with_event(mut out: Outgoing, event: &AlertEvent, names: bool) -> Outgoing {
     if !event.label.is_empty() || event.window.is_some() {
         out.metric = Some(MetricOut {
-            label: (names && !event.label.is_empty()).then(|| event.label.clone()),
+            label: (names && !event.label.is_empty()).then(|| scrub(&event.label)),
             window: event.window,
         });
     }
@@ -230,7 +232,7 @@ where
             );
             if let Some(first) = event.metrics.first() {
                 out.metric = Some(MetricOut {
-                    label: names.then(|| first.label.clone()),
+                    label: names.then(|| scrub(&first.label)),
                     window: Some(first.window),
                 });
             }
@@ -292,15 +294,15 @@ where
                 lines.join("\n"),
                 now,
             );
-            out.markdown = Some(if names {
-                scrub(&digest.markdown(locale))
+            out.markdown = Some(scrub(&if names {
+                digest.markdown(locale)
             } else {
                 lines
                     .iter()
                     .map(|line| format!("- {line}"))
                     .collect::<Vec<_>>()
                     .join("\n")
-            });
+            }));
             Some(out)
         }
         Source::Test => {
