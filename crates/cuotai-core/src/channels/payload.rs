@@ -103,7 +103,9 @@ fn scrubbed_name(account: &Account) -> String {
 }
 
 /// RF2.2: no e-mail address leaves in a text (an account named after one
-/// shows `[email]`), nor a web address.
+/// shows `[email]`), nor a web address. Hidden text-direction and control
+/// characters go first ([`crate::text::strip_disguising`], PRD 0043
+/// re-validation S-02), line by line so a multi-line body keeps its lines.
 pub fn scrub(text: &str) -> String {
     use std::sync::OnceLock;
     static PATTERNS: OnceLock<(regex::Regex, regex::Regex)> = OnceLock::new();
@@ -113,7 +115,12 @@ pub fn scrub(text: &str) -> String {
             regex::Regex::new(r"(?i)\b[a-z][a-z0-9+.-]*://\S+").expect("static"),
         )
     });
-    let text = email.replace_all(text, crate::diagnostics::redact::EMAIL);
+    let text = text
+        .split('\n')
+        .map(crate::text::strip_disguising)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let text = email.replace_all(&text, crate::diagnostics::redact::EMAIL);
     url.replace_all(&text, crate::diagnostics::redact::SECRET)
         .into_owned()
 }
@@ -612,3 +619,7 @@ pub fn example(
             .unwrap_or_default(),
     }
 }
+
+#[cfg(test)]
+#[path = "payload_scrub_tests.rs"]
+mod scrub_tests;

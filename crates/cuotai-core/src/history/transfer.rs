@@ -97,13 +97,16 @@ fn records(text: &str) -> Vec<Vec<String>> {
 }
 
 /// A text field as the export wrote it, without the `'` that keeps a
-/// spreadsheet from reading it as a formula.
+/// spreadsheet from reading it as a formula. A control or hidden
+/// text-direction character makes it invalid (PRD 0043 re-validation
+/// S-02): a restored label must not reorder the digest, a limit-change
+/// note or a channel message.
 fn text_field(value: &str) -> Option<String> {
     let value = match value.strip_prefix('\'') {
         Some(rest) if rest.starts_with(['=', '+', '-', '@']) => rest,
         _ => value,
     };
-    (value.chars().count() <= MAX_FIELD && !value.chars().any(char::is_control))
+    (value.chars().count() <= MAX_FIELD && !value.chars().any(crate::text::is_disguising))
         .then(|| value.to_owned())
 }
 
@@ -446,5 +449,27 @@ mod tests {
                 .unwrap(),
             ImportCount { rows: 1, new: 1 }
         );
+    }
+
+    #[test]
+    fn a_label_with_hidden_direction_marks_is_refused() {
+        // PRD 0043 re-validation S-02: U+202E (and U+2066) would reorder the
+        // digest, a limit-change note or a channel message.
+        let dir = tempfile::tempdir().unwrap();
+        let account = first_account(config(CONFIG));
+        let target = store(dir.path(), "d.sqlite3");
+        let past = (t0() - TimeDelta::hours(1)).to_rfc3339();
+        for label in ["Tokens \u{202e}htnom", "\u{2066}Tokens\u{2069}"] {
+            let csv = format!(
+                "account,provider,metric,metric_key,unit,kind,window,taken_at,used,limit,remaining,resets_at\n\
+                 alpha,groq,{label},abc,tok,quota,monthly,{past},1,2,,\n"
+            );
+            assert_eq!(
+                target.import_csv_at(&account, csv.as_bytes(), true, t0()),
+                Err(HistoryError::Storage),
+                "{label:?}"
+            );
+            assert!(!csv_is_valid(csv.as_bytes()));
+        }
     }
 }
