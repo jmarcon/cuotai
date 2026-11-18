@@ -10,6 +10,8 @@ Rules:
     (`lint_theme.py` and `contrast.py` own them);
   * no literal durations in `transition`/`animation` (use `--motion-*` tokens);
   * no `@keyframes` other than `spin` (DS-MOT-5, DS-MOT-7);
+  * braces balance (PRD 0046 V-2: one missing `}` turned every later rule into a nested rule that matched nothing),
+    and a rule inside a style rule starts with `&`, `:` or `@` (the project writes no CSS nesting);
   * `ui/js/**/*.js`: no literal colors in markup or style strings, except the provider brand tiles of `js/lib.js`
     (DS-ID-3, between the providers marker and the theme marker) and the flag artwork of `js/flags.js`.
 Exit status: 0 clean, 1 with findings.
@@ -53,6 +55,39 @@ def allowed_css_spans(name, text):
     return spans
 
 
+def css_structure(text):
+    """Findings for unbalanced braces and for a rule nested in a style rule whose selector does not start with
+    `&`, `:` or `@`. `text` has its comments stripped; string literals are skipped."""
+    out, stack, start, i, n = [], [], 0, 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'":
+            end = i + 1
+            while end < n and text[end] != c and text[end] != "\n":
+                end += 2 if text[end] == "\\" else 1
+            i = end + 1
+            continue
+        if c == "{":
+            prelude = text[start:i].strip()
+            if stack and not stack[-1][1] and not prelude.startswith(("&", ":", "@")):
+                out.append((line_of(text, i), "rule nested in a style rule (a missing '}' above?)", prelude.splitlines()[-1][:60] if prelude else "{"))
+            stack.append((i, prelude.startswith("@"), prelude))
+            start = i + 1
+        elif c == "}":
+            if stack:
+                stack.pop()
+            else:
+                out.append((line_of(text, i), "unmatched '}'", "}"))
+            start = i + 1
+        elif c == ";":
+            start = i + 1
+        i += 1
+    if stack:
+        first, _, prelude = stack[0]
+        out.append((line_of(text, first), "unclosed '{'", (prelude.splitlines() or ["{"])[-1][:60]))
+    return out
+
+
 def lint_css(path, name=None):
     name = name or os.path.basename(path)
     text = strip_comments(open(path, encoding="utf-8").read())
@@ -74,6 +109,7 @@ def lint_css(path, name=None):
     for m in KEYFRAMES.finditer(text):
         if m.group(1) != "spin":
             out.append((line_of(text, m.start()), "@keyframes other than spin", m.group(1)))
+    out.extend(css_structure(text))
     return out
 
 

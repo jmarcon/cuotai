@@ -422,7 +422,8 @@ dialog.dlg.details > .dlg-body {
   padding-right: var(--space-1);
 }
 
-.btn.is-disabled {
+.btn.is-disabled,
+.btn.primary[aria-disabled="true"] {
   opacity: 0.55;
   cursor: help;
 }
@@ -1183,6 +1184,7 @@ dialog.dlg.dlg-shell:popover-open {
   font: var(--text-sm) var(--font-mono), var(--font-script);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
 
 /* PRD 0046 (DS-CMP-BAK-1..2): Back up… and Restore…, plan and next steps. */
 dialog.backup-dlg,
@@ -1204,4 +1206,24 @@ dialog.restore-dlg {
 }
 .restore-dlg li .btn {
   margin-inline-start: var(--space-2);
+}
+/* PRD 0046 M-03 (DS-CMP-BAK-2): the accounts that would send a key elsewhere, with their own consent. */
+.restore-hosts {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+}
+.restore-hosts h3.sub {
+  margin: 0;
+}
+.restore-hosts ul {
+  margin: var(--space-1) 0;
+  padding-inline-start: var(--space-4);
+  font-family: var(--font-mono), var(--font-script);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.restore-hosts .hint {
+  margin: var(--space-1) 0 0;
 }

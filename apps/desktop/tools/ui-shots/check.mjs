@@ -175,6 +175,11 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["dialog-libraries", "settings.html?page=about", 640, 460, {}, "[data-libraries]"],
   ["dialog-whats-new", "settings.html?page=about", 640, 460, {}, "[data-whats-new]"],
   ["dialog-backup", "settings.html?page=files", 640, 460, {}, "[data-backup]"],
+  // PRD 0046 re-validation (V-2, R-04): the restore plan with the accounts that send a key elsewhere and the needs
+  // (RESTORE_JS also checks that the dialog's own styles apply), Next steps after confirming them, and Check setup.
+  ["dialog-restore", "settings.html?page=files", 640, 460, {}, "[data-restore]"],
+  ["dialog-restore-next", "settings.html?page=files", 640, 460, {}, ["[data-restore]", "[data-restore-hosts]", "[data-restore-go]"]],
+  ["settings-files-doctor", "settings.html?page=files", 640, 460, {}, "[data-doctor-run]"],
   // PRD 0029 re-validation (V-01, V-04): the Add account form, beside a named Groq account (the name is required, no
   // peer field) and, with `?unnamed`, beside an unnamed one (the peer field shows); every `hidden` part stays hidden.
   ["dialog-add", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
@@ -571,6 +576,33 @@ const BARS_JS = `(() => {
   return out;
 })()`;
 
+// PRD 0046 V-2: the restore dialog's own rules apply (a missing brace once nested them away): an Identical item is
+// muted, a path is in the mono font, the dialog is `--dialog-md` wide (or the window less 32 px) and the host box
+// has its warning-tone border. Each value is compared with a probe styled by the token itself.
+const RESTORE_JS = `(() => {
+  const out = [];
+  const dlg = document.querySelector("dialog.restore-dlg");
+  if (!dlg) return [{ kind: "restore-style", ok: false, sel: "dialog.restore-dlg", text: "not open" }];
+  const probe = document.createElement("span");
+  dlg.append(probe);
+  const token = (prop, value) => { probe.style.setProperty(prop, value); const v = getComputedStyle(probe).getPropertyValue(prop); probe.style.removeProperty(prop); return v; };
+  const muted = token("color", "var(--fg-muted)");
+  const mono = token("font-family", "var(--font-mono)");
+  const warn = token("border-top-color", "var(--warn)");
+  const width = token("width", "min(var(--dialog-md), calc(100vw - 32px))");
+  probe.remove();
+  const dim = dlg.querySelector("li.dim");
+  if (!dim || getComputedStyle(dim).color !== muted) out.push({ kind: "restore-style", ok: false, sel: "li.dim", text: dim ? getComputedStyle(dim).color : "missing" });
+  const code = dlg.querySelector("code");
+  if (!code || !getComputedStyle(code).fontFamily.startsWith(mono)) out.push({ kind: "restore-style", ok: false, sel: "code", text: code ? getComputedStyle(code).fontFamily : "missing" });
+  if (getComputedStyle(dlg).width !== width) out.push({ kind: "restore-style", ok: false, sel: "dialog.restore-dlg", text: getComputedStyle(dlg).width });
+  const hosts = dlg.querySelector(".restore-hosts");
+  if (!hosts || getComputedStyle(hosts).borderTopColor !== warn) out.push({ kind: "restore-style", ok: false, sel: ".restore-hosts", text: hosts ? getComputedStyle(hosts).borderTopColor : "missing" });
+  const go = dlg.querySelector("[data-restore-go]");
+  if (!go || go.getAttribute("aria-disabled") !== "true") out.push({ kind: "restore-style", ok: false, sel: "[data-restore-go]", text: "Restore is not aria-disabled before the hosts are confirmed" });
+  return out;
+})()`;
+
 // Every unit of work of this run, in a fixed order: each page in each locale, then (full run) the themed pages and
 // the danger button of every built-in theme and mode. `--shard i/n` keeps every n-th item from the i-th, so the n
 // shards of CI cover the whole list exactly once whatever is added to it; `--shard-selftest` proves that.
@@ -615,6 +647,7 @@ async function checkPage(name, page, w, h, storage, click, openModels, locale) {
   if (selftest) await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
   const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];
   if (name.includes("stats")) found.push(...((await ui.evaluate(STATS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "stats probe failed" }]));
+  if (name === "dialog-restore") found.push(...((await ui.evaluate(RESTORE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "restore probe failed" }]));
   if (name.includes("stats") || name.startsWith("tray-strip")) found.push(...((await ui.evaluate(BARS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "bars probe failed" }]));
   // PRD 0034 re-validation V-11: the pseudo-locale pads every text by design, so its placeholder ends in the field's
   // ellipsis (allowed); a real language's placeholder must fit.

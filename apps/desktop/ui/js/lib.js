@@ -3581,7 +3581,14 @@ const demoBackup = (withHistory) => ({
     { path: "user/themes/night.css", sha256: "2".repeat(64), kind: "theme" },
     ...(withHistory ? [{ path: "history/acc_demo00000001.csv", sha256: "3".repeat(64), kind: "history" }] : []),
   ],
-  excluded: ["vault", "serve_token", "cost_index", "extensions", "logs"].map((item) => ({ id: `bundle.excluded.${item}`, params: {}, fallback: item })),
+  // PRD 0046 V-5: the core's English fallbacks (`bundle::excluded_reason`), as the shell sends them.
+  excluded: [
+    ["vault", "Vault entries: secrets never leave the system vault."],
+    ["serve_token", "Local server token: each computer makes its own."],
+    ["cost_index", "Local cost index: each computer rebuilds it from its own logs."],
+    ["extensions", "Extensions: you review and approve them on each computer."],
+    ["logs", "Logs: they describe this computer only."],
+  ].map(([item, fallback]) => ({ id: `bundle.excluded.${item}`, params: {}, fallback })),
   history_bytes: withHistory ? 48_000 : 0,
   history_large: false,
   default_name: "cuotai-backup-2026-11-07.cuotai-backup.zip",
