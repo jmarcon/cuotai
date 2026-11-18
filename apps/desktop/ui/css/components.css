@@ -775,3 +775,42 @@ dialog.dlg.dlg-sm {
   box-shadow: var(--shadow-dialog);
   font-size: var(--text-sm);
 }
+
+/* ---- DS-CMP-CHK-1: the membership check (Settings lists, the account dialog's Breakdown options); a 20 px circle ---- */
+.chk {
+  position: relative;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: var(--border-w) solid var(--border);
+  border-radius: 50%;
+  background: var(--input-bg);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.chk:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+/* The check glyph: a rotated corner in --accent-fg (a check, never a radio dot; PRD 0020 re-validation V-03). */
+.chk:checked::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--accent-fg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.chk:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.chk:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

@@ -142,9 +142,11 @@ export function detailHtml(r, { eye = false, action = eye } = {}) {
     return `<div class="detail">${incident}<div class="call warning cause">${icon("clock")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}
       ${driftHtml(r)}<div class="detail stale-reading">${metrics.map((m) => metricCardHtml(s, m, { eye, stale: true })).join("")}</div>${reading}${rest}</div>`;
   }
+  // PRD 0045 re-validation (V-07): a reading without metrics of its own (a LiteLLM proxy, whose budgets are its
+  // connections) still lists its Breakdown rows.
   if (!r.metrics.length) {
     const tone = r.status === "authentication_error" ? "accent" : r.status === "ready" ? "neutral" : "critical";
-    return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}${driftHtml(r)}${reading}${rest}</div>`;
+    return `<div class="detail">${incident}<div class="call ${tone}">${icon(r.status === "authentication_error" ? "key" : r.status === "ready" ? "info" : "alert")}<div>${esc(causeText(r))}</div></div>${referenceHtml(r)}${driftHtml(r)}${breakdownHtml(r, { action: eye })}${reading}${rest}</div>`;
   }
   const metrics = eye ? r.metrics : r.metrics.filter((m) => !isMetricHidden(r, m));
   // PRD 0043 RF2.2: the limit changes of the last 48 h, as silent notes.

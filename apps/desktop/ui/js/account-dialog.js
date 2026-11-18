@@ -460,8 +460,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     if (notes) notes.innerHTML = access.notes.map((n) => `<small>${esc(tl(n))}</small>`).join("");
     renderBreakdown(access.breakdown);
   }
-  // PRD 0045 RF6.3: the Breakdown multi-select from the core's descriptor of the draft's mode, each option with its
-  // extra requests per refresh; a metered provider shows the control disabled with the reason. Ticks survive redraws.
+  // PRD 0045 RF6.3: the Breakdown multi-select from the core's descriptor of the draft's mode, each option a DS-CMP-CHK-1
+  // round check with its extra requests per refresh; a metered provider shows the control disabled with the reason.
+  // Ticks survive redraws.
   const breakdownChosen = new Set(existing?.breakdown ?? []);
   let breakdownOffered = false;
   function renderBreakdown(b) {
@@ -473,7 +474,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     }
     breakdownOffered = b.modes.length > 0;
     const metered = b.reason?.id === "access.breakdown_metered";
-    box.querySelector("#breakdown-options").innerHTML = b.modes.map((m) => `<label class="extension-confirm"><input type="checkbox" data-breakdown value="${esc(m.kind)}"${breakdownChosen.has(m.kind) ? " checked" : ""} /><span>${esc(tl(m.label))}</span> <small class="sub">${esc(tl(m.requests))}</small></label>`).join("");
+    box.querySelector("#breakdown-options").innerHTML = b.modes.map((m) => `<label class="check brk-opt"><input type="checkbox" class="chk" data-breakdown value="${esc(m.kind)}"${breakdownChosen.has(m.kind) ? " checked" : ""} /><span>${esc(tl(m.label))}</span> <small class="sub">${esc(tl(m.requests))}</small></label>`).join("");
     box.querySelector("#breakdown-hint").textContent = breakdownOffered ? t("dialog.breakdownHint") : tl(b.reason);
     box.disabled = !breakdownOffered;
     box.hidden = !breakdownOffered && !metered;
