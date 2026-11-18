@@ -232,25 +232,35 @@ async fn channel_consent(
 
 #[tauri::command]
 async fn channel_add(
+    window: WebviewWindow,
     b: Shared<'_>,
     draft: cuotai_core::channels::Draft,
     url: String,
 ) -> Result<backend::ChannelSaved, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.channel_add(draft, url).await
 }
 
 #[tauri::command]
 async fn channel_edit(
+    window: WebviewWindow,
     b: Shared<'_>,
     id: String,
     draft: cuotai_core::channels::Draft,
     url: Option<String>,
 ) -> Result<backend::ChannelSaved, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.channel_edit(id, draft, url).await
 }
 
 #[tauri::command]
-async fn channel_set_enabled(b: Shared<'_>, id: String, on: bool) -> Result<(), String> {
+async fn channel_set_enabled(
+    window: WebviewWindow,
+    b: Shared<'_>,
+    id: String,
+    on: bool,
+) -> Result<(), String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.channel_set_enabled(id, on).await
 }
 
@@ -261,7 +271,12 @@ async fn channel_remove(window: WebviewWindow, b: Shared<'_>, id: String) -> Res
 }
 
 #[tauri::command]
-async fn channel_test(b: Shared<'_>, id: String) -> Result<backend::ChannelTestResult, String> {
+async fn channel_test(
+    window: WebviewWindow,
+    b: Shared<'_>,
+    id: String,
+) -> Result<backend::ChannelTestResult, String> {
+    window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     b.channel_test(id).await
 }
 
@@ -3600,6 +3615,11 @@ mod tests {
                     "copy_serve_token",
                     "delete_widget_data",
                     "channel_remove",
+                    // PRD 0044 re-validation S-05.
+                    "channel_add",
+                    "channel_edit",
+                    "channel_set_enabled",
+                    "channel_test",
                     "set_config_file",
                     "set_data_dir",
                     "set_user_dir",

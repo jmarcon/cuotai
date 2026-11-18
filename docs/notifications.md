@@ -39,6 +39,11 @@ The weekly digest a channel receives covers only the accounts its filter admits,
 
 Every channel gets the notification's title and text in your language. When names are hidden, the text carries neither the account name nor the metric label. E-mail-shaped text and web addresses are replaced, and no credential, variable name or raw provider text is ever included.
 
+- **Every kind of channel:** the title, the text, the kind and the severity.
+- **Webhook only, when the notification has them:** the provider, the stable account id, the metric window, the percent used and the reset time.
+- **Only when the channel shows names:** the metric label and the account name.
+- **With the `digest` kind on:** the weekly digest text, with a section per account when names are shown (webhook, Slack and Discord), for the admitted accounts only.
+
 **Webhook:** `POST` with `Content-Type: application/json` and `User-Agent: cuotai/<version>`:
 
 ```json
