@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0041 |
-| Status | Awaiting owner verification (2026-11-17 re-validation fixes in vNEXT) |
+| Status | Awaiting owner verification (2026-11-17 re-validation fixes in 0.86.10) |
 | Owner | `cuotai-core` (`budget` module, synthetic metrics, allowance, validation), `cuotai-tui` (wizard field, details line, `--once`), desktop (account dialog, card chip, details) |
 | Consumers | Every front end; `export::v1`, `--watch` and `/v1/*` consumers; PRD 0026 statistics |
 | Depends on | PRD 0029 (budgets keyed by the stable account id), PRD 0023 RF1 (`Metric::billing`, so a budget on overage spend is possible), PRD 0033 (`measured_at`, for the cycle boundary) |
@@ -26,14 +26,14 @@
 | RF7 | 0.83.0 | `cuotai.example.toml`, `docs/advanced.md`, `docs/gui-features.md`, `docs/tui.md`, `docs/export-v1.md` (+ schema), `docs/events.md`. |
 | Open question | 0.83.0 | `advisory = true` (keep a budget out of binding and `best`) is not implemented: every budget counts, the recommended default. Decision of 2026-11-07 (owner said not to stop and ask): kept out of this delivery, because `[[accounts.budgets]]` rejects unknown keys, so a new `advisory` key would make the TOML unreadable for 0.83.x; it needs the PRD 0029 RF0 tolerance first, as `budgets` itself had. |
 | PRD 0038 re-validation | 0.86.8 | RF2.3 on a real store: a balance budget read its baseline through the history, whose readers dropped balance readings (`used` is null), so in production every credits budget on a balance said `note.budget.no_baseline`; the unit test hid it with a fake store. The readers now return `remaining` for balance-shaped readings (PRD 0006 row), and the budget test reads a real `HistoryStore`, plus a `Monitor`-level test deriving `Drops`. |
-| 2026-11-17 re-validation | vNEXT | Fixes of RF1.2, RF2.1–RF2.5, RF3.1, RF3.2, RF4.1, RF4.2, RF5.1 and RF5.2 (1 high, 11 medium, 15 low findings); see "2026-11-17 re-validation" below. |
+| 2026-11-17 re-validation | 0.86.10 | Fixes of RF1.2, RF2.1–RF2.5, RF3.1, RF3.2, RF4.1, RF4.2, RF5.1 and RF5.2 (1 high, 11 medium, 15 low findings); see "2026-11-17 re-validation" below. |
 | Owner verification | — | §11 smoke on a real `open_ai_api` account (a $50 monthly budget shows the budget quota on the card, the 75% alert when crossed and the allowance in the details) and one **Set a budget…** with a plan price saved, on the packaged desktop app (§2.1 of `0000_control.md`). |
 
-### 2026-11-17 re-validation (vNEXT)
+### 2026-11-17 re-validation (0.86.10)
 
-The re-validation (Visual, Security, Review) found 1 high, 11 medium and 15 low findings; the fixes ship in vNEXT, one commit per group:
+The re-validation (Visual, Security, Review) found 1 high, 11 medium and 15 low findings; the fixes ship in 0.86.10, one commit per group:
 
-| Group | Findings | RF | Delivery (vNEXT) |
+| Group | Findings | RF | Delivery (0.86.10) |
 |---|---|---|---|
 | G1 | F-01 (high), F-16 | RF2.2, RF2.3, RF4.1 | Reset-aware counting: `HistoryStore::readings` (stored `resets_at`, balances read back as `remaining`, bounded at `now`) and `budget::counted_use` add the use segment by segment, so a counter that restarts at the provider's reset inside the budget period keeps counting (`GAP` = 1 h). A stretch whose use cannot be known (the first reading more than an hour after the period start, no reading within an hour before a reset or a top-up, a counter that went down inside one provider instance) makes the result a lower bound: `derived_from.partial`, `remaining` null, `note.budget.partial`, no allowance, "≥ " before the used value on every surface; alerts still fire. A provider spend below zero is unknown (`note.budget.negative`), never clamped to 0. |
 | G2 | F-02, F-03, F-04, F-26 | RF1.2, RF2.1, RF2.4, RF3.1 | Every budget and floor has a derived identity (`budget_key`, `floor_key`; `derived_from.key` in the export) that keys its alert marks and its history series, with lazy migration of unambiguous legacy marks and series. Default labels name the period ("Monthly budget · …", "Weekly budget · …"). New rules: no two budgets on one target and period whatever their unit, no two budgets with the same label, no two equal floors. Floors are tiers (see decisions). A restored reading never shows a removed budget as a provider quota. |
