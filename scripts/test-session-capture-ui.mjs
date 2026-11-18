@@ -27,6 +27,19 @@ for (const file of locales) {
   }
 }
 assert.equal(JSON.parse(await readFile(ui("locales/pt-BR.json"), "utf8"))["dialog.session.capture"], "Entrar e capturar sessão");
+// PRD 0048 re-validation V-02: after a failed capture, the texts point to the paste box above the button, never below.
+const BELOW = { "de.json": /unten/, "en-US.json": /below/i, "es.json": /abajo/, "fr.json": /dessous/, "hi-IN.json": /नीचे/,
+  "id-ID.json": /di bawah/, "it.json": /sotto/, "ja.json": /下に/, "ko.json": /아래/, "pt-BR.json": /abaixo/, "ru.json": /ниже/,
+  "tr.json": /aşağı/, "vi.json": /dưới/, "zh-CN.json": /下方/ };
+assert.deepEqual(Object.keys(BELOW).sort(), [...locales].sort());
+for (const file of locales) {
+  const catalog = JSON.parse(await readFile(ui(`locales/${file}`), "utf8"));
+  for (const key of ["dialog.session.captureTimeout", "dialog.session.captureUnavailable"]) {
+    assert.doesNotMatch(catalog[key], BELOW[file], `${file}: ${key} still says "below"`);
+  }
+}
+assert.match(en["dialog.session.captureTimeout"], /into the box above\.$/);
+assert.match(en["dialog.session.captureUnavailable"], /into the box above instead\.$/);
 
 // The demo backend (browser preview) has no capture window: it answers "unavailable".
 const storage = new Map();
@@ -69,6 +82,8 @@ assert.match(privateHint, /dialog\.session\.captureHint\b/);
 assert.match(en["dialog.session.capturePasskeyHint"], /Passkeys do not work in this window[\s\S]*Try another way/);
 assert.match(en["dialog.session.captureSharedHint"], /30 minutes/);
 assert.equal(lib.sessionCaptureHintHtml({ slot: "x", capture: false }), "");
+// PRD 0048 re-validation V-01: the hint is a block `div`, which no `.f > span` title rule can make bold.
+for (const html of [sharedHint, privateHint]) assert.ok(html.startsWith('<div class="session-capture-hint"') && html.endsWith("</div>"), html);
 
 // PRD 0048 RF3.4: the "Open {site}" link follows the region choice; another value keeps the default page.
 const coding = { slot: "session_env", open_url: "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/coding_plan",
@@ -81,7 +96,14 @@ assert.match(lib.sessionOpenLinkHtml({ slot: "x", open_url: "https://platform.xi
 
 // The dialog's wiring, read from its source.
 const dialog = await readFile(ui("js/account-dialog.js"), "utf8");
-assert.match(dialog, /\$\{s\.capture \? `<span class="dlg-actions"><button type="button" class="btn" data-capture=/, "button only for capturable slots");
+assert.match(dialog, /\$\{s\.capture \? `<div class="dlg-actions"><button type="button" class="btn" data-capture=/, "button only for capturable slots");
+// PRD 0048 re-validation (V-01, accessible name): the slot is a `div`, not a `label` around the buttons and hints, so
+// the paste field is named by its title alone and described by its instructions and preview.
+assert.doesNotMatch(dialog, /<label class="f">(?:(?!<\/label>)[\s\S])*session-paste/, "no label wraps a session paste field");
+assert.match(dialog, /<span id="\$\{id\}-l">\$\{esc\(tl\(s\.label\)\)\}<\/span>/, "the slot title has its own id");
+assert.equal(dialog.match(/class="session-paste" id="\$\{id\}" data-slot="\$\{esc\(s\.slot\)\}" aria-labelledby="\$\{id\}-l" aria-describedby="\$\{id\}-h \$\{id\}-p"/g)?.length, 2,
+  "both paste fields (box and masked) are named by the title and described by the instructions and preview");
+assert.match(dialog, /const id = `session-\$\{esc\(s\.slot\)\}`/, "the slot ids follow the slot");
 assert.match(dialog, /captureSession\(provider, slot, sessionRegion\(\)\)/, "the capture follows the region choice");
 assert.match(dialog, /sessionOpenLinkHtml\(s, sessionRegion\(\)\)/, "the open link follows the region choice");
 assert.match(dialog, /e\.target\?\.name === "f:region"[\s\S]{0,60}refreshOpenLinks\(\)/, "a region change updates the open link");

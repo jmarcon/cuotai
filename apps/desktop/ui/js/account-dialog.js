@@ -626,21 +626,23 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     sessionBox.innerHTML = `<h3>${te("dialog.session.title")}</h3>`
       + (alternative ? `<p class="hint session-or">${te("dialog.session.orIntro", { provider: providerLabel() })}</p>` : "")
       + `${slots.length ? sessionNoticeHtml(schema.session_notice) : ""}`
-      + slots.map((s) => `<div class="session-slot">
-          <label class="f"><span>${esc(tl(s.label))}</span>
+      // PRD 0048 re-validation: a `div`, not a `label` (the open link and the capture buttons are no label content), so
+      // the field is named by its title alone and no `.f > span` title rule reaches the capture button or its hint.
+      + slots.map((s) => { const id = `session-${esc(s.slot)}`; return `<div class="session-slot">
+          <div class="f session-field"><span id="${id}-l">${esc(tl(s.label))}</span>
             ${s.secret
               // PRD 0036 RF2.1: a vault password or key is a masked one-line field, never a cookie box.
-              ? `<input type="password" class="session-paste" data-slot="${esc(s.slot)}" autocomplete="new-password" autocapitalize="off" spellcheck="false">`
-              : `<textarea class="session-paste" data-slot="${esc(s.slot)}" rows="3" maxlength="65536" autocomplete="off" autocapitalize="off" spellcheck="false"
+              ? `<input type="password" class="session-paste" id="${id}" data-slot="${esc(s.slot)}" aria-labelledby="${id}-l" aria-describedby="${id}-h ${id}-p" autocomplete="new-password" autocapitalize="off" spellcheck="false">`
+              : `<textarea class="session-paste" id="${id}" data-slot="${esc(s.slot)}" aria-labelledby="${id}-l" aria-describedby="${id}-h ${id}-p" rows="3" maxlength="65536" autocomplete="off" autocapitalize="off" spellcheck="false"
               placeholder="${te("dialog.session.placeholder")}"></textarea>`}
-            <small class="hint">${esc(tl(s.instructions))}</small>
+            <small class="hint" id="${id}-h">${esc(tl(s.instructions))}</small>
             ${sessionOpenLinkHtml(s, sessionRegion())}
-            ${s.capture ? `<span class="dlg-actions"><button type="button" class="btn" data-capture="${esc(s.slot)}">${te("dialog.session.capture")}</button></span>
+            ${s.capture ? `<div class="dlg-actions"><button type="button" class="btn" data-capture="${esc(s.slot)}">${te("dialog.session.capture")}</button></div>
               ${sessionCaptureHintHtml(s, sessionRegion())}` : ""}
             ${s.hosts.length ? `<small class="hint">${te("dialog.session.hosts", { hosts: s.hosts.join(", ") })}</small>` : ""}
             ${stored.includes(s.slot) ? `<small class="hint">${te("dialog.session.replace")}</small>` : ""}
-            <small class="hint" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></label>
-        </div>`).join("")
+            <small class="hint" id="${id}-p" data-preview="${esc(s.slot)}" role="status" aria-live="polite"></small></div>
+        </div>`; }).join("")
       + (slots.length ? `<div class="dlg-actions"><button type="button" class="btn" id="session-test"${draftMetered ? ' aria-describedby="session-test-billed"' : ""}>${te("dialog.session.test")}</button></div>
           ${draftMetered ? billedTestHint("session-test-billed") : ""}
           <p class="hint" id="session-test-status" role="status" aria-live="polite"></p>` : "")
