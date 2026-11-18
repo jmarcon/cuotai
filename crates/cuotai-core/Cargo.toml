@@ -56,6 +56,9 @@ httparse = { version = "=1.10.1", optional = true }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "registry", "env-filter"] }
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode-case", "unicode-perl"] }
+# PRD 0043 re-validation (V-04): the text Rhythm chart pads its heads by
+# display width (the same version the TUI uses).
+unicode-width = "0.2"
 
 # PRD 0017 RF3.3: the extension's process tree killed on timeout (a
 # process group on Unix, a kill-on-close Job Object on Windows) and the

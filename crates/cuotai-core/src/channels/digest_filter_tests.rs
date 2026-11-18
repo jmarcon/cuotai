@@ -95,25 +95,45 @@ fn a_channel_limited_to_one_account_gets_that_accounts_digest_only() {
 
     let named = prepared(&digest, &[&work], true).unwrap();
     let markdown = named.markdown.unwrap();
-    assert!(markdown.contains("## Work · Claude"), "{markdown}");
-    assert!(!markdown.contains("Personal"), "{markdown}");
-    assert!(named.body.contains("1 limit hit"), "{}", named.body);
-    assert!(!named.body.contains("4 limit hits"), "{}", named.body);
-    assert!(named.body.contains("Average peak: 30%"), "{}", named.body);
     assert!(
-        named.body.contains("Busiest hours: 09:00"),
-        "{}",
-        named.body
+        markdown.contains("## Work · Claude"),
+        "the admitted account has its section"
+    );
+    assert!(
+        !markdown.contains("Personal"),
+        "the other account is left out"
+    );
+    assert!(
+        named.body.contains("1 limit hit"),
+        "the hits are recomputed"
+    );
+    assert!(
+        !named.body.contains("4 limit hits"),
+        "not the total of both"
+    );
+    assert!(
+        named.body.contains("Average peak: 30%"),
+        "the peak is recomputed"
+    );
+    assert!(
+        named.body.contains("Busiest hours: 9"),
+        "the hours are recomputed"
     );
 
     let hidden = prepared(&digest, &[&work], false).unwrap();
-    assert!(hidden.body.contains("1 limit hit"), "{}", hidden.body);
+    assert!(
+        hidden.body.contains("1 limit hit"),
+        "names off: the same totals"
+    );
     assert!(!hidden.body.contains("Personal") && !hidden.body.contains("Work"));
     assert!(!hidden.markdown.unwrap().contains("4 limit hits"));
 
     // No filter: every account.
     let every = prepared(&digest, &[], true).unwrap();
-    assert!(every.body.contains("4 limit hits"), "{}", every.body);
+    assert!(
+        every.body.contains("4 limit hits"),
+        "no filter: every account"
+    );
     assert!(every.markdown.unwrap().contains("## Personal · Claude"));
 }
 

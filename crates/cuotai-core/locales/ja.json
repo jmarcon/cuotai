@@ -224,7 +224,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -370,8 +372,8 @@
   "alerts.item.balance_below_floor": "{metric} が下限を下回りました",
   "alerts.item.balance_recovered": "{metric} が再び下限を上回りました",
   "alerts.item.exhausted": "{metric} が上限",
-  "alerts.item.limit_changed": "{metric} の上限 {from} → {to}",
-  "alerts.item.limit_changed_unknown": "{metric} の上限が変わりました",
+  "alerts.item.limit_changed": "{metric}：{from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}：上限が変わりました",
   "alerts.item.overage_cap": "追加予算を使い切りました",
   "alerts.item.overage_started": "追加使用が始まりました · {amount}",
   "alerts.item.overage_started_unknown": "追加使用が始まりました",
@@ -1374,7 +1376,11 @@
   "incident.state.operational": "正常",
   "incident.state.partial_outage": "一部障害",
   "incident.state.unknown": "状態不明",
-  "insights.limit_changed.note": "{metric} の上限が {date} に変わりました：{from} → {to} {unit}",
+  "insights.limit_changed.note": "{metric}：上限が {date} に変わりました {from} → {to} {unit}",
+  "insights.rhythm.day_off": "休日",
+  "insights.rhythm.samples": {
+    "other": "{count} 日"
+  },
   "journal.removed_account": "削除されたアカウント",
   "login.alibaba_token_plan.bailian_console.completion_notice": "専用プロファイルで bl auth login --console が完了しました。",
   "login.alibaba_model_studio.bailian_console.completion_notice": "専用プロファイルで bl auth login --console が完了しました。",

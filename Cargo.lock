@@ -811,6 +811,7 @@ dependencies = [
  "toml_edit 0.22.27",
  "tracing",
  "tracing-subscriber",
+ "unicode-width",
  "url",
  "uuid",
  "windows-sys 0.61.2",

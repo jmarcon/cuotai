@@ -203,7 +203,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -349,8 +351,8 @@
   "alerts.item.balance_below_floor": "{metric} unter Ihrer Untergrenze",
   "alerts.item.balance_recovered": "{metric} wieder über Ihrer Untergrenze",
   "alerts.item.exhausted": "{metric} am Limit",
-  "alerts.item.limit_changed": "Limit von {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "Limit von {metric} geändert",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: Limit geändert",
   "alerts.item.overage_cap": "Zusatzbudget aufgebraucht",
   "alerts.item.overage_started": "Zusatznutzung begonnen · {amount}",
   "alerts.item.overage_started_unknown": "Zusatznutzung begonnen",
@@ -1374,7 +1376,12 @@
   "incident.state.operational": "Betriebsbereit",
   "incident.state.partial_outage": "Teilausfall",
   "incident.state.unknown": "Status unbekannt",
-  "insights.limit_changed.note": "Limit von {metric} am {date} geändert: {from} → {to} {unit}",
+  "insights.limit_changed.note": "{metric}: Limit am {date} geändert {from} → {to} {unit}",
+  "insights.rhythm.day_off": "frei",
+  "insights.rhythm.samples": {
+    "one": "{count} Tag",
+    "other": "{count} Tage"
+  },
   "journal.removed_account": "Konto entfernt",
   "login.alibaba_token_plan.bailian_console.completion_notice": "Anmeldung `bl auth login --console` im dedizierten Profil abgeschlossen.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "Anmeldung `bl auth login --console` im dedizierten Profil abgeschlossen.",

@@ -198,7 +198,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -344,8 +346,8 @@
   "alerts.item.balance_below_floor": "{metric} आपकी न्यूनतम सीमा से नीचे",
   "alerts.item.balance_recovered": "{metric} फिर आपकी न्यूनतम सीमा से ऊपर",
   "alerts.item.exhausted": "{metric} सीमा पर",
-  "alerts.item.limit_changed": "{metric} सीमा {from} → {to}",
-  "alerts.item.limit_changed_unknown": "{metric} सीमा बदली",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: सीमा बदली",
   "alerts.item.overage_cap": "अतिरिक्त बजट खत्म",
   "alerts.item.overage_started": "अतिरिक्त उपयोग शुरू · {amount}",
   "alerts.item.overage_started_unknown": "अतिरिक्त उपयोग शुरू",
@@ -1369,7 +1371,12 @@
   "incident.state.operational": "चालू",
   "incident.state.partial_outage": "आंशिक आउटेज",
   "incident.state.unknown": "स्थिति अज्ञात",
-  "insights.limit_changed.note": "{metric} सीमा {date} को बदली: {from} → {to} {unit}",
+  "insights.limit_changed.note": "{metric}: सीमा {date} को बदली {from} → {to} {unit}",
+  "insights.rhythm.day_off": "छुट्टी",
+  "insights.rhythm.samples": {
+    "one": "{count} दिन",
+    "other": "{count} दिन"
+  },
   "journal.removed_account": "हटाया गया खाता",
   "login.alibaba_token_plan.bailian_console.completion_notice": "समर्पित प्रोफ़ाइल में `bl auth login --console` लॉगिन पूरा हुआ।",
   "login.alibaba_model_studio.bailian_console.completion_notice": "समर्पित प्रोफ़ाइल में `bl auth login --console` लॉगिन पूरा हुआ।",

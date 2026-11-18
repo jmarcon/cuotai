@@ -231,7 +231,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -377,8 +379,8 @@
   "alerts.item.balance_below_floor": "{metric} ниже вашего порога",
   "alerts.item.balance_recovered": "{metric} снова выше вашего порога",
   "alerts.item.exhausted": "{metric}: лимит достигнут",
-  "alerts.item.limit_changed": "лимит {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "лимит {metric} изменился",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: лимит изменился",
   "alerts.item.overage_cap": "дополнительный бюджет исчерпан",
   "alerts.item.overage_started": "началось дополнительное использование · {amount}",
   "alerts.item.overage_started_unknown": "началось дополнительное использование",
@@ -1444,7 +1446,14 @@
   "incident.state.operational": "Работает",
   "incident.state.partial_outage": "Частичный сбой",
   "incident.state.unknown": "Статус неизвестен",
-  "insights.limit_changed.note": "Лимит {metric} изменился {from} → {to} {unit} {date}",
+  "insights.limit_changed.note": "{metric}: лимит изменился {from} → {to} {unit} {date}",
+  "insights.rhythm.day_off": "выходной",
+  "insights.rhythm.samples": {
+    "one": "{count} день",
+    "few": "{count} дня",
+    "many": "{count} дней",
+    "other": "{count} дня"
+  },
   "journal.removed_account": "Запись удалена",
   "login.alibaba_token_plan.bailian_console.completion_notice": "Вход `bl auth login --console` в выделенном профиле выполнен.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "Вход `bl auth login --console` в выделенном профиле выполнен.",

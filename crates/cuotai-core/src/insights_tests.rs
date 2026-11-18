@@ -177,7 +177,7 @@ fn the_card_note_names_both_values_and_lasts_48_hours() {
     let note = change.note(|at| at.format("%b %d").to_string());
     assert_eq!(
         note.resolve("en"),
-        "Weekly limit changed 100 → 150 pontos on Oct 25"
+        "Weekly: limit changed 100 → 150 pontos on Oct 25"
     );
     assert!(change.shows_at(at(26, 9, 0)));
     assert!(!change.shows_at(at(27, 9, 1)));
@@ -290,10 +290,10 @@ fn rhythm_24h_buckets_consumption_marks_resets_and_leaves_gaps() {
     assert_eq!(rhythm.metrics, ["Semanal"]);
     let text = rhythm.text_chart("en", 10);
     // V-11: the hour in the language's hour cycle.
-    assert!(text.contains("1\u{a0}PM             ·"), "{text}");
+    assert!(text.contains("\n1\u{a0}PM  ·"), "{text}");
     assert!(text.contains("↺"));
     let de = rhythm.text_chart("de", 10);
-    assert!(de.contains("13               ·"), "{de}");
+    assert!(de.contains("\n13 ·"), "{de}");
     assert_eq!(hour(13).label.resolve("de"), "13");
 }
 

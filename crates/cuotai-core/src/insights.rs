@@ -88,10 +88,22 @@ pub(crate) fn plain(value: f64) -> String {
 }
 
 impl LimitChange {
-    /// RF2.2: the card note "Weekly limit changed 100 → 150 points on Oct
+    /// RF2.2: the card note "Weekly: limit changed 100 → 150 points on Oct
     /// 25"; `date` formats the observation day in the viewer's zone and
-    /// locale.
+    /// locale. Prefer [`Self::note_local`], which every surface shares.
     pub fn note(&self, date: impl FnOnce(DateTime<Utc>) -> String) -> Localized {
+        self.note_with(ParamValue::Text(date(self.observed_at)))
+    }
+
+    /// RF2.2 (PRD 0043 re-validation R-04): [`Self::note`] with the day of
+    /// the observation in `tz`, as the reader's language writes a day and
+    /// month (`at.date`), so the details note and the digest agree.
+    pub fn note_local<Tz: chrono::TimeZone>(&self, tz: &Tz) -> Localized {
+        let day = self.observed_at.with_timezone(tz).date_naive();
+        self.note_with(ParamValue::l10n(crate::text::clock::date(day)))
+    }
+
+    fn note_with(&self, date: ParamValue) -> Localized {
         Localized::with_params(
             "insights.limit_changed.note",
             params([
@@ -102,9 +114,9 @@ impl LimitChange {
                     "unit",
                     ParamValue::l10n(crate::metric_text::unit_for(&self.unit, Some(self.to))),
                 ),
-                ("date", ParamValue::Text(date(self.observed_at))),
+                ("date", date),
             ]),
-            "{metric} limit changed {from} → {to} {unit} on {date}",
+            "{metric}: limit changed {from} → {to} {unit} on {date}",
         )
     }
 
@@ -457,37 +469,54 @@ pub fn hour_totals<Tz: chrono::TimeZone>(
 
 impl Rhythm {
     /// RF5: the text bar chart `cuotai --stats --rhythm` prints: one line
-    /// per bucket, `HH` or the weekday and date, a bar scaled to the
-    /// largest bucket, the points, `·` for a gap, `↺` for a reset and
-    /// `(off)` for a day off.
+    /// per bucket, the hour or the weekday and date, a bar scaled to the
+    /// largest bucket, the points, `·` for a gap, `↺` for a reset, the
+    /// day-off mark and, for the typical day, the days with data. Heads are
+    /// padded to the widest one in display width (PRD 0043 re-validation
+    /// V-04), so every bar starts in the same column in every language.
     pub fn text_chart(&self, locale: &str, width: usize) -> String {
+        use unicode_width::UnicodeWidthStr;
+        let pad = |text: &str, to: usize| {
+            let fill = to.saturating_sub(text.width());
+            format!("{text}{}", " ".repeat(fill))
+        };
         let max = self
             .buckets
             .iter()
             .filter_map(|b| b.consumption)
             .fold(0.0_f64, f64::max);
-        let mut out = String::new();
-        for bucket in &self.buckets {
-            // PRD 0026 re-validation (V-03, V-11): the core's day and hour
-            // texts, in the language's date order and hour cycle.
-            let head = match (bucket.hour, bucket.day) {
+        // PRD 0026 re-validation (V-03, V-11): the core's day and hour
+        // texts, in the language's date order and hour cycle.
+        let parts: Vec<(Option<String>, String)> = self
+            .buckets
+            .iter()
+            .map(|bucket| match (bucket.hour, bucket.day) {
                 (_, Some(day)) => {
                     use chrono::Datelike;
                     let name =
                         crate::budget::weekday_text(weekday_name(day.weekday())).resolve(locale);
-                    let date = crate::text::Localized {
-                        id: crate::text::clock::DATE.into(),
-                        params: crate::text::params([
-                            ("day", day.day().to_string().into()),
-                            ("month", day.month().to_string().into()),
-                        ]),
-                        fallback: day.format("%m/%d").to_string().into(),
-                    };
-                    format!("{name:<10} {}", date.resolve(locale))
+                    (Some(name), crate::text::clock::date(day).resolve(locale))
                 }
-                (Some(_), None) => bucket.label.resolve(locale),
-                _ => String::new(),
-            };
+                (Some(_), None) => (None, bucket.label.resolve(locale)),
+                _ => (None, String::new()),
+            })
+            .collect();
+        let name_width = parts
+            .iter()
+            .filter_map(|(name, _)| name.as_deref().map(UnicodeWidthStr::width))
+            .max()
+            .unwrap_or(0);
+        let heads: Vec<String> = parts
+            .into_iter()
+            .map(|(name, rest)| match name {
+                Some(name) => format!("{} {rest}", pad(&name, name_width)),
+                None => rest,
+            })
+            .collect();
+        let head_width = heads.iter().map(|h| h.width()).max().unwrap_or(0);
+        let day_off = Localized::fixed("insights.rhythm.day_off", "off").resolve(locale);
+        let mut out = String::new();
+        for (bucket, head) in self.buckets.iter().zip(&heads) {
             let line = match bucket.consumption {
                 Some(value) => {
                     let len = if max > 0.0 {
@@ -504,12 +533,18 @@ impl Rhythm {
                 marks.push_str(" ↺");
             }
             if bucket.day_off {
-                marks.push_str(" (off)");
+                marks.push_str(&format!(" ({day_off})"));
             }
             if self.range == RhythmRange::Typical30d && bucket.consumption.is_some() {
-                marks.push_str(&format!(" n={}", bucket.samples));
+                let samples = Localized::plural(
+                    "insights.rhythm.samples",
+                    params([("count", bucket.samples.into())]),
+                    "{count} day",
+                    "{count} days",
+                );
+                marks.push_str(&format!(" ({})", samples.resolve(locale)));
             }
-            out.push_str(&format!("{head:<16} {line}{marks}\n"));
+            out.push_str(&format!("{} {line}{marks}\n", pad(head, head_width)));
         }
         out
     }
@@ -625,3 +660,7 @@ mod tests;
 #[cfg(test)]
 #[path = "insights_gap_tests.rs"]
 mod gap_tests;
+
+#[cfg(test)]
+#[path = "insights_text_tests.rs"]
+mod insights_text_tests;
