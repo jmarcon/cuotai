@@ -222,7 +222,8 @@
       "bundle.need.env_invalid",
       "query.env_name_invalid",
       "doctor.account.env_invalid",
-      "doctor.fix.env_invalid"
+      "doctor.fix.env_invalid",
+      "user_session.key_not_found"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2857,6 +2858,7 @@
   "edit_error.key_or_session_required": "Masukkan kunci API atau tempelkan sesi web.",
   "user_session.paste.too_long": "Teks yang ditempel terlalu panjang; salin hanya header Cookie, permintaan sebagai cURL, atau tabel cookie.",
   "user_session.paste.cookie_too_long": "Cookie sesi terlalu panjang untuk dikirim; salin lagi setelah masuk kembali.",
+  "user_session.key_not_found": "Kunci yang disimpan untuk akun ini tidak ada di brankas sistem; ketik lagi di wizard akun.",
   "oauth_error.store.too_long": "Kredensial ini terlalu besar untuk brankas sistem.",
   "edit_error.config_reserved_name": "Kolom {field} memakai nama yang dicadangkan untuk Cuotai (diawali __CUOTAI_); isi nama variabel lingkungan Anda sendiri, atau tempel rahasianya di asisten akun.",
   "vault.remove.in_use": "Kredensial itu sedang digunakan; hapus akun atau salurannya saja.",

@@ -880,6 +880,15 @@ pub(crate) fn not_found() -> Localized {
     )
 }
 
+/// PRD 0047 V-01: a key, token or password slot ([`Delivery::Secret`])
+/// whose vault entry is gone. Cookie slots keep [`not_found`].
+pub(crate) fn key_not_found() -> Localized {
+    Localized::fixed(
+        "user_session.key_not_found",
+        "The key saved for this account is not in the system vault; type it again in the account wizard.",
+    )
+}
+
 fn invalid_reference() -> Localized {
     Localized::fixed(
         "user_session.invalid_reference",
@@ -950,7 +959,11 @@ pub(crate) async fn load(
                 return Err(crate::providers::QueryError {
                     diagnostic: None,
                     status: crate::Status::NeedsConfiguration,
-                    note: not_found(),
+                    note: if descriptor.delivery == Delivery::Secret {
+                        key_not_found()
+                    } else {
+                        not_found()
+                    },
                 })
             }
         }
@@ -2350,6 +2363,9 @@ pub async fn stage_dropped(
     })
 }
 
+#[cfg(test)]
+#[path = "user_session_key_tests.rs"]
+mod key_tests;
 #[cfg(test)]
 #[path = "user_session_tests.rs"]
 mod tests;

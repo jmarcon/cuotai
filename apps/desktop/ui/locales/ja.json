@@ -77,7 +77,9 @@
       "restore.hosts.confirm",
       "restore.hosts.required",
       "restore.after",
-      "coreText.keySettingInvalid"
+      "coreText.keySettingInvalid",
+      "coreText.keyGone",
+      "dialog.move.buttonSession"
     ]
   },
   "agg.alertEach": "接続ごとに通知",
@@ -732,6 +734,7 @@
   "dialog.move.confirmHint": "もう一度クリックして確定します。Cuotai が値をシステムの保管庫にコピーし、アカウントはターミナルの設定に依存しなくなります。",
   "dialog.move.done": "システムの保管庫に移しました。このアカウントはターミナルの設定に依存しなくなりました。",
   "dialog.move.unreadable": "ターミナルの設定がアプリから見えないため、Cuotai はここからこの値を読み取れません。「置き換える」から入力してください。",
+  "dialog.move.buttonSession": "セッションを Cuotai に移す",
   "card.keyMissing": "このアカウントにはキーが保存されていません。「編集」を開いて追加してください。",
   "card.connectSession": "セッションを接続",
   "dialog.session.connect": "アカウントのウェブセッションを下に貼り付けてください。保存前にテストされます。",
@@ -1861,5 +1864,6 @@
   "detect.costOffer.gemini_cli": "ローカルのログから API 価格での費用も見積もれます。Cuotai が読むのは Gemini CLI のソースをオンにした後だけです。",
   "coreText.sessionIncomplete": "保存されたウェブセッションに Cookie {names} がありません。新しいセッションを貼り付けてください。",
   "coreText.keySettingInvalid": "このアカウントのキー設定が有効ではありません。「編集」を開いてキーを入力してください。",
+  "coreText.keyGone": "このアカウントに保存したキーがシステムの保管庫にありません。「編集」を開いてもう一度入力してください。",
   "dialog.intervalHintMetered": "空欄：{default} 分ごとに 1 回。最小 {effective} 分：{min}〜{effective} 分は {effective} 分に引き上げられます。"
 }

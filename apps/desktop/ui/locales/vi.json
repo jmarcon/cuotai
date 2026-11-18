@@ -59,7 +59,9 @@
       "restore.hosts.confirm",
       "restore.hosts.required",
       "restore.after",
-      "coreText.keySettingInvalid"
+      "coreText.keySettingInvalid",
+      "coreText.keyGone",
+      "dialog.move.buttonSession"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -714,6 +716,7 @@
   "dialog.move.confirmHint": "Nhấp lần nữa để xác nhận: Cuotai sao chép các giá trị vào kho bảo mật của hệ thống và tài khoản không còn phụ thuộc vào thiết lập terminal.",
   "dialog.move.done": "Đã chuyển vào kho bảo mật của hệ thống. Tài khoản này không còn phụ thuộc vào thiết lập terminal.",
   "dialog.move.unreadable": "Cuotai không thể đọc giá trị này từ đây vì ứng dụng không thấy thiết lập terminal. Hãy dùng Thay thế để nhập nó.",
+  "dialog.move.buttonSession": "Chuyển phiên vào Cuotai",
   "card.keyMissing": "Chưa lưu khóa cho tài khoản này. Mở Chỉnh sửa để thêm.",
   "card.connectSession": "Kết nối phiên",
   "dialog.session.connect": "Dán phiên web của tài khoản bên dưới; phiên được kiểm tra trước khi lưu.",
@@ -1843,5 +1846,6 @@
   "detect.costOffer.gemini_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Gemini CLI.",
   "coreText.sessionIncomplete": "Phiên web đã lưu thiếu cookie {names}. Hãy dán phiên mới.",
   "coreText.keySettingInvalid": "Cài đặt khóa của tài khoản này không hợp lệ. Mở Chỉnh sửa và nhập khóa.",
+  "coreText.keyGone": "Khóa đã lưu cho tài khoản này không còn trong kho của hệ thống. Mở Chỉnh sửa và nhập lại.",
   "dialog.intervalHintMetered": "Để trống: mỗi {default} phút một lần. Tối thiểu {effective} phút: từ {min} đến {effective} phút được nâng lên {effective}."
 }

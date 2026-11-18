@@ -109,6 +109,10 @@ assert.equal(sessionAction(xiaomi), "connect");
 assert.equal(sessionAction({ ...xiaomi, paste_session: true }), "paste");
 assert.equal(sessionAction({ ...xiaomi, status: "ready" }), null);
 assert.equal(sessionAction({ ...xiaomi, notes_l10n: [{ id: "query.missing_param", params: { key: "region" }, fallback: "" }] }), null);
+// PRD 0047 V-01: a key gone from the vault has its own wording and no session action (the card offers Edit).
+assert.equal(DESKTOP_WORDING["user_session.key_not_found"]?.id, "coreText.keyGone");
+assert.equal(desktopAction({ id: "user_session.key_not_found" }), null);
+assert.equal(sessionAction({ ...xiaomi, notes_l10n: [{ id: "user_session.key_not_found", params: {}, fallback: "" }] }), null);
 for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
   const text = noteText(xiaomi, 0);

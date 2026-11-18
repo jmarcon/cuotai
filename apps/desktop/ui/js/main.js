@@ -344,8 +344,11 @@ const openExtensionManager = (consentFor = null) => openExtensionsDialog({
 const isExtensionAccount = (index) =>
   store.view?.reports.some((r) => r.index === index && r.provider === "extension") ?? false;
 
+/** PRD 0047 V-01: a card whose key is gone from the vault opens the editor on that key's Replace input. */
+const keyGone = (index) =>
+  store.view?.reports.some((r) => r.index === index && r.notes_l10n?.[0]?.id === "user_session.key_not_found") ?? false;
 const editAccount = (index) =>
-  isExtensionAccount(index) ? openExtensionManager() : openAccountDialog(index, { onSaved });
+  isExtensionAccount(index) ? openExtensionManager() : openAccountDialog(index, { onSaved, replaceKey: keyGone(index) });
 /** SES-01: "Paste a new session" opens the account's editor on its paste box. */
 const pasteSession = (index) => openAccountDialog(index, { onSaved, pasteSession: true });
 /** PRD 0041 RF5.3: "Set a budget…" / "Set a floor…" open the editor at the budgets section with the core's draft row. */

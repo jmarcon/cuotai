@@ -184,6 +184,9 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // peer field) and, with `?unnamed`, beside an unnamed one (the peer field shows); every `hidden` part stays hidden.
   ["dialog-add", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
   ["dialog-add-peer", "index.html?unnamed", 1200, 820, {}, ["[data-add]", '.pick[data-provider="groq"]']],
+  // PRD 0047 re-validation (V-04, V-05): Edit on the MiMo account with its key's Replace open (the placeholder of the
+  // replaced key) and the session still set up in the terminal ("Move session into Cuotai").
+  ["dialog-edit-replace", "index.html", 1200, 820, {}, ['.card[data-card^="xiaomi_mimo::"] [data-details]', "[data-edit]", "[data-replace]"]],
   // PRD 0033 re-validation (V-15): the AWS Bedrock form (profile, CLI path, SSO login, interval and cost advisory).
   ["dialog-add-bedrock", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="aws_bedrock"]']],
   // PRD 0033 re-validation (V-06): the confirmation before a billed refresh of the AWS Bedrock account, in the main

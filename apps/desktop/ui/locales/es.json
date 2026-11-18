@@ -665,6 +665,7 @@
   "dialog.move.confirmHint": "Haz clic de nuevo para confirmar: Cuotai copia los valores al almacén del sistema y la cuenta deja de depender de la configuración de la terminal.",
   "dialog.move.done": "Movido al almacén del sistema. Esta cuenta ya no depende de la configuración de la terminal.",
   "dialog.move.unreadable": "Cuotai no puede leer este valor desde aquí, porque la configuración de la terminal no es visible para la app. Usa Sustituir para escribirlo.",
+  "dialog.move.buttonSession": "Mover la sesión a Cuotai",
   "card.keyMissing": "No hay ninguna clave guardada para esta cuenta. Abre Editar para añadirla.",
   "card.connectSession": "Conectar sesión",
   "dialog.session.connect": "Pega abajo la sesión web de la cuenta; se prueba antes de guardarla.",
@@ -1811,5 +1812,6 @@
   "detect.costOffer.gemini_cli": "Sus registros locales también pueden estimar el coste a precios de API; Cuotai solo los lee después de que actives la fuente Gemini CLI.",
   "coreText.sessionIncomplete": "A la sesión web guardada le faltan las cookies {names}. Pega una nueva.",
   "coreText.keySettingInvalid": "El ajuste de clave de esta cuenta no es válido. Abre Editar y escribe su clave.",
+  "coreText.keyGone": "La clave guardada para esta cuenta ya no está en el almacén del sistema. Abre Editar y vuelve a escribirla.",
   "dialog.intervalHintMetered": "Vacío: una vez cada {default} minutos. Mínimo {effective} minutos: de {min} a {effective} minutos se elevan a {effective}."
 }

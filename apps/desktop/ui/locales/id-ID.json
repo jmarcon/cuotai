@@ -657,6 +657,7 @@
   "dialog.move.confirmHint": "Klik lagi untuk konfirmasi: Cuotai menyalin nilai-nilainya ke brankas sistem, dan akun tidak lagi bergantung pada pengaturan terminal.",
   "dialog.move.done": "Dipindahkan ke brankas sistem. Akun ini tidak lagi bergantung pada pengaturan terminal.",
   "dialog.move.unreadable": "Cuotai tidak dapat membaca nilai ini dari sini karena pengaturan terminal tidak terlihat oleh aplikasi. Gunakan Ganti untuk mengetiknya.",
+  "dialog.move.buttonSession": "Pindahkan sesi ke Cuotai",
   "card.keyMissing": "Belum ada kunci tersimpan untuk akun ini. Buka Edit untuk menambahkannya.",
   "card.connectSession": "Hubungkan sesi",
   "dialog.session.connect": "Tempel sesi web akun di bawah; sesi diuji sebelum disimpan.",
@@ -1786,5 +1787,6 @@
   "detect.costOffer.gemini_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Gemini CLI.",
   "coreText.sessionIncomplete": "Sesi web yang disimpan tidak memiliki cookie {names}. Tempelkan sesi baru.",
   "coreText.keySettingInvalid": "Pengaturan kunci akun ini tidak valid. Buka Edit dan ketik kuncinya.",
+  "coreText.keyGone": "Kunci yang disimpan untuk akun ini sudah tidak ada di brankas sistem. Buka Edit dan ketik lagi.",
   "dialog.intervalHintMetered": "Kosong: sekali setiap {default} menit. Minimum {effective} menit: {min} sampai {effective} menit dinaikkan menjadi {effective}."
 }

@@ -345,7 +345,9 @@
       "restore.hosts.confirm",
       "restore.hosts.required",
       "restore.after",
-      "coreText.keySettingInvalid"
+      "coreText.keySettingInvalid",
+      "coreText.keyGone",
+      "dialog.move.buttonSession"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -1011,6 +1013,7 @@
   "dialog.move.confirmHint": "Cliquez de nouveau pour confirmer : Cuotai copie les valeurs dans le coffre du système et le compte ne dépend plus de la configuration du terminal.",
   "dialog.move.done": "Déplacé dans le coffre du système. Ce compte ne dépend plus de la configuration du terminal.",
   "dialog.move.unreadable": "Cuotai ne peut pas lire cette valeur d’ici, car la configuration du terminal n’est pas visible pour l’application. Utilisez Remplacer pour la saisir.",
+  "dialog.move.buttonSession": "Déplacer la session dans Cuotai",
   "card.keyMissing": "Aucune clé enregistrée pour ce compte. Ouvrez Modifier pour l’ajouter.",
   "card.connectSession": "Connecter la session",
   "dialog.session.connect": "Collez ci-dessous la session web du compte ; elle est testée avant d’être enregistrée.",
@@ -2157,5 +2160,6 @@
   "detect.costOffer.gemini_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Gemini CLI.",
   "coreText.sessionIncomplete": "Il manque à la session web enregistrée les cookies {names}. Collez-en une nouvelle.",
   "coreText.keySettingInvalid": "Le réglage de clé de ce compte n’est pas valide. Ouvrez Modifier et saisissez sa clé.",
+  "coreText.keyGone": "La clé enregistrée pour ce compte n’est plus dans le coffre du système. Ouvrez Modifier et saisissez-la de nouveau.",
   "dialog.intervalHintMetered": "Vide : une fois toutes les {default} minutes. Minimum {effective} minutes : de {min} à {effective} minutes, l'intervalle est porté à {effective}."
 }

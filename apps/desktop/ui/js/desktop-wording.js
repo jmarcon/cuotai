@@ -40,6 +40,8 @@ export const DESKTOP_WORDING = {
   "query.session.missing_cookies_env": SESSION_NEEDED,
   // PRD 0016: vault session texts point to the terminal's account wizard.
   "user_session.not_found": SESSION_NEEDED,
+  // PRD 0047 V-01: a key, token or password gone from the vault; the card's Edit opens on it (no session action).
+  "user_session.key_not_found": w("coreText.keyGone", "The key saved for this account is no longer in the system vault. Open Edit and type it again."),
   "user_session.invalid_reference": SESSION_NEEDED,
   "user_session.needed": SESSION_NEEDED,
   "query.session.missing_cookies": w("coreText.sessionIncomplete", "The saved web session lacks the cookies {names}. Paste a new one.", "session"),

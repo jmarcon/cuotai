@@ -100,7 +100,8 @@
       "bundle.need.env_invalid",
       "query.env_name_invalid",
       "doctor.account.env_invalid",
-      "doctor.fix.env_invalid"
+      "doctor.fix.env_invalid",
+      "user_session.key_not_found"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -2792,6 +2793,7 @@
   "edit_error.key_or_session_required": "Informe uma chave de API ou cole uma sessão web.",
   "user_session.paste.too_long": "O texto colado é longo demais; copie só o cabeçalho Cookie, a requisição como cURL ou a tabela de cookies.",
   "user_session.paste.cookie_too_long": "Os cookies da sessão são longos demais para enviar; copie-os de novo depois de entrar outra vez.",
+  "user_session.key_not_found": "A chave salva para esta conta não está no cofre do sistema; digite-a novamente no assistente da conta.",
   "oauth_error.store.too_long": "Esta credencial é grande demais para o cofre do sistema.",
   "edit_error.config_reserved_name": "O campo {field} usa um nome reservado ao Cuotai (começa com __CUOTAI_); informe o nome da sua própria variável de ambiente ou cole o segredo no assistente da conta.",
   "vault.remove.in_use": "Essa credencial está em uso; remova a conta ou o canal dela.",

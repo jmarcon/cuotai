@@ -245,7 +245,8 @@
       "bundle.need.env_invalid",
       "query.env_name_invalid",
       "doctor.account.env_invalid",
-      "doctor.fix.env_invalid"
+      "doctor.fix.env_invalid",
+      "user_session.key_not_found"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2937,6 +2938,7 @@
   "edit_error.key_or_session_required": "Geben Sie einen API-Schlüssel ein oder fügen Sie eine Websitzung ein.",
   "user_session.paste.too_long": "Der eingefügte Text ist zu lang; kopieren Sie nur den Cookie-Header, die Anfrage als cURL oder die Cookie-Tabelle.",
   "user_session.paste.cookie_too_long": "Die Cookies der Sitzung sind zu lang zum Senden; kopieren Sie sie nach einer neuen Anmeldung erneut.",
+  "user_session.key_not_found": "Der für dieses Konto gespeicherte Schlüssel ist nicht im Systemtresor; geben Sie ihn im Kontoassistenten erneut ein.",
   "oauth_error.store.too_long": "Diese Zugangsdaten sind zu groß für den Systemtresor.",
   "edit_error.config_reserved_name": "Das Feld {field} verwendet einen für Cuotai reservierten Namen (er beginnt mit __CUOTAI_); geben Sie den Namen Ihrer eigenen Umgebungsvariable an oder fügen Sie das Geheimnis im Kontoassistenten ein.",
   "vault.remove.in_use": "Diese Zugangsdaten werden verwendet; entfernen Sie stattdessen ihr Konto oder ihren Kanal.",
