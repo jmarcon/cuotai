@@ -150,10 +150,11 @@ const demoEmit = (ev) => demoLoginListeners.forEach((cb) => cb(ev));
 export const getAccount = (index) => call("get_account", { index });
 /** PRD 0001 C1: where the account with this stable id is now (`null` when it is gone), after a reload. */
 export const accountIndex = (accountId) => call("account_index", { accountId });
-/** PRD 0016 RF1.2: move the account's session variables into the system vault (after an explicit confirmation). */
-export const migrateSession = (index) => call("migrate_session", { index });
+/** PRD 0016 RF1.2: move the account's session variables into the system vault (after an explicit confirmation).
+ *  PRD 0047 re-validation S-01: `accountId` (the dialog's) binds it to that account wherever the accounts moved. */
+export const migrateSession = (index, accountId = null) => call("migrate_session", { index, accountId });
 /** PRD 0016 RF4.2: forget the account's web session, deleting its vault entry (after an explicit confirmation). */
-export const forgetSession = (index) => call("forget_session", { index });
+export const forgetSession = (index, accountId = null) => call("forget_session", { index, accountId });
 /** PRD 0029 RF6.2: the vault entries Cuotai created, each with the core's status; the removal of exactly the confirmed unused keys; one entry by its key. */
 export const vaultAudit = () => call("vault_audit");
 export const vaultPrune = (keys) => call("vault_prune", { keys });
@@ -1839,6 +1840,14 @@ let demoNextId = 0;
 const demoAccountId = (index) => {
   for (const r of demoReports) if (!demoIds.has(r)) demoIds.set(r, `acc_demo${String(demoNextId++).padStart(8, "0")}`);
   return demoIds.get(demoReports[index]);
+};
+/** PRD 0001 C1 / PRD 0047 re-validation S-01: like the shell, a command aimed at `index` with the dialog's account id
+ *  is refused when that slot now holds another account. */
+const demoCheckSlot = (index, accountId) => {
+  if (accountId != null && demoAccountId(index) !== accountId) {
+    throw JSON.stringify({ id: "edit_error.account_moved", params: {},
+      fallback: "The account being edited is no longer at this place in the configuration file; reload the file and open the account again." });
+  }
 };
 const DEMO_KEY_INPUT = { slot: "credential_env", label: { id: "secret_input.credential.label", params: {}, fallback: "API key or access token" },
   help: { id: "secret_input.help", params: {}, fallback: "Paste the value. Cuotai keeps it in the system vault and sends it only to this provider; the configuration file keeps just a reference." },
@@ -3860,7 +3869,8 @@ const demo = {
         consent: { id: "secret_input.migrate.consent", params: { label },
           fallback: `${label.fallback}: Cuotai copies the value it reads today from the terminal setup into the system vault. From then on this account works without that setup; the configuration file keeps just a reference.` } }] : [] };
   },
-  migrate_session: async ({ index }) => {
+  migrate_session: async ({ index, accountId }) => {
+    demoCheckSlot(index, accountId);
     demoSettings.sessionMigrated.add(demoReports[index]);
     return demo.get_account({ index });
   },
@@ -3925,7 +3935,8 @@ const demo = {
   restart_app: async () => location.reload(),
   vault_prune: async ({ keys }) => { const deleted = demoSettings.vaultPruned ? [] : keys.slice(0, 1); demoSettings.vaultPruned = true; return { deleted, skipped: [] }; },
   vault_remove: async () => { demoSettings.vaultRemoved = true; return "owner_unknown"; },
-  forget_session: async ({ index }) => {
+  forget_session: async ({ index, accountId }) => {
+    demoCheckSlot(index, accountId);
     demoSettings.sessionForgotten.add(demoReports[index]);
     return demo.get_account({ index });
   },

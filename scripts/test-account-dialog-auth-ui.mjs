@@ -117,6 +117,19 @@ assert.equal((main.match(/accountId: accountIdAt\(index\)/g) ?? []).length, 2, "
 const lib = await import("../apps/desktop/ui/js/lib.js");
 assert.equal(await lib.accountIndex("acc_demo00000001"), 1);
 assert.equal(await lib.accountIndex("acc_gone"), null);
+// PRD 0047 re-validation S-01: moving a key into Cuotai and forgetting a session carry the dialog's account id, the
+// demo refuses them like the shell when the slot holds another account, and the dialog then closes with the notice.
+assert.match(dialog, /existing = await forgetSession\(index, accountId\);/);
+assert.match(dialog, /existing = await migrateSession\(index, accountId\);/);
+assert.equal((dialog.match(/if \(await closeIfAccountMoved\(x\)\) return;/g) ?? []).length, 2);
+assert.match(dialog, /parseErrorEnvelope\(x\)\?\.id !== "edit_error\.account_moved"\) return false;\s*dlg\.close\(\);\s*await noticeAccountGone\(\);/);
+for (const command of [lib.migrateSession, lib.forgetSession]) {
+  await assert.rejects(command(2, "acc_demo00000001"), (x) => JSON.parse(x).id === "edit_error.account_moved");
+}
+assert.equal((await lib.migrateSession(2, "acc_demo00000002")).account_id, "acc_demo00000002");
+assert.equal((await lib.forgetSession(2, "acc_demo00000002")).account_id, "acc_demo00000002");
+// A restore that wrote the accounts file closes the open account dialogs, never its own.
+assert.match(main, /if \(key === "config_file"\) for \(const d of document\.querySelectorAll\("dialog\[open\]:not\(\.restore-dlg\)"\)\) d\.close\(\);/);
 // PRD 0001 re-validation (L2): the interval placeholder follows the core's bounds of the provider (`schema.interval`),
 // so a provider billed per query shows its own default and minimum.
 for (const file of locales) {

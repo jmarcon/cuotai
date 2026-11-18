@@ -600,6 +600,14 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   dyn.addEventListener("change", (e) => {
     if (e.target?.name === "f:region" && !sessionBox.hidden) { refreshOpenLinks(); refreshCaptureHints(); }
   });
+  // PRD 0047 re-validation S-01: the shell refused a move or a forget because the account being edited is no longer at
+  // this place (`edit_error.account_moved`); nothing changed. Says so and closes, as the opening path does.
+  const closeIfAccountMoved = async (x) => {
+    if (parseErrorEnvelope(x)?.id !== "edit_error.account_moved") return false;
+    dlg.close();
+    await noticeAccountGone();
+    return true;
+  };
   function renderSession(status = "") {
     const slots = schema.sessions ?? [];
     // PRD 0047: the vault reference may also hold typed keys; this box speaks only of its own session slots, and
@@ -711,11 +719,12 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       }
       forgetBtn.disabled = true;
       try {
-        existing = await forgetSession(index);
+        existing = await forgetSession(index, accountId);
         renderSession(t("dialog.session.forgotten"));
         renderMove();
         await renderDynamic();
       } catch (x) {
+        if (await closeIfAccountMoved(x)) return;
         forgetBtn.disabled = false;
         confirmForget = false;
         forgetBtn.textContent = t("dialog.session.forget");
@@ -749,7 +758,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
       btn.disabled = true;
       try {
         const moved = offers.map((c) => c.slot);
-        existing = await migrateSession(index);
+        existing = await migrateSession(index, accountId);
         // The saved account no longer points at the terminal setup; the draft must not bring those references back.
         for (const slot of moved) {
           if (values.has(slot)) values.set(slot, { key: slot, text: "", choice: null });
@@ -759,6 +768,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         renderMove(t("dialog.move.done"));
         await renderDynamic();
       } catch (x) {
+        if (await closeIfAccountMoved(x)) return;
         btn.disabled = false;
         confirmMove = false;
         btn.textContent = t("dialog.move.button");
