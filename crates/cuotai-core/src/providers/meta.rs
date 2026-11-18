@@ -27,8 +27,8 @@
 //!   (confirmed by the owner, 2026-10-27). It answers `{as_of, models,
 //!   metrics: {<NAME>: {metric, series: [{type: "TOTAL", data_points:
 //!   [{date, value[, amount]}]}]}}}`; the cost carries `currency: {code,
-//!   offset}`. Cuotai sums the `TOTAL` series of the current month; an empty
-//!   series is unknown, never zero. That `offset: 100` means amounts in
+//!   offset}`. Cuotai sums the `TOTAL` series of the current month (the
+//!   cost from `amount` only); an empty series is unknown, never zero. That `offset: 100` means amounts in
 //!   cents is inferred (the confirmed sample was all zeros).
 //!
 //! The console's GETs carry only the cookie and `Content-Type:
@@ -513,11 +513,14 @@ fn number(v: &Value) -> Option<f64> {
     (n.is_finite() && n >= 0.0).then_some(n)
 }
 
-/// The sum of the `TOTAL` series of one metric. `None` when the metric,
-/// its `TOTAL` series or every usable data point is missing: an empty
-/// series is unknown, never zero. Points explicitly reported as `0` count.
-/// `field` reads `amount` first (cost) and falls back to `value`.
-fn total(metric: &Value, amount_first: bool) -> Option<f64> {
+/// The sum of `field` over the `TOTAL` series of one metric. `None` when
+/// the metric, its `TOTAL` series or every usable data point is missing: an
+/// empty series is unknown, never zero. Points explicitly reported as `0`
+/// count. The cost reads `amount` only (the figure the console's
+/// `{symbol}{amount}` format shows): a cost point without `amount` is not
+/// counted, since nothing says which unit its `value` is in (PRD 0049
+/// re-validation R49-03). The usage counters read `value`.
+fn total(metric: &Value, field: &str) -> Option<f64> {
     let series = metric.get("series")?.as_array()?;
     let total = series
         .iter()
@@ -525,15 +528,7 @@ fn total(metric: &Value, amount_first: bool) -> Option<f64> {
     let points = total.get("data_points")?.as_array()?;
     let mut sum = None;
     for point in points {
-        let v = if amount_first {
-            point
-                .get("amount")
-                .and_then(number)
-                .or_else(|| point.get("value").and_then(number))
-        } else {
-            point.get("value").and_then(number)
-        };
-        if let Some(v) = v {
+        if let Some(v) = point.get(field).and_then(number) {
             sum = Some(sum.unwrap_or(0.0) + v);
         }
     }
@@ -560,7 +555,16 @@ fn usage_metrics(series: &serde_json::Map<String, Value>, period: &MonthToDate) 
     };
     let mut out = Vec::new();
     if let Some(cost) = series.get("USAGE_BILLABLE_COST") {
-        if let Some(sum) = total(cost, true) {
+        let sum = total(cost, "amount");
+        if sum.is_none() && cfg!(debug_assertions) {
+            // Debug builds only: the field names (never values) of the cost
+            // answer, so the owner can report a shape without `amount`.
+            eprintln!(
+                "meta usage: USAGE_BILLABLE_COST without amount, keys {:?}",
+                key_paths(cost)
+            );
+        }
+        if let Some(sum) = sum {
             let currency = cost.get("currency");
             // Inferred (the confirmed sample is all zeros): `offset: 100`
             // says the amounts are minor units (cents).
@@ -619,7 +623,7 @@ fn usage_metrics(series: &serde_json::Map<String, Value>, period: &MonthToDate) 
         ),
         ("IMAGES_PROCESSED", "Imagens processadas", "imagens"),
     ] {
-        if let Some(sum) = series.get(key).and_then(|m| total(m, false)) {
+        if let Some(sum) = series.get(key).and_then(|m| total(m, "value")) {
             out.push(metric(label, sum, unit, MetricKind::Usage));
         }
     }
@@ -1136,6 +1140,61 @@ mod tests {
             .iter()
             .any(|m| m.label == "Requisições" && m.used == Some(7.0)));
         assert_eq!(data.metrics.len(), 2);
+    }
+
+    /// PRD 0049 re-validation R49-03: a cost point without `amount` is not
+    /// counted (no unit evidences its `value`), so a series of such points
+    /// leaves the spend unknown while the counters still read.
+    #[tokio::test]
+    async fn cost_points_without_amount_leave_the_spend_unknown() {
+        let mut cost = series(
+            "usage_billable_cost",
+            serde_json::json!([{ "date": "2026-10-01", "value": 12.34 }]),
+        );
+        cost["currency"] = serde_json::json!({ "code": "USD", "offset": 100 });
+        let body = serde_json::json!({ "metrics": {
+            "USAGE_BILLABLE_COST": cost,
+            "REQUESTS": series("num_requests", serde_json::json!([{ "value": 5 }])),
+        }});
+        let data = console(
+            &session_account(&[("team_id", "1001")]),
+            None,
+            ResponseTemplate::new(200).set_body_json(body),
+        )
+        .await
+        .expect("usage");
+        assert!(data.metrics.iter().all(|m| m.kind != MetricKind::Spend));
+        assert!(data
+            .metrics
+            .iter()
+            .any(|m| m.label == "Requisições" && m.used == Some(5.0)));
+    }
+
+    /// Only the cost points that carry `amount` are summed.
+    #[tokio::test]
+    async fn a_mixed_cost_series_sums_only_the_amounts() {
+        let mut cost = series(
+            "usage_billable_cost",
+            serde_json::json!([
+                { "date": "2026-10-01", "value": 1000, "amount": 1000 },
+                { "date": "2026-10-02", "value": 999 }
+            ]),
+        );
+        cost["currency"] = serde_json::json!({ "code": "USD", "offset": 100 });
+        let body = serde_json::json!({ "metrics": { "USAGE_BILLABLE_COST": cost }});
+        let data = console(
+            &session_account(&[("team_id", "1001")]),
+            None,
+            ResponseTemplate::new(200).set_body_json(body),
+        )
+        .await
+        .expect("usage");
+        let spend = data
+            .metrics
+            .iter()
+            .find(|m| m.kind == MetricKind::Spend)
+            .unwrap();
+        assert_eq!(spend.used, Some(10.0));
     }
 
     #[tokio::test]
