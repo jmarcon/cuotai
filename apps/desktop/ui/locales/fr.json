@@ -338,7 +338,8 @@
       "settings.costBy.codeHelp",
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
-      "settings.costBy.kpi.partial"
+      "settings.costBy.kpi.partial",
+      "settings.channels.kindInline.webhook"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -2082,6 +2083,7 @@
   "settings.channels.removeBody": "Son adresse est effacée du coffre du système et plus rien n’y est envoyé. Le journal des livraisons garde ses entrées pendant 7 jours.",
   "settings.channels.testOk": "Envoyé : {host} a répondu {status}.",
   "settings.channels.testFailed": "Non envoyé : {host} ({reason}).",
+  "settings.channels.kindInline.webhook": "webhook",
   "settings.kw.channels": "canaux webhook ntfy slack discord téléphone push équipe envoyer destination",
   "settings.hooks.event.notification_sent": "une notification a atteint un canal",
   "settings.error.channels_unavailable": "Les canaux sont indisponibles tant que la configuration n’est pas chargée.",

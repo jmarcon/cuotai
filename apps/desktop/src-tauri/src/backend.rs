@@ -815,8 +815,26 @@ pub struct ChannelsView {
     pub accounts: Vec<ChannelAccount>,
     /// PRD 0032 RF7.1: names hidden by default.
     pub private: bool,
-    /// Newest first.
-    pub log: Vec<cuotai_core::channels::log::Entry>,
+    /// Newest first, each with its kind and error in words.
+    pub log: Vec<cuotai_core::channels::log::EntryView>,
+}
+
+/// RF4.2: the answer of **Send test**, with the error category in words
+/// beside the raw `error`.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChannelTestResult {
+    #[serde(flatten)]
+    pub outcome: cuotai_core::channels::Outcome,
+    pub error_label: Option<cuotai_core::text::Localized>,
+}
+
+impl From<cuotai_core::channels::Outcome> for ChannelTestResult {
+    fn from(outcome: cuotai_core::channels::Outcome) -> Self {
+        Self {
+            error_label: outcome.error_label(),
+            outcome,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -4439,7 +4457,7 @@ impl Backend {
                 .collect(),
             accounts,
             private,
-            log: entries,
+            log: entries.into_iter().map(Into::into).collect(),
         })
     }
 
@@ -4510,7 +4528,7 @@ impl Backend {
     }
 
     /// RF4.2: **Send test**, awaited, with the destination's answer.
-    pub async fn channel_test(&self, id: String) -> Result<cuotai_core::channels::Outcome, String> {
+    pub async fn channel_test(&self, id: String) -> Result<ChannelTestResult, String> {
         self.ensure_loaded().await;
         let (dispatcher, locale) = {
             let g = self.inner.lock().await;
@@ -4523,6 +4541,7 @@ impl Backend {
         dispatcher
             .test(&id, &locale, chrono::Utc::now())
             .await
+            .map(ChannelTestResult::from)
             .map_err(|note| l10n_to_json(&note))
     }
 

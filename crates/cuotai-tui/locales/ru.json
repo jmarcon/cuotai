@@ -25,7 +25,10 @@
       "wizard.login.choose",
       "wizard.login.confirm",
       "feed.read_timeout",
-      "cost.by.requests"
+      "cost.by.requests",
+      "channels.cli.outcome.rate_limited",
+      "channels.cli.outcome.held",
+      "channels.cli.outcome.failing_notice"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -750,6 +753,9 @@
   "channels.cli.test_ok": "Отправлено: {host} ответил {status}.",
   "channels.cli.test_failed": "Не отправлено: {host} ({reason}).",
   "channels.cli.log_empty": "За последние 7 дней доставок не было.",
+  "channels.cli.outcome.rate_limited": "задержано почасовым лимитом",
+  "channels.cli.outcome.held": "задержано при запуске",
+  "channels.cli.outcome.failing_notice": "показано уведомление о сбое",
   "cli.backup.history_large": "Резервная копия содержит {size} МиБ истории; копирование может занять время.",
   "cli.restore.merge": "объединить",
   "cli.restore.rows": "строк: {rows}, новых здесь: {new}",

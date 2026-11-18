@@ -182,7 +182,16 @@
       "cost.live.source_off",
       "cost.error.top_needs_list",
       "insights.rhythm.day_off",
-      "insights.rhythm.samples"
+      "insights.rhythm.samples",
+      "channels.words.separator",
+      "channels.log_kind.test",
+      "channels.log_kind.rate_limit",
+      "channels.log_kind.failing",
+      "channels.error_category.network",
+      "channels.error_category.timeout",
+      "channels.error_category.vault",
+      "channels.error_category.invalid_url",
+      "channels.kind_inline.webhook"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2717,13 +2726,14 @@
   "channels.error.unknown": "Saluran tersebut tidak ada.",
   "channels.error.kind_change": "Jenis saluran tidak dapat diubah; tambahkan saluran baru.",
   "channels.warning.plain_http": "Alamat ini memakai HTTP biasa: siapa pun di jaringan Anda dapat membaca notifikasinya. Gunakan hanya untuk server di komputer ini atau jaringan pribadi Anda.",
-  "channels.words.every_kind": "Semua notifikasi",
+  "channels.words.every_kind": "Semua jenis",
   "channels.words.every_account": "dari semua akun",
   "channels.words.accounts": {
     "other": "dari {count} akun"
   },
   "channels.words.names_shown": "nama ditampilkan",
   "channels.words.names_hidden": "nama disembunyikan",
+  "channels.words.separator": ", ",
   "channels.consent.sentence": "Cuotai akan mengirim teks ini ke alamat ini saat ada notifikasi. Tidak ada hal lain yang keluar dari komputer ini.",
   "channels.test.title": "Uji Cuotai",
   "channels.test.body": "Ini adalah uji dari Cuotai. Jika Anda dapat membacanya, saluran berfungsi.",
@@ -2731,6 +2741,14 @@
     "other": "{count} notifikasi lain tidak dikirim (batas pengiriman)."
   },
   "channels.failing.notice": "Saluran {label} gagal ({status})",
+  "channels.log_kind.test": "Tes",
+  "channels.log_kind.rate_limit": "Ringkasan batas per jam",
+  "channels.log_kind.failing": "Pemberitahuan kegagalan",
+  "channels.error_category.network": "kesalahan jaringan",
+  "channels.error_category.timeout": "tidak ada jawaban tepat waktu",
+  "channels.error_category.vault": "alamat tidak tersedia di brankas",
+  "channels.error_category.invalid_url": "alamat tidak valid",
+  "channels.kind_inline.webhook": "webhook",
   "events.summary.notification_sent": "Notifikasi dikirim ke saluran ({kind})",
   "doctor.account.extension_ok": "Ekstensinya sudah disetujui dan tidak berubah sejak itu.",
   "doctor.account.extension_changed": "Ekstensinya berubah sejak Anda menyetujuinya, atau belum pernah disetujui, jadi tidak berjalan.",

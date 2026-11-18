@@ -25,7 +25,10 @@
       "wizard.login.choose",
       "wizard.login.confirm",
       "feed.read_timeout",
-      "cost.by.requests"
+      "cost.by.requests",
+      "channels.cli.outcome.rate_limited",
+      "channels.cli.outcome.held",
+      "channels.cli.outcome.failing_notice"
     ]
   },
   "about.brazil": "특별히 감사드립니다: 브라질 개발자들이 만든 프로젝트",
@@ -696,6 +699,9 @@
   "channels.cli.test_ok": "전송됨: {host}이(가) {status}(으)로 응답했습니다.",
   "channels.cli.test_failed": "전송 안 됨: {host} ({reason}).",
   "channels.cli.log_empty": "지난 7일 동안 전달 내역이 없습니다.",
+  "channels.cli.outcome.rate_limited": "시간당 한도로 보류됨",
+  "channels.cli.outcome.held": "시작 시 보류됨",
+  "channels.cli.outcome.failing_notice": "실패 알림 표시됨",
   "cli.backup.history_large": "백업에 {size} MiB의 기록이 들어 있어 복사가 느릴 수 있습니다.",
   "cli.restore.merge": "병합",
   "cli.restore.rows": "행: {rows}, 여기서 새 항목: {new}",

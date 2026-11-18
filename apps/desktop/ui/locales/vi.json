@@ -52,7 +52,8 @@
       "settings.costBy.codeHelp",
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
-      "settings.costBy.kpi.partial"
+      "settings.costBy.kpi.partial",
+      "settings.channels.kindInline.webhook"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -1768,6 +1769,7 @@
   "settings.channels.removeBody": "Địa chỉ của kênh bị xóa khỏi kho của hệ thống và không còn gì được gửi tới đó. Nhật ký gửi giữ các mục của kênh trong 7 ngày.",
   "settings.channels.testOk": "Đã gửi: {host} trả lời {status}.",
   "settings.channels.testFailed": "Chưa gửi: {host} ({reason}).",
+  "settings.channels.kindInline.webhook": "webhook",
   "settings.kw.channels": "kênh webhook ntfy slack discord điện thoại push nhóm gửi đích",
   "settings.hooks.event.notification_sent": "một thông báo đã tới một kênh",
   "settings.error.channels_unavailable": "Kênh không khả dụng cho đến khi cấu hình được tải.",

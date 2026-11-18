@@ -184,7 +184,16 @@
       "cost.live.source_off",
       "cost.error.top_needs_list",
       "insights.rhythm.day_off",
-      "insights.rhythm.samples"
+      "insights.rhythm.samples",
+      "channels.words.separator",
+      "channels.log_kind.test",
+      "channels.log_kind.rate_limit",
+      "channels.log_kind.failing",
+      "channels.error_category.network",
+      "channels.error_category.timeout",
+      "channels.error_category.vault",
+      "channels.error_category.invalid_url",
+      "channels.kind_inline.webhook"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2719,13 +2728,14 @@
   "channels.error.unknown": "Không có kênh như vậy.",
   "channels.error.kind_change": "Không thể đổi loại của kênh; hãy thêm kênh mới.",
   "channels.warning.plain_http": "Địa chỉ này dùng HTTP thường: bất kỳ ai trong mạng của bạn đều có thể đọc thông báo. Chỉ dùng cho máy chủ trên máy tính này hoặc trong mạng riêng của bạn.",
-  "channels.words.every_kind": "Mọi thông báo",
+  "channels.words.every_kind": "Mọi loại",
   "channels.words.every_account": "của mọi tài khoản",
   "channels.words.accounts": {
     "other": "của {count} tài khoản"
   },
   "channels.words.names_shown": "hiện tên",
   "channels.words.names_hidden": "ẩn tên",
+  "channels.words.separator": ", ",
   "channels.consent.sentence": "Cuotai sẽ gửi các văn bản này tới địa chỉ này khi có thông báo. Không có gì khác rời khỏi máy tính này.",
   "channels.test.title": "Thử nghiệm Cuotai",
   "channels.test.body": "Đây là tin thử nghiệm từ Cuotai. Nếu bạn đọc được, kênh đang hoạt động.",
@@ -2733,6 +2743,14 @@
     "other": "Thêm {count} thông báo không được gửi (giới hạn gửi)."
   },
   "channels.failing.notice": "Kênh {label} đang thất bại ({status})",
+  "channels.log_kind.test": "Thử",
+  "channels.log_kind.rate_limit": "Tóm tắt giới hạn theo giờ",
+  "channels.log_kind.failing": "Cảnh báo thất bại",
+  "channels.error_category.network": "lỗi mạng",
+  "channels.error_category.timeout": "không có phản hồi kịp thời",
+  "channels.error_category.vault": "địa chỉ không có trong kho",
+  "channels.error_category.invalid_url": "địa chỉ không hợp lệ",
+  "channels.kind_inline.webhook": "webhook",
   "events.summary.notification_sent": "Đã gửi thông báo tới một kênh ({kind})",
   "doctor.account.extension_ok": "Tiện ích mở rộng của nó đã được duyệt và không thay đổi từ đó.",
   "doctor.account.extension_changed": "Tiện ích mở rộng của nó đã thay đổi kể từ khi bạn duyệt, hoặc chưa từng được duyệt, nên không chạy.",

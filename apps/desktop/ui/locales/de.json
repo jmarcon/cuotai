@@ -62,7 +62,8 @@
       "settings.costBy.codeHelp",
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
-      "settings.costBy.kpi.partial"
+      "settings.costBy.kpi.partial",
+      "settings.channels.kindInline.webhook"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -1806,6 +1807,7 @@
   "settings.channels.removeBody": "Seine Adresse wird aus dem Systemtresor gelöscht und es wird nichts mehr dorthin gesendet. Das Zustellprotokoll behält seine Einträge 7 Tage lang.",
   "settings.channels.testOk": "Gesendet: {host} antwortete {status}.",
   "settings.channels.testFailed": "Nicht gesendet: {host} ({reason}).",
+  "settings.channels.kindInline.webhook": "Webhook",
   "settings.kw.channels": "kanäle webhook ntfy slack discord handy push team senden ziel",
   "settings.hooks.event.notification_sent": "eine Benachrichtigung hat einen Kanal erreicht",
   "settings.error.channels_unavailable": "Kanäle sind nicht verfügbar, bis die Konfiguration geladen ist.",

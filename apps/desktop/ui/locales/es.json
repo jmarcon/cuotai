@@ -1743,6 +1743,7 @@
   "settings.channels.removeBody": "Su dirección se borra del almacén del sistema y no se envía nada más allí. El registro de entregas conserva sus entradas durante 7 días.",
   "settings.channels.testOk": "Enviado: {host} respondió {status}.",
   "settings.channels.testFailed": "No enviado: {host} ({reason}).",
+  "settings.channels.kindInline.webhook": "webhook",
   "settings.kw.channels": "canales webhook ntfy slack discord móvil push equipo enviar destino",
   "settings.hooks.event.notification_sent": "una notificación llegó a un canal",
   "settings.error.channels_unavailable": "Los canales no están disponibles hasta que se cargue la configuración.",

@@ -70,7 +70,8 @@
       "settings.costBy.codeHelp",
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
-      "settings.costBy.kpi.partial"
+      "settings.costBy.kpi.partial",
+      "settings.channels.kindInline.webhook"
     ]
   },
   "agg.alertEach": "接続ごとに通知",
@@ -1786,6 +1787,7 @@
   "settings.channels.removeBody": "アドレスはシステムの保管庫から削除され、以後そこには何も送信されません。配信ログのエントリは 7 日間保持されます。",
   "settings.channels.testOk": "送信しました：{host} が {status} を返しました。",
   "settings.channels.testFailed": "送信できませんでした：{host}（{reason}）。",
+  "settings.channels.kindInline.webhook": "Webhook",
   "settings.kw.channels": "チャンネル Webhook ntfy Slack Discord スマホ プッシュ チーム 送信 送信先 channels",
   "settings.hooks.event.notification_sent": "通知がチャンネルに届いた",
   "settings.error.channels_unavailable": "設定が読み込まれるまでチャンネルは利用できません。",

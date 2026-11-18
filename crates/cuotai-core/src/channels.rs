@@ -31,6 +31,9 @@ mod digest_filter_tests;
 #[path = "channels/aggregator_filter_tests.rs"]
 mod aggregator_filter_tests;
 #[cfg(test)]
+#[path = "channels/labels_tests.rs"]
+mod labels_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::oauth::{OAuthToken, TokenStore};
@@ -90,6 +93,16 @@ impl ChannelKind {
             Self::Ntfy => "ntfy",
             Self::Slack => "Slack",
             Self::Discord => "Discord",
+        }
+    }
+
+    /// The name inside a sentence ("New webhook channel"): "webhook" is a
+    /// common noun each language writes its own way; the product names
+    /// stay as written.
+    pub fn inline_name(self) -> Localized {
+        match self {
+            Self::Webhook => Localized::fixed("channels.kind_inline.webhook", "webhook"),
+            other => Localized::fixed("metric.verbatim", other.name()),
         }
     }
 }
@@ -1048,8 +1061,9 @@ pub fn find(path: &Path, id_or_label: &str) -> Option<Channel> {
 /// The filters in words.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FilterWords {
-    /// The kinds, in [`NoticeKind::ALL`] order; one "every notification"
-    /// item when all of them are on.
+    /// The kinds, in [`NoticeKind::ALL`] order; one "All kinds" item for
+    /// the default set (every kind but the digest), followed by the
+    /// digest's label when it is on too.
     pub kinds: Vec<Localized>,
     /// "of every account" / "of 3 accounts".
     pub accounts: Localized,
@@ -1064,7 +1078,8 @@ impl FilterWords {
     /// hidden".
     pub fn resolve(&self, locale: &str) -> String {
         let kinds: Vec<String> = self.kinds.iter().map(|kind| kind.resolve(locale)).collect();
-        let mut parts = vec![kinds.join(", "), self.accounts.resolve(locale)];
+        let separator = Localized::fixed("channels.words.separator", ", ").resolve(locale);
+        let mut parts = vec![kinds.join(&separator), self.accounts.resolve(locale)];
         if let Some(severity) = &self.severity {
             parts.push(severity.resolve(locale));
         }
@@ -1075,11 +1090,11 @@ impl FilterWords {
 
 /// RF4.1: the filters of a channel in words, with PRD 0032's `private`.
 pub fn filter_words(filters: &Filters, private: bool) -> FilterWords {
-    let kinds = if filters.kinds.len() == NoticeKind::ALL.len() {
-        vec![Localized::fixed(
-            "channels.words.every_kind",
-            "Every notification",
-        )]
+    let defaults = default_kinds();
+    let kinds = if filters.kinds.is_superset(&defaults) {
+        let mut words = vec![Localized::fixed("channels.words.every_kind", "All kinds")];
+        words.extend(filters.kinds.difference(&defaults).map(|kind| kind.label()));
+        words
     } else {
         NoticeKind::ALL
             .into_iter()

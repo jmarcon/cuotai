@@ -3440,9 +3440,12 @@ const DEMO_NOTICE_KINDS = [["reset", "Resets"], ["threshold", "Thresholds"], ["e
   ["projected", "Projected exhaustion"], ["overage", "Extra usage"], ["floor", "Balance floors"], ["session_expiring", "Session expiry"],
   ["limit_changed", "Limit changes"], ["digest", "Weekly digest"]];
 function demoFilterWords(filters) {
-  const kinds = filters.kinds.length === DEMO_NOTICE_KINDS.length
-    ? [demoL10n("channels.words.every_kind", {}, "Every notification")]
-    : DEMO_NOTICE_KINDS.filter(([k]) => filters.kinds.includes(k)).map(([k, l]) => demoL10n(`channels.kind.${k}`, {}, l));
+  // The core's rule: the default set (every kind but the digest) reads "All kinds", the digest named after it when on.
+  const defaults = DEMO_NOTICE_KINDS.filter(([k]) => k !== "digest");
+  const kindL10n = ([k, l]) => demoL10n(`channels.kind.${k}`, {}, l);
+  const kinds = defaults.every(([k]) => filters.kinds.includes(k))
+    ? [demoL10n("channels.words.every_kind", {}, "All kinds"), ...DEMO_NOTICE_KINDS.filter(([k]) => k === "digest" && filters.kinds.includes(k)).map(kindL10n)]
+    : DEMO_NOTICE_KINDS.filter(([k]) => filters.kinds.includes(k)).map(kindL10n);
   const accounts = filters.accounts?.length
     ? demoL10n("channels.words.accounts", { count: String(filters.accounts.length) }, `of ${filters.accounts.length} accounts`)
     : demoL10n("channels.words.every_account", {}, "of every account");

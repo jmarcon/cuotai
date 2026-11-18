@@ -75,6 +75,19 @@ pub enum Outcome {
     },
 }
 
+impl Outcome {
+    /// The error category of a failure in words (Send test, RF4.2);
+    /// `None` for a delivery or a failure with only a status.
+    pub fn error_label(&self) -> Option<Localized> {
+        match self {
+            Self::Failed {
+                error: Some(error), ..
+            } => Some(log::error_label(error)),
+            _ => None,
+        }
+    }
+}
+
 /// RF6.2: a notification a channel accepted, for hooks
 /// (`notification_sent`).
 #[derive(Debug, Clone, PartialEq, Eq)]
