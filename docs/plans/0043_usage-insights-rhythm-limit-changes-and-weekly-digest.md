@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0043 |
-| Status | Awaiting owner verification (2026-11-18 re-validation fixes in vNEXT) |
+| Status | Awaiting owner verification (2026-11-18 re-validation fixes in 0.87.0) |
 | Owner | `cuotai-core` (`stats::rhythm`, `stats::limit_changes`, `digest::weekly`, events), desktop (Stats view additions, menu-bar strip, digest notification), `cuotai-tui` (`--stats --rhythm`, `--digest`) |
 | Consumers | Every front end; `/v1/stats` (additive); hooks (`limit_changed`, `weekly_digest`) |
 | Depends on | PRD 0006 (history), PRD 0026 (stats, journal, Stats view), PRD 0029 (account id) |
@@ -25,14 +25,14 @@
 | RF6 | 0.83.0, 0.84.0 | `docs/gui-features.md`, `docs/tui.md`, `docs/advanced.md`, `docs/events.md`, `docs/local-server.md`, `docs/export-v1.schema.json`; 0.84.0: the strip style and the popover strip (`docs/gui-features.md`, `docs/platforms.md`) and the digest's action. |
 | Deviation | 0.84.0 | RF4.3 asks for "an action that opens the Stats view" on the notification. `tauri-plugin-notification` 2.7 has no click callback or action buttons on the desktop, so the action is the focus rule above (decision of 2026-11-07, the most conservative way without a new native dependency). |
 | Fix | 0.86.5 | The weekly digest notification keeps its short lines as separate lines: the desktop delivers them through `text::notice_lines` (each line cleaned on its own, whole lines within 400 characters, "and N more" kept), as the quiet-hours digest does (PRD 0032 re-validation C-01). |
-| 2026-11-18 re-validation | vNEXT | Fixes of RF1.1, RF1.2, RF2.2, RF3.1, RF3.2, RF4.2, RF4.3 and RF5 (3 high, 1 medium, 10 low findings); see "2026-11-18 re-validation" below. |
+| 2026-11-18 re-validation | 0.87.0 | Fixes of RF1.1, RF1.2, RF2.2, RF3.1, RF3.2, RF4.2, RF4.3 and RF5 (3 high, 1 medium, 10 low findings); see "2026-11-18 re-validation" below. |
 | Owner verification | — | The strip style on the macOS menu bar in light and dark (and colored), the popover strip on Windows and Linux, a weekly digest clicked on each system opening Stats, and the §11 smoke after a week of readings (§2.1 of `0000_control.md`). |
 
-### 2026-11-18 re-validation (vNEXT)
+### 2026-11-18 re-validation (0.87.0)
 
-The re-validation (Visual, Security, Review) found 3 high, 1 medium and 10 low findings; every one is fixed in vNEXT, one commit per group:
+The re-validation (Visual, Security, Review) found 3 high, 1 medium and 10 low findings; every one is fixed in 0.87.0, one commit per group:
 
-| Group | Findings | RF | Delivery (vNEXT) |
+| Group | Findings | RF | Delivery (0.87.0) |
 |---|---|---|---|
 | G1 | V-01 (high) | RF4.2 | The menu-bar popover's 24-hour strip takes the Stats view's chart tokens, so the bars of the hours with use are drawn (only the gaps showed before); the popover drops the repeated caption and sits on the row gutter. The UI check flags a drawn rhythm column with no paint. |
 | G2 | R-01 (high) | RF3.1, RF3.2 | `stats::summarize_between` takes explicit local dates; `digest::weekly` uses it for both weeks, so `--digest --week current` counts only this week's limit hits, extra spending and peaks (it included the days before Monday). |
