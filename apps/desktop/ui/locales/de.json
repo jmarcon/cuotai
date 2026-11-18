@@ -68,7 +68,8 @@
       "restore.hosts.title",
       "restore.hosts.confirm",
       "restore.hosts.required",
-      "restore.after"
+      "restore.after",
+      "coreText.keySettingInvalid"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -1879,5 +1880,6 @@
   "detect.costOffer.codex_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn Sie die Quelle Codex CLI einschalten.",
   "detect.costOffer.gemini_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn Sie die Quelle Gemini CLI einschalten.",
   "coreText.sessionIncomplete": "Der gespeicherten Websitzung fehlen die Cookies {names}. Fügen Sie eine neue ein.",
+  "coreText.keySettingInvalid": "Die Schlüssel-Einstellung dieses Kontos ist ungültig. Öffnen Sie „Bearbeiten“ und geben Sie seinen Schlüssel ein.",
   "dialog.intervalHintMetered": "Leer: einmal alle {default} Minuten. Mindestens {effective} Minuten: {min} bis {effective} Minuten werden auf {effective} angehoben."
 }

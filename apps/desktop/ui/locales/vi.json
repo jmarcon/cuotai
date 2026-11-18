@@ -58,7 +58,8 @@
       "restore.hosts.title",
       "restore.hosts.confirm",
       "restore.hosts.required",
-      "restore.after"
+      "restore.after",
+      "coreText.keySettingInvalid"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -1841,5 +1842,6 @@
   "detect.costOffer.codex_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Codex CLI.",
   "detect.costOffer.gemini_cli": "Nhật ký cục bộ của nó cũng có thể ước tính chi phí theo giá API; Cuotai chỉ đọc chúng sau khi bạn bật nguồn Gemini CLI.",
   "coreText.sessionIncomplete": "Phiên web đã lưu thiếu cookie {names}. Hãy dán phiên mới.",
+  "coreText.keySettingInvalid": "Cài đặt khóa của tài khoản này không hợp lệ. Mở Chỉnh sửa và nhập khóa.",
   "dialog.intervalHintMetered": "Để trống: mỗi {default} phút một lần. Tối thiểu {effective} phút: từ {min} đến {effective} phút được nâng lên {effective}."
 }

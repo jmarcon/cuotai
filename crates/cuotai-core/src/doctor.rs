@@ -340,6 +340,20 @@ fn check_account(index: usize, account: &Account, inputs: &Inputs) -> Check {
             "Set {variable} in the environment that starts Cuotai, or store the key in the vault from the account editor.",
         )
     };
+    // PRD 0047 S-06: a variable name that may be a pasted key fails this
+    // account's check and is never repeated (`Monitor` refuses the query).
+    if account.extension_id().is_none() && crate::account_edit::invalid_env_field(account).is_some()
+    {
+        return Check::new(id, CheckStatus::Fail, title)
+            .detail(fixed(
+                "doctor.account.env_invalid",
+                "Its variable name in the configuration file is not valid.",
+            ))
+            .fix(fixed(
+                "doctor.fix.env_invalid",
+                "Put the name of an environment variable in that field, never the key itself.",
+            ));
+    }
     if account.oauth.is_some() || account.session.is_some() {
         return Check::new(id, CheckStatus::Ok, title).detail(fixed(
             "doctor.account.vault",

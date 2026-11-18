@@ -564,3 +564,40 @@ fn unreadable_feed_files_are_counted() {
     assert!(!serde_json::to_string(&report).unwrap().contains("PLANTED"));
     assert!(dir.join("planted.json").exists(), "the doctor only reads");
 }
+
+// PRD 0047 S-06: a variable name that may be a pasted key fails its account
+// and is never repeated; the other account keeps its own check.
+#[test]
+fn an_invalid_variable_name_fails_without_being_repeated() {
+    let config = "[[accounts]]\nname = \"pasted\"\nprovider = \"groq\"\ncredential_env = \"sk-FAKE-0047-pasted-value\"\n\n[[accounts]]\nname = \"admin\"\nprovider = \"mistral\"\n[accounts.params]\nadmin_key_env = \"sk-FAKE-0047-admin-value\"\n\n[[accounts]]\nname = \"fine\"\nprovider = \"groq\"\ncredential_env = \"FAKE_GROQ_0047_UNSET\"\n";
+    let fixture = Fixture::new(Some(config));
+    let report = run(&fixture.inputs(&[], free_port()));
+    assert_eq!(status(&report, "config"), CheckStatus::Ok);
+    for id in ["account.1", "account.2"] {
+        let check = report.checks.iter().find(|c| c.id == id).unwrap();
+        assert_eq!(check.status, CheckStatus::Fail, "{id}");
+        assert_eq!(
+            check.detail.as_ref().map(|d| d.id.as_ref()),
+            Some("doctor.account.env_invalid")
+        );
+        assert_eq!(
+            check.fix.as_ref().map(|d| d.id.as_ref()),
+            Some("doctor.fix.env_invalid")
+        );
+    }
+    assert_eq!(status(&report, "account.3"), CheckStatus::Fail);
+    let json = serde_json::to_string(&report).unwrap();
+    let text: String = report
+        .checks
+        .iter()
+        .flat_map(|c| [Some(&c.title), c.detail.as_ref(), c.fix.as_ref()])
+        .flatten()
+        .flat_map(|note| [note.resolve("en-US"), note.resolve("de"), "\n".into()])
+        .collect();
+    assert!(!json.contains("FAKE-0047"), "a pasted name in the JSON");
+    assert!(!text.contains("FAKE-0047"), "a pasted name in the text");
+    assert!(
+        text.contains("FAKE_GROQ_0047_UNSET"),
+        "a valid name is shown"
+    );
+}

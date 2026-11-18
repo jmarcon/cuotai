@@ -237,7 +237,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2788,6 +2791,7 @@
   "models.unsupported.reason.admin_key": "खाता एडमिन, मैनेजमेंट या एनालिटिक्स कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है; उस कुंजी को उसके अपने पैरामीटर में और इन्फ़रेंस कुंजी को खाते के क्रेडेंशियल के रूप में रखें।",
   "models.unsupported.reason.admin_key_only": "खाता केवल एडमिन कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है।",
   "query.jetbrains_ai.missing_secret": "क्रेडेंशियल नहीं मिला: {env} (सेवा खाते का client secret)।",
+  "query.env_name_invalid": "{field} में वेरिएबल नाम मान्य नहीं है; वहाँ किसी एक्सपोर्ट किए गए वेरिएबल का नाम लिखें, उसका मान कभी नहीं।",
   "note.jetbrains_ai.rate_limited": "JetBrains ने क्वेरी सीमित कर दीं।",
   "note.jetbrains_ai.client_rejected": "JetBrains ने सेवा खाते का client ID या client secret अस्वीकार कर दिया; दोनों वेरिएबल जाँचें या JetBrains Central Console में secret बदलें।",
   "note.jetbrains_ai.token_rejected": "Analytics API ने सेवा खाते का टोकन अस्वीकार कर दिया; JetBrains Central Console में सेवा खाता जाँचें।",
@@ -2865,6 +2869,7 @@
   "doctor.account.extension_ok": "इसका एक्सटेंशन स्वीकृत है और तब से नहीं बदला है।",
   "doctor.account.extension_changed": "आपकी स्वीकृति के बाद इसका एक्सटेंशन बदल गया, या कभी स्वीकृत नहीं हुआ, इसलिए यह नहीं चलता।",
   "doctor.account.extension_missing": "इस कंप्यूटर पर एक्सटेंशन फ़ोल्डर नहीं है।",
+  "doctor.account.env_invalid": "कॉन्फ़िगरेशन फ़ाइल में इसका वेरिएबल नाम मान्य नहीं है।",
   "doctor.fix.extension": "एक्सटेंशन में जाकर इसे फिर से देखें और स्वीकृत करें, या इसकी id के साथ cuotai --extension-check चलाएँ।",
   "doctor.title.vault": "सिस्टम वॉल्ट",
   "doctor.vault.unused": "कोई भी खाता अपना साइन-इन वहाँ नहीं रखता।",
@@ -3017,6 +3022,7 @@
   "doctor.title.metered": "बिल की गई क्वेरी का साझा रिकॉर्ड {path}",
   "doctor.metered.unusable": "यह आपके उपयोगकर्ता का निजी फ़ोल्डर नहीं है, या इसमें लिखा नहीं जा सकता; इसे ठीक होने तक एक-बार वाले कमांड AWS Bedrock से क्वेरी नहीं करते।",
   "doctor.fix.metered": "इस पथ पर जो है उसे हटाएँ (कोई फ़ाइल, लिंक या किसी दूसरे उपयोगकर्ता का फ़ोल्डर) या इसे ऐसा फ़ोल्डर बनाएँ जिसे केवल आपका उपयोगकर्ता पढ़ और लिख सके; Cuotai इसे फिर से बना देगा।",
+  "doctor.fix.env_invalid": "उस फ़ील्ड में किसी एनवायरनमेंट वेरिएबल का नाम लिखें, कुंजी स्वयं कभी नहीं।",
   "doctor.metered.absent": "अभी नहीं बना है; पहली बिल की गई क्वेरी इसे बनाती है।",
   "note.metered.record_unavailable": "क्वेरी नहीं की गई: Cuotai बिल की गई AWS Cost Explorer क्वेरी के अपने साझा रिकॉर्ड का उपयोग नहीं कर सका। फ़ोल्डर और उसे ठीक करने का तरीका देखने के लिए `cuotai --doctor` चलाएँ।",
   "note.metered.record_busy": "क्वेरी नहीं की गई: किसी दूसरे Cuotai प्रोग्राम ने बिल की गई AWS Cost Explorer क्वेरी का साझा रिकॉर्ड बहुत देर तक रोके रखा। थोड़ी देर में फिर कोशिश करें।",

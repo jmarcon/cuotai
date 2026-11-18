@@ -963,7 +963,10 @@ pub(crate) async fn load(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MigrationCandidate {
     pub slot: &'static str,
-    /// Name of the environment variable the account references today.
+    /// Name of the environment variable the account references today. Read
+    /// in Rust only, never serialized (PRD 0047 R-02): a frontend gets the
+    /// slot and the consent text, not the name.
+    #[serde(skip)]
     pub env: String,
     pub label: Localized,
     pub hosts: &'static [&'static str],
@@ -1011,7 +1014,9 @@ pub fn migration_candidates(account: &Account) -> Vec<MigrationCandidate> {
         .iter()
         .filter_map(|descriptor| {
             let env = slot_env(account, descriptor.slot)?.trim();
-            if env.is_empty() {
+            // PRD 0047 S-06: a name that may be a pasted key is never moved
+            // nor repeated in the consent text.
+            if !crate::account_edit::usable_env_name(env) {
                 return None;
             }
             let label = descriptor.label();

@@ -263,7 +263,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2760,6 +2763,7 @@
   "models.unsupported.reason.admin_key": "このアカウントには管理・マネジメント・分析用のキーが保存されていますが、プロバイダーはそのキーでのモデル一覧取得を公開していません。そのキーは専用のパラメーターに、推論キーはアカウントの認証情報に設定してください。",
   "models.unsupported.reason.admin_key_only": "このアカウントには管理キーしか保存されておらず、プロバイダーはそのキーでのモデル一覧取得を公開していません。",
   "query.jetbrains_ai.missing_secret": "認証情報がありません：{env}（サービスアカウントの client secret）。",
+  "query.env_name_invalid": "{field} の変数名が有効ではありません。値ではなく、エクスポートした変数の名前を指定してください。",
   "note.jetbrains_ai.rate_limited": "JetBrains がクエリを制限しました。",
   "note.jetbrains_ai.client_rejected": "JetBrains がサービスアカウントの client ID または client secret を拒否しました。両方の変数を確認するか、JetBrains Central Console で secret を更新してください。",
   "note.jetbrains_ai.token_rejected": "Analytics API がサービスアカウントのトークンを拒否しました。JetBrains Central Console でサービスアカウントを確認してください。",
@@ -2835,6 +2839,7 @@
   "doctor.account.extension_ok": "拡張機能は承認済みで、その後変更されていません。",
   "doctor.account.extension_changed": "拡張機能が承認後に変更されたか、一度も承認されていないため、実行されません。",
   "doctor.account.extension_missing": "このコンピューターには拡張機能フォルダーがありません。",
+  "doctor.account.env_invalid": "設定ファイル内の変数名が有効ではありません。",
   "doctor.fix.extension": "「拡張機能」で拡張機能を確認して再承認するか、その ID を指定して cuotai --extension-check を実行してください。",
   "doctor.title.vault": "システムの保管庫",
   "doctor.vault.unused": "そこにサインイン情報を保存しているアカウントはありません。",
@@ -2978,6 +2983,7 @@
   "doctor.title.metered": "課金されるクエリの共有記録 {path}",
   "doctor.metered.unusable": "ユーザー専用のフォルダーではないか、書き込めません。修正されるまで、単発のコマンドは AWS Bedrock を照会しません。",
   "doctor.fix.metered": "このパスにあるもの（ファイル、リンク、他のユーザーのフォルダー）を削除するか、現在のユーザーだけが読み書きできるフォルダーにしてください。Cuotai が作り直します。",
+  "doctor.fix.env_invalid": "そのフィールドには環境変数の名前を指定し、キーそのものは指定しないでください。",
   "doctor.metered.absent": "まだ作成されていません。最初の課金クエリで作成されます。",
   "note.metered.record_unavailable": "照会していません：Cuotai は課金される AWS Cost Explorer クエリの共有記録を使用できませんでした。フォルダーと修正方法は `cuotai --doctor` で確認してください。",
   "note.metered.record_busy": "照会していません：別の Cuotai プログラムが課金される AWS Cost Explorer クエリの共有記録を長く使用しすぎました。少ししてからもう一度お試しください。",

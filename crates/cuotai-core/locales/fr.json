@@ -1135,7 +1135,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -3686,6 +3689,7 @@
   "models.unsupported.reason.admin_key": "le compte stocke une clé d’administration, de gestion ou d’analyse, que le fournisseur ne documente pas pour lister les modèles ; placez cette clé dans son propre paramètre et une clé d’inférence comme identifiant du compte.",
   "models.unsupported.reason.admin_key_only": "le compte ne stocke qu’une clé d’administration, que le fournisseur ne documente pas pour lister les modèles.",
   "query.jetbrains_ai.missing_secret": "Identifiant manquant : {env} (le client secret du compte de service).",
+  "query.env_name_invalid": "Le nom de variable dans {field} n’est pas valide ; indiquez-y le nom d’une variable exportée, jamais sa valeur.",
   "note.jetbrains_ai.rate_limited": "JetBrains a limité les requêtes.",
   "note.jetbrains_ai.client_rejected": "JetBrains a refusé le client ID ou le client secret du compte de service ; vérifiez les deux variables ou renouvelez le secret dans JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "L’Analytics API a refusé le jeton du compte de service ; vérifiez le compte de service dans JetBrains Central Console.",
@@ -3763,6 +3767,7 @@
   "doctor.account.extension_ok": "Son extension est approuvée et n'a pas changé depuis.",
   "doctor.account.extension_changed": "Son extension a changé depuis votre approbation, ou n'a jamais été approuvée, donc elle ne s'exécute pas.",
   "doctor.account.extension_missing": "Il n'y a pas de dossier d'extensions sur cet ordinateur.",
+  "doctor.account.env_invalid": "Son nom de variable dans le fichier de configuration n’est pas valide.",
   "doctor.fix.extension": "Examinez et approuvez de nouveau l'extension dans Extensions, ou lancez cuotai --extension-check avec son id.",
   "doctor.title.vault": "Coffre du système",
   "doctor.vault.unused": "Aucun compte n'y garde sa connexion.",
@@ -3915,6 +3920,7 @@
   "doctor.title.metered": "Registre partagé des requêtes facturées {path}",
   "doctor.metered.unusable": "Ce n'est pas un dossier privé de votre utilisateur, ou il n'est pas inscriptible ; les commandes ponctuelles n'interrogent pas AWS Bedrock tant que ce n'est pas corrigé.",
   "doctor.fix.metered": "Supprimez ce qui se trouve à ce chemin (un fichier, un lien ou le dossier d'un autre utilisateur) ou faites-en un dossier que seul votre utilisateur peut lire et écrire ; Cuotai le recrée.",
+  "doctor.fix.env_invalid": "Indiquez dans ce champ le nom d’une variable d’environnement, jamais la clé elle-même.",
   "doctor.metered.absent": "Pas encore créé ; la première requête facturée le crée.",
   "note.metered.record_unavailable": "Non interrogé : Cuotai n'a pas pu utiliser son registre partagé des requêtes AWS Cost Explorer facturées. Lancez `cuotai --doctor` pour voir le dossier et comment le corriger.",
   "note.metered.record_busy": "Non interrogé : un autre programme Cuotai a gardé trop longtemps le registre partagé des requêtes AWS Cost Explorer facturées. Réessayez dans un instant.",

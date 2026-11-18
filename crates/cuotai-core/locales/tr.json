@@ -219,7 +219,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2770,6 +2773,7 @@
   "models.unsupported.reason.admin_key": "hesap bir yönetici, yönetim veya analiz anahtarı saklıyor ve sağlayıcı bu anahtarla model listelemeyi belgelemiyor; bu anahtarı kendi parametresine, bir çıkarım anahtarını da hesabın kimlik bilgisi olarak koyun.",
   "models.unsupported.reason.admin_key_only": "hesap yalnızca bir yönetici anahtarı saklıyor ve sağlayıcı bu anahtarla model listelemeyi belgelemiyor.",
   "query.jetbrains_ai.missing_secret": "Eksik kimlik bilgisi: {env} (hizmet hesabının client secret'ı).",
+  "query.env_name_invalid": "{field} içindeki değişken adı geçerli değil; oraya dışa aktarılmış bir değişkenin adını girin, değerini asla.",
   "note.jetbrains_ai.rate_limited": "JetBrains sorguları sınırladı.",
   "note.jetbrains_ai.client_rejected": "JetBrains hizmet hesabının client ID'sini veya client secret'ını reddetti; iki değişkeni de kontrol edin veya JetBrains Central Console'da secret'ı yenileyin.",
   "note.jetbrains_ai.token_rejected": "Analytics API hizmet hesabının token'ını reddetti; JetBrains Central Console'da hizmet hesabını kontrol edin.",
@@ -2847,6 +2851,7 @@
   "doctor.account.extension_ok": "Uzantısı onaylı ve o zamandan beri değişmedi.",
   "doctor.account.extension_changed": "Uzantısı onayınızdan sonra değişti ya da hiç onaylanmadı, bu yüzden çalışmıyor.",
   "doctor.account.extension_missing": "Bu bilgisayarda uzantı klasörü yok.",
+  "doctor.account.env_invalid": "Yapılandırma dosyasındaki değişken adı geçerli değil.",
   "doctor.fix.extension": "Uzantıyı Uzantılar bölümünde yeniden inceleyip onaylayın ya da kimliğiyle cuotai --extension-check çalıştırın.",
   "doctor.title.vault": "Sistem kasası",
   "doctor.vault.unused": "Hiçbir hesap oturum bilgisini orada tutmuyor.",
@@ -2999,6 +3004,7 @@
   "doctor.title.metered": "Ücretli sorguların ortak kaydı {path}",
   "doctor.metered.unusable": "Kullanıcınıza özel bir klasör değil veya yazılamıyor; düzeltilene kadar tek seferlik komutlar AWS Bedrock'u sorgulamaz.",
   "doctor.fix.metered": "Bu yoldaki şeyi (bir dosya, bağlantı veya başka bir kullanıcının klasörü) kaldırın ya da yalnızca kullanıcınızın okuyup yazabildiği bir klasör yapın; Cuotai onu yeniden oluşturur.",
+  "doctor.fix.env_invalid": "O alana bir ortam değişkeninin adını girin, anahtarın kendisini asla.",
   "doctor.metered.absent": "Henüz oluşturulmadı; ilk ücretli sorgu oluşturur.",
   "note.metered.record_unavailable": "Sorgulanmadı: Cuotai, ücretli AWS Cost Explorer sorgularının ortak kaydını kullanamadı. Klasörü ve nasıl düzeltileceğini görmek için `cuotai --doctor` çalıştırın.",
   "note.metered.record_busy": "Sorgulanmadı: başka bir Cuotai programı ücretli AWS Cost Explorer sorgularının ortak kaydını çok uzun süre tuttu. Birazdan yeniden deneyin.",

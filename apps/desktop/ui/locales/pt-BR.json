@@ -1810,5 +1810,6 @@
   "detect.costOffer.codex_cli": "Os logs locais também podem estimar o custo a preços de API; o Cuotai só os lê depois que você ligar a fonte Codex CLI.",
   "detect.costOffer.gemini_cli": "Os logs locais também podem estimar o custo a preços de API; o Cuotai só os lê depois que você ligar a fonte Gemini CLI.",
   "coreText.sessionIncomplete": "Faltam à sessão web guardada os cookies {names}. Cole uma nova.",
+  "coreText.keySettingInvalid": "A configuração da chave desta conta não é válida. Abra Editar e digite a chave.",
   "dialog.intervalHintMetered": "Vazio: uma vez a cada {default} minutos. Mínimo de {effective} minutos: de {min} a {effective} minutos sobe para {effective}."
 }

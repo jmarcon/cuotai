@@ -344,7 +344,8 @@
       "restore.hosts.title",
       "restore.hosts.confirm",
       "restore.hosts.required",
-      "restore.after"
+      "restore.after",
+      "coreText.keySettingInvalid"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -2155,5 +2156,6 @@
   "detect.costOffer.codex_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Codex CLI.",
   "detect.costOffer.gemini_cli": "Ses journaux locaux peuvent aussi estimer le coût aux prix de l'API ; Cuotai ne les lit qu'après que vous avez activé la source Gemini CLI.",
   "coreText.sessionIncomplete": "Il manque à la session web enregistrée les cookies {names}. Collez-en une nouvelle.",
+  "coreText.keySettingInvalid": "Le réglage de clé de ce compte n’est pas valide. Ouvrez Modifier et saisissez sa clé.",
   "dialog.intervalHintMetered": "Vide : une fois toutes les {default} minutes. Minimum {effective} minutes : de {min} à {effective} minutes, l'intervalle est porté à {effective}."
 }

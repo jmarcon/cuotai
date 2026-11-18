@@ -610,7 +610,9 @@ fn state_label(source: &SecretSource) -> Localized {
 
 /// PRD 0047: where each secret input of `account` comes from. A main
 /// credential the account never named reads `Unset` (the TUI's default
-/// variable is a terminal convention, not a GUI state).
+/// variable is a terminal convention, not a GUI state). A name that is not a
+/// [`crate::account_edit::usable_env_name`] (PRD 0047 S-06) reads `Unset`
+/// too, so the dialog asks for the key and the save drops that name.
 pub fn secret_states(account: &Account) -> Vec<SecretState> {
     let vault: BTreeSet<&str> = account
         .session
@@ -623,7 +625,7 @@ pub fn secret_states(account: &Account) -> Vec<SecretState> {
             let source = if vault.contains(input.slot) {
                 SecretSource::Vault
             } else if user_session::slot_env(account, input.slot)
-                .is_some_and(|env| !env.trim().is_empty())
+                .is_some_and(|env| crate::account_edit::usable_env_name(env.trim()))
             {
                 SecretSource::Environment
             } else {
@@ -652,7 +654,8 @@ pub fn vault_migration_candidates(account: &Account) -> Vec<MigrationCandidate> 
         .into_iter()
         .filter_map(|input| {
             let env = user_session::slot_env(account, input.slot)?.trim();
-            if env.is_empty() {
+            // PRD 0047 S-06: a name that may be a pasted key is never moved.
+            if !crate::account_edit::usable_env_name(env) {
                 return None;
             }
             let consent = Localized::with_params(

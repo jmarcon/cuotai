@@ -1785,5 +1785,6 @@
   "detect.costOffer.codex_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Codex CLI.",
   "detect.costOffer.gemini_cli": "Log lokalnya juga dapat memperkirakan biaya dengan harga API; Cuotai hanya membacanya setelah Anda menyalakan sumber Gemini CLI.",
   "coreText.sessionIncomplete": "Sesi web yang disimpan tidak memiliki cookie {names}. Tempelkan sesi baru.",
+  "coreText.keySettingInvalid": "Pengaturan kunci akun ini tidak valid. Buka Edit dan ketik kuncinya.",
   "dialog.intervalHintMetered": "Kosong: sekali setiap {default} menit. Minimum {effective} menit: {min} sampai {effective} menit dinaikkan menjadi {effective}."
 }

@@ -242,7 +242,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2793,6 +2796,7 @@
   "models.unsupported.reason.admin_key": "das Konto speichert einen Admin-, Verwaltungs- oder Analyseschlüssel, für den der Anbieter das Auflisten von Modellen nicht dokumentiert; legen Sie diesen Schlüssel in einen eigenen Parameter und einen Inferenzschlüssel als Zugangsdaten des Kontos fest.",
   "models.unsupported.reason.admin_key_only": "das Konto speichert nur einen Admin-Schlüssel, für den der Anbieter das Auflisten von Modellen nicht dokumentiert.",
   "query.jetbrains_ai.missing_secret": "Fehlende Anmeldedaten: {env} (das Client Secret des Dienstkontos).",
+  "query.env_name_invalid": "Der Variablenname in {field} ist ungültig; tragen Sie dort den Namen einer exportierten Variable ein, nie ihren Wert.",
   "note.jetbrains_ai.rate_limited": "JetBrains hat die Abfragen begrenzt.",
   "note.jetbrains_ai.client_rejected": "JetBrains hat die Client ID oder das Client Secret des Dienstkontos abgelehnt; prüfen Sie beide Variablen oder erneuern Sie das Secret in der JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "Die Analytics API hat das Token des Dienstkontos abgelehnt; prüfen Sie das Dienstkonto in der JetBrains Central Console.",
@@ -2870,6 +2874,7 @@
   "doctor.account.extension_ok": "Die Erweiterung ist freigegeben und seitdem unverändert.",
   "doctor.account.extension_changed": "Die Erweiterung hat sich seit Ihrer Freigabe geändert oder wurde nie freigegeben, daher läuft sie nicht.",
   "doctor.account.extension_missing": "Auf diesem Computer gibt es keinen Erweiterungsordner.",
+  "doctor.account.env_invalid": "Sein Variablenname in der Konfigurationsdatei ist ungültig.",
   "doctor.fix.extension": "Prüfen Sie die Erweiterung unter Erweiterungen und geben Sie sie erneut frei, oder führen Sie cuotai --extension-check mit ihrer ID aus.",
   "doctor.title.vault": "System-Tresor",
   "doctor.vault.unused": "Kein Konto bewahrt dort seine Anmeldung auf.",
@@ -3022,6 +3027,7 @@
   "doctor.title.metered": "Gemeinsames Protokoll abgerechneter Abfragen {path}",
   "doctor.metered.unusable": "Es ist kein privater Ordner Ihres Benutzers oder nicht beschreibbar; einmalige Befehle fragen AWS Bedrock erst nach der Behebung ab.",
   "doctor.fix.metered": "Entfernen Sie, was unter diesem Pfad liegt (eine Datei, ein Link oder der Ordner eines anderen Benutzers), oder machen Sie daraus einen Ordner, den nur Ihr Benutzer lesen und schreiben kann; Cuotai legt ihn neu an.",
+  "doctor.fix.env_invalid": "Tragen Sie in dieses Feld den Namen einer Umgebungsvariable ein, nie den Schlüssel selbst.",
   "doctor.metered.absent": "Noch nicht angelegt; die erste abgerechnete Abfrage legt ihn an.",
   "note.metered.record_unavailable": "Nicht abgefragt: Cuotai konnte sein gemeinsames Protokoll abgerechneter AWS-Cost-Explorer-Abfragen nicht verwenden. Führen Sie `cuotai --doctor` aus, um den Ordner und die Behebung zu sehen.",
   "note.metered.record_busy": "Nicht abgefragt: Ein anderes Cuotai-Programm hat das gemeinsame Protokoll abgerechneter AWS-Cost-Explorer-Abfragen zu lange belegt. Versuchen Sie es gleich noch einmal.",

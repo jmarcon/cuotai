@@ -270,7 +270,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -2929,6 +2932,7 @@
   "models.unsupported.reason.admin_key": "в учётной записи хранится ключ администратора, управления или аналитики, для которого провайдер не документирует перечень моделей; храните этот ключ в отдельном параметре, а ключ инференса — как учётные данные учётной записи.",
   "models.unsupported.reason.admin_key_only": "в учётной записи хранится только ключ администратора, для которого провайдер не документирует перечень моделей.",
   "query.jetbrains_ai.missing_secret": "Отсутствуют учётные данные: {env} (client secret сервисной учётной записи).",
+  "query.env_name_invalid": "Имя переменной в {field} недопустимо; укажите там имя экспортированной переменной, но не её значение.",
   "note.jetbrains_ai.rate_limited": "JetBrains ограничил запросы.",
   "note.jetbrains_ai.client_rejected": "JetBrains отклонил client ID или client secret сервисной учётной записи; проверьте обе переменные или смените secret в JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "Analytics API отклонил токен сервисной учётной записи; проверьте сервисную учётную запись в JetBrains Central Console.",
@@ -3010,6 +3014,7 @@
   "doctor.account.extension_ok": "Его расширение одобрено и с тех пор не менялось.",
   "doctor.account.extension_changed": "Его расширение изменилось после вашего одобрения или ни разу не одобрялось, поэтому не запускается.",
   "doctor.account.extension_missing": "На этом компьютере нет папки расширений.",
+  "doctor.account.env_invalid": "Имя её переменной в файле конфигурации недопустимо.",
   "doctor.fix.extension": "Проверьте и снова одобрите расширение в разделе «Расширения» или запустите cuotai --extension-check с его id.",
   "doctor.title.vault": "Системное хранилище",
   "doctor.vault.unused": "Ни одна учётная запись не хранит в нём свой вход.",
@@ -3180,6 +3185,7 @@
   "doctor.title.metered": "Общая запись платных запросов {path}",
   "doctor.metered.unusable": "Это не личная папка вашего пользователя, или в неё нельзя записать; одноразовые команды не запрашивают AWS Bedrock, пока это не исправлено.",
   "doctor.fix.metered": "Удалите то, что находится по этому пути (файл, ссылку или папку другого пользователя), или сделайте его папкой, которую может читать и изменять только ваш пользователь; Cuotai создаст её заново.",
+  "doctor.fix.env_invalid": "Укажите в этом поле имя переменной окружения, но не сам ключ.",
   "doctor.metered.absent": "Ещё не создана; её создаст первый платный запрос.",
   "note.metered.record_unavailable": "Не запрошено: Cuotai не смог использовать общую запись платных запросов AWS Cost Explorer. Запустите `cuotai --doctor`, чтобы увидеть папку и способ исправления.",
   "note.metered.record_busy": "Не запрошено: другая программа Cuotai слишком долго удерживала общую запись платных запросов AWS Cost Explorer. Повторите попытку чуть позже.",

@@ -76,7 +76,8 @@
       "restore.hosts.title",
       "restore.hosts.confirm",
       "restore.hosts.required",
-      "restore.after"
+      "restore.after",
+      "coreText.keySettingInvalid"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -1943,5 +1944,6 @@
   "detect.costOffer.codex_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Codex CLI.",
   "detect.costOffer.gemini_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Gemini CLI.",
   "coreText.sessionIncomplete": "В сохранённом веб-сеансе нет файлов cookie {names}. Вставьте новый.",
+  "coreText.keySettingInvalid": "Настройка ключа этой учётной записи недопустима. Откройте «Изменить» и введите её ключ.",
   "dialog.intervalHintMetered": "Пусто: раз в {default} минут. Минимум {effective} минут: от {min} до {effective} минут повышается до {effective}."
 }

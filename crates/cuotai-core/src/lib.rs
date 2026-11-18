@@ -106,6 +106,8 @@ pub(crate) fn write_executable(path: &std::path::Path, contents: impl AsRef<[u8]
 #[cfg(test)]
 mod compat_tests;
 pub mod install_source;
+#[cfg(test)]
+mod invalid_env_tests;
 pub mod last_config;
 mod metered_record;
 pub mod metric_text;
@@ -1790,6 +1792,34 @@ impl Monitor {
                     report
                 }
                 Err(note) => unavailable(note),
+            };
+        }
+        // PRD 0047 S-06: a variable name that may be a pasted key stops only
+        // this account, before any credential is read, and is never repeated.
+        if let Some(field) = account_edit::invalid_env_field(account) {
+            let (notes, notes_l10n) = crate::text::Notes::one(crate::text::Localized::with_param(
+                "query.env_name_invalid",
+                "field",
+                field,
+                "The variable name in {field} is not valid; put the name of an exported variable there, never its value.",
+            ))
+            .finish();
+            return Report {
+                account_id: None,
+                diagnostic: None,
+                account: account.name.clone(),
+                provider: account.provider,
+                checked_at: self.now(),
+                status: Status::NeedsConfiguration,
+                metrics: Vec::new(),
+                notes,
+                notes_l10n,
+                source: String::new(),
+                session_expires_at: None,
+                sub_reports: Vec::new(),
+                as_of: None,
+                overage_hint: None,
+                breakdown: Vec::new(),
             };
         }
         let (result, session_expires_at) = self

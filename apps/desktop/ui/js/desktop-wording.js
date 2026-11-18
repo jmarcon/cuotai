@@ -11,6 +11,8 @@ const SESSION_EXPIRED = w("coreText.sessionExpired", "The account's web session 
 const SETTING_INVALID = w("coreText.settingInvalid", "A setting of this account is not valid. Open Edit to fix it.");
 const SETTING_MISSING = w("coreText.settingMissing", "This account needs one more setting to show usage. Open Edit to add it.");
 const LOGIN_SECRET = w("coreText.loginSecretMissing", "The sign-in setup of this account is incomplete. Check it in Edit.");
+// PRD 0047 S-06: the variable name in the TOML is not valid (it may be a pasted key).
+const KEY_SETTING_INVALID = w("coreText.keySettingInvalid", "This account's key setting is not valid. Open Edit and type its key.");
 const KEY_REQUIRED = w("coreText.keyRequired", "Type the key for this account.");
 // PRD 0054 RF6.3: the provider's command-line tool (aws, bl) was not found.
 const TOOL_MISSING = w("coreText.toolMissing", "The command-line tool this account uses was not found. Install it, or set its path in Edit.");
@@ -18,6 +20,7 @@ const TOOL_MISSING = w("coreText.toolMissing", "The command-line tool this accou
 /** Core id → the desktop's own wording (and, when it has one, the fix the card offers). */
 export const DESKTOP_WORDING = {
   // Missing keys (the core names the variable to export).
+  "query.env_name_invalid": KEY_SETTING_INVALID,
   "query.missing_credential": KEY_MISSING,
   "query.router_keys.kimi_missing_credential": KEY_MISSING,
   "query.alibaba_billing.missing_secret": KEY_MISSING,
@@ -119,6 +122,9 @@ export const DESKTOP_WORDING = {
   "doctor.account.default_env_missing": w("coreText.doctorNoKey", "No key is saved for this account; ignore this if it signs in another way."),
   "doctor.fix.set_env": w("coreText.doctorFixKey", "Open the account in Edit and type its key; Cuotai keeps it in the system vault."),
   "doctor.fix.tool": TOOL_MISSING,
+  // PRD 0047 S-06: a variable name that may be a pasted key is never shown.
+  "doctor.account.env_invalid": KEY_SETTING_INVALID,
+  "doctor.fix.env_invalid": w("coreText.doctorFixKey", "Open the account in Edit and type its key; Cuotai keeps it in the system vault."),
   // PRD 0052 RF3: the proxy check names the variable that sets the proxy.
   "doctor.proxy.none": w("coreText.doctorProxyNone", "No proxy is set: requests go direct."),
   "doctor.proxy.proxied": w("coreText.doctorProxied", "HTTPS requests go through a proxy."),
