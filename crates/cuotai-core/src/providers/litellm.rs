@@ -504,7 +504,11 @@ pub(crate) async fn test_connection(
     ctx: &Context<'_>,
 ) -> super::nine_router::TestOutcome {
     use super::nine_router::TestOutcome;
-    match fetch(account, ctx).await {
+    // The budgets route, read-only: a ticked breakdown would also read the
+    // key and team lists, which a connection test does not need.
+    let mut probe = account.clone();
+    probe.breakdown.clear();
+    match fetch(&probe, ctx).await {
         Ok(data) => TestOutcome::Connected {
             version: None,
             connections: data.sub_reports.len(),
@@ -848,6 +852,24 @@ mod tests {
             test_connection(&account(&server, &[]), &context(&http)).await,
             TestOutcome::Connected { connections: 5, .. }
         ));
+        // A ticked breakdown does not reach the key or team lists.
+        let server = MockServer::start().await;
+        mount(&server, 200, documented()).await;
+        for route in [KEYS_PATH, TEAMS_PATH] {
+            Mock::given(method("GET"))
+                .and(path(route))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+                .expect(0)
+                .mount(&server)
+                .await;
+        }
+        let mut acct = account(&server, &[]);
+        acct.breakdown = vec![crate::BreakdownKind::Keys, crate::BreakdownKind::Teams];
+        assert!(matches!(
+            test_connection(&acct, &context(&http)).await,
+            TestOutcome::Connected { connections: 5, .. }
+        ));
+        server.verify().await;
         let server = MockServer::start().await;
         mount(&server, 401, json!({})).await;
         assert_eq!(

@@ -7,6 +7,7 @@ use crate::l10n::{tr, trf_in};
 use crate::palette;
 use crate::ui::{metric_label_text, metric_text, resolve_l10n, safe};
 use cuotai_core::breakdown::{self, BreakdownRow, SortBy};
+use cuotai_core::metrics::classify_metric;
 use cuotai_core::Report;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -57,6 +58,21 @@ pub(crate) fn once_text(report: &Report, locale: &str) -> String {
     out
 }
 
+/// A row with its own cap takes the colour the dashboard gives that
+/// metric's quota state (core `classify_metric` and `tray::Level`), but only
+/// near or at the cap: a row with room left keeps the plain style.
+fn capped_style(row: &BreakdownRow) -> Style {
+    let colour = row
+        .capped()
+        .and_then(|metric| crate::dashboard::metric_state_color(classify_metric(metric)));
+    match colour {
+        Some(colour) if colour == palette::WARN || colour == palette::BAD => {
+            Style::default().fg(colour)
+        }
+        _ => Style::default(),
+    }
+}
+
 /// The details' BREAKDOWN section: every row in spend order (row notes
 /// beside it), then the truncation note when rows were summed. Empty
 /// without rows.
@@ -72,7 +88,10 @@ pub(crate) fn detail_lines(report: &Report, locale: &str) -> Vec<Line<'static>> 
         Line::styled(tr("dashboard.detail.breakdown", "  BREAKDOWN"), heading),
     ];
     for row in breakdown::sorted(&report.breakdown, SortBy::Spend) {
-        let mut spans = vec![Span::raw(format!("  {}", row_text(row, locale)))];
+        let mut spans = vec![Span::styled(
+            format!("  {}", row_text(row, locale)),
+            capped_style(row),
+        )];
         for note in &row.notes {
             spans.push(Span::styled(
                 format!("  ({})", safe(&resolve_l10n(note))),
@@ -89,6 +108,10 @@ pub(crate) fn detail_lines(report: &Report, locale: &str) -> Vec<Line<'static>> 
     }
     lines
 }
+
+#[cfg(test)]
+#[path = "breakdown_view_cap_tests.rs"]
+mod cap_tests;
 
 #[cfg(test)]
 mod tests {

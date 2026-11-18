@@ -146,7 +146,7 @@ pub(crate) fn visible_indices(
 }
 
 /// Map a metric state to the color its gauge/text should use. UI mapping only.
-fn metric_state_color(state: MetricState) -> Option<Color> {
+pub(crate) fn metric_state_color(state: MetricState) -> Option<Color> {
     match state {
         MetricState::Unmeasured => None,
         MetricState::Exhausted { .. } => Some(RED),

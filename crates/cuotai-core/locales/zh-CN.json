@@ -699,7 +699,7 @@
   "credential_help.kimchi": "Kimchi 账户的 KIMCHI_API_KEY；在 llm.kimchi.dev 查询积分和预算，不生成内容。",
   "credential_help.kimi": "KIMI_API_KEY（Moonshot/Kimi）。默认：国际账户余额。Coding（选用）：接受平台密钥或 OAuth 访问令牌（在 token_env 中填写名称）；密钥优先。",
   "credential_help.kiro": "Kiro/CodeWhisperer 访问令牌（不是 refresh 令牌）。环境凭据支持 google（默认）、github、import、api_key 和 external_idp。AWS Builder ID 和 IAM Identity Center 可通过原生登录使用。",
-  "credential_help.litellm": "LiteLLM 代理的密钥：只填写保存它的变量名称；值从不写入 TOML。建议使用仅限读取路由的虚拟密钥，而不是主密钥。只读取按提供商预算的路由，且密钥只发送到代理的地址；在本机之外请使用 HTTPS。",
+  "credential_help.litellm": "LiteLLM 代理的密钥：只填写保存它的变量名称；值从不写入 TOML。建议使用仅限读取路由的虚拟密钥，而不是主密钥。只读取按提供商预算的路由，开启明细时还会读取密钥和团队列表，且密钥只发送到代理的地址；在本机之外请使用 HTTPS。",
   "credential_help.mini_max": "API 密钥/PAT：只输入已导出变量的名称。生成用密钥可能无法查询用量；请查看报告中的限制说明。",
   "credential_help.mistral": "查询用量需要 Admin API Key，而不是生成用密钥。请将管理密钥放在 MISTRAL_API_KEY 中，或在参数中配置 admin_key_env。",
   "credential_help.nine_router": "9router 仪表板关闭登录时请留空；在只有您使用的电脑上，本机运行且不设登录的 9router 是合理的选择。有密码时，只填写保存密码的变量名称（值从不写入 TOML），并使用在其他任何地方都不用的密码。发送前，Cuotai 会检查该地址的响应是否像 9router，并在本机上检查正在监听的程序是否属于当前用户；当前用户的其他程序仍可能冒充 9router，因此在 Cuotai 读取期间请保持 9router 运行。在本机之外，建议使用带固定证书的 HTTPS。读取用量可能使 9router 刷新它保存的登录。",
