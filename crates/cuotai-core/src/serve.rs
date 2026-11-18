@@ -40,6 +40,8 @@ pub use access_file::{
 pub use origin::{
     check_origin_count, parse_origins, Origin, OriginError, OriginListError, MAX_ORIGINS,
 };
+#[cfg(debug_assertions)]
+pub(crate) use token::DevelopmentTokenVault;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub use token::SystemTokenVault;
 pub use token::{

@@ -1,11 +1,13 @@
 //! Native OAuth authorization and secure, refreshable credentials. No UI dependencies.
 pub mod bailian;
 pub mod callback_page;
+mod choice;
 mod flows;
 pub mod login;
 pub(crate) mod session;
 mod store;
 pub mod vault_index;
+pub use choice::{EraseVault, StoreChoice};
 pub use session::{AuthorizedLogin, OAuthLogin, OAuthSession};
 pub mod aws;
 pub mod cursor_import;
@@ -23,6 +25,8 @@ use crate::Provider;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+#[cfg(debug_assertions)]
+pub(crate) use store::sqlite_dev::SqliteDevStore;
 pub use store::{SystemTokenStore, TokenStore};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

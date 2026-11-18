@@ -1405,7 +1405,8 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
         return data_cli::history_erase(args.config, &target, args.yes);
     }
     if args.erase_all_data {
-        return data_cli::erase_all_data(args.config, args.include_config, args.yes);
+        let choice = erase_store_choice(&args);
+        return data_cli::erase_all_data(args.config, args.include_config, args.yes, &choice);
     }
     if args.yes && !yes_is_consumed(&args) {
         return Err(l10n::tr(
@@ -2711,6 +2712,12 @@ fn history_text(
 /// The actions that read `--yes`: every other run refuses it (PRD 0052
 /// RF5, PRD 0044 RF5.2: `--channel-add` saves a piped address with it).
 /// `--channel-remove` asks nothing, so it refuses `--yes` too.
+/// PRD 0050 `SEC-DEV-VAULT`: the credential store `--erase-all-data`
+/// clears, the one this process was started with.
+fn erase_store_choice(args: &Args) -> cuotai_core::oauth::StoreChoice {
+    cuotai_core::oauth::StoreChoice::from_flag(args.dev_credentials_sqlite.clone())
+}
+
 fn yes_is_consumed(args: &Args) -> bool {
     args.history_erase.is_some()
         || args.erase_all_data
@@ -3587,6 +3594,29 @@ mod tests {
     }
 
     /// PRD 0024 RF1.3: points by default; the flag beats the environment.
+    /// PRD 0050 `SEC-DEV-VAULT` (S-04): the erase dispatch takes the store
+    /// from `--dev-credentials-sqlite`, so it never defaults to the system
+    /// vault when the flag is given.
+    // security-invariant: SEC-DEV-VAULT
+    #[test]
+    fn the_erase_dispatch_passes_the_development_flag() {
+        use cuotai_core::oauth::StoreChoice;
+        let args = Args::try_parse_from([
+            "cuotai",
+            "--erase-all-data",
+            "--dev-credentials-sqlite",
+            "x",
+        ])
+        .unwrap();
+        assert!(args.erase_all_data);
+        assert_eq!(
+            erase_store_choice(&args),
+            StoreChoice::Development(PathBuf::from("x"))
+        );
+        let args = Args::try_parse_from(["cuotai", "--erase-all-data"]).unwrap();
+        assert_eq!(erase_store_choice(&args), StoreChoice::System);
+    }
+
     #[test]
     fn the_pace_unit_follows_the_flag_then_the_environment() {
         use cuotai_core::pace::PaceUnit::{Percent, Points};

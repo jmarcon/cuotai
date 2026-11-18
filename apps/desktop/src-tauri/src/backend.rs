@@ -2422,19 +2422,17 @@ impl Inner {
             Some(s) => Arc::clone(s),
             None => {
                 // Development only: plaintext SQLite, refused by release builds (core).
-                let session = match std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE") {
-                    Some(path) => {
-                        // PRD 0052 RF1.4: a WARN record and the developer's stderr line.
-                        cuotai_core::diagnostics::logging::event(
-                            cuotai_core::diagnostics::logging::Level::Warn,
-                            "credentials.dev_store",
-                            &[],
-                        );
-                        eprintln!("WARNING: credentials in UNENCRYPTED SQLite (development only); the system keychain will not be used.");
-                        OAuthSession::development_sqlite(std::path::Path::new(&path))
-                    }
-                    None => OAuthSession::system(),
-                };
+                let choice = crate::credential_store::choice();
+                if choice.is_development() {
+                    // PRD 0052 RF1.4: a WARN record and the developer's stderr line.
+                    cuotai_core::diagnostics::logging::event(
+                        cuotai_core::diagnostics::logging::Level::Warn,
+                        "credentials.dev_store",
+                        &[],
+                    );
+                    eprintln!("WARNING: credentials in UNENCRYPTED SQLite (development only); the system keychain will not be used.");
+                }
+                let session = choice.session();
                 let s = Arc::new(session.map_err(|_| crate::desk_text::vault_unavailable())?);
                 self.session = Some(Arc::clone(&s));
                 s
@@ -2699,7 +2697,17 @@ impl Backend {
     ) -> Self {
         let incidents = IncidentMonitor::new();
         incidents.set_enabled(status_queries);
-        let serve = Integration::new(serve, Arc::new(cuotai_core::serve::SystemTokenVault));
+        // PRD 0050 `SEC-DEV-VAULT`: the token lives in the store this
+        // process started with; a store that cannot open fails closed (the
+        // server's "vault unavailable" state), never the system vault.
+        // Tests never reach the OS vault.
+        #[cfg(not(test))]
+        let vault = crate::credential_store::choice().serve_vault();
+        #[cfg(test)]
+        let vault = crate::credential_store::choice()
+            .serve_vault_with(|| Arc::new(crate::local_server::UnavailableVault));
+        let vault = vault.unwrap_or_else(|_| Arc::new(crate::local_server::UnavailableVault));
+        let serve = Integration::new(serve, vault);
         let mut hooks = Hooks::default();
         hooks.set_enabled(hooks_enabled);
         let publisher = widgets::Publisher::new();

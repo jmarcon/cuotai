@@ -38,6 +38,8 @@ cuotai --history-erase ACCOUNT    # or: --history-erase all; --yes skips the que
 # Erase every file, directory and vault entry Cuotai keeps (docs/privacy.md).
 # It lists them first and asks for the confirmation word; without a terminal
 # it needs --yes. The accounts TOML and hooks.toml stay unless --include-config.
+# With --dev-credentials-sqlite FILE (debug builds) it clears that store, never
+# the system vault; a release build refuses the flag.
 cuotai --erase-all-data [--yes] [--include-config]
 
 # Human-readable summary in the terminal (single run)

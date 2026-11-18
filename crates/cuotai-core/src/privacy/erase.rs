@@ -179,6 +179,66 @@ impl Vault for SystemVault {
     }
 }
 
+/// PRD 0050 `SEC-DEV-VAULT`: the plaintext development store as erasure
+/// sees it (debug builds only; [`crate::oauth::StoreChoice`] builds it).
+/// `cuotai.oauth` clears the token rows and the store's own vault index,
+/// `cuotai.serve` the local-server token row; the database file itself is
+/// kept, like the OS vault itself. It never reaches the system vault.
+#[cfg(debug_assertions)]
+pub struct DevelopmentVault {
+    store: crate::oauth::SqliteDevStore,
+    index: PathBuf,
+}
+
+#[cfg(debug_assertions)]
+impl DevelopmentVault {
+    /// Open the store at `path` with the development store's checks
+    /// (regular private file, no symbolic link, a single link).
+    pub(crate) fn open(path: &Path) -> Result<Self, Localized> {
+        let store = crate::oauth::SqliteDevStore::open(path).map_err(|e| e.l10n())?;
+        Ok(Self {
+            store,
+            index: crate::oauth::vault_index::development_path(path),
+        })
+    }
+
+    /// Remove the store's vault index; a symbolic link is removed, never
+    /// followed. Whether something went.
+    fn remove_index(&self) -> Result<bool, VaultFailure> {
+        match std::fs::symlink_metadata(&self.index) {
+            Ok(meta) if meta.is_file() || meta.file_type().is_symlink() => {
+                match std::fs::remove_file(&self.index) {
+                    Ok(()) => Ok(true),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+                    Err(_) => Err(VaultFailure),
+                }
+            }
+            // Not a file Cuotai wrote: left alone.
+            Ok(_) => Err(VaultFailure),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(_) => Err(VaultFailure),
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Vault for DevelopmentVault {
+    fn can_search(&self, service: &str) -> bool {
+        matches!(service, "cuotai.oauth" | "cuotai.serve")
+    }
+
+    fn delete_service(&self, service: &str) -> Result<usize, VaultFailure> {
+        match service {
+            "cuotai.oauth" => {
+                let rows = self.store.delete_all_tokens().map_err(|_| VaultFailure)?;
+                Ok(rows + usize::from(self.remove_index()?))
+            }
+            "cuotai.serve" => self.store.serve_delete().map_err(|_| VaultFailure),
+            _ => Err(VaultFailure),
+        }
+    }
+}
+
 /// How one artifact ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -603,6 +663,125 @@ mod tests {
         assert!(erase_all(&options, &vault()).unwrap().complete());
         assert!(outside.join("keep").exists());
         assert!(std::fs::symlink_metadata(&extensions).is_err());
+    }
+
+    /// A system vault stand-in that counts how often its factory ran.
+    struct CountingVault;
+
+    impl Vault for CountingVault {
+        fn can_search(&self, _: &str) -> bool {
+            true
+        }
+
+        fn delete_service(&self, _: &str) -> Result<usize, VaultFailure> {
+            Ok(1)
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    fn os_vault_reached() -> crate::oauth::EraseVault {
+        panic!("the OS vault was reached")
+    }
+
+    #[cfg(debug_assertions)]
+    fn token(value: &str) -> crate::oauth::OAuthToken {
+        crate::oauth::OAuthToken {
+            access_token: value.into(),
+            refresh_token: Some("refresh".into()),
+            expires_at: None,
+            metadata: Default::default(),
+        }
+    }
+
+    /// PRD 0050 `SEC-DEV-VAULT` (S-04): erase-all on the development store
+    /// clears that store's rows and index, keeps its file, and never calls
+    /// the system factory.
+    // security-invariant: SEC-DEV-VAULT
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_development_store_is_erased_and_the_system_vault_is_never_reached() {
+        use crate::oauth::{SqliteDevStore, StoreChoice, TokenStore};
+        let (dir, options) = tree();
+        let database = dir.path().join("dev").join("cuotai-dev.sqlite3");
+        std::fs::create_dir_all(database.parent().unwrap()).unwrap();
+        let store = SqliteDevStore::open(&database).unwrap();
+        store.save("first", &token("a")).unwrap();
+        store.save("second", &token("b")).unwrap();
+        #[cfg(feature = "serve")]
+        store.serve_save("cuotai_0123456789abcdef").unwrap();
+        drop(store);
+        let index = crate::oauth::vault_index::development_path(&database);
+        std::fs::write(&index, b"{}").unwrap();
+
+        let choice = StoreChoice::Development(database.clone());
+        let vault = choice.erase_vault_with(os_vault_reached).unwrap();
+        let report = erase_all(&options, &*vault).unwrap();
+        assert!(report.complete(), "{report:?}");
+        assert_eq!(outcome_of(&report, "vault.oauth"), Outcome::Removed);
+        #[cfg(feature = "serve")]
+        assert_eq!(outcome_of(&report, "vault.serve"), Outcome::Removed);
+        assert!(!index.exists(), "the store's index goes");
+        assert!(database.exists(), "the database file is kept");
+        let store = SqliteDevStore::open(&database).unwrap();
+        assert!(store.load("first").unwrap().is_none());
+        assert!(store.load("second").unwrap().is_none());
+        #[cfg(feature = "serve")]
+        assert!(store.serve_load().unwrap().is_none());
+        drop(store);
+
+        // A second run finds nothing and still succeeds.
+        let vault = choice.erase_vault_with(os_vault_reached).unwrap();
+        let again = erase_all(&options, &*vault).unwrap();
+        assert!(again.complete());
+        assert_eq!(outcome_of(&again, "vault.oauth"), Outcome::Absent);
+        assert_eq!(outcome_of(&again, "vault.serve"), Outcome::Absent);
+    }
+
+    #[cfg(debug_assertions)]
+    fn outcome_of(report: &EraseReport, id: &str) -> Outcome {
+        report.items.iter().find(|i| i.id == id).unwrap().outcome
+    }
+
+    /// PRD 0050 `SEC-DEV-VAULT`: the system choice takes its vault from the
+    /// system factory, exactly once.
+    // security-invariant: SEC-DEV-VAULT
+    #[test]
+    fn the_system_choice_uses_the_system_factory_once() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let calls = AtomicUsize::new(0);
+        let vault = crate::oauth::StoreChoice::from_flag(None)
+            .erase_vault_with(|| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Box::new(CountingVault)
+            })
+            .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(vault.can_search("cuotai.oauth"));
+    }
+
+    /// PRD 0050 `SEC-DEV-VAULT` / `SEC-DEV-FILE`: a development store that
+    /// is shared with other users or reached through a symbolic link is
+    /// refused, and the system factory is not called instead.
+    // security-invariant: SEC-DEV-VAULT
+    #[cfg(all(unix, debug_assertions))]
+    #[test]
+    fn a_development_vault_refuses_a_shared_or_linked_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("shared.sqlite3");
+        std::fs::write(&shared, b"").unwrap();
+        std::fs::set_permissions(&shared, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let link = dir.path().join("link.sqlite3");
+        let private = dir.path().join("private.sqlite3");
+        crate::oauth::SqliteDevStore::open(&private).unwrap();
+        std::os::unix::fs::symlink(&private, &link).unwrap();
+        for path in [shared, link] {
+            let choice = crate::oauth::StoreChoice::Development(path);
+            let Err(text) = choice.erase_vault_with(os_vault_reached) else {
+                panic!("a shared or linked file must be refused");
+            };
+            assert_eq!(text.id, "oauth_error.store.sqlite_dev_unavailable");
+        }
     }
 
     #[test]

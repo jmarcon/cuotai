@@ -19,10 +19,7 @@ use cuotai_core::{
     export::v1::{Export, Options, StatsExport},
     incidents::ProviderStatus,
     refresh::RefreshCycle,
-    serve::{
-        self, LocalServer, ServeConfig, ServeError, StatsAnswer, SystemTokenVault, Token,
-        TokenVault,
-    },
+    serve::{self, LocalServer, ServeConfig, ServeError, StatsAnswer, Token, TokenVault},
     stats::StatsRange,
     text::Localized,
     Config,
@@ -221,9 +218,31 @@ pub struct Integration {
     listener_starts: usize,
 }
 
+/// PRD 0050 `SEC-DEV-VAULT`: the token vault of a process whose credential
+/// store could not open. Every call fails with the vault error, so the
+/// server stays off with its "vault unavailable" state and never falls back
+/// to another vault.
+pub struct UnavailableVault;
+
+/// Stopped, with no usable vault: [`crate::backend::Backend::new`] replaces
+/// it with the server of the process's credential store.
 impl Default for Integration {
     fn default() -> Self {
-        Self::new(ServePrefs::default(), Arc::new(SystemTokenVault))
+        Self::new(ServePrefs::default(), Arc::new(UnavailableVault))
+    }
+}
+
+impl TokenVault for UnavailableVault {
+    fn load(&self) -> Result<Option<Token>, ServeError> {
+        Err(ServeError::Vault)
+    }
+
+    fn save(&self, _: &Token) -> Result<(), ServeError> {
+        Err(ServeError::Vault)
+    }
+
+    fn delete(&self) -> Result<(), ServeError> {
+        Err(ServeError::Vault)
     }
 }
 
@@ -533,6 +552,37 @@ mod tests {
         fn delete(&self) -> Result<(), ServeError> {
             Err(ServeError::Vault)
         }
+    }
+
+    /// PRD 0050 `SEC-DEV-VAULT` (R-01): on the development store the
+    /// server token is generated, copied and revoked in that store's file,
+    /// and the system vault factory is never called.
+    // security-invariant: SEC-DEV-VAULT
+    #[cfg(debug_assertions)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_development_choice_keeps_the_server_token_in_its_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai-dev.sqlite3");
+        let choice = cuotai_core::oauth::StoreChoice::Development(path.clone());
+        let vault = || {
+            choice
+                .serve_vault_with(|| panic!("the OS vault was reached"))
+                .unwrap()
+        };
+        let integration = Integration::new(ServePrefs::default(), vault());
+        integration.store_new_token().await.unwrap();
+        let copied = integration.stored_token().await.unwrap();
+        // The token is in the file: a second vault over it reads it.
+        assert_eq!(vault().load().unwrap(), Some(copied.clone()));
+        integration.store_new_token().await.unwrap();
+        assert_ne!(integration.stored_token().await.unwrap(), copied);
+        integration.forget_token().await.unwrap();
+        assert_eq!(
+            integration.stored_token().await.unwrap_err(),
+            ServeError::TokenMissing
+        );
+        assert_eq!(vault().load().unwrap(), None);
+        assert!(path.exists());
     }
 
     /// Moves the running server to a new port nobody else holds, and

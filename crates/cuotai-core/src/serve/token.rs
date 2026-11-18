@@ -254,6 +254,46 @@ pub fn ensure_token_file(path: &std::path::Path) -> Result<Token, ServeError> {
     }
 }
 
+/// PRD 0050 `SEC-DEV-VAULT`: the token of a process started on the plaintext
+/// development store (debug builds only), kept in that store's file so the
+/// system vault is never read, written or deleted. Errors are
+/// [`ServeError::Vault`] with no backend text.
+#[cfg(debug_assertions)]
+pub(crate) struct DevelopmentTokenVault(crate::oauth::SqliteDevStore);
+
+#[cfg(debug_assertions)]
+impl DevelopmentTokenVault {
+    /// Open the store at `path` with the development store's checks.
+    pub(crate) fn open(path: &std::path::Path) -> Result<Self, ServeError> {
+        crate::oauth::SqliteDevStore::open(path)
+            .map(Self)
+            .map_err(|_| ServeError::Vault)
+    }
+}
+
+#[cfg(debug_assertions)]
+impl TokenVault for DevelopmentTokenVault {
+    fn load(&self) -> Result<Option<Token>, ServeError> {
+        match self.0.serve_load().map_err(|_| ServeError::Vault)? {
+            Some(raw) => Token::parse(&raw).map(Some).map_err(|_| ServeError::Vault),
+            None => Ok(None),
+        }
+    }
+
+    fn save(&self, token: &Token) -> Result<(), ServeError> {
+        self.0
+            .serve_save(token.expose())
+            .map_err(|_| ServeError::Vault)
+    }
+
+    fn delete(&self) -> Result<(), ServeError> {
+        self.0
+            .serve_delete()
+            .map(|_| ())
+            .map_err(|_| ServeError::Vault)
+    }
+}
+
 /// The token in the platform's secure store (macOS Keychain, Windows
 /// Credential Manager, Linux Secret Service), apart from OAuth tokens.
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
@@ -297,5 +337,46 @@ impl TokenVault for SystemTokenVault {
             Ok(()) | Err(keyring::v1::Error::NoEntry) => Ok(()),
             Err(_) => Err(ServeError::Vault),
         }
+    }
+}
+
+/// The development store exists in debug builds only.
+#[cfg(all(test, debug_assertions))]
+mod tests {
+    use super::*;
+
+    /// PRD 0050 `SEC-DEV-VAULT` (R-01): on the development store the
+    /// local-server token lives in that store's file: save, load, replace
+    /// and delete round-trip there, and a missing row loads `None`. Never
+    /// the system vault.
+    // security-invariant: SEC-DEV-VAULT
+    #[test]
+    fn the_development_serve_vault_round_trips_in_its_own_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai-dev.sqlite3");
+        let choice = crate::oauth::StoreChoice::Development(path.clone());
+        let vault = choice
+            .serve_vault_with(|| panic!("the OS vault was reached"))
+            .unwrap();
+        assert!(vault.load().unwrap().is_none(), "a missing row is None");
+        let first = Token::generate().unwrap();
+        vault.save(&first).unwrap();
+        assert_eq!(vault.load().unwrap(), Some(first.clone()));
+        let second = Token::generate().unwrap();
+        vault.save(&second).unwrap();
+        drop(vault);
+        // Reopened: the replacement persisted in the file.
+        let vault = choice
+            .serve_vault_with(|| panic!("the OS vault was reached"))
+            .unwrap();
+        assert_eq!(vault.load().unwrap(), Some(second));
+        assert_eq!(
+            ensure_token(&*vault).unwrap(),
+            vault.load().unwrap().unwrap()
+        );
+        vault.delete().unwrap();
+        assert!(vault.load().unwrap().is_none());
+        vault.delete().unwrap();
+        assert!(path.exists());
     }
 }
