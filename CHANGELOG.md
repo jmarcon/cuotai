@@ -13,6 +13,28 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.1] - 2026-11-18
+
+### Fixed
+
+- The "Others" row of a breakdown shows the real total of the rows it folds, without one key's budget or reset date, and an account that breaks down by two kinds (projects and keys, or keys and teams) lists and folds each kind on its own (PRD 0045 RF1.2, RF3, RF4, RF5.1, RF6.1; 4cff2e2).
+- Breakdown rows without a name, the card's "Top" line amounts and the note about a breakdown that failed now follow your language and number format, and the note names the kind that failed (PRD 0045 RF6.1, RF6.2; e19c1a0).
+- The account form's Breakdown choices are round checks in a framed group (no longer stretched bars in the Win98 and XP themes), and breakdown rows show their amount without a "Usage" prefix (PRD 0045 RF6.1, RF6.3; 5220bd9).
+- Test connection of a LiteLLM proxy reads only the budgets route again, even with a breakdown ticked, and the TUI marks a key or team near or at its budget (PRD 0045 RF3, RF6.2, RF6.3; b5399b4).
+- The desktop restore preview lists the keys, sign-ins and settings still to do before you restore, and refuses a backup file that changed after the preview (PRD 0046 RF3.1, RF3.3; PRD 0050 RF9; b46577d).
+- A restore writes through a linked accounts or hooks file instead of replacing the link, a backup without a trustworthy date asks before replacing a file changed here, an unknown old format is reported as damaged rather than newer, and `--restore --json` prints only JSON (PRD 0046 RF1.1, RF3.1, RF3.2; e66d387).
+- The backup and restore dialogs have their intended width again, with unchanged files muted and long paths wrapping inside the dialog (PRD 0046 RF2.1, RF3.3; d753cb0).
+- German backup, restore and setup-check texts now address you consistently as "Sie" (PRD 0046 RF3.3, RF4.2; PRD 0035 RF11.5; 8c24ae0).
+
+### Security
+
+- A LiteLLM team whose id is "others" can no longer pass for the breakdown's sum row and drop out of history, alerts and budgets (PRD 0045 RF1.2, RF3, RF4, RF5.1, RF6.1; 4cff2e2).
+- Breakdown row names hide a key even when it is glued to other text (key=sk-…, AWS access keys, tokens), and drop invisible zero-width and direction-mark characters (PRD 0045 RF1.3; 938490e).
+- A restore no longer turns on the local server, browser access, update checks, device detection, widgets or their e-mails, status pages, notifications, alerts or hooks: each keeps this computer's choice, and the plan lists every one the backup had on (PRD 0046 RF1.2, RF3.1, RF3.3; PRD 0018 RF2.6; PRD 0027 RF6.5; PRD 0050 RF4.1; PRD 0032 RF7.1; 059f8fb).
+- A restore lists each account that would send a key to another address (a proxy address or a program path) and goes ahead only after a specific confirmation: `--accept-hosts` in the command line, a separate checkbox in the desktop (PRD 0046 RF3.1, RF3.3; PRD 0050 RF9; b46577d).
+- A crafted backup can no longer hide or reorder lines of the restore plan with terminal escapes or hidden direction characters, and a restore refuses theme and language files without their extension, names Windows cannot hold and names that differ only in case (PRD 0046 RF1.1, RF3.1, RF3.2; e66d387).
+- A backup also stops when a file holds a Slack or Discord webhook address, a Bearer token, an xAI or Google token, an AWS secret key or a password inside an address, and it now says Cuotai found no key rather than that the file holds no secret (PRD 0046 RF1.3; 7913096).
+
 ## [0.87.0] - 2026-11-18
 
 ### Added
@@ -1165,7 +1187,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.1...HEAD
+[0.87.1]: https://github.com/jmarcon/cuotai/compare/v0.87.0...v0.87.1
 [0.87.0]: https://github.com/jmarcon/cuotai/compare/v0.86.10...v0.87.0
 [0.86.10]: https://github.com/jmarcon/cuotai/compare/v0.86.9...v0.86.10
 [0.86.9]: https://github.com/jmarcon/cuotai/compare/v0.86.8...v0.86.9
