@@ -743,7 +743,8 @@ impl Report {
     ///
     /// PRD 0038 re-validation (S-01, S-02): breakdown row labels and notes,
     /// and the schema-drift diagnostic's paths, types and fingerprint keys,
-    /// are cleaned too.
+    /// are cleaned too. PRD 0045 (S-03): a row label loses every
+    /// [`is_hidden`] character, zero-width and direction marks included.
     pub fn strip_disguising_text(&mut self) {
         self.for_each_metric_mut(Metric::strip_disguising_text);
         for note in &mut self.notes {
@@ -756,7 +757,7 @@ impl Report {
             sub.strip_text_fields();
         }
         for row in &mut self.breakdown {
-            strip_disguising(&mut row.label);
+            strip_hidden(&mut row.label);
             row.notes.iter_mut().for_each(clean_note);
         }
         if let Some(diagnostic) = &mut self.diagnostic {
@@ -1909,7 +1910,7 @@ mod tests {
             breakdown: vec![BreakdownRow {
                 scope: ScopeKind::Key,
                 id: hex.into(),
-                label: FORGED.into(),
+                label: format!("{FORGED}\u{200B}\u{200E}"),
                 metrics: vec![metric()],
                 truncated: false,
                 notes: vec![note()],

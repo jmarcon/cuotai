@@ -144,6 +144,14 @@ pub fn tokens(value: &str) -> String {
         .into_owned()
 }
 
+/// Whether `text` holds a known key prefix (`sk-…`, `ghp_…`, `AKIA…`,
+/// `ASIA…`, `eyJ….`, …) at a word boundary anywhere, so a key glued to
+/// other text (`key=sk-…`, `litellm:sk-…`) counts too (PRD 0045 S-02).
+/// Shares the patterns of [`tokens`] and [`text`].
+pub(crate) fn has_key_prefix(text: &str) -> bool {
+    patterns().prefixed.is_match(text)
+}
+
 /// Whether `value` reads as a key rather than a word or a figure: at least
 /// 16 characters, or at least 8 that mix letters with digits or key
 /// punctuation. `[redacted]` itself is not key-shaped.
