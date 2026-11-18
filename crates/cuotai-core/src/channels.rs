@@ -26,6 +26,8 @@ pub mod log;
 pub mod payload;
 
 #[cfg(test)]
+mod digest_filter_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::oauth::{OAuthToken, TokenStore};

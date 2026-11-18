@@ -15,7 +15,7 @@
 //! was closed is delivered within [`CATCH_UP`] of it, then dropped.
 
 use crate::history::{HistoryError, HistoryStore};
-use crate::insights::{DaysOff, DigestPrefs, LimitChange, RhythmQuery, RhythmRange};
+use crate::insights::{DaysOff, DigestPrefs, LimitChange};
 use crate::model::{Account, Report};
 use crate::stats::ExtraSpent;
 use crate::text::{params, Localized, ParamValue};
@@ -88,6 +88,19 @@ pub struct DigestAccount {
     pub limit_changes: Vec<LimitChange>,
     pub budgets: Vec<BudgetLine>,
     pub allowances: Vec<AllowanceLine>,
+    /// The account's stable id ([`Account::state_key`]): a channel's
+    /// account filter keeps the digest to its accounts (G3).
+    pub account_id: String,
+    /// The days of the week with a known peak, oldest first.
+    #[serde(skip)]
+    pub days: Vec<DayShare>,
+    /// The consumption (points of the limit) per local hour of day over
+    /// the week.
+    #[serde(skip)]
+    pub hours: [f64; 24],
+    /// This account's extra spent in the week, per unit.
+    #[serde(skip)]
+    pub extra_spent: Option<Vec<ExtraSpent>>,
 }
 
 /// RF3.1: the week of every account and overall.
@@ -114,19 +127,79 @@ fn monday(date: NaiveDate) -> NaiveDate {
     date - TimeDelta::days(i64::from(date.weekday().num_days_from_monday()))
 }
 
-fn extremes(days: &[crate::stats::DayPeak]) -> (Option<DayShare>, Option<DayShare>) {
-    let known = || {
-        days.iter().filter_map(|day| {
+/// The days of `days` with a known peak.
+fn known_days(days: &[crate::stats::DayPeak]) -> Vec<DayShare> {
+    days.iter()
+        .filter_map(|day| {
             day.share.map(|share| DayShare {
                 day: day.day,
                 share,
             })
         })
-    };
+        .collect()
+}
+
+/// The heaviest and the lightest of `days` (oldest first).
+fn extremes(days: &[DayShare]) -> (Option<DayShare>, Option<DayShare>) {
     (
-        known().max_by(|a, b| a.share.total_cmp(&b.share)),
-        known().min_by(|a, b| a.share.total_cmp(&b.share)),
+        days.iter()
+            .copied()
+            .max_by(|a, b| a.share.total_cmp(&b.share)),
+        days.iter()
+            .copied()
+            .min_by(|a, b| a.share.total_cmp(&b.share)),
     )
+}
+
+/// The overall lines' figures, computed from the accounts alone (G3), so
+/// the full digest and a channel's filtered one cannot drift.
+struct Overall {
+    hits: u32,
+    average_peak: Option<f64>,
+    extra_spent: Option<Vec<ExtraSpent>>,
+    heaviest: Option<DayShare>,
+    lightest: Option<DayShare>,
+    busiest_hours: Option<(u8, u8)>,
+    recorded: bool,
+}
+
+fn overall(accounts: &[DigestAccount]) -> Overall {
+    // The highest peak across accounts per day, as `stats::summarize`
+    // builds `daily`.
+    let mut daily: std::collections::BTreeMap<NaiveDate, f64> = Default::default();
+    for day in accounts.iter().flat_map(|a| &a.days) {
+        daily
+            .entry(day.day)
+            .and_modify(|share| *share = share.max(day.share))
+            .or_insert(day.share);
+    }
+    let daily: Vec<DayShare> = daily
+        .into_iter()
+        .map(|(day, share)| DayShare { day, share })
+        .collect();
+    let (heaviest, lightest) = extremes(&daily);
+    let mut extra: Vec<ExtraSpent> = Vec::new();
+    for spent in accounts.iter().flat_map(|a| a.extra_spent.iter().flatten()) {
+        match extra.iter_mut().find(|e| e.unit == spent.unit) {
+            Some(entry) => entry.amount += spent.amount,
+            None => extra.push(spent.clone()),
+        }
+    }
+    let mut hours = [0.0_f64; 24];
+    for account in accounts {
+        for (total, value) in hours.iter_mut().zip(account.hours) {
+            *total += value;
+        }
+    }
+    Overall {
+        hits: accounts.iter().map(|a| a.hits).sum(),
+        average_peak: mean(accounts.iter().filter_map(|a| a.average_peak)),
+        extra_spent: (!extra.is_empty()).then_some(extra),
+        heaviest,
+        lightest,
+        busiest_hours: busiest(&hours),
+        recorded: !daily.is_empty(),
+    }
 }
 
 /// The 3-hour band with the most consumption over the hours of a day.
@@ -169,19 +242,13 @@ pub fn weekly<Tz: TimeZone>(
     // PRD 0026 statistics over exactly the week's days, up to `end` (hits
     // and extra spent included: G2, the current week starts on Monday).
     let summary = crate::stats::summarize_between(store, accounts, first_day, last_day, end, tz)?;
+    // The hour totals count every day of the week, days off included.
+    let _ = days_off;
     let mut out_accounts = Vec::new();
-    let mut recorded = false;
     for (index, (account, stats)) in accounts.iter().zip(&summary.accounts).enumerate() {
-        let days = &stats.days;
-        recorded |= days.iter().any(|d| d.share.is_some());
-        let (heaviest, lightest) = extremes(days);
-        let query = RhythmQuery {
-            scope: Some(index),
-            metric: None,
-            range: RhythmRange::Typical30d,
-            days_off,
-        };
-        let busiest_hours = weekly_hours(store, accounts, &query, start, end, tz)?;
+        let days = known_days(&stats.days);
+        let (heaviest, lightest) = extremes(&days);
+        let hours = crate::insights::hour_totals(store, accounts, Some(index), start, end, tz)?;
         let limit_changes = store.limit_changes(account, start..=end)?;
         let reading = latest.get(index).and_then(Option::as_ref);
         let budgets = reading
@@ -222,53 +289,22 @@ pub fn weekly<Tz: TimeZone>(
             name: account.display_name().into_owned(),
             provider: account.provider,
             hits: stats.hits,
-            average_peak: mean(days.iter().filter_map(|d| d.share)),
-            days_at_limit: days
-                .iter()
-                .filter(|d| d.share.is_some_and(|s| s >= 0.999))
-                .count() as u32,
+            average_peak: mean(days.iter().map(|d| d.share)),
+            days_at_limit: days.iter().filter(|d| d.share >= 0.999).count() as u32,
             heaviest,
             lightest,
-            busiest_hours,
+            // The busiest 3-hour band of the hours of day summed over the week.
+            busiest_hours: busiest(&hours),
             limit_changes,
             budgets,
             allowances,
+            account_id: account.state_key(),
+            days,
+            hours,
+            extra_spent: stats.extra_spent.clone(),
         });
     }
-    let (heaviest, lightest) = extremes(&summary.daily);
-    let query = RhythmQuery {
-        scope: None,
-        metric: None,
-        range: RhythmRange::Typical30d,
-        days_off,
-    };
-    Ok(Digest {
-        week,
-        first_day,
-        last_day,
-        hits: out_accounts.iter().map(|a| a.hits).sum(),
-        average_peak: mean(out_accounts.iter().filter_map(|a| a.average_peak)),
-        extra_spent: summary.extra_spent.clone(),
-        heaviest,
-        lightest,
-        busiest_hours: weekly_hours(store, accounts, &query, start, end, tz)?,
-        accounts: out_accounts,
-        recorded,
-    })
-}
-
-/// The busiest 3-hour band of the consumption between `start` and `end`
-/// (the hours of day summed over the week).
-fn weekly_hours<Tz: TimeZone>(
-    store: &HistoryStore,
-    accounts: &[Account],
-    query: &RhythmQuery<'_>,
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
-    tz: &Tz,
-) -> Result<Option<(u8, u8)>, HistoryError> {
-    let hours = crate::insights::hour_totals(store, accounts, query.scope, start, end, tz)?;
-    Ok(busiest(&hours))
+    Ok(Digest::of_accounts(week, first_day, last_day, out_accounts))
 }
 
 fn mean(values: impl Iterator<Item = f64>) -> Option<f64> {
@@ -302,6 +338,43 @@ fn amounts(extra: &[ExtraSpent], locale: &str) -> String {
 }
 
 impl Digest {
+    /// The digest of `accounts`, its overall lines recomputed from them.
+    fn of_accounts(
+        week: DigestWeek,
+        first_day: NaiveDate,
+        last_day: NaiveDate,
+        accounts: Vec<DigestAccount>,
+    ) -> Digest {
+        let overall = overall(&accounts);
+        Digest {
+            week,
+            first_day,
+            last_day,
+            hits: overall.hits,
+            average_peak: overall.average_peak,
+            extra_spent: overall.extra_spent,
+            heaviest: overall.heaviest,
+            lightest: overall.lightest,
+            busiest_hours: overall.busiest_hours,
+            accounts,
+            recorded: overall.recorded,
+        }
+    }
+
+    /// G3: the digest of the accounts whose id `keep` admits, with every
+    /// overall figure recomputed from them alone; `None` when none is
+    /// left. A channel limited to some accounts receives this.
+    pub fn retain_accounts(&self, keep: impl Fn(&str) -> bool) -> Option<Digest> {
+        let accounts: Vec<DigestAccount> = self
+            .accounts
+            .iter()
+            .filter(|account| keep(&account.account_id))
+            .cloned()
+            .collect();
+        (!accounts.is_empty())
+            .then(|| Digest::of_accounts(self.week, self.first_day, self.last_day, accounts))
+    }
+
     /// "Your week in Cuotai: 2026-10-19 – 2026-10-25".
     pub fn title(&self) -> Localized {
         Localized::with_params(
