@@ -218,7 +218,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2857,6 +2858,7 @@
   "vault.remove.not_indexed": "Kunci itu tidak ada dalam daftar kredensial tersimpan.",
   "bundle.need.cost_sources": "Sumber biaya lokal tetap nonaktif setelah pemulihan: aktifkan masing-masing di komputer ini (Pengaturan › Biaya lokal atau cuotai --cost-sources).",
   "bundle.need.setting": "{setting} aktif di cadangan dan tetap nonaktif di komputer ini; aktifkan di Pengaturan jika Anda menginginkannya.",
+  "bundle.need.env_invalid": "Perbaiki nama variabel akun {number} ({provider}); nama itu tidak valid.",
   "bundle.setting.serve": "Sajikan penggunaan secara lokal",
   "bundle.setting.serve_browsers": "Izinkan peramban web",
   "bundle.setting.serve_stats": "Bagikan statistik penggunaan",

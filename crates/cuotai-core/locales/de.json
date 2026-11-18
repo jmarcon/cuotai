@@ -241,7 +241,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2937,6 +2938,7 @@
   "vault.remove.not_indexed": "Dieser Schlüssel steht nicht in der Liste der gespeicherten Zugangsdaten.",
   "bundle.need.cost_sources": "Lokale Kostenquellen bleiben nach einer Wiederherstellung aus: Schalten Sie jede auf diesem Computer ein (Einstellungen › Lokale Kosten oder cuotai --cost-sources).",
   "bundle.need.setting": "{setting} war in der Sicherung eingeschaltet und bleibt auf diesem Computer aus; schalten Sie es in den Einstellungen ein, wenn Sie es möchten.",
+  "bundle.need.env_invalid": "Korrigieren Sie den Variablennamen von Konto {number} ({provider}); er ist ungültig.",
   "bundle.setting.serve": "Nutzung lokal bereitstellen",
   "bundle.setting.serve_browsers": "Webbrowser zulassen",
   "bundle.setting.serve_stats": "Nutzungsstatistik teilen",

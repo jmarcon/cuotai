@@ -96,7 +96,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -2792,6 +2793,7 @@
   "vault.remove.not_indexed": "Esa clave no está en la lista de credenciales guardadas.",
   "bundle.need.cost_sources": "Las fuentes de coste local siguen desactivadas tras una restauración: active cada una en este equipo (Ajustes › Coste local o cuotai --cost-sources).",
   "bundle.need.setting": "{setting} estaba activado en la copia y sigue desactivado en este equipo; actívelo en Ajustes si lo desea.",
+  "bundle.need.env_invalid": "Corrige el nombre de variable de la cuenta {number} ({provider}); no es válido.",
   "bundle.setting.serve": "Servir el uso localmente",
   "bundle.setting.serve_browsers": "Permitir navegadores",
   "bundle.setting.serve_stats": "Compartir estadísticas de uso",

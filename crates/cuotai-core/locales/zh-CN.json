@@ -256,7 +256,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2895,6 +2896,7 @@
   "vault.remove.not_indexed": "该键不在已保存凭据列表中。",
   "bundle.need.cost_sources": "恢复后本地成本来源保持关闭：请在这台电脑上逐个开启（设置 › 本地成本，或 cuotai --cost-sources）。",
   "bundle.need.setting": "“{setting}”在备份中为开启状态，在这台电脑上保持关闭；如需使用，请在设置中开启。",
+  "bundle.need.env_invalid": "修正账户 {number}（{provider}）的变量名；它无效。",
   "bundle.setting.serve": "在本地提供用量",
   "bundle.setting.serve_browsers": "允许网页浏览器",
   "bundle.setting.serve_stats": "共享用量统计",

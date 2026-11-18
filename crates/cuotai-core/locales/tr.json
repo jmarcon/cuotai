@@ -218,7 +218,8 @@
       "bundle.setting.hooks",
       "bundle.host.url",
       "bundle.host.program",
-      "bundle.error.hosts"
+      "bundle.error.hosts",
+      "bundle.need.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2914,6 +2915,7 @@
   "vault.remove.not_indexed": "Bu anahtar kayıtlı kimlik bilgileri listesinde yok.",
   "bundle.need.cost_sources": "Geri yüklemeden sonra yerel maliyet kaynakları kapalı kalır: her birini bu bilgisayarda açın (Ayarlar › Yerel maliyet veya cuotai --cost-sources).",
   "bundle.need.setting": "{setting} yedekte açıktı ve bu bilgisayarda kapalı kalır; isterseniz Ayarlar'dan açın.",
+  "bundle.need.env_invalid": "{number}. hesabın ({provider}) değişken adını düzeltin; geçerli değil.",
   "bundle.setting.serve": "Kullanımı yerel olarak sun",
   "bundle.setting.serve_browsers": "Web tarayıcılarına izin ver",
   "bundle.setting.serve_stats": "Kullanım istatistiklerini paylaş",
