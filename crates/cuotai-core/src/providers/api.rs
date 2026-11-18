@@ -1666,6 +1666,75 @@ mod tests {
         assert_eq!(rows[0].metrics[1].used, Some(17.0));
     }
 
+    /// PRD 0045 re-validation (R-01): key rows carry tokens and project
+    /// rows money, so each kind is capped on its own and no project is
+    /// folded away behind thirty keys.
+    #[tokio::test]
+    async fn openai_projects_and_keys_are_capped_separately() {
+        let server = MockServer::start().await;
+        mount_openai_totals(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/costs"))
+            .and(query_param("group_by", "project_id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "object": "page",
+                "data": [{ "start_time": 1, "end_time": 2, "results": [
+                    { "amount": { "value": 900.0, "currency": "usd" }, "project_id": "proj_a" },
+                    { "amount": { "value": 910.0, "currency": "usd" }, "project_id": "proj_b" },
+                    { "amount": { "value": 920.0, "currency": "usd" }, "project_id": "proj_c" }
+                ]}],
+                "has_more": false, "next_page": null
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/projects"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+        let keys: Vec<_> = (0..30)
+            .map(|n| {
+                serde_json::json!({ "input_tokens": 50_000 + n, "output_tokens": 0,
+                    "num_model_requests": 50_000 + n, "api_key_id": format!("key_{n:04}") })
+            })
+            .collect();
+        Mock::given(method("GET"))
+            .and(path("/v1/organization/usage/completions"))
+            .and(query_param("group_by", "api_key_id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "object": "page",
+                "data": [{ "start_time": 1, "end_time": 2, "results": keys }],
+                "has_more": false, "next_page": null
+            })))
+            .mount(&server)
+            .await;
+        let client = reqwest::Client::new();
+        let account = with_breakdown(
+            Provider::OpenAiApi,
+            &[crate::BreakdownKind::Projects, crate::BreakdownKind::Keys],
+        );
+        let data = openai(&account, &context(&client), &server.uri())
+            .await
+            .unwrap();
+        let rows = &data.breakdown;
+        let projects: Vec<_> = rows
+            .iter()
+            .filter(|r| r.scope == crate::ScopeKind::Project)
+            .collect();
+        assert_eq!(projects.len(), 3);
+        assert!(projects.iter().all(|r| !r.is_others()));
+        let keys: Vec<_> = rows
+            .iter()
+            .filter(|r| r.scope == crate::ScopeKind::Key)
+            .collect();
+        assert_eq!(keys.len(), 12);
+        assert!(keys.last().is_some_and(|r| r.is_others()));
+        assert!(rows.iter().filter(|r| r.is_others()).count() == 1);
+        // The card line names projects, in money.
+        let top = crate::breakdown::top_line(rows, crate::breakdown::CARD_ROWS).unwrap();
+        assert_eq!(top.text(), "Top: Project …rojc $920 · Project …rojb $910");
+    }
+
     #[tokio::test]
     async fn a_failing_breakdown_leaves_the_openai_total_standing() {
         let server = MockServer::start().await;

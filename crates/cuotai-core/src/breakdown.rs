@@ -11,9 +11,10 @@
 //! ([`crate::access::UsageAccess::breakdowns`]). Metered providers accept
 //! none.
 //!
-//! Rows are capped at [`MAX_ROWS`] per account, ordered by the provider's
-//! primary spend or usage; the rest are summed into one "Others (N)" row
-//! ([`OTHERS_ID`]). A row carries at most [`MAX_ROW_METRICS`] metrics,
+//! Rows are capped at [`MAX_ROWS`] per account, shared equally by the
+//! kinds of row the account reports (keys, projects, …), each kind ordered
+//! by the provider's primary spend or usage on its own; the rest of a kind
+//! is summed into its own "Others (N)" row ([`OTHERS_ID`]). A row carries at most [`MAX_ROW_METRICS`] metrics,
 //! which are ordinary [`Metric`]s. A failing breakdown request never fails
 //! the account: the report keeps its total and gains
 //! [`unavailable_note`].
@@ -38,7 +39,11 @@ pub const CARD_ROWS: usize = 2;
 pub const ID_MAX: usize = 64;
 /// RF1.1: longest row label, in characters.
 pub const LABEL_MAX: usize = 48;
-/// RF1.2: the id of the row that sums the rows past the cap.
+/// RF1.2: the id of the row that sums the rows past the cap, one per
+/// scope (a row is identified by its `scope` and `id`). The id is
+/// reserved: the assembly gives a provider row whose own id reads "others"
+/// (in any case) its [`digest_id`], so only the sum row carries it
+/// (PRD 0045 re-validation S-01).
 pub const OTHERS_ID: &str = "others";
 
 /// RF1.4: one value of an account's `breakdown = [...]` array.
@@ -192,18 +197,24 @@ pub enum SortBy {
     Percent,
 }
 
-/// RF6.1: `rows` in the order `by` asks, the "Others" row always last.
+/// RF6.1: `rows` in the order `by` asks, one kind of row (scope) after
+/// the other ([`scope_rank`]), each kind's "Others" row last in its kind.
+/// Rows of different kinds are never ranked against each other: their
+/// amounts may be in different units.
 pub fn sorted(rows: &[BreakdownRow], by: SortBy) -> Vec<&BreakdownRow> {
     let mut out: Vec<&BreakdownRow> = rows.iter().collect();
     let amount = |row: &BreakdownRow| row.primary().and_then(|m| m.used);
     out.sort_by(|a, b| {
-        a.is_others().cmp(&b.is_others()).then_with(|| {
-            let by_amount = desc(amount(a), amount(b));
-            match by {
-                SortBy::Spend => by_amount,
-                SortBy::Percent => desc(a.fraction(), b.fraction()).then(by_amount),
-            }
-        })
+        scope_rank(a.scope)
+            .cmp(&scope_rank(b.scope))
+            .then_with(|| a.is_others().cmp(&b.is_others()))
+            .then_with(|| {
+                let by_amount = desc(amount(a), amount(b));
+                match by {
+                    SortBy::Spend => by_amount,
+                    SortBy::Percent => desc(a.fraction(), b.fraction()).then(by_amount),
+                }
+            })
     });
     out
 }
@@ -218,13 +229,51 @@ fn desc(a: Option<f64>, b: Option<f64>) -> std::cmp::Ordering {
     }
 }
 
+/// The order of the kinds of row: keys, virtual keys, projects,
+/// workspaces, teams (the declaration order of [`ScopeKind`]).
+fn scope_rank(scope: ScopeKind) -> u8 {
+    match scope {
+        ScopeKind::Model => 0,
+        ScopeKind::Key => 1,
+        ScopeKind::VirtualKey => 2,
+        ScopeKind::Project => 3,
+        ScopeKind::Workspace => 4,
+        ScopeKind::Team => 5,
+    }
+}
+
+/// The kinds of row in `rows`, in [`scope_rank`] order.
+fn scopes(rows: &[BreakdownRow]) -> Vec<ScopeKind> {
+    let mut out: Vec<ScopeKind> = Vec::new();
+    for row in rows {
+        if !out.contains(&row.scope) {
+            out.push(row.scope);
+        }
+    }
+    out.sort_by_key(|scope| scope_rank(*scope));
+    out
+}
+
 /// RF6.1: the card's one line, "Top: Proj-A $412 · Proj-B $298", from the
-/// first `count` rows with a primary amount (never the "Others" row);
-/// `None` without such a row.
+/// first `count` rows with a primary amount (never an "Others" row) of one
+/// kind of row: the kind of the highest money (`USD`) row, else the first
+/// kind. Kinds are never mixed. `None` without such a row.
 pub fn top_line(rows: &[BreakdownRow], count: usize) -> Option<Localized> {
+    let used = |row: &BreakdownRow| row.primary().and_then(|metric| metric.used);
+    let money = rows
+        .iter()
+        .filter(|row| !row.is_others())
+        .filter(|row| row.primary().is_some_and(|metric| metric.unit == "USD"))
+        .max_by(|a, b| desc(used(b), used(a)));
+    let scope = money.map(|row| row.scope).or_else(|| {
+        sorted(rows, SortBy::Spend)
+            .into_iter()
+            .find(|row| !row.is_others())
+            .map(|row| row.scope)
+    })?;
     let items: Vec<String> = sorted(rows, SortBy::Spend)
         .into_iter()
-        .filter(|row| !row.is_others())
+        .filter(|row| !row.is_others() && row.scope == scope)
         .filter_map(|row| {
             let metric = row.primary()?;
             Some(format!(
@@ -264,9 +313,15 @@ pub fn amount_text(value: f64, unit: &str) -> String {
 }
 
 /// RF6.1: "Showing the top 24 of 40; the rest are summed in Others." when
-/// the rows were capped; `None` otherwise.
+/// the rows were capped; `None` otherwise. With several kinds of row,
+/// "shown" counts every row but the "Others" rows and "total" adds what
+/// each "Others" row folds.
 pub fn truncated_note(rows: &[BreakdownRow]) -> Option<Localized> {
-    let others = rows.iter().find_map(BreakdownRow::others_count)?;
+    let counts: Vec<usize> = rows.iter().filter_map(BreakdownRow::others_count).collect();
+    if counts.is_empty() {
+        return None;
+    }
+    let others: usize = counts.iter().sum();
     let shown = rows.iter().filter(|row| !row.is_others()).count();
     Some(Localized::with_params(
         "breakdown.truncated",
@@ -405,66 +460,93 @@ pub fn redact_label(raw: &str, scope: ScopeKind, id: &str) -> String {
 
 // ---------------------------------------------------------------- assembly
 
-/// RF1.2: `rows` ordered by their primary amount (highest first, rows
-/// without one last, ties by label), each cut to [`MAX_ROW_METRICS`]
-/// metrics, and past [`MAX_ROWS`] the tail summed into one "Others (N)"
-/// row: per unit, the sum of the folded rows' primary amounts (as `Spend`
-/// for money, `Usage` otherwise, without limit or remaining).
+/// RF1.2: `rows` grouped by kind ([`scope_rank`] order), each kind
+/// ordered by its primary amount (highest first, rows without one last,
+/// ties by label), each row cut to [`MAX_ROW_METRICS`] metrics. Each kind
+/// gets an equal share of [`MAX_ROWS`] (its "Others" row included); past
+/// it the kind's tail is summed into its own "Others (N)" row
+/// ([`fold`]). A provider row whose id reads [`OTHERS_ID`] gets its
+/// [`digest_id`] first, so it can never pass for a sum row.
 pub(crate) fn finish(mut rows: Vec<BreakdownRow>) -> Vec<BreakdownRow> {
     for row in &mut rows {
         if row.metrics.len() > MAX_ROW_METRICS {
             row.metrics.truncate(MAX_ROW_METRICS);
             row.truncated = true;
         }
-        if row.id.len() > ID_MAX || row.id.is_empty() {
+        if row.id.len() > ID_MAX || row.id.is_empty() || row.id.eq_ignore_ascii_case(OTHERS_ID) {
             row.id = digest_id(&row.id);
         }
     }
     let amount = |row: &BreakdownRow| row.primary().and_then(|metric| metric.used);
     rows.sort_by(|a, b| desc(amount(a), amount(b)).then_with(|| a.label.cmp(&b.label)));
-    if rows.len() <= MAX_ROWS {
-        return rows;
+    let kinds = scopes(&rows);
+    let share = MAX_ROWS / kinds.len().max(1);
+    let mut out = Vec::with_capacity(rows.len().min(MAX_ROWS));
+    for scope in kinds {
+        let (mut group, rest): (Vec<_>, Vec<_>) =
+            rows.into_iter().partition(|row| row.scope == scope);
+        rows = rest;
+        if group.len() > share {
+            let folded = group.split_off(share - 1);
+            group.push(fold(scope, &folded));
+        }
+        out.extend(group);
     }
-    let folded = rows.split_off(MAX_ROWS - 1);
+    out
+}
+
+/// The "Others (N)" row of one kind: per unit, **one** sum of the folded
+/// rows' primary amounts (`Spend` "Gasto total" for money, `Usage` with the
+/// label of the first folded metric otherwise), without limit, remaining
+/// or scope. A window, reset or period is kept only when every folded
+/// metric of that unit has the same one, so one key's budget or reset date
+/// never passes for the sum's (PRD 0045 re-validation V-01).
+fn fold(scope: ScopeKind, folded: &[BreakdownRow]) -> BreakdownRow {
     let mut sums: Vec<Metric> = Vec::new();
     for metric in folded.iter().filter_map(BreakdownRow::primary) {
         let Some(used) = metric.used.filter(|used| used.is_finite()) else {
             continue;
         };
-        match sums
-            .iter_mut()
-            .find(|sum| sum.unit == metric.unit && sum.label == metric.label)
-        {
-            Some(sum) => sum.used = sum.used.map(|total| total + used),
+        match sums.iter_mut().find(|sum| sum.unit == metric.unit) {
+            Some(sum) => {
+                sum.used = sum.used.map(|total| total + used);
+                if sum.window != metric.window {
+                    sum.window = None;
+                }
+                if sum.resets_at != metric.resets_at {
+                    sum.resets_at = None;
+                }
+                if sum.period != metric.period {
+                    sum.period = None;
+                }
+            }
             None => {
-                let kind = if metric.unit == "USD" || metric.kind == MetricKind::Spend {
-                    MetricKind::Spend
+                let money = metric.unit == "USD";
+                let (kind, label) = if money {
+                    (MetricKind::Spend, "Gasto total".to_owned())
                 } else {
-                    MetricKind::Usage
+                    (MetricKind::Usage, metric.label.clone())
                 };
                 sums.push(Metric {
-                    used: Some(used),
-                    limit: None,
-                    remaining: None,
-                    kind,
-                    scope: None,
-                    ..metric.clone()
+                    window: metric.window,
+                    period: metric.period.clone(),
+                    resets_at: metric.resets_at,
+                    billing: metric.billing,
+                    ..Metric::usage(label, used, metric.unit.clone(), kind, None)
                 });
             }
         }
     }
-    let scope = folded.first().map_or(ScopeKind::Key, |row| row.scope);
     let truncated = sums.len() > MAX_ROW_METRICS;
     sums.truncate(MAX_ROW_METRICS);
-    rows.push(BreakdownRow {
+    BreakdownRow {
         scope,
         id: OTHERS_ID.into(),
         label: format!("Others ({})", folded.len()),
         metrics: sums,
         truncated,
         notes: Vec::new(),
-    });
-    rows
+    }
 }
 
 /// `note.breakdown.disabled`: a key the provider reports as disabled.
@@ -548,11 +630,24 @@ pub fn row_key(row: &BreakdownRow) -> String {
 }
 
 /// RF5.1: the rows the history records and the gated alerts follow: the
-/// first [`HISTORY_ROWS`] in the provider's order, "Others" left out.
+/// first [`HISTORY_ROWS`] in the provider's order, "Others" left out. With
+/// several kinds of row, each kind gets an equal share of them, so a kind
+/// listed later still has history and alerts.
 pub fn top_rows(rows: &[BreakdownRow]) -> impl Iterator<Item = &BreakdownRow> {
+    let kinds = scopes(rows);
+    let share = HISTORY_ROWS / kinds.len().max(1);
+    let mut taken: Vec<(ScopeKind, usize)> = kinds.into_iter().map(|scope| (scope, 0)).collect();
     rows.iter()
         .filter(|row| !row.is_others())
-        .take(HISTORY_ROWS)
+        .filter(move |row| {
+            taken
+                .iter_mut()
+                .find(|(scope, _)| *scope == row.scope)
+                .is_some_and(|(_, count)| {
+                    *count += 1;
+                    *count <= share
+                })
+        })
 }
 
 /// The account id of a row's unit: `<parent id>/breakdown:<scope>:<digest>`
@@ -1099,3 +1194,7 @@ mod config_tests {
 #[cfg(test)]
 #[path = "breakdown_units_tests.rs"]
 mod units_tests;
+
+#[cfg(test)]
+#[path = "breakdown_others_tests.rs"]
+mod others_tests;

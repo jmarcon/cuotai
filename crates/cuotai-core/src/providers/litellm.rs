@@ -967,6 +967,51 @@ mod tests {
         }
     }
 
+    /// PRD 0045 re-validation (S-01, R-01): a team whose id is "others"
+    /// is no sum row, and keys and teams are capped and folded apart, so a
+    /// team's spend (which includes its keys') is never added to theirs.
+    #[tokio::test]
+    async fn a_team_named_others_and_two_kinds_fold_apart() {
+        let server = MockServer::start().await;
+        mount(&server, 200, documented()).await;
+        let keys: Vec<Value> = (0..30)
+            .map(|i| json!({ "token": format!("t{i}"), "key_alias": format!("k{i:02}"), "spend": 1.0 + f64::from(i) }))
+            .collect();
+        Mock::given(method("GET"))
+            .and(path(KEYS_PATH))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "keys": keys, "total_count": 30, "current_page": 1, "total_pages": 1
+            })))
+            .mount(&server)
+            .await;
+        let mut teams: Vec<Value> = (0..30)
+            .map(|i| json!({ "team_id": format!("team-{i}"), "team_alias": format!("T{i:02}"), "spend": 100.0 + f64::from(i) }))
+            .collect();
+        teams.push(json!({ "team_id": "others", "team_alias": "Others (999)", "spend": 500.0 }));
+        Mock::given(method("GET"))
+            .and(path(TEAMS_PATH))
+            .respond_with(ResponseTemplate::new(200).set_body_json(Value::Array(teams)))
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let mut acct = account(&server, &[]);
+        acct.breakdown = vec![crate::BreakdownKind::Keys, crate::BreakdownKind::Teams];
+        let data = fetch_at(&acct, &context(&http), Utc::now()).await.unwrap();
+        let rows = &data.breakdown;
+        assert_eq!(rows.len(), crate::breakdown::MAX_ROWS - 1);
+        let forged = rows.iter().find(|row| row.label == "Others (999)").unwrap();
+        assert!(!forged.is_others());
+        assert_eq!(forged.id.len(), 16);
+        assert!(forged.id.bytes().all(|b| b.is_ascii_hexdigit()));
+        let sums: Vec<_> = rows.iter().filter(|row| row.is_others()).collect();
+        assert_eq!(sums.len(), 2);
+        assert_eq!(sums[0].scope, crate::ScopeKind::VirtualKey);
+        assert_eq!(sums[1].scope, crate::ScopeKind::Team);
+        // 19 keys of 1 + 0 … 18 and 20 teams of 100 + 0 … 19, never mixed.
+        assert_eq!(sums[0].metrics[0].used, Some(19.0 + 171.0));
+        assert_eq!(sums[1].metrics[0].used, Some(2000.0 + 190.0));
+    }
+
     #[tokio::test]
     async fn key_lists_follow_their_pages_up_to_three() {
         use wiremock::matchers::query_param;
