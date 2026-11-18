@@ -650,23 +650,80 @@ fn filters_keep_kinds_accounts_and_severity() {
 /// URL or e-mail, and no account name unless the channel shows names.
 #[test]
 fn every_payload_is_redacted() {
-    let mut secret = account("boss@example.com");
+    use crate::resets::{ResetEvent, ResetMetric};
+    // G-0044-3: an e-mail, a key and a web address in the account name and
+    // in every metric label.
+    const LABEL: &str = "Key of boss@example.com via https://x.example.com/t?k=SECRET";
+    let mut secret = account("boss@example.com sk-proj-abcdefghijklmnop1234");
     secret.credential_env = Some("SECRET_ADMIN_KEY".into());
+    let labelled = |kind, threshold| AlertEvent {
+        label: LABEL.into(),
+        ..alert(&secret, kind, threshold)
+    };
+    let digest = crate::digest::Digest {
+        week: crate::digest::DigestWeek::Last,
+        first_day: chrono::NaiveDate::from_ymd_opt(2026, 10, 19).unwrap(),
+        last_day: chrono::NaiveDate::from_ymd_opt(2026, 10, 25).unwrap(),
+        hits: 1,
+        average_peak: Some(0.5),
+        extra_spent: None,
+        heaviest: None,
+        lightest: None,
+        busiest_hours: None,
+        accounts: vec![crate::digest::DigestAccount {
+            name: secret.name.clone(),
+            provider: secret.provider,
+            hits: 1,
+            average_peak: Some(0.5),
+            days_at_limit: 1,
+            heaviest: None,
+            lightest: None,
+            busiest_hours: None,
+            limit_changes: vec![crate::insights::LimitChange {
+                label: "https://x.example.com/t?k=SECRET".into(),
+                label_text: crate::metric_text::metric_text("https://x.example.com/t?k=SECRET"),
+                window: None,
+                from: 100.0,
+                to: 150.0,
+                unit: "%".into(),
+                observed_at: t0(),
+            }],
+            budgets: Vec::new(),
+            allowances: Vec::new(),
+            account_id: secret.state_key(),
+            days: Vec::new(),
+            hours: [0.0; 24],
+            extra_spent: None,
+        }],
+        recorded: true,
+    };
     let sources = [
         Source::Alerts {
             account: secret.clone(),
-            events: vec![alert(&secret, AlertKind::Threshold, 75)],
+            events: vec![labelled(AlertKind::Threshold, 75)],
         },
         Source::Alerts {
             account: secret.clone(),
-            events: vec![alert(&secret, AlertKind::BalanceBelowFloor, 0)],
+            events: vec![labelled(AlertKind::BalanceBelowFloor, 0)],
         },
         Source::QuietDigest {
-            groups: vec![(
-                secret.clone(),
-                vec![alert(&secret, AlertKind::Threshold, 90)],
-            )],
+            groups: vec![(secret.clone(), vec![labelled(AlertKind::Threshold, 90)])],
         },
+        Source::Reset {
+            account: secret.clone(),
+            event: ResetEvent {
+                account_index: 0,
+                account_key: secret.state_key(),
+                metrics: vec![ResetMetric {
+                    label: LABEL.into(),
+                    window: MetricWindow::Window5h,
+                    resets_at: t0(),
+                }],
+                resets_at: t0(),
+                notify_at: t0(),
+            },
+        },
+        Source::WeeklyDigest(Box::new(digest)),
         Source::Test,
         Source::Summary { suppressed: 4 },
     ];
@@ -680,6 +737,8 @@ fn every_payload_is_redacted() {
                 for text in [&body, &headers] {
                     assert!(!text.contains("boss@example.com"), "{kind:?} {text}");
                     assert!(!text.contains("SECRET_ADMIN_KEY"));
+                    assert!(!text.contains("SECRET"), "{kind:?} {text}");
+                    assert!(!text.contains("sk-proj-"), "{kind:?} {text}");
                     assert!(!text.contains("http"), "{kind:?} {text}");
                     if !names {
                         assert!(!text.contains("boss"), "{kind:?} {text}");

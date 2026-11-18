@@ -99,6 +99,66 @@ pub fn text(value: &str) -> String {
     truncate(&value, MAX_FIELD_CHARS)
 }
 
+/// Redact key-shaped text only (PRD 0044 G-0044-3): credential header
+/// lines, bearer/basic values, `secret=value` assignments, known key
+/// prefixes and long runs mixing letters and digits. No body rule, no
+/// truncation and no URL rule (the caller replaces whole web addresses);
+/// newlines are kept. Meant for human texts (notification titles, bodies,
+/// labels), so a bearer value or a `secret: value` with a colon is
+/// redacted only when it looks like a key ([`key_shaped`]): "Tokens: 40"
+/// and "token budget" stay as they are. Idempotent.
+pub fn tokens(value: &str) -> String {
+    let p = patterns();
+    let value = p.header.replace_all(value, |caps: &regex::Captures| {
+        format!("{}: {SECRET}", &caps[1])
+    });
+    let value = p.bearer.replace_all(&value, |caps: &regex::Captures| {
+        let whole = &caps[0];
+        let secret = whole[caps[1].len()..].trim_start();
+        if key_shaped(secret) {
+            format!("{} {SECRET}", &caps[1])
+        } else {
+            whole.to_string()
+        }
+    });
+    let value = p.assignment.replace_all(&value, |caps: &regex::Captures| {
+        let (key, secret) = (&caps[1], &caps[3]);
+        if key.trim_end().ends_with('=') || key_shaped(secret.trim_matches(['"', '\''])) {
+            format!("{key}{SECRET}")
+        } else {
+            caps[0].to_string()
+        }
+    });
+    let value = p.prefixed.replace_all(&value, SECRET);
+    p.long_token
+        .replace_all(&value, |caps: &regex::Captures| {
+            let run = &caps[0];
+            let mixed = run.chars().any(|c| c.is_ascii_alphabetic())
+                && run.chars().any(|c| c.is_ascii_digit());
+            if mixed {
+                SECRET.to_string()
+            } else {
+                run.to_string()
+            }
+        })
+        .into_owned()
+}
+
+/// Whether `value` reads as a key rather than a word or a figure: at least
+/// 16 characters, or at least 8 that mix letters with digits or key
+/// punctuation. `[redacted]` itself is not key-shaped.
+fn key_shaped(value: &str) -> bool {
+    if value == SECRET {
+        return false;
+    }
+    let count = value.chars().count();
+    let letters = value.chars().any(|c| c.is_ascii_alphabetic());
+    let marks = value
+        .chars()
+        .any(|c| c.is_ascii_digit() || matches!(c, '_' | '-' | '+' | '/' | '=' | '.' | '~'));
+    count >= 16 || (count >= 8 && letters && marks)
+}
+
 /// Redact the value of a field called `name`: a name that reads as a
 /// secret (`token`, `cookie`, `password`, …) hides the whole value.
 pub fn field(name: &str, value: &str) -> String {
@@ -222,6 +282,37 @@ mod tests {
         assert_eq!(field("cookie", "SESSIONCOOKIEVALUE42"), SECRET);
         assert_eq!(field("refresh_token", "abc"), SECRET);
         assert_eq!(field("provider", "openai"), "openai");
+    }
+
+    #[test]
+    fn tokens_removes_key_shaped_text_and_keeps_sentences() {
+        let inputs = [
+            "Authorization: Bearer sk-ant-api03-SEEDSECRETVALUE1234567890",
+            "header token ghp_SEEDGITHUBTOKEN12345678 here",
+            "jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzZWVkIn0.c2lnbmF0dXJl",
+            "Cookie: session=SESSIONCOOKIEVALUE42; other=1",
+            "session_id=SESSIONCOOKIEVALUE42 more",
+            "api_key: \"SEEDSECRETVALUE1234567890abcdef\"",
+            "Team sk-proj-abcdefghijklmnop1234",
+        ];
+        for input in inputs {
+            let out = tokens(input);
+            assert_clean(&out);
+            assert!(!out.contains("sk-proj-"), "{out:?}");
+            assert_eq!(tokens(&out), out, "idempotent for {input:?}");
+        }
+        for sentence in [
+            "Claude · Work\nSession (5h) at 90% · resets 16:00",
+            "Your week in Cuotai: 2026-10-19 – 2026-10-25",
+            "Tokens: 40 of 100",
+            "Monthly token budget: 75% used",
+            "Basic plan · Session: 90%",
+            "Heaviest day: Thursday 2026-10-22 (100%) · lightest: Saturday 2026-10-24 (10%)",
+            "- Budgets: 1 of 2 used up\n- 3 limit changes\n",
+            "[email] and [redacted]",
+        ] {
+            assert_eq!(tokens(sentence), sentence);
+        }
     }
 
     #[test]
