@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0043 |
-| Status | Awaiting owner verification |
+| Status | Awaiting owner verification (2026-11-18 re-validation fixes in vNEXT) |
 | Owner | `cuotai-core` (`stats::rhythm`, `stats::limit_changes`, `digest::weekly`, events), desktop (Stats view additions, menu-bar strip, digest notification), `cuotai-tui` (`--stats --rhythm`, `--digest`) |
 | Consumers | Every front end; `/v1/stats` (additive); hooks (`limit_changed`, `weekly_digest`) |
 | Depends on | PRD 0006 (history), PRD 0026 (stats, journal, Stats view), PRD 0029 (account id) |
@@ -25,7 +25,34 @@
 | RF6 | 0.83.0, 0.84.0 | `docs/gui-features.md`, `docs/tui.md`, `docs/advanced.md`, `docs/events.md`, `docs/local-server.md`, `docs/export-v1.schema.json`; 0.84.0: the strip style and the popover strip (`docs/gui-features.md`, `docs/platforms.md`) and the digest's action. |
 | Deviation | 0.84.0 | RF4.3 asks for "an action that opens the Stats view" on the notification. `tauri-plugin-notification` 2.7 has no click callback or action buttons on the desktop, so the action is the focus rule above (decision of 2026-11-07, the most conservative way without a new native dependency). |
 | Fix | 0.86.5 | The weekly digest notification keeps its short lines as separate lines: the desktop delivers them through `text::notice_lines` (each line cleaned on its own, whole lines within 400 characters, "and N more" kept), as the quiet-hours digest does (PRD 0032 re-validation C-01). |
+| 2026-11-18 re-validation | vNEXT | Fixes of RF1.1, RF1.2, RF2.2, RF3.1, RF3.2, RF4.2, RF4.3 and RF5 (3 high, 1 medium, 10 low findings); see "2026-11-18 re-validation" below. |
 | Owner verification | — | The strip style on the macOS menu bar in light and dark (and colored), the popover strip on Windows and Linux, a weekly digest clicked on each system opening Stats, and the §11 smoke after a week of readings (§2.1 of `0000_control.md`). |
+
+### 2026-11-18 re-validation (vNEXT)
+
+The re-validation (Visual, Security, Review) found 3 high, 1 medium and 10 low findings; every one is fixed in vNEXT, one commit per group:
+
+| Group | Findings | RF | Delivery (vNEXT) |
+|---|---|---|---|
+| G1 | V-01 (high) | RF4.2 | The menu-bar popover's 24-hour strip takes the Stats view's chart tokens, so the bars of the hours with use are drawn (only the gaps showed before); the popover drops the repeated caption and sits on the row gutter. The UI check flags a drawn rhythm column with no paint. |
+| G2 | R-01 (high) | RF3.1, RF3.2 | `stats::summarize_between` takes explicit local dates; `digest::weekly` uses it for both weeks, so `--digest --week current` counts only this week's limit hits, extra spending and peaks (it included the days before Monday). |
+| G3 | S-01 (high, privacy) | RF3.2 (PRD 0044 RF6.1) | A channel whose filter names accounts receives the weekly digest of those accounts only, with the totals recomputed from them (`Digest::retain_accounts`, one `overall` for both paths); none left means nothing is sent. `--digest --json` gains `accounts[].account_id` (additive). |
+| G4 | V-02 (medium), R-02, R-06 | RF1.1, RF1.2 | Use is counted only between readings in the same or the adjacent clock hour; across a longer gap it is unknown and goes to no bucket, in the Rhythm charts, `--stats --rhythm` and the digest's busiest hours. The typical day labels its buckets from the hour index, so a DST day keeps hours 0–23. Each read starts one hour before its span, so the first reading has its predecessor. |
+| G5 | S-02 | RF2.2, RF3.1 | A history CSV label with hidden direction characters is refused like a control character; `--digest` prints through the terminal sanitizer and channel texts drop the marks. |
+| G6 | V-03, V-04, V-05, R-03, R-04 | RF2.2, RF3.1, RF5 | Limit-change texts name the metric on its own ("Key limit: limit changed …"); the note's date is the day and month in the viewer's language (`LimitChange::note_local`); the digest's busiest hours and the digest-hour picker follow the language's clock; the text Rhythm chart pads by display width and its "off" and day-count marks are translated (`insights.rhythm.day_off`, `insights.rhythm.samples`). |
+| G7 | V-06, R-05 | RF4.3 | **Send a test digest** is unavailable, with the reason, while every notice is off, like **Send a test notification**; it reads the history outside the backend lock. |
+
+**Deviations, documented:**
+- RF2.2 says "card note"; the note is shown in the account details, as delivered in 0.83.0.
+- The digest Markdown dates limit changes in the computer's zone (`Digest::markdown` takes no zone; every caller computes the digest in the local zone).
+- On a 24-hour clock the digest-hour picker shows "09", the app's `at.hour` form.
+
+**Open items:**
+- The scheduled weekly digest still reads the history inside the timer's locked block (once a week).
+- The weekly digest claims its ledger slot before it is computed and posted (once-only delivery by design); a failed history read or post loses that week's digest.
+- The digest title and the heaviest and lightest days still print ISO dates.
+- Both test buttons are enabled when only the projected alert is on, while the backend answers `notify_off` in that state.
+- The new and reworded catalog texts await native review.
 
 ## 1. Context
 
