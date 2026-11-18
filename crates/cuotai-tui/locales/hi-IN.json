@@ -66,7 +66,7 @@
   "cli.restore.skip": "छोड़ें (बैकअप के बाद यहाँ बदला गया)",
   "cli.restore.unplaced": "छोड़े गए (इस कॉन्फ़िगरेशन में यहाँ इनके लिए कोई जगह नहीं है):",
   "cli.token_file_needs_mode": "--token-file के लिए --serve या --status-line --from-server चाहिए।",
-  "cli.yes_needs_action": "--yes केवल --history-erase या --erase-all-data के साथ काम करता है।",
+  "cli.yes_needs_action": "--yes केवल --history-erase, --erase-all-data, --restore या --channel-add के साथ काम करता है।",
   "cost.currency.off": "दूसरी मुद्रा बंद की गई; केवल USD।",
   "cost.currency.saved": "दूसरी मुद्रा सहेजी गई: {line} (केवल डिस्प्ले के लिए; कुल USD में ही रहते हैं)।",
   "cost.options.saved": "स्थानीय लागत: अवधि {period} ({slug}), इंडेक्स {days} दिन रखा जाएगा।",

@@ -63,7 +63,7 @@
   "cli.restore.skip": "pular (alterado aqui após o backup)",
   "cli.restore.unplaced": "Deixados de fora (esta configuração não tem lugar para eles aqui):",
   "cli.token_file_needs_mode": "--token-file exige --serve ou --status-line --from-server.",
-  "cli.yes_needs_action": "--yes só funciona com --history-erase ou --erase-all-data.",
+  "cli.yes_needs_action": "--yes só funciona com --history-erase, --erase-all-data, --restore ou --channel-add.",
   "cost.currency.off": "Segunda moeda desligada; só USD.",
   "cost.currency.saved": "Segunda moeda salva: {line} (só exibição; os totais seguem em USD).",
   "cost.options.saved": "Custo local: período {period} ({slug}), índice mantido por {days} dias.",

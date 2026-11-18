@@ -300,7 +300,7 @@
   "cli.restore.skip": "ignorer (modifié ici après la sauvegarde)",
   "cli.restore.unplaced": "Laissés de côté (cette configuration n’a pas de place pour eux ici) :",
   "cli.token_file_needs_mode": "--token-file nécessite --serve ou --status-line --from-server.",
-  "cli.yes_needs_action": "--yes ne fonctionne qu’avec --history-erase ou --erase-all-data.",
+  "cli.yes_needs_action": "--yes ne fonctionne qu’avec --history-erase, --erase-all-data, --restore ou --channel-add.",
   "cost.currency.off": "Deuxième devise désactivée ; USD uniquement.",
   "cost.currency.saved": "Deuxième devise enregistrée : {line} (affichage uniquement ; les totaux restent en USD).",
   "cost.options.saved": "Coût local : période {period} ({slug}), index conservé {days} jours.",

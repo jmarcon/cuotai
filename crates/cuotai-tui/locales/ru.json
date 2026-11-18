@@ -89,7 +89,7 @@
   "cli.restore.skip": "пропустить (изменён здесь после копии)",
   "cli.restore.unplaced": "Пропущено (у этой конфигурации здесь нет для них места):",
   "cli.token_file_needs_mode": "--token-file требует --serve или --status-line --from-server.",
-  "cli.yes_needs_action": "--yes работает только с --history-erase или --erase-all-data.",
+  "cli.yes_needs_action": "--yes работает только с --history-erase, --erase-all-data, --restore или --channel-add.",
   "cost.currency.off": "Вторая валюта отключена; только USD.",
   "cost.currency.saved": "Вторая валюта сохранена: {line} (только отображение; итоги остаются в USD).",
   "cost.options.saved": "Локальные расходы: период {period} ({slug}), индекс хранится {days} дн.",

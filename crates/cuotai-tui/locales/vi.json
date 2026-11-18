@@ -83,7 +83,7 @@
   "cli.restore.skip": "bỏ qua (đã đổi ở đây sau khi sao lưu)",
   "cli.restore.unplaced": "Bỏ qua (cấu hình này không có chỗ cho chúng ở đây):",
   "cli.token_file_needs_mode": "--token-file cần --serve hoặc --status-line --from-server.",
-  "cli.yes_needs_action": "--yes chỉ dùng được với --history-erase hoặc --erase-all-data.",
+  "cli.yes_needs_action": "--yes chỉ dùng được với --history-erase, --erase-all-data, --restore hoặc --channel-add.",
   "cost.currency.off": "Đã tắt loại tiền thứ hai; chỉ dùng USD.",
   "cost.currency.saved": "Đã lưu loại tiền thứ hai: {line} (chỉ để hiển thị; tổng vẫn tính bằng USD).",
   "cost.options.saved": "Chi phí cục bộ: khoảng {period} ({slug}), chỉ mục được giữ {days} ngày.",

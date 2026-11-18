@@ -63,7 +63,7 @@
   "cli.restore.skip": "salta (modificato qui dopo il backup)",
   "cli.restore.unplaced": "Esclusi (questa configurazione non ha un posto per loro qui):",
   "cli.token_file_needs_mode": "--token-file richiede --serve o --status-line --from-server.",
-  "cli.yes_needs_action": "--yes funziona solo con --history-erase o --erase-all-data.",
+  "cli.yes_needs_action": "--yes funziona solo con --history-erase, --erase-all-data, --restore o --channel-add.",
   "cost.currency.off": "Seconda valuta disattivata; solo USD.",
   "cost.currency.saved": "Seconda valuta salvata: {line} (solo visualizzazione; i totali restano in USD).",
   "cost.options.saved": "Costo locale: periodo {period} ({slug}), indice conservato per {days} giorni.",

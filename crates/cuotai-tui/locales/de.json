@@ -83,7 +83,7 @@
   "cli.restore.skip": "überspringen (hier nach der Sicherung geändert)",
   "cli.restore.unplaced": "Ausgelassen (diese Konfiguration hat hier keinen Platz dafür):",
   "cli.token_file_needs_mode": "--token-file erfordert --serve oder --status-line --from-server.",
-  "cli.yes_needs_action": "--yes funktioniert nur mit --history-erase oder --erase-all-data.",
+  "cli.yes_needs_action": "--yes funktioniert nur mit --history-erase, --erase-all-data, --restore oder --channel-add.",
   "cost.currency.off": "Zweite Währung aus; nur USD.",
   "cost.currency.saved": "Zweite Währung gespeichert: {line} (nur Anzeige; die Summen bleiben in USD).",
   "cost.options.saved": "Lokale Kosten: Zeitraum {period} ({slug}), Index {days} Tage aufbewahrt.",

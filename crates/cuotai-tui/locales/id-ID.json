@@ -66,7 +66,7 @@
   "cli.restore.skip": "lewati (diubah di sini setelah pencadangan)",
   "cli.restore.unplaced": "Tidak disertakan (konfigurasi ini tidak punya tempat untuknya di sini):",
   "cli.token_file_needs_mode": "--token-file memerlukan --serve atau --status-line --from-server.",
-  "cli.yes_needs_action": "--yes hanya berfungsi dengan --history-erase atau --erase-all-data.",
+  "cli.yes_needs_action": "--yes hanya berfungsi dengan --history-erase, --erase-all-data, --restore, atau --channel-add.",
   "cost.currency.off": "Mata uang kedua dinonaktifkan; hanya USD.",
   "cost.currency.saved": "Mata uang kedua disimpan: {line} (hanya tampilan; total tetap dalam USD).",
   "cost.options.saved": "Biaya lokal: periode {period} ({slug}), indeks disimpan selama {days} hari.",

@@ -1402,10 +1402,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     if args.erase_all_data {
         return data_cli::erase_all_data(args.config, args.include_config, args.yes);
     }
-    if args.yes {
+    if args.yes && !yes_is_consumed(&args) {
         return Err(l10n::tr(
             "cli.yes_needs_action",
-            "--yes only works with --history-erase or --erase-all-data.",
+            "--yes only works with --history-erase, --erase-all-data, --restore or --channel-add.",
         )
         .into());
     }
@@ -2703,9 +2703,40 @@ fn history_text(
     out
 }
 
+/// The actions that read `--yes`: every other run refuses it (PRD 0052
+/// RF5, PRD 0044 RF5.2: `--channel-add` saves a piped address with it).
+/// `--channel-remove` asks nothing, so it refuses `--yes` too.
+fn yes_is_consumed(args: &Args) -> bool {
+    args.history_erase.is_some()
+        || args.erase_all_data
+        || args.restore.is_some()
+        || args.channel_add.is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0044 RF5.2: `--channel-add` reads `--yes`; other runs do not.
+    #[test]
+    fn yes_is_consumed_by_channel_add_only_among_channel_commands() {
+        let parse = |argv: &[&str]| Args::try_parse_from(argv.iter().copied()).unwrap();
+        assert!(yes_is_consumed(&parse(&[
+            "cuotai",
+            "--channel-add",
+            "ntfy",
+            "--label",
+            "P",
+            "--yes"
+        ])));
+        assert!(!yes_is_consumed(&parse(&["cuotai", "--once", "--yes"])));
+        assert!(!yes_is_consumed(&parse(&[
+            "cuotai",
+            "--channel-remove",
+            "c1",
+            "--yes"
+        ])));
+    }
 
     #[test]
     fn fallback_locale_error_lists_the_registry_codes() {

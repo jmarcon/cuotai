@@ -89,7 +89,7 @@
   "cli.restore.skip": "건너뜀(백업 후 여기서 변경됨)",
   "cli.restore.unplaced": "제외됨 (이 구성에는 여기에 둘 위치가 없습니다):",
   "cli.token_file_needs_mode": "--token-file에는 --serve 또는 --status-line --from-server가 필요합니다.",
-  "cli.yes_needs_action": "--yes는 --history-erase 또는 --erase-all-data와 함께만 사용할 수 있습니다.",
+  "cli.yes_needs_action": "--yes는 --history-erase, --erase-all-data, --restore 또는 --channel-add와 함께만 사용할 수 있습니다.",
   "cost.currency.off": "보조 통화를 껐습니다. USD만 사용합니다.",
   "cost.currency.saved": "보조 통화를 저장했습니다: {line}(표시 전용이며 합계는 USD로 유지됩니다).",
   "cost.options.saved": "로컬 비용: 기간 {period}({slug}), 색인 {days}일 보관.",
