@@ -226,7 +226,16 @@
       "cost.live.source_off",
       "cost.error.top_needs_list",
       "insights.rhythm.day_off",
-      "insights.rhythm.samples"
+      "insights.rhythm.samples",
+      "channels.words.separator",
+      "channels.log_kind.test",
+      "channels.log_kind.rate_limit",
+      "channels.log_kind.failing",
+      "channels.error_category.network",
+      "channels.error_category.timeout",
+      "channels.error_category.vault",
+      "channels.error_category.invalid_url",
+      "channels.kind_inline.webhook"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2761,13 +2770,14 @@
   "channels.error.unknown": "そのチャンネルは存在しません。",
   "channels.error.kind_change": "チャンネルの種類は変更できません。新しいチャンネルを追加してください。",
   "channels.warning.plain_http": "このアドレスは暗号化されていない HTTP を使用しています。ネットワーク上の誰でも通知を読めます。このコンピューターまたはプライベートネットワーク上のサーバーにのみ使ってください。",
-  "channels.words.every_kind": "すべての通知",
+  "channels.words.every_kind": "すべての種類",
   "channels.words.every_account": "すべてのアカウント",
   "channels.words.accounts": {
     "other": "{count} 個のアカウント"
   },
   "channels.words.names_shown": "名前を表示",
   "channels.words.names_hidden": "名前を非表示",
+  "channels.words.separator": "、",
   "channels.consent.sentence": "通知のタイミングになると、Cuotai はこれらのテキストをこのアドレスに送信します。それ以外はこのコンピューターから送信されません。",
   "channels.test.title": "Cuotai のテスト",
   "channels.test.body": "これは Cuotai からのテストです。読めていれば、チャンネルは機能しています。",
@@ -2775,6 +2785,14 @@
     "other": "さらに {count} 件の通知が送信されませんでした（送信上限）。"
   },
   "channels.failing.notice": "チャンネル {label} が失敗しています（{status}）",
+  "channels.log_kind.test": "テスト",
+  "channels.log_kind.rate_limit": "1 時間あたりの上限のまとめ",
+  "channels.log_kind.failing": "失敗の通知",
+  "channels.error_category.network": "ネットワークエラー",
+  "channels.error_category.timeout": "時間内に応答なし",
+  "channels.error_category.vault": "保管庫でアドレスを利用できません",
+  "channels.error_category.invalid_url": "無効なアドレス",
+  "channels.kind_inline.webhook": "Webhook",
   "events.summary.notification_sent": "チャンネルに通知を送信しました（{kind}）",
   "doctor.account.extension_ok": "拡張機能は承認済みで、その後変更されていません。",
   "doctor.account.extension_changed": "拡張機能が承認後に変更されたか、一度も承認されていないため、実行されません。",

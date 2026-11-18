@@ -201,7 +201,16 @@
       "cost.live.source_off",
       "cost.error.top_needs_list",
       "insights.rhythm.day_off",
-      "insights.rhythm.samples"
+      "insights.rhythm.samples",
+      "channels.words.separator",
+      "channels.log_kind.test",
+      "channels.log_kind.rate_limit",
+      "channels.log_kind.failing",
+      "channels.error_category.network",
+      "channels.error_category.timeout",
+      "channels.error_category.vault",
+      "channels.error_category.invalid_url",
+      "channels.kind_inline.webhook"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2736,13 +2745,14 @@
   "channels.error.unknown": "그런 채널이 없습니다.",
   "channels.error.kind_change": "채널의 종류는 바꿀 수 없습니다. 대신 새 채널을 추가하세요.",
   "channels.warning.plain_http": "이 주소는 일반 HTTP를 사용합니다. 네트워크의 누구나 알림을 읽을 수 있습니다. 이 컴퓨터나 사설 네트워크의 서버에만 사용하세요.",
-  "channels.words.every_kind": "모든 알림",
+  "channels.words.every_kind": "모든 종류",
   "channels.words.every_account": "모든 계정",
   "channels.words.accounts": {
     "other": "계정 {count}개"
   },
   "channels.words.names_shown": "이름 표시",
   "channels.words.names_hidden": "이름 숨김",
+  "channels.words.separator": ", ",
   "channels.consent.sentence": "알림 시점이 되면 Cuotai가 이 텍스트를 이 주소로 보냅니다. 그 밖에는 아무것도 이 컴퓨터를 벗어나지 않습니다.",
   "channels.test.title": "Cuotai 테스트",
   "channels.test.body": "Cuotai에서 보낸 테스트입니다. 이 메시지가 보이면 채널이 작동하는 것입니다.",
@@ -2750,6 +2760,14 @@
     "other": "알림 {count}개를 더 보내지 못했습니다(전송 한도)."
   },
   "channels.failing.notice": "{label} 채널이 실패하고 있습니다({status})",
+  "channels.log_kind.test": "테스트",
+  "channels.log_kind.rate_limit": "시간당 한도 요약",
+  "channels.log_kind.failing": "실패 알림",
+  "channels.error_category.network": "네트워크 오류",
+  "channels.error_category.timeout": "제시간에 응답 없음",
+  "channels.error_category.vault": "보관소에서 주소를 사용할 수 없음",
+  "channels.error_category.invalid_url": "잘못된 주소",
+  "channels.kind_inline.webhook": "웹훅",
   "events.summary.notification_sent": "채널로 알림을 보냄({kind})",
   "doctor.account.extension_ok": "확장 프로그램이 승인되었고 이후 바뀌지 않았습니다.",
   "doctor.account.extension_changed": "확장 프로그램이 승인 후 바뀌었거나 승인된 적이 없어 실행되지 않습니다.",

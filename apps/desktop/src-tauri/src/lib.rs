@@ -261,7 +261,7 @@ async fn channel_remove(window: WebviewWindow, b: Shared<'_>, id: String) -> Res
 }
 
 #[tauri::command]
-async fn channel_test(b: Shared<'_>, id: String) -> Result<cuotai_core::channels::Outcome, String> {
+async fn channel_test(b: Shared<'_>, id: String) -> Result<backend::ChannelTestResult, String> {
     b.channel_test(id).await
 }
 

@@ -236,7 +236,10 @@
       "wizard.login.choose",
       "wizard.login.confirm",
       "feed.read_timeout",
-      "cost.by.requests"
+      "cost.by.requests",
+      "channels.cli.outcome.rate_limited",
+      "channels.cli.outcome.held",
+      "channels.cli.outcome.failing_notice"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -925,6 +928,9 @@
   "channels.cli.test_ok": "Envoyé : {host} a répondu {status}.",
   "channels.cli.test_failed": "Non envoyé : {host} ({reason}).",
   "channels.cli.log_empty": "Aucune livraison ces 7 derniers jours.",
+  "channels.cli.outcome.rate_limited": "retenue par la limite horaire",
+  "channels.cli.outcome.held": "retenue au démarrage",
+  "channels.cli.outcome.failing_notice": "avis d’échec affiché",
   "cli.backup.history_large": "La sauvegarde contient {size} Mio d'historique ; sa copie peut être lente.",
   "cli.restore.merge": "fusionner",
   "cli.restore.rows": "lignes : {rows}, nouvelles ici : {new}",

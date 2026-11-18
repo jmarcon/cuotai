@@ -1743,6 +1743,7 @@
   "settings.channels.removeBody": "Il suo indirizzo viene eliminato dal vault di sistema e non vi viene più inviato nulla. Il registro delle consegne conserva le sue voci per 7 giorni.",
   "settings.channels.testOk": "Inviato: {host} ha risposto {status}.",
   "settings.channels.testFailed": "Non inviato: {host} ({reason}).",
+  "settings.channels.kindInline.webhook": "webhook",
   "settings.kw.channels": "canali webhook ntfy slack discord telefono push team inviare destinazione",
   "settings.hooks.event.notification_sent": "una notifica ha raggiunto un canale",
   "settings.error.channels_unavailable": "I canali non sono disponibili finché la configurazione non è caricata.",

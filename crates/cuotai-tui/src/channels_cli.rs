@@ -14,13 +14,16 @@ use crate::l10n::{tr, trf};
 use chrono::Utc;
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 use cuotai_core::channels::{
-    self, delivery, log::DeliveryLog, ChannelKind, Dispatcher, Draft, Filters, Outcome, Vault,
+    self, delivery,
+    log::{self, DeliveryLog, Entry, LogOutcome},
+    ChannelKind, Dispatcher, Draft, Filters, Outcome, Vault,
 };
 use cuotai_core::notify_prefs;
 use cuotai_core::oauth::OAuthSession;
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
+use unicode_width::UnicodeWidthStr;
 
 type Error = Box<dyn std::error::Error>;
 
@@ -150,7 +153,7 @@ fn add_with(
             "channels.cli.consent_title",
             "New {kind} channel \"{label}\"",
             &[
-                ("kind", &kind.name()),
+                ("kind", &kind.inline_name().resolve(locale())),
                 ("label", &crate::ui::safe(&draft.label))
             ]
         ),
@@ -373,7 +376,7 @@ pub(crate) fn list(json: bool) -> Result<u8, Error> {
             "\n{}  {} ({})  {state}\n    {}: {}\n    {}\n    {}",
             channel.id,
             crate::ui::safe(&channel.label),
-            channel.kind.name(),
+            channel.kind.inline_name().resolve(locale()),
             tr("channels.cli.host", "Address"),
             channel.host,
             view.filters_text.resolve(locale()),
@@ -449,10 +452,10 @@ pub(crate) async fn test(session: &Arc<OAuthSession>, id: &str) -> Result<u8, Er
             );
             Ok(0)
         }
-        Outcome::Failed { status, error, .. } => {
+        failed @ Outcome::Failed { status, .. } => {
             let reason = status
                 .map(|s| s.to_string())
-                .or(error.map(str::to_owned))
+                .or(failed.error_label().map(|label| label.resolve(locale())))
                 .unwrap_or_default();
             println!(
                 "{}",
@@ -481,42 +484,88 @@ pub(crate) fn log(json: bool) -> Result<u8, Error> {
         writeln!(stdout)?;
         return Ok(0);
     }
+    write_log(&entries, &mut stdout)?;
+    Ok(0)
+}
+
+/// The outcome of a log entry in words.
+fn outcome_text(outcome: LogOutcome) -> &'static str {
+    match outcome {
+        LogOutcome::Delivered => tr("channels.cli.delivered", "delivered"),
+        LogOutcome::Failed => tr("channels.cli.failed", "failed"),
+        LogOutcome::RateLimited => tr(
+            "channels.cli.outcome.rate_limited",
+            "held by the hourly limit",
+        ),
+        LogOutcome::Held => tr("channels.cli.outcome.held", "held at startup"),
+        LogOutcome::FailingNotice => tr(
+            "channels.cli.outcome.failing_notice",
+            "failing notice shown",
+        ),
+    }
+}
+
+/// The text of `--channel-log`: one line per entry, the kind, the outcome
+/// and the error in the TUI locale, each column padded to its widest cell
+/// in display width (an older entry's time carries a date).
+fn write_log(entries: &[Entry], stdout: &mut dyn Write) -> io::Result<()> {
     if entries.is_empty() {
-        writeln!(
+        return writeln!(
             stdout,
             "{}",
             tr("channels.cli.log_empty", "No delivery in the last 7 days.")
-        )?;
-        return Ok(0);
+        );
     }
-    for entry in &entries {
-        let outcome = serde_json::to_value(entry.outcome)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_default();
-        let status = entry.status.map(|s| s.to_string()).unwrap_or_default();
-        writeln!(
-            stdout,
-            "{}  {}  {:<16} {:<13} {:>3}  #{}{}",
-            crate::ui::local_time(entry.at),
-            entry.channel,
-            entry.kind,
-            outcome,
-            status,
-            entry.attempt,
-            entry
-                .error
-                .as_deref()
-                .map(|e| format!("  {e}"))
-                .unwrap_or_default(),
-        )?;
+    let rows: Vec<[String; 6]> = entries
+        .iter()
+        .map(|entry| {
+            [
+                crate::ui::local_time(entry.at),
+                crate::ui::safe(&entry.channel).into_owned(),
+                crate::ui::safe(&log::kind_label(&entry.kind).resolve(locale())).into_owned(),
+                outcome_text(entry.outcome).to_owned(),
+                entry.status.map(|s| s.to_string()).unwrap_or_default(),
+                format!("#{}", entry.attempt),
+            ]
+        })
+        .collect();
+    let mut widths = [0usize; 6];
+    for row in &rows {
+        for (width, cell) in widths.iter_mut().zip(row) {
+            *width = (*width).max(cell.width());
+        }
     }
-    Ok(0)
+    for (entry, row) in entries.iter().zip(&rows) {
+        let mut line = String::new();
+        for (column, (cell, width)) in row.iter().zip(widths).enumerate() {
+            if column > 0 {
+                line.push_str("  ");
+            }
+            let pad = " ".repeat(width - cell.width());
+            // The status reads right-aligned, the other columns left.
+            if column == 4 {
+                line.push_str(&pad);
+                line.push_str(cell);
+            } else {
+                line.push_str(cell);
+                line.push_str(&pad);
+            }
+        }
+        if let Some(error) = &entry.error {
+            line.push_str("  ");
+            line.push_str(&crate::ui::safe(&log::error_label(error).resolve(locale())));
+        }
+        writeln!(stdout, "{}", line.trim_end())?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 #[path = "channels_cli_hidden_tests.rs"]
 mod hidden_tests;
+#[cfg(test)]
+#[path = "channels_cli_log_tests.rs"]
+mod log_tests;
 
 #[cfg(test)]
 mod tests {

@@ -19,7 +19,10 @@
       "wizard.login.choose",
       "wizard.login.confirm",
       "feed.read_timeout",
-      "cost.by.requests"
+      "cost.by.requests",
+      "channels.cli.outcome.rate_limited",
+      "channels.cli.outcome.held",
+      "channels.cli.outcome.failing_notice"
     ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
@@ -708,6 +711,9 @@
   "channels.cli.test_ok": "Gesendet: {host} antwortete {status}.",
   "channels.cli.test_failed": "Nicht gesendet: {host} ({reason}).",
   "channels.cli.log_empty": "Keine Zustellung in den letzten 7 Tagen.",
+  "channels.cli.outcome.rate_limited": "durch das Stundenlimit zurückgehalten",
+  "channels.cli.outcome.held": "beim Start zurückgehalten",
+  "channels.cli.outcome.failing_notice": "Fehlerhinweis angezeigt",
   "cli.backup.history_large": "Die Sicherung enthält {size} MiB Verlauf; das Kopieren kann dauern.",
   "cli.restore.merge": "zusammenführen",
   "cli.restore.rows": "Zeilen: {rows}, hier neu: {new}",

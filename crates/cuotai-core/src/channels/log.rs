@@ -8,6 +8,7 @@
 //! so the log is also how processes agree on the hourly cap's history, the
 //! last delivery shown in Settings and a channel failing for 24 hours.
 
+use crate::text::Localized;
 use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
@@ -53,6 +54,57 @@ pub struct Entry {
     /// message.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// One log line as Settings shows it (RF5.1): the [`Entry`] fields, plus
+/// the notification kind and the error category in words. `--channel-log
+/// --json` keeps the raw [`Entry`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EntryView {
+    #[serde(flatten)]
+    pub entry: Entry,
+    pub kind_label: Localized,
+    pub error_label: Option<Localized>,
+}
+
+impl From<Entry> for EntryView {
+    fn from(entry: Entry) -> Self {
+        Self {
+            kind_label: kind_label(&entry.kind),
+            error_label: entry.error.as_deref().map(error_label),
+            entry,
+        }
+    }
+}
+
+/// The kind of a log entry in words: a notice kind's own label, the Send
+/// test, the hourly summary or the failing notice. Any other slug (a log
+/// written by a newer version) is shown as written.
+pub fn kind_label(slug: &str) -> Localized {
+    if let Some(kind) = super::NoticeKind::parse(slug) {
+        return kind.label();
+    }
+    match slug {
+        "test" => Localized::fixed("channels.log_kind.test", "Test"),
+        "rate_limit" => Localized::fixed("channels.log_kind.rate_limit", "Rate-limit summary"),
+        "failing" => Localized::fixed("channels.log_kind.failing", "Failing notice"),
+        other => Localized::fixed("metric.verbatim", other.to_owned()),
+    }
+}
+
+/// The error category of a failed delivery in words; any other category
+/// is shown as written.
+pub fn error_label(category: &str) -> Localized {
+    match category {
+        "network" => Localized::fixed("channels.error_category.network", "network error"),
+        "timeout" => Localized::fixed("channels.error_category.timeout", "no answer in time"),
+        "vault" => Localized::fixed(
+            "channels.error_category.vault",
+            "address unavailable in the vault",
+        ),
+        "invalid_url" => Localized::fixed("channels.error_category.invalid_url", "invalid address"),
+        other => Localized::fixed("metric.verbatim", other.to_owned()),
+    }
 }
 
 /// The log file of one profile.

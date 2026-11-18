@@ -19,7 +19,10 @@
       "wizard.login.choose",
       "wizard.login.confirm",
       "feed.read_timeout",
-      "cost.by.requests"
+      "cost.by.requests",
+      "channels.cli.outcome.rate_limited",
+      "channels.cli.outcome.held",
+      "channels.cli.outcome.failing_notice"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -690,6 +693,9 @@
   "channels.cli.test_ok": "Đã gửi: {host} trả lời {status}.",
   "channels.cli.test_failed": "Chưa gửi: {host} ({reason}).",
   "channels.cli.log_empty": "Không có lần gửi nào trong 7 ngày qua.",
+  "channels.cli.outcome.rate_limited": "bị giữ do giới hạn theo giờ",
+  "channels.cli.outcome.held": "bị giữ khi khởi động",
+  "channels.cli.outcome.failing_notice": "đã hiện cảnh báo thất bại",
   "cli.backup.history_large": "Bản sao lưu chứa {size} MiB lịch sử; việc sao chép có thể chậm.",
   "cli.restore.merge": "gộp",
   "cli.restore.rows": "dòng: {rows}, mới ở đây: {new}",

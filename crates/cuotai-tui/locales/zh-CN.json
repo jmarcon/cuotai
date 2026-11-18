@@ -20,7 +20,10 @@
       "wizard.login.choose",
       "wizard.login.confirm",
       "feed.read_timeout",
-      "cost.by.requests"
+      "cost.by.requests",
+      "channels.cli.outcome.rate_limited",
+      "channels.cli.outcome.held",
+      "channels.cli.outcome.failing_notice"
     ]
   },
   "about.brazil": "特别感谢：由巴西人创建的项目",
@@ -691,6 +694,9 @@
   "channels.cli.test_ok": "已发送：{host} 返回 {status}。",
   "channels.cli.test_failed": "未发送：{host}（{reason}）。",
   "channels.cli.log_empty": "过去 7 天内没有投递。",
+  "channels.cli.outcome.rate_limited": "因每小时上限而暂缓",
+  "channels.cli.outcome.held": "启动时暂缓",
+  "channels.cli.outcome.failing_notice": "已显示失败提醒",
   "cli.backup.history_large": "备份包含 {size} MiB 的历史记录；复制可能较慢。",
   "cli.restore.merge": "合并",
   "cli.restore.rows": "行：{rows}，此处新增：{new}",

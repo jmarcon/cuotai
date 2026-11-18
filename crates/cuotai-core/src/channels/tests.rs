@@ -215,7 +215,7 @@ fn filters_default_to_everything_but_the_digest_and_round_trip() {
     );
     assert_eq!(
         filter_words(&Filters::default(), true).resolve("en-US"),
-        "Resets, Thresholds, Exhaustion, Recovery, Projected exhaustion, Extra usage, Balance floors, Session expiry, Limit changes · of every account · names hidden"
+        "All kinds · of every account · names hidden"
     );
     assert_eq!(NoticeKind::Exhausted.severity(), Severity::Critical);
     assert_eq!(NoticeKind::Floor.severity(), Severity::Critical);

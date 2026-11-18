@@ -1742,6 +1742,7 @@
   "settings.channels.signHelp": "Adds X-Cuotai-Signature (HMAC-SHA256) with a secret Cuotai shows once.",
   "settings.channels.continue": "Continue",
   "settings.channels.consentTitle": "Send notifications to this {kind} address?",
+  "settings.channels.kindInline.webhook": "webhook",
   "settings.channels.host": "Address",
   "settings.channels.example": "Example of what is sent",
   "settings.channels.save": "Save",

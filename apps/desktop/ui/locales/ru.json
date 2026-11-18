@@ -70,7 +70,8 @@
       "settings.costBy.codeHelp",
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
-      "settings.costBy.kpi.partial"
+      "settings.costBy.kpi.partial",
+      "settings.channels.kindInline.webhook"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -1870,6 +1871,7 @@
   "settings.channels.removeBody": "Его адрес удаляется из системного хранилища, и туда больше ничего не отправляется. Журнал доставки хранит его записи 7 дней.",
   "settings.channels.testOk": "Отправлено: {host} ответил {status}.",
   "settings.channels.testFailed": "Не отправлено: {host} ({reason}).",
+  "settings.channels.kindInline.webhook": "webhook",
   "settings.kw.channels": "каналы вебхук webhook ntfy slack discord телефон push команда отправить адресат",
   "settings.hooks.event.notification_sent": "уведомление дошло до канала",
   "settings.error.channels_unavailable": "Каналы недоступны, пока не загрузится конфигурация.",

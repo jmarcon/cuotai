@@ -1746,6 +1746,7 @@
   "settings.channels.removeBody": "Adresi sistem kasasından silinir ve oraya artık hiçbir şey gönderilmez. Teslimat günlüğü kayıtlarını 7 gün tutar.",
   "settings.channels.testOk": "Gönderildi: {host} {status} yanıtını verdi.",
   "settings.channels.testFailed": "Gönderilmedi: {host} ({reason}).",
+  "settings.channels.kindInline.webhook": "webhook",
   "settings.kw.channels": "kanallar webhook ntfy slack discord telefon push ekip gönder hedef",
   "settings.hooks.event.notification_sent": "bir bildirim bir kanala ulaştı",
   "settings.error.channels_unavailable": "Yapılandırma yüklenene kadar kanallar kullanılamaz.",

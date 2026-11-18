@@ -52,7 +52,7 @@ export function listHtml(view) {
   const log = view.log.length
     ? `<ul class="hook-runs" data-channel-log>${view.log.map((e) => {
       const label = view.channels.find((c) => c.id === e.channel)?.label ?? e.channel;
-      return `<li class="${e.outcome === "failed" ? "warn-txt" : ""}"><time datetime="${esc(e.at)}">${esc(when(e.at))}</time> ${esc(label)} · ${esc(e.kind)} · ${te(`settings.channels.outcome.${e.outcome}`)}${e.status ? ` ${e.status}` : ""}</li>`;
+      return `<li class="${e.outcome === "failed" ? "warn-txt" : ""}"><time datetime="${esc(e.at)}">${esc(when(e.at))}</time> ${esc(label)} · ${e.kind_label ? tle(e.kind_label) : esc(e.kind)} · ${te(`settings.channels.outcome.${e.outcome}`)}${e.status ? ` ${e.status}` : ""}${e.error_label ? ` · ${tle(e.error_label)}` : ""}</li>`;
     }).join("")}</ul>`
     : `<p class="hint" data-channel-log>${te("settings.channels.logEmpty")}</p>`;
   return `${banner}<p class="hint">${te("settings.channels.intro")}</p>${rows}
@@ -90,9 +90,13 @@ export function formHtml(view, channel) {
       <button class="btn primary" type="button" data-channel-next>${te("settings.channels.continue")}</button></div>`;
 }
 
+/** A kind inside a sentence: "webhook" is a common noun each language writes its own way (lowercase in English);
+ *  the product names stay as written. `KIND_NAMES` is for standalone labels. */
+const inlineKind = (kind) => (kind === "webhook" ? t("settings.channels.kindInline.webhook") : KIND_NAMES[kind]);
+
 /** RF4.1: the consent step: kind, host, the filters in words, the example payload and the sentence; Save consents. */
 export function consentHtml(consent) {
-  return `<h2 id="channel-dlg-title">${te("settings.channels.consentTitle", { kind: KIND_NAMES[consent.kind] })}</h2>
+  return `<h2 id="channel-dlg-title">${te("settings.channels.consentTitle", { kind: inlineKind(consent.kind) })}</h2>
     <dl class="channel-consent">
       <dt>${te("settings.channels.host")}</dt><dd><code>${esc(consent.masked)}</code></dd>
       <dt>${te("settings.channels.sends")}</dt><dd>${filterWords(consent.filters)}</dd></dl>
@@ -233,7 +237,7 @@ export async function bindChannels(root, ctx) {
         const outcome = await channelTest(c.id);
         message(outcome.outcome === "delivered"
           ? t("settings.channels.testOk", { host: c.host, status: outcome.status })
-          : t("settings.channels.testFailed", { host: c.host, reason: outcome.status ?? outcome.error ?? "" }));
+          : t("settings.channels.testFailed", { host: c.host, reason: outcome.status ?? (outcome.error_label ? tl(outcome.error_label) : outcome.error) ?? "" }));
         await paint();
       } catch (x) { message(l10nError(x)); target.disabled = false; }
     }

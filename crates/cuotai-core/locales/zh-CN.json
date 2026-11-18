@@ -220,7 +220,16 @@
       "cost.live.source_off",
       "cost.error.top_needs_list",
       "insights.rhythm.day_off",
-      "insights.rhythm.samples"
+      "insights.rhythm.samples",
+      "channels.words.separator",
+      "channels.log_kind.test",
+      "channels.log_kind.rate_limit",
+      "channels.log_kind.failing",
+      "channels.error_category.network",
+      "channels.error_category.timeout",
+      "channels.error_category.vault",
+      "channels.error_category.invalid_url",
+      "channels.kind_inline.webhook"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2755,13 +2764,14 @@
   "channels.error.unknown": "没有这个渠道。",
   "channels.error.kind_change": "渠道类型不能更改；请改为添加新渠道。",
   "channels.warning.plain_http": "此地址使用普通 HTTP：您网络中的任何人都能读取通知。仅将其用于本机或您私有网络上的服务器。",
-  "channels.words.every_kind": "所有通知",
+  "channels.words.every_kind": "所有类型",
   "channels.words.every_account": "所有账户",
   "channels.words.accounts": {
     "other": "{count} 个账户"
   },
   "channels.words.names_shown": "显示名称",
   "channels.words.names_hidden": "隐藏名称",
+  "channels.words.separator": "、",
   "channels.consent.sentence": "有通知需要发送时，Cuotai 会把这些文本发送到此地址。除此之外，没有任何内容离开这台电脑。",
   "channels.test.title": "Cuotai 测试",
   "channels.test.body": "这是来自 Cuotai 的测试。如果能看到这条通知，说明渠道正常工作。",
@@ -2769,6 +2779,14 @@
     "other": "另有 {count} 条通知未发送（发送上限）。"
   },
   "channels.failing.notice": "渠道 {label} 发送失败（{status}）",
+  "channels.log_kind.test": "测试",
+  "channels.log_kind.rate_limit": "每小时上限摘要",
+  "channels.log_kind.failing": "失败提醒",
+  "channels.error_category.network": "网络错误",
+  "channels.error_category.timeout": "未及时响应",
+  "channels.error_category.vault": "保险库中的地址不可用",
+  "channels.error_category.invalid_url": "地址无效",
+  "channels.kind_inline.webhook": "Webhook",
   "events.summary.notification_sent": "通知已发送到渠道（{kind}）",
   "doctor.account.extension_ok": "其扩展已获批准，此后未发生变化。",
   "doctor.account.extension_changed": "其扩展在批准后已更改，或从未获得批准，因此不会运行。",
