@@ -837,6 +837,18 @@ impl Wizard {
             .unwrap_or_default()
     }
 
+    /// Re-validation PRD 0047 S-03: a parameter whose slot the edited
+    /// account keeps in the vault says so; the core does not write a
+    /// variable typed there, since the vault would win over it.
+    fn vault_hint(&self, key: &str) -> Option<String> {
+        self.stored_slots().iter().any(|slot| slot == key).then(|| {
+            crate::ui::resolve_l10n(&cuotai_core::text::Localized::fixed(
+                "secret_input.state.vault",
+                "Saved in the system vault",
+            ))
+        })
+    }
+
     /// PRD 0016 RF1.2: sessions the saved account still reads from a
     /// variable and could move to the vault.
     fn migration_candidates(&self) -> Vec<user_session::MigrationCandidate> {
@@ -4002,6 +4014,12 @@ impl Wizard {
                     Style::default().fg(DRACULA_COMMENT),
                 )));
             }
+            if let Some(hint) = self.vault_hint(field.key) {
+                lines.push(Line::from(Span::styled(
+                    format!("    {hint}"),
+                    Style::default().fg(DRACULA_COMMENT),
+                )));
+            }
             if let Some((_, message)) = self
                 .field_error
                 .as_ref()
@@ -4454,6 +4472,10 @@ fn descriptor_to_field(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "wizard_vault_hint_tests.rs"]
+mod vault_hint_tests;
 
 #[cfg(test)]
 mod tests {

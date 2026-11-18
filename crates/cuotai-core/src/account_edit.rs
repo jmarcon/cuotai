@@ -306,17 +306,16 @@ pub fn suggest_env_with(
     if !taken.contains(default) {
         return default.to_string();
     }
-    let mut slug: String = name
-        .trim()
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_ascii_uppercase()
-            } else {
-                '_'
-            }
-        })
-        .collect();
+    let mut slug = String::new();
+    for c in name.trim().chars() {
+        if c.is_ascii_alphanumeric() {
+            slug.push(c.to_ascii_uppercase());
+        } else if let Some(folded) = fold_latin(c) {
+            slug.push_str(folded);
+        } else {
+            slug.push('_');
+        }
+    }
     while slug.contains("__") {
         slug = slug.replace("__", "_");
     }
@@ -333,6 +332,26 @@ pub fn suggest_env_with(
         .map(|n| format!("{base}_{n}"))
         .find(|candidate| !taken.contains(candidate.as_str()))
         .expect("an unused suffix")
+}
+
+/// Re-validation V-03: the ASCII capitals of a common accented Latin
+/// letter, so "Café Ação" suggests `CAFE_ACAO` rather than `CAF_A_O`.
+/// Any other non-ASCII character stays unfolded (it becomes `_`).
+fn fold_latin(c: char) -> Option<&'static str> {
+    Some(match c {
+        'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => "A",
+        'ç' | 'Ç' => "C",
+        'è' | 'é' | 'ê' | 'ë' | 'È' | 'É' | 'Ê' | 'Ë' => "E",
+        'ì' | 'í' | 'î' | 'ï' | 'Ì' | 'Í' | 'Î' | 'Ï' => "I",
+        'ñ' | 'Ñ' => "N",
+        'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'Ò' | 'Ó' | 'Ô' | 'Õ' | 'Ö' | 'Ø' => "O",
+        'ù' | 'ú' | 'û' | 'ü' | 'Ù' | 'Ú' | 'Û' | 'Ü' => "U",
+        'ý' | 'ÿ' | 'Ý' | 'Ÿ' => "Y",
+        'ß' | 'ẞ' => "SS",
+        'œ' | 'Œ' => "OE",
+        'æ' | 'Æ' => "AE",
+        _ => return None,
+    })
 }
 
 /// PRD 0047 G1: whether the field `key` of `provider` names a variable
@@ -3117,7 +3136,10 @@ pub fn build_account_with_secrets(
     };
     apply_fields(*provider, &mut params, fields, &visibility, &vault)
         .map_err(|message| build_account_field_error("params", message))?;
-    for slot in typed {
+    // Re-validation S-03: a slot the vault holds (typed now or kept by the
+    // edited account) wins over its variable at query time, so the variable
+    // name a terminal edit typed for it would never apply: do not write it.
+    for slot in &vault {
         params.remove(*slot);
     }
 
