@@ -161,9 +161,15 @@ impl Server {
     /// The snapshot once the first sweep landed (`503` until then).
     fn first_snapshot(&self, extra: &str) -> serde_json::Value {
         let deadline = Instant::now() + PATIENCE;
+        let mut limited = false;
         loop {
             let (status, body) = self.get("/v1/snapshot", extra);
             if status == 200 {
+                // After a 429 the per-peer burst is spent: let a few requests' worth refill
+                // (one a second), so the test's next requests are not refused in turn.
+                if limited {
+                    std::thread::sleep(Duration::from_secs(5));
+                }
                 return serde_json::from_str(&body).unwrap();
             }
             assert!(
@@ -173,6 +179,7 @@ impl Server {
             // A slow first sweep (a loaded runner) can outlast the per-peer burst of 20 polls:
             // the server then answers 429, and one poll a second stays within its 60 a minute.
             if status == 429 {
+                limited = true;
                 std::thread::sleep(Duration::from_secs(1));
                 continue;
             }
