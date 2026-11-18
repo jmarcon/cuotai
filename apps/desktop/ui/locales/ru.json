@@ -71,7 +71,8 @@
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
-      "settings.channels.kindInline.webhook"
+      "settings.channels.kindInline.webhook",
+      "settings.channels.maxReached"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -1872,6 +1873,7 @@
   "settings.channels.testOk": "Отправлено: {host} ответил {status}.",
   "settings.channels.testFailed": "Не отправлено: {host} ({reason}).",
   "settings.channels.kindInline.webhook": "webhook",
+  "settings.channels.maxReached": "Не больше {max} каналов. Удалите один, чтобы добавить другой.",
   "settings.kw.channels": "каналы вебхук webhook ntfy slack discord телефон push команда отправить адресат",
   "settings.hooks.event.notification_sent": "уведомление дошло до канала",
   "settings.error.channels_unavailable": "Каналы недоступны, пока не загрузится конфигурация.",

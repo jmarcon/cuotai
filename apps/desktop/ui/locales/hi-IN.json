@@ -1747,6 +1747,7 @@
   "settings.channels.testOk": "भेजा गया: {host} ने {status} उत्तर दिया।",
   "settings.channels.testFailed": "नहीं भेजा गया: {host} ({reason})।",
   "settings.channels.kindInline.webhook": "webhook",
+  "settings.channels.maxReached": "अधिकतम {max} चैनल। दूसरा जोड़ने के लिए एक हटाएँ।",
   "settings.kw.channels": "चैनल webhook ntfy slack discord फ़ोन पुश टीम भेजें गंतव्य",
   "settings.hooks.event.notification_sent": "कोई सूचना किसी चैनल तक पहुँची",
   "settings.error.channels_unavailable": "कॉन्फ़िगरेशन लोड होने तक चैनल उपलब्ध नहीं हैं।",

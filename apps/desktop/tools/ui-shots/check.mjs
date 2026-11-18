@@ -109,6 +109,15 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // Monday, the clock read-outs), and the "crossed while closed" chips on the cards (`?missed`).
   ["settings-quiet", "settings.html?page=alerts&sub=quiet&quiet", 640, 460, {}],
   ["main-missed", "index.html?missed", 1200, 820, {}],
+  // PRD 0044 re-validation (V-05): Settings › Alerts › Notification channels with the demo's channels (`?channels`: an
+  // ntfy channel on this computer, a webhook failing for over a day, a delivery log of mixed kinds), five channels
+  // (Add at the maximum, with its reason), the editor, and the consent step after an ntfy address on this computer. A
+  // step `{ fill: [selector, value] }` types a value into a field.
+  ["settings-channels", "settings.html?page=alerts&sub=channels&channels", 640, 460, { "cuotai.settings.disc.channel-log": "open" }],
+  ["settings-channels-five", "settings.html?page=alerts&sub=channels&channels=five", 640, 460, {}],
+  ["settings-channels-edit", "settings.html?page=alerts&sub=channels&channels", 640, 460, {}, "[data-channel-add]"],
+  ["settings-channels-consent", "settings.html?page=alerts&sub=channels&channels", 640, 460, {},
+    ["[data-channel-add]", { fill: ["[data-channel-url]", "http://127.0.0.1:8080/cuotai-demo"] }, "[data-channel-next]"]],
   ["settings-menubar", "settings.html?page=menubar", 640, 460, {}],
   // PRD 0025 re-validation V-15/V-19: the Row display sub-page, a custom menu-bar selection (Settings and the popover's
   // "Not in menu bar" group) and the non-Standard row layouts.
@@ -368,6 +377,13 @@ const PAGE_JS = `(() => {
     if (!box.width || s.querySelector(":scope .set-subpage.on")) continue;
     for (const e of s.querySelectorAll("h2, h3, p, button, pre, code")) { if (e.closest("[hidden], dialog, .set-pop, .menu, summary") || !e.textContent.trim()) continue; const r = e.getBoundingClientRect(), inset = e.matches("button") ? 0 : parseFloat(getComputedStyle(e).paddingLeft); if (r.width && (e.matches("h2") ? r.bottom > box.top + 1 : r.left + inset < box.left + 8)) out.push({ kind: "flush-to-group-edge", ok: false, sel: sel(e), text: e.textContent.trim().slice(0, 50) }); }
   }
+  // DS-CMP-CHK-1: every shown membership check is the 20 px circle, wherever a form's field rule could reach it
+  // (PRD 0044 re-validation V-02: \`.f input\` once drew them as 26×34 rounded fields in the channel and hook editors).
+  for (const c of document.querySelectorAll("input.chk")) {
+    if (!c.checkVisibility() || (modal && !modal.contains(c))) continue;
+    const r = c.getBoundingClientRect(), round = parseFloat(getComputedStyle(c).borderTopLeftRadius) >= r.width / 2 - 0.5;
+    if (Math.abs(r.width - 20) > 0.5 || Math.abs(r.height - 20) > 0.5 || !round) out.push({ kind: "check-not-round-20px", ok: false, sel: sel(c), text: Math.round(r.width) + "x" + Math.round(r.height) + (round ? "" : " square") });
+  }
   // A Settings row's label never runs under its control (the control drops below when both do not fit).
   for (const row of document.querySelectorAll(".set-row")) {
     const l = row.querySelector(":scope > .set-row-text > .set-row-label"), c = row.querySelector(":scope > .set-row-ctl");
@@ -584,7 +600,10 @@ const pick = (list, i, n) => list.filter((_, k) => k % n === i - 1);
 async function checkPage(name, page, w, h, storage, click, openModels, locale) {
   const target = locale === "en-XA" ? `${page}${page.includes("?") ? "&" : "?"}pseudo` : page;
   await ui.open(target, { w, h, scale: 1, locale: locale === "en-XA" ? "en-US" : locale, storage });
-  if (click) await ui.click(...[].concat(click));
+  for (const step of [].concat(click ?? [])) {
+    if (step.fill) await ui.fill(step.fill[0], step.fill[1]);
+    else await ui.click(step);
+  }
   if (openModels) await ui.evaluate(OPEN_MODELS);
   if (selftest) await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
   const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];

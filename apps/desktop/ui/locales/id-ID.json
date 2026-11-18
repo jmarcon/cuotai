@@ -1719,6 +1719,7 @@
   "settings.channels.testOk": "Terkirim: {host} menjawab {status}.",
   "settings.channels.testFailed": "Tidak terkirim: {host} ({reason}).",
   "settings.channels.kindInline.webhook": "webhook",
+  "settings.channels.maxReached": "Paling banyak {max} saluran. Hapus satu untuk menambah yang lain.",
   "settings.kw.channels": "saluran webhook ntfy slack discord ponsel push tim kirim tujuan",
   "settings.hooks.event.notification_sent": "sebuah notifikasi sampai ke saluran",
   "settings.error.channels_unavailable": "Saluran tidak tersedia sampai konfigurasi dimuat.",
