@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0047 |
-| Status | Implemented (0.81.0; G1 extended to the setup check and the restore's next steps in 0.84.0) |
+| Status | Implemented (0.81.0; G1 extended to the setup check and the restore's next steps in 0.84.0; 2026-11-18 re-validation fixes in vNEXT) |
 | Owner | `cuotai-core` (`secret_input` module, `user_session` vault slots, `account_edit::build_account_with_secrets`, `suggest_env_for`, `detect::desktop_sources_here`), desktop backend (`save_account`, `get_account`, `form_schema`, `change_session`), desktop UI and TUI (follow-up agents) |
 | Consumers | Desktop users adding or editing an account; terminal (TUI/CLI) users with one or several accounts per provider |
 | Depends on | PRD 0016 (vault reference `[accounts.session]`, `stage_pasted`, SES-02 test before save), PRD 0036 RF2.1 (`Delivery::Secret` slots) |
@@ -17,11 +17,40 @@
 | Item | Version | Delivery |
 |---|---|---|
 | E1–E7 (core and desktop backend contract) | 0.81.0 | Delivered on `feat/gui-keys-core`: `secret_input` module, generalized vault slots, `build_account_with_secrets`, typed `secrets` in `save_account`, `secret_states`/`credential_stored`/`vault_migration` in `get_account`, `secret_inputs`/`terminal_only_fields` in the form schema, generalized migration, desktop detection without variables, `suggest_env_for`. |
-| G1–G6 (desktop UI) | 0.81.0 | Delivered on `feat/gui-keys-ui`: the add/edit dialog renders `secret_inputs` as masked inputs (show/hide, never prefilled) in place of the variable-name row and the terminal-only fields, sends `secrets` with `credential: ""`, shows "Saved in the system vault" with Replace (blank keeps), "Key set up in the terminal" with **Move key into Cuotai** (`vault_migration`, two-step confirmation, unreadable setups never name the variable), checks missing required secrets in its own words, and the detection consent no longer mentions variables; demo fixtures and the GUI guides follow. |
+| G1–G6 (desktop UI) | 0.81.0 | Delivered on `feat/gui-keys-ui`: the add/edit dialog renders `secret_inputs` as masked inputs (show/hide, never prefilled) in place of the variable-name row and the terminal-only fields, sends `secrets` with `credential: ""`, shows "Saved in the system vault" with Replace (blank keeps), "Key set up in the terminal" with **Move key into Cuotai** (`vault_migration`, two-step confirmation, unreadable setups never name the variable), checks missing required secrets in its own words (for an empty field only from vNEXT: the browser's own check ran first until then, see the 2026-11-18 re-validation), and the detection consent no longer mentions variables; demo fixtures and the GUI guides follow. |
 | T1–T2 (TUI) | 0.81.0 | Delivered on `feat/gui-keys-tui`: the wizard prefills `suggest_env_for` for a new account, on provider switch and when leaving the name step (a typed variable is kept). |
 | T3–T4 | 0.81.0 | T3: `credential_help.*` and the `query.*`/`note.*` ids stay terminal-worded (the desktop renders `SecretInput.help`); the GUI-neutral split of the remaining shared query notes stays a follow-up. T4: no change needed, vault and `credential_env` accounts load as before. |
 | G1 (setup check and restore) | 0.84.0 | Verified on 2026-11-07 against `origin/main`: every E, G and T item is in the code and tested (`secret_input_tests.rs`, `backend.rs`, `scripts/test-desktop-wording-ui.mjs`; `account_edit::suggest_env_for` gives `<DEFAULT>_<NAME>` then a numeric suffix, and the TUI wizard prefills it). The one place the desktop still named a variable was PRD 0046's **Check setup** (`doctor.account.env_*`, `doctor.fix.set_env`), kept as a deliberate exception: it now reads in the desktop's own words ("No key is saved for this account", "Open the account in Edit and type its key"), and the restore's next steps say "Type the key of account N again" instead of `bundle.need.env`; the `^doctor\.` and `^bundle\.` exceptions of the wording test are gone, so the test covers them. The desktop restore never reads variables. Status: Implemented. Left out of scope by §6 (follow-ups, not part of this plan): OAuth client secrets and extension manifests' declared variables. |
 | G7 (desktop wording of core texts) | 0.81.0 | Delivered on `integration/next`: `apps/desktop/ui/js/desktop-wording.js` maps, by stable id, every core note, query error, edit/sign-in error, login help and session text that names a variable or a `params.*` value to the desktop's own wording (`coreText.*`, all desktop catalogs); `tl()` applies it, so the TUI/CLI keep the terminal wording. A note asking for a web session (the Xiaomi MiMo native `sk-` key first) offers **Connect session**, which opens the account dialog on the session box. `scripts/test-desktop-wording-ui.mjs` fails when a core text naming a variable is neither mapped nor listed as never rendered, and when a desktop catalog names `_env` or `params.`. |
+| 2026-11-18 re-validation | vNEXT | Fixes of G1, G4–G7, T2, E1, E4 and E5 (4 medium, 11 low findings); see "2026-11-18 re-validation" below. |
+
+### 2026-11-18 re-validation (vNEXT)
+
+The re-validation (Visual and Security on `c0518d5e`, Review on `c0518d5e`, delivered with PRD 0048 on one pair branch) found 4 medium and 11 low findings. Twelve are fixed in vNEXT; S-04, the code part of S-05 and V-06 stay open items below.
+
+**Decisions of 2026-11-18 (orchestrator):**
+- **S-06: an invalid variable name never fails the config load.** A name in `credential_env` or any `params.*_env` that is not a valid environment-variable name, is longer than 128 characters, or is shaped like a secret is a configuration error on that one account: status `NeedsConfiguration`, a note that says the variable name is not valid and never repeats it, the same in `--once`, `--json`, `--doctor`, the restore plan and the desktop. Every other account keeps working, so hand-edited TOML files still load. This also settles Security's owner question ("refuse at load?"): no.
+- **The rule (`account_edit::usable_env_name`):** a valid POSIX name, at most 128 characters, not secret-shaped (`bundle::looks_secret` and `diagnostics::redact::has_key_prefix`: `gsk_`, `sk_live_`, `ghp_`, `hf_`, `AKIA` and the others), and no `_`-separated segment of 20 or more characters that holds both an ASCII lowercase letter and a digit (real names separate words with `_`; opaque keys do not). The cap and the opaque-segment rule are judgment calls, chosen to keep every realistic hand-written name valid; both are accepted.
+- **V-04: the move button is labelled by what it moves.** When every `vault_migration` offer is a cookie session, it reads "Move session into Cuotai" (`dialog.move.buttonSession`); otherwise it keeps G5's **Move key into Cuotai**.
+
+**Already on `main` before this delivery:** part of G-0047-1 shipped with the PRD 0045+0046 pair (G-0046-3, `e66d3871`): `account_edit::usable_env_name`, the core id `bundle.need.env_invalid` and its branch in the restore plan's `needs` (no name printed), and the desktop mapping of that id to "Type the key of account N again" (`coreText.restoreKey`). G-0047-1 delivers the rest.
+
+| Group | Findings | Requirement | Delivery (vNEXT) |
+|---|---|---|---|
+| G-0047-1 | S-06 (medium), R-02 | G6, T3, T4, E5 | `account_edit::invalid_env_field` names the first field whose variable name fails `usable_env_name`; `Monitor::query_unlabelled` answers it with `NeedsConfiguration` and `query.env_name_invalid` (the field, never the value) before any credential is read, so `--once`, `--json`, `--watch`, `--serve`, the TUI, Test and the desktop all agree; `--doctor` fails the account with `doctor.account.env_invalid`/`doctor.fix.env_invalid`; `secret_states` reads such a slot as `unset` and neither migration list offers it; the TUI editors refuse such a name. The desktop shows "This account's key setting is not valid. Open Edit and type its key." (`coreText.keySettingInvalid`); `MigrationCandidate.env` is no longer serialized, `get_account` drops `session_migration` and sends `credential: ""` for an invalid name. |
+| G-0047-2 | S-01 (medium), S-02 | G5 | `migrate_session` and `forget_session` carry the dialog's account id and refuse an account that moved meanwhile (`check_target`) with nothing staged; `migrate_session`, `save_account`, `test_session` and `test_aggregator` answer only the main window; a restore that wrote the accounts file closes open account dialogs. |
+| G-0047-3 | V-01, V-02 (medium), V-04, V-05 | G1, G4, G5, G7 | A key missing from the vault is `user_session.key_not_found` ("the key saved for this account is not in the system vault"), not a missing web session; the desktop says so (`coreText.keyGone`), offers Edit instead of Connect session and opens the dialog on the key's Replace input. The secret input is `aria-required` instead of `required`, so an empty key gets the desktop's own message in the person's language. The move button follows V-04; the German Replace placeholder reads "Neuen Wert einfügen". |
+| G-0047-4 | V-03, S-03 | T2, E1, E4 | `suggest_env_for` folds accented Latin letters before sanitizing ("Café Ação-2" gives `…_CAFE_ACAO_2`); `build_account_with_secrets` no longer writes `params.<key>` for a parameter the edited account keeps in the vault, and the TUI wizard shows "Saved in the system vault" on that field. |
+| G-0047-5 | R-01, R-03; S-05 (docs) | G6, E5 | This record: the G1–G6 claim about missing required secrets now holds (R-01), §7 describes `credential`, `default_env` and `session_migration` as they are (R-03), and `docs/privacy.md` states what is and is not wiped (S-05). |
+
+**Not findings:** a Test with a changed base URL and a blank password (the user typed the host, PRD 0036's TLS check applies); a restored reading after a key is replaced in place (keyed on the reference, as terminal accounts key on the variable name); a reused `credential_ref` in a crafted TOML (refused in one config; across computers it would need the victim's random reference, and a crafted backup is covered by PRD 0046's host confirmation).
+
+**Open items:**
+- **S-04:** an account with no `credential_env` whose key comes from the provider's default variable reads "Not set" (`secret_states` gives `unset`) in a desktop started from a terminal with that variable exported, while the query uses the variable (`providers/mod.rs` falls back to the default). Typing a key stores it in the vault, which then wins, so the user has a working path; classifying by reading the environment would contradict PRD 0027 RF6.5 as amended here ("the desktop never checks variables").
+- **S-05:** `SecretValue` is wiped on drop (E3), but the copies made after the reduction are not: the staged values in `user_session` and the `OAuthToken` that carries them have no wiping `Drop`. Adding one to `OAuthToken` would stop the field moves many callers make, so it is not cheap. The copies in the webview and in the IPC body are outside Cuotai's reach; `docs/privacy.md` says so.
+- **V-06:** 15 `credential_help.*` texts name the provider's default variable. They stay right for a first terminal account; rewording them in 13 catalogs belongs with the T3 follow-up of §6.
+
+**Owner checks in the packaged app:** delete the keychain entry of a desktop-typed key and check that the card says the key is missing and Edit opens on the key (V-01); save an account with an empty key and check that the message is in Cuotai's language (V-02).
 
 ## 1. Owner decision (2026-10-27)
 
@@ -42,7 +71,7 @@ In the desktop GUI, adding an account never mentions environment variables. The 
 - **G3 — Test before save.** Where the provider can be queried, the typed secret is tested by one read-only query before it reaches the vault (PRD 0016 SES-02): a rejection blocks the save, an unreachable provider offers "Save anyway". The secret is never echoed.
 - **G4 — Stored in the vault.** The secret goes to the OS vault; the configuration file keeps only a reference. Editing an account shows "Saved in the system vault" with a Replace action, never the value; leaving the input blank keeps the stored secret.
 - **G5 — Accounts set up in the terminal.** An account whose secret comes from the environment shows plainly "Key set up in the terminal" (read-only, no variable name) and a one-click **Move key into Cuotai** that copies the value into the vault and drops the variable from the file, after a consent line in user terms.
-- **G6 — Failures without secrets.** No secret, variable name, URL or response body appears in an error, the TOML, a report, a snapshot or the logs; a failed vault write or file save leaves nothing behind (rollback).
+- **G6 — Failures without secrets.** No secret, variable name, URL or response body appears in an error, the TOML, a report, a snapshot or the logs; a failed vault write or file save leaves nothing behind (rollback). A variable name that is not valid (not an environment-variable name, longer than 128 characters, or shaped like a key) is reported as such on its own account, never repeated, and never stops the other accounts from loading (decision of 2026-11-18).
 
 ## 4. Terminal requirements (TUI/CLI user)
 
@@ -84,7 +113,7 @@ All shapes are JSON as serialized by the desktop backend (snake_case, as the exi
 ```
 
 - Render one masked input per `secret_inputs` entry; when `field` is set, show it only while that field descriptor is visible (`visible_field_indices`); `cookie: true` is a session paste box (the existing session preview/test applies).
-- Never render a field listed in `terminal_only_fields`, nor `default_env` (terminal only), nor the old `credential` text row for providers whose `secret_inputs` start with `credential_env`. `credential_kind`, `default_env` and `credential_help` stay in the schema only until the UI switches; the GUI must not show them.
+- Never render a field listed in `terminal_only_fields`, nor `default_env` (terminal only), nor the old `credential` text row for providers whose `secret_inputs` start with `credential_env`. `credential_kind` and `credential_help` are still sent and never rendered; `default_env` stays in the schema for the key-page data and is never rendered either (the UI switched in 0.81.0).
 - The existing `sessions` array is unchanged; its slots also appear in `secret_inputs`.
 
 **`save_account` / `test_session` / `test_aggregator` (`AccountInput`)** gain:
@@ -105,7 +134,7 @@ All shapes are JSON as serialized by the desktop backend (snake_case, as the exi
 ```
 
 - `source` is `vault`, `environment` (show "Key set up in the terminal", read-only) or `unset`. Do not prefill any secret input; show "Saved" plus Replace when `source = vault`.
-- `credential` still echoes the variable name for terminal-created accounts until the UI switches; the GUI must not display it. `session_migration` (classic, with `env`) is superseded by `vault_migration` for the GUI.
+- `credential` stays on purpose: for a terminal-created account it carries the variable name, which the dialog sends back on save to keep that account on its variable; the GUI never displays it, and it is blank (`""`) when the name is not valid (G6). `session_migration` (classic, with `env`) is removed in vNEXT; `vault_migration` replaced it in 0.81.0 and its entries carry no variable name.
 
 **`change_session(index, "migrate")`** now moves every entry of `vault_migration` (sessions and keys) into the vault; `forget` is unchanged.
 
