@@ -3546,32 +3546,55 @@ impl Backend {
     /// PRD 0043 RF4.3: **Send a test digest**: last week's digest from the
     /// history, posted now (nothing is claimed in the ledger, so the
     /// scheduled one still goes out). Errors: `no_history`, `notify_failed`.
+    /// Like [`Self::hourly_strip`], it copies what it needs under the lock
+    /// and reads the history off the async worker without holding it
+    /// (re-validation R-05).
     pub async fn send_test_digest<N: crate::notify::Notifier + Sync>(
         &self,
         notifier: &N,
     ) -> Result<(), String> {
         self.ensure_loaded().await;
-        let g = self.inner.lock().await;
-        let l = g
-            .loaded
-            .as_ref()
-            .ok_or_else(crate::desk_text::config_not_loaded)?;
-        let store = l.monitor.history().ok_or("no_history")?;
-        let latest: Vec<Option<Report>> = notice_readings(&l.cycle)
-            .into_iter()
-            .map(|reading| reading.cloned())
-            .collect();
-        let digest = cuotai_core::digest::weekly(
-            &store,
-            &l.file.config.accounts,
-            &latest,
-            cuotai_core::digest::DigestWeek::Last,
-            chrono::Utc::now(),
-            &chrono::Local,
-            g.notices.prefs().days_off,
-        )
-        .map_err(|_| "no_history".to_owned())?;
-        if g.notices.deliver_digest_text(&digest, notifier) {
+        let (monitor, accounts, latest, days_off) = {
+            let g = self.inner.lock().await;
+            let l = g
+                .loaded
+                .as_ref()
+                .ok_or_else(crate::desk_text::config_not_loaded)?;
+            let latest: Vec<Option<Report>> = notice_readings(&l.cycle)
+                .into_iter()
+                .map(|reading| reading.cloned())
+                .collect();
+            (
+                Arc::clone(&l.monitor),
+                l.file.config.accounts.clone(),
+                latest,
+                g.notices.prefs().days_off,
+            )
+        };
+        let store = monitor.history().ok_or("no_history")?;
+        let digest = tauri::async_runtime::spawn_blocking(move || {
+            cuotai_core::digest::weekly(
+                &store,
+                &accounts,
+                &latest,
+                cuotai_core::digest::DigestWeek::Last,
+                chrono::Utc::now(),
+                &chrono::Local,
+                days_off,
+            )
+            .ok()
+        })
+        .await
+        .ok()
+        .flatten()
+        .ok_or("no_history")?;
+        if self
+            .inner
+            .lock()
+            .await
+            .notices
+            .deliver_digest_text(&digest, notifier)
+        {
             Ok(())
         } else {
             Err("notify_failed".into())

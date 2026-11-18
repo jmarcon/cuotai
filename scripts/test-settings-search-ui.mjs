@@ -146,5 +146,24 @@ assert.ok(!/radial-gradient/.test(css), "the check is a glyph, not a radio dot")
 const check = await readFile(new URL("../apps/desktop/tools/ui-shots/check.mjs", import.meta.url), "utf8");
 assert.ok(!check.includes('".set-row-desc"'), "row descriptions must not be on the overflow check's allowed list");
 
+// PRD 0043 re-validation V-06: Send a test digest follows Send a test notification. With reset notices, usage alerts
+// and the projected alert off, both tests are disabled and the digest test explains why; one switch on enables both.
+{
+  await i18n.setLocale("en-US");
+  const alerts = await import("../apps/desktop/ui/js/settings/alerts.js");
+  const base = await lib.getSettings();
+  const page = (notify, alertsOn, lead) => alerts.html({ settings: { ...base, notify: { ...base.notify, enabled: notify }, alerts: { ...base.alerts, enabled: alertsOn, projected_lead_minutes: lead } } });
+  const button = (html, attr) => html.match(new RegExp(`<button[^>]*${attr}[^>]*>`))?.[0] ?? "";
+  const off = page(false, false, null);
+  assert.match(button(off, "data-notify-test"), /disabled/, "every notice off: the notification test is disabled");
+  assert.match(button(off, "data-digest-test"), /disabled/, "every notice off: the digest test is disabled");
+  assert.ok(off.includes(`id="digest-test-info" role="note" hidden>${i18n.t("settings.insights.digestTestOff")}<`), "the digest test explains why");
+  for (const [n, a, l] of [[true, false, null], [false, true, null], [false, false, 60]]) {
+    assert.doesNotMatch(button(page(n, a, l), "data-digest-test"), /disabled/, `notify=${n} alerts=${a} lead=${l}: the digest test is enabled`);
+  }
+  const source = await readFile(ui("js/settings/alerts.js"), "utf8");
+  assert.match(source, /setDigestTestAvailable\(root, on\.checked \|\| alertsOn\.checked \|\| projectedOn\.checked\)/, "a switch change updates the digest test");
+}
+
 console.log("PASS: every row is searchable in pt-BR, en-US, es and it; results group by page; the responsive shell and style rules hold");
 process.exit(0);

@@ -8,7 +8,9 @@ import { buttons, disc, row, rowError, select, sw, toast } from "./rows.js";
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-export function insightsHtml(n) {
+/** `canTest` (PRD 0043 re-validation V-06): the digest test follows the notification test, which needs reset notices,
+ *  usage alerts or the projected alert on; the core answers `notify_off` otherwise. */
+export function insightsHtml(n, { canTest = true } = {}) {
   const daysOff = new Set(n.days_off ?? ["sat", "sun"]);
   const digest = n.digest ?? { enabled: false, weekday: 0, hour: 9 };
   const weekdays = DAYS.map((d, i) => [i, te(`settings.insights.day.${d}`)]);
@@ -24,8 +26,22 @@ export function insightsHtml(n) {
       control: (x) => sw("digest-on", !!digest.enabled, x) })
     + row({ key: "digest-day", label: te("settings.insights.digestDay"), dep: true, control: (x) => select("digest-day", weekdays, digest.weekday, x) })
     + row({ key: "digest-hour", label: te("settings.insights.digestHour"), dep: true, control: (x) => select("digest-hour", hours, digest.hour, x) })
-    + row({ key: "digest-test", label: te("settings.insights.digestTest"), msgRole: "status",
-      control: () => buttons(`<button class="btn" type="button" data-digest-test aria-labelledby="digest-test-label">${icon("bell")}</button>`) }));
+    + row({ key: "digest-test", label: te("settings.insights.digestTest"), info: te("settings.insights.digestTestOff"), msgRole: "status",
+      control: () => buttons(`<button class="btn" type="button" data-digest-test aria-labelledby="digest-test-label" ${canTest ? "" : "disabled"}>${icon("bell")}</button>`) }));
+}
+
+/** Enables the digest test with the notification test; while it is off, its info explains why (V-06). */
+export function setDigestTestAvailable(root, canTest) {
+  const test = root.querySelector("[data-digest-test]");
+  if (test) test.disabled = !canTest;
+  const info = root.querySelector('[data-info="digest-test-info"]');
+  if (!info) return;
+  info.hidden = canTest;
+  if (canTest) {
+    info.setAttribute("aria-expanded", "false");
+    const pop = root.querySelector("#digest-test-info");
+    if (pop) pop.hidden = true;
+  }
 }
 
 export function bindInsights(root, ctx) {
