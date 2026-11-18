@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use cuotai_core::config_file::ConfigFile;
 use cuotai_core::history::{ExportFormat, HistoryStore, Retention};
+use cuotai_core::oauth::{EraseVault, StoreChoice};
 use cuotai_core::output_file::Protected;
 use cuotai_core::privacy::erase::{self, EraseOptions, Outcome, SystemVault};
 use cuotai_core::privacy::Roots;
@@ -192,20 +193,48 @@ fn accounts_path(explicit: Option<PathBuf>) -> Option<PathBuf> {
         .map(|file| file.path)
 }
 
-/// `--erase-all-data [--yes] [--include-config]`.
-pub(crate) fn erase_all_data(config: Option<PathBuf>, include_config: bool, yes: bool) -> Res {
+/// `--erase-all-data [--yes] [--include-config]`, on the credential store
+/// this process was started with (PRD 0050 `SEC-DEV-VAULT`): with
+/// `--dev-credentials-sqlite` it clears that store and never the system
+/// vault; a release build refuses the flag before anything is listed.
+pub(crate) fn erase_all_data(
+    config: Option<PathBuf>,
+    include_config: bool,
+    yes: bool,
+    choice: &StoreChoice,
+) -> Res {
     let options = EraseOptions {
         roots: Roots::system(accounts_path(config)),
         include_config,
     };
-    erase_with(
+    erase_all_data_with(
         &options,
-        &SystemVault,
         yes,
+        choice,
+        || Box::new(SystemVault),
         &mut io::stdin().lock(),
         terminal(),
         &mut io::stdout().lock(),
     )
+}
+
+/// [`erase_all_data`] over any roots, input and system-vault factory
+/// (tests): the vault comes from `choice`, which calls `system` only for
+/// the system store. A store that cannot open is a local error (exit 1)
+/// and nothing is listed or erased.
+pub(crate) fn erase_all_data_with(
+    options: &EraseOptions,
+    yes: bool,
+    choice: &StoreChoice,
+    system: impl FnOnce() -> EraseVault,
+    input: &mut dyn BufRead,
+    interactive: bool,
+    out: &mut dyn Write,
+) -> Res {
+    let vault = choice
+        .erase_vault_with(system)
+        .map_err(|text| text.resolve(crate::ui::tui_locale()))?;
+    erase_with(options, &*vault, yes, input, interactive, out)
 }
 
 /// The flow of [`erase_all_data`] over any vault and input (tests).
@@ -400,5 +429,42 @@ mod tests {
         )
         .unwrap();
         assert_eq!(code, 0);
+    }
+
+    /// PRD 0050 `SEC-DEV-VAULT` (S-04): `--erase-all-data` with
+    /// `--dev-credentials-sqlite` clears that store and never builds the
+    /// system vault.
+    // security-invariant: SEC-DEV-VAULT
+    #[cfg(debug_assertions)]
+    #[test]
+    fn erase_on_the_development_store_never_reaches_the_system_vault() {
+        let dir = tempfile::tempdir().unwrap();
+        let options = options(dir.path());
+        let database = dir.path().join("cuotai-dev.sqlite3");
+        let choice = StoreChoice::Development(database.clone());
+        let store = choice.session().unwrap().token_store();
+        let token = cuotai_core::oauth::OAuthToken {
+            access_token: "placeholder".into(),
+            refresh_token: None,
+            expires_at: None,
+            metadata: Default::default(),
+        };
+        store.save("first", &token).unwrap();
+        drop(store);
+        let code = erase_all_data_with(
+            &options,
+            true,
+            &choice,
+            || panic!("the OS vault was reached"),
+            &mut &b""[..],
+            false,
+            &mut Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(code, 0);
+        assert!(!dir.path().join("local/cuotai").exists());
+        assert!(database.exists(), "the store's file is kept");
+        let store = choice.session().unwrap().token_store();
+        assert!(store.load("first").unwrap().is_none(), "its rows are gone");
     }
 }

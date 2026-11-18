@@ -3,6 +3,7 @@
 mod about;
 mod autostart;
 mod backend;
+mod credential_store;
 mod desk_text;
 mod erase_data;
 mod file_dialog;
@@ -486,7 +487,7 @@ struct BackupView {
 fn desktop_bundle(with_history: bool) -> Result<cuotai_core::bundle::Bundle, String> {
     use cuotai_core::bundle::{self, BundleError};
     // RF1.3: the development credential store is never backed up.
-    if std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE").is_some() {
+    if credential_store::choice().is_development() {
         return Err(bundle_error(&BundleError::DevStore));
     }
     let locations = bundle_locations();
@@ -1823,6 +1824,11 @@ async fn erase_all_data(
         backend: Arc::clone(b.inner()),
         cost: Arc::clone(cost.inner()),
     };
+    // PRD 0050 `SEC-DEV-VAULT`: the store this process started with; the
+    // development store never falls through to the system vault.
+    let vault = credential_store::choice()
+        .erase_vault()
+        .map_err(|e| backend::l10n_to_json(&e))?;
     let result = erase_data::run(
         &word,
         include_config,
@@ -1830,7 +1836,7 @@ async fn erase_all_data(
         &locale,
         &native_confirm::DialogConfirmer::new(&app),
         &writers,
-        &cuotai_core::privacy::erase::SystemVault,
+        &*vault,
     )
     .await
     .map_err(|e| backend::l10n_to_json(&e))?;
@@ -3219,7 +3225,7 @@ pub fn run() -> std::process::ExitCode {
     // launch by the login entry stays out of the way, as it does on its own.
     let builder = if single_instance_applies(
         cfg!(debug_assertions),
-        std::env::var_os("CUOTAI_DEV_CREDENTIALS_SQLITE").is_some(),
+        credential_store::choice().is_development(),
     ) {
         builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if !autostart::launched_at_login(args) {

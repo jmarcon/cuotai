@@ -19,6 +19,8 @@ Environment overrides (defaults in the repository root):
   CUOTAI_DEV_CREDENTIALS_SQLITE  SQLite store (default: cuotai-dev.sqlite3)
 
 Warning: that store keeps tokens in plain text. Use it for development only.
+"Erase all data" (gui) and --erase-all-data (tui) clear that store, never the
+system vault, and the desktop's local-server token stays in it too.
 EOF
 }
 

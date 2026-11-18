@@ -355,6 +355,56 @@ mod tests {
         assert_eq!(asked[0].accept, "Erase everything");
     }
 
+    /// PRD 0050 `SEC-DEV-VAULT` (S-04): a desktop started on the development
+    /// store erases that store's sign-ins and server token, and the system
+    /// vault factory is never called.
+    // security-invariant: SEC-DEV-VAULT
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    async fn the_desktop_erases_the_store_it_started_with() {
+        let _serial = SERIAL.lock().await;
+        let (dir, roots, history, _) = tree();
+        let database = dir.path().join("cuotai-dev.sqlite3");
+        let choice = cuotai_core::oauth::StoreChoice::Development(database.clone());
+        let token = cuotai_core::oauth::OAuthToken {
+            access_token: "placeholder".into(),
+            refresh_token: None,
+            expires_at: None,
+            metadata: Default::default(),
+        };
+        choice
+            .session()
+            .unwrap()
+            .token_store()
+            .save("first", &token)
+            .unwrap();
+        let serve = choice
+            .serve_vault_with(|| panic!("the OS vault was reached"))
+            .unwrap();
+        serve
+            .save(&cuotai_core::serve::Token::generate().unwrap())
+            .unwrap();
+        let vault = choice
+            .erase_vault_with(|| panic!("the OS vault was reached"))
+            .unwrap();
+        let confirmer = Answer(true, Mutex::new(Vec::new()));
+        let writers = writers(&history);
+        let result = run(
+            "ERASE", false, roots, "en-US", &confirmer, &writers, &*vault,
+        )
+        .await
+        .unwrap();
+        assert!(result.complete && result.failed.is_empty());
+        assert!(!history.exists());
+        assert!(database.exists(), "the store's file is kept");
+        let store = choice.session().unwrap().token_store();
+        assert!(
+            store.load("first").unwrap().is_none(),
+            "its sign-ins are gone"
+        );
+        assert!(serve.load().unwrap().is_none(), "its server token is gone");
+    }
+
     #[tokio::test]
     async fn include_config_also_removes_the_accounts_file() {
         let _serial = SERIAL.lock().await;

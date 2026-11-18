@@ -1,9 +1,14 @@
 //! Plaintext development-only token store. Never compiled into release builds.
+//!
+//! The same file also holds the desktop's local-server token (table
+//! `cuotai_dev_serve`, PRD 0050 `SEC-DEV-VAULT`), so a process started on
+//! this store never reaches the system vault; every SQL statement over the
+//! file lives in this module.
 use super::{decode, encode, validate_id, OAuthError, OAuthToken, TokenStore};
 use rusqlite::{Connection, OptionalExtension};
 use std::{fs, path::Path, sync::Mutex, time::Duration};
 
-pub(super) struct SqliteDevStore(Mutex<Connection>);
+pub(crate) struct SqliteDevStore(Mutex<Connection>);
 
 fn error() -> OAuthError {
     OAuthError::Storage(crate::text::Localized::fixed(
@@ -12,7 +17,7 @@ fn error() -> OAuthError {
 }
 
 impl SqliteDevStore {
-    pub(super) fn open(path: &Path) -> Result<Self, OAuthError> {
+    pub(crate) fn open(path: &Path) -> Result<Self, OAuthError> {
         if path.as_os_str().is_empty() {
             return Err(error());
         }
@@ -62,12 +67,61 @@ impl SqliteDevStore {
                 "PRAGMA journal_mode=DELETE; PRAGMA secure_delete=ON;
             CREATE TABLE IF NOT EXISTS cuotai_dev_tokens (
                 id TEXT PRIMARY KEY NOT NULL, payload TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS cuotai_dev_serve (
+                id TEXT PRIMARY KEY NOT NULL, token TEXT NOT NULL
             );",
             )
             .map_err(|_| error())?;
         Ok(Self(Mutex::new(connection)))
     }
+
+    /// Erase all (`cuotai.oauth`): delete every token row; how many went.
+    pub(crate) fn delete_all_tokens(&self) -> Result<usize, OAuthError> {
+        self.0
+            .lock()
+            .map_err(|_| error())?
+            .execute("DELETE FROM cuotai_dev_tokens", [])
+            .map_err(|_| error())
+    }
+
+    /// The stored local-server token, as written by [`Self::serve_save`].
+    #[cfg(feature = "serve")]
+    pub(crate) fn serve_load(&self) -> Result<Option<String>, OAuthError> {
+        self.0
+            .lock()
+            .map_err(|_| error())?
+            .query_row(
+                "SELECT token FROM cuotai_dev_serve WHERE id=?1",
+                [SERVE_ID],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|_| error())
+    }
+
+    /// Replace the local-server token.
+    #[cfg(feature = "serve")]
+    pub(crate) fn serve_save(&self, token: &str) -> Result<(), OAuthError> {
+        self.0.lock().map_err(|_| error())?.execute(
+            "INSERT INTO cuotai_dev_serve(id,token) VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET token=excluded.token",
+            [SERVE_ID, token]).map_err(|_| error())?;
+        Ok(())
+    }
+
+    /// Remove the local-server token (`cuotai.serve`); how many rows went.
+    pub(crate) fn serve_delete(&self) -> Result<usize, OAuthError> {
+        self.0
+            .lock()
+            .map_err(|_| error())?
+            .execute("DELETE FROM cuotai_dev_serve", [])
+            .map_err(|_| error())
+    }
 }
+
+/// The one row of `cuotai_dev_serve`, named like the system vault's account.
+#[cfg(feature = "serve")]
+const SERVE_ID: &str = "local-server-token";
 impl TokenStore for SqliteDevStore {
     fn load(&self, id: &str) -> Result<Option<OAuthToken>, OAuthError> {
         let id = validate_id(id)?;

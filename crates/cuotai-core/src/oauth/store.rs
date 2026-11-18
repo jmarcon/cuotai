@@ -20,7 +20,17 @@
 use super::{OAuthError, OAuthToken};
 
 #[cfg(debug_assertions)]
-mod sqlite_dev;
+pub(crate) mod sqlite_dev;
+
+/// A release build refuses every use of the development store with this
+/// fixed text, before any filesystem access.
+#[cfg(not(debug_assertions))]
+pub(crate) fn development_only() -> crate::text::Localized {
+    crate::text::Localized::fixed(
+        "oauth_error.store.sqlite_dev_only",
+        "Credential SQLite is allowed only in development builds; release requires the system vault.",
+    )
+}
 
 /// Explicit plaintext development store; unavailable in release builds.
 pub(crate) fn development_store(
@@ -33,9 +43,7 @@ pub(crate) fn development_store(
     #[cfg(not(debug_assertions))]
     {
         let _ = path;
-        Err(OAuthError::Configuration(crate::text::Localized::fixed(
-            "oauth_error.store.sqlite_dev_only", "Credential SQLite is allowed only in development builds; release requires the system vault.",
-        )))
+        Err(OAuthError::Configuration(development_only()))
     }
 }
 
@@ -312,6 +320,45 @@ mod tests {
             // way to the refusal either (CI's `release-profile` job).
             let nested = dir.path().join("never").join("cuotai-dev.sqlite3");
             assert!(development_store(&nested).is_err());
+            assert!(!dir.path().join("never").exists(), "no folder created");
+        }
+    }
+
+    /// PRD 0050 `SEC-DEV-VAULT` (S-04, R-01): a release build refuses the
+    /// development choice for erase-all and for the local-server token
+    /// before any filesystem access, and never calls the system factory in
+    /// its place; a debug build opens the store without calling it either.
+    /// Runs in CI's `release-profile` job (`--release --lib oauth::store`).
+    // security-invariant: SEC-DEV-VAULT
+    #[test]
+    fn the_development_erase_and_serve_vaults_are_refused_in_release_builds() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cuotai-dev.sqlite3");
+        let nested = dir.path().join("never").join("cuotai-dev.sqlite3");
+        let choice = super::super::StoreChoice::Development(path.clone());
+        let erase = choice.erase_vault_with(|| panic!("the OS vault was reached"));
+        #[cfg(feature = "serve")]
+        let serve = choice.serve_vault_with(|| panic!("the OS vault was reached"));
+        if cfg!(debug_assertions) {
+            assert!(erase.is_ok(), "debug builds open the development store");
+            #[cfg(feature = "serve")]
+            assert!(serve.is_ok(), "debug builds keep the token in the store");
+        } else {
+            let Err(text) = erase else {
+                panic!("a release build must refuse the development erase vault");
+            };
+            assert_eq!(text.id, "oauth_error.store.sqlite_dev_only");
+            #[cfg(feature = "serve")]
+            assert!(matches!(serve, Err(crate::serve::ServeError::Vault)));
+            assert!(!path.exists(), "no filesystem access");
+            let nested = super::super::StoreChoice::Development(nested);
+            assert!(nested
+                .erase_vault_with(|| panic!("the OS vault was reached"))
+                .is_err());
+            #[cfg(feature = "serve")]
+            assert!(nested
+                .serve_vault_with(|| panic!("the OS vault was reached"))
+                .is_err());
             assert!(!dir.path().join("never").exists(), "no folder created");
         }
     }
