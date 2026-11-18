@@ -4,8 +4,9 @@
 //! Rust opens. The webview asks for the action only and never supplies a
 //! path, so a compromised page cannot aim a write at an arbitrary file or
 //! read one. A restore reads the chosen file twice (the preview, then the
-//! apply): the preview keeps the path in [`PendingRestore`] under a one-shot
-//! token, and the apply accepts only that token. The core's
+//! apply): the preview keeps the path and the SHA-256 of the bytes it
+//! planned in [`PendingRestore`] under a one-shot token, and the apply
+//! accepts only that token and only the same bytes. The core's
 //! [`cuotai_core::output_file`] guard still refuses Cuotai's own files as
 //! defense in depth.
 //!
@@ -91,39 +92,43 @@ impl FilePicker for DialogPicker {
     }
 }
 
-/// The backup file the last restore dialog chose, under its token. The
-/// token only ties the apply to the file the preview read (the security
-/// property is that the path never comes from the webview), so a process
-/// counter is enough.
+/// The SHA-256 of the backup bytes a preview planned.
+pub type Digest = [u8; 32];
+
+/// The backup file the last restore dialog chose, under its token, with the
+/// digest of the bytes its preview planned (PRD 0046 L-05: the apply
+/// refuses a file that changed since). The token only ties the apply to the
+/// file the preview read (the security property is that the path never
+/// comes from the webview), so a process counter is enough.
 #[derive(Default)]
 pub struct PendingRestore {
     next: std::sync::atomic::AtomicU64,
-    slot: std::sync::Mutex<Option<(u64, PathBuf)>>,
+    slot: std::sync::Mutex<Option<(u64, PathBuf, Digest)>>,
 }
 
 impl PendingRestore {
-    /// Keep `path` for the apply; any earlier pick is forgotten. Returns its
-    /// token.
-    pub fn put(&self, path: PathBuf) -> u64 {
+    /// Keep `path` and the `digest` of the bytes the preview planned for
+    /// the apply; any earlier pick is forgotten. Returns its token.
+    pub fn put(&self, path: PathBuf, digest: Digest) -> u64 {
         let token = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
         if let Ok(mut slot) = self.slot.lock() {
-            *slot = Some((token, path));
+            *slot = Some((token, path, digest));
         }
         token
     }
 
-    /// The path kept under `token`; `None` for any other token.
-    pub fn get(&self, token: u64) -> Option<PathBuf> {
+    /// The path and digest kept under `token`; `None` for any other token.
+    pub fn get(&self, token: u64) -> Option<(PathBuf, Digest)> {
         let slot = self.slot.lock().ok()?;
         slot.as_ref()
-            .filter(|(kept, _)| *kept == token)
-            .map(|(_, path)| path.clone())
+            .filter(|(kept, _, _)| *kept == token)
+            .map(|(_, path, digest)| (path.clone(), *digest))
     }
 
     /// Forget the pick under `token` (after a successful restore).
     pub fn forget(&self, token: u64) {
         if let Ok(mut slot) = self.slot.lock() {
-            if slot.as_ref().is_some_and(|(kept, _)| *kept == token) {
+            if slot.as_ref().is_some_and(|(kept, _, _)| *kept == token) {
                 *slot = None;
             }
         }
@@ -173,11 +178,14 @@ pub(crate) mod tests {
     fn a_restore_pick_is_found_only_by_its_own_token() {
         let pending = PendingRestore::default();
         assert_eq!(pending.get(1), None);
-        let first = pending.put(PathBuf::from("/a.zip"));
-        let second = pending.put(PathBuf::from("/b.zip"));
+        let first = pending.put(PathBuf::from("/a.zip"), [1; 32]);
+        let second = pending.put(PathBuf::from("/b.zip"), [2; 32]);
         assert_ne!(first, second);
         assert_eq!(pending.get(first), None, "a newer pick replaces the older");
-        assert_eq!(pending.get(second), Some(PathBuf::from("/b.zip")));
+        assert_eq!(
+            pending.get(second),
+            Some((PathBuf::from("/b.zip"), [2; 32]))
+        );
         pending.forget(first);
         assert!(
             pending.get(second).is_some(),

@@ -74,7 +74,11 @@
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
       "settings.channels.kindInline.webhook",
-      "settings.channels.maxReached"
+      "settings.channels.maxReached",
+      "restore.hosts.title",
+      "restore.hosts.confirm",
+      "restore.hosts.required",
+      "restore.after"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -1831,6 +1835,10 @@
   "restore.step.signIn": "로그인",
   "restore.restartHint": "복원한 환경설정을 적용하려면 Cuotai를 다시 시작하세요.",
   "restore.restart": "Cuotai 다시 시작",
+  "restore.hosts.title": "이 계정들은 제공업체 자체 주소가 아닌 곳으로 키를 보냅니다",
+  "restore.hosts.confirm": "이 계정들의 키를 위 주소로 보내기",
+  "restore.hosts.required": "복원하려면 위의 상자를 선택하거나 취소하세요.",
+  "restore.after": "복원 후에 남은 작업",
   "coreText.doctorKeyTerminal": "키가 터미널에서 설정되어 있습니다.",
   "coreText.doctorKeyMissing": "이 계정에 저장된 키가 없습니다.",
   "coreText.doctorNoKey": "이 계정에 저장된 키가 없습니다. 다른 방법으로 로그인한다면 무시하세요.",

@@ -92,7 +92,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -145,6 +148,7 @@
   "bundle.error.schema": "Questo backup è stato creato da un Cuotai più recente (formato {schema}); aggiorna Cuotai per ripristinarlo.",
   "bundle.error.secret": "{path} contiene qualcosa che sembra una chiave o un token, quindi non è stato scritto alcun backup; rimuovilo dal file e riprova.",
   "bundle.error.target": "Cuotai non scrive un backup sopra i propri file di cronologia, impostazioni o dati, né sopra una cartella; scegli un altro file.",
+  "bundle.error.hosts": "Questo ripristino invierebbe chiavi agli indirizzi elencati nel suo piano; confermali per ripristinare.",
   "bundle.excluded.cost_index": "Indice dei costi locali: ogni computer lo ricostruisce dai propri log.",
   "bundle.excluded.extensions": "Estensioni: le esamini e le approvi su ogni computer.",
   "bundle.excluded.logs": "Log: descrivono solo questo computer.",
@@ -2801,6 +2805,8 @@
   "bundle.setting.digest": "Riepilogo settimanale",
   "bundle.setting.alerts": "Avvisi di utilizzo",
   "bundle.setting.hooks": "Esegui gli hook",
+  "bundle.host.url": "L'account {number} ({provider}) invia la sua chiave a {host}.",
+  "bundle.host.program": "L'account {number} ({provider}) esegue {host} al posto dello strumento del suo provider, con le credenziali di questo computer.",
   "cost.settings.plans_ignored": {
     "one": "{count} prezzo del piano salvato non è valido ed è ignorato; digitalo di nuovo.",
     "other": "{count} prezzi dei piani salvati non sono validi e sono ignorati; digitali di nuovo."

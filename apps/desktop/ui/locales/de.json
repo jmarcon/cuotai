@@ -64,7 +64,11 @@
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
       "settings.channels.kindInline.webhook",
-      "settings.channels.maxReached"
+      "settings.channels.maxReached",
+      "restore.hosts.title",
+      "restore.hosts.confirm",
+      "restore.hosts.required",
+      "restore.after"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -1849,6 +1853,10 @@
   "restore.step.signIn": "Anmelden",
   "restore.restartHint": "Starte Cuotai neu, um die wiederhergestellten Einstellungen anzuwenden.",
   "restore.restart": "Cuotai neu starten",
+  "restore.hosts.title": "Diese Konten würden einen Schlüssel an eine andere Adresse als die ihres Anbieters senden",
+  "restore.hosts.confirm": "Die Schlüssel dieser Konten an die obigen Adressen senden",
+  "restore.hosts.required": "Aktivieren Sie das Kästchen oben, um wiederherzustellen, oder brechen Sie ab.",
+  "restore.after": "Nach der Wiederherstellung noch zu tun",
   "coreText.doctorKeyTerminal": "Sein Schlüssel ist im Terminal eingerichtet.",
   "coreText.doctorKeyMissing": "Für dieses Konto ist kein Schlüssel gespeichert.",
   "coreText.doctorNoKey": "Für dieses Konto ist kein Schlüssel gespeichert; ignoriere das, wenn es sich anders anmeldet.",

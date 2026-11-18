@@ -22,7 +22,11 @@
       "cost.by.requests",
       "channels.cli.outcome.rate_limited",
       "channels.cli.outcome.held",
-      "channels.cli.outcome.failing_notice"
+      "channels.cli.outcome.failing_notice",
+      "cli.restore.hosts",
+      "cli.restore.hosts_confirm",
+      "cli.restore.hosts_flag",
+      "cli.restore.hosts_refused"
     ]
   },
   "about.brazil": "Besonderer Dank: Projekte von Brasilianern",
@@ -717,6 +721,10 @@
   "cli.backup.history_large": "Die Sicherung enthält {size} MiB Verlauf; das Kopieren kann dauern.",
   "cli.restore.merge": "zusammenführen",
   "cli.restore.rows": "Zeilen: {rows}, hier neu: {new}",
+  "cli.restore.hosts": "Diese Konten würden einen Schlüssel an eine andere Adresse als die ihres Anbieters senden:",
+  "cli.restore.hosts_confirm": "Die Schlüssel dieser Konten an die obigen Adressen senden? [y/N] ",
+  "cli.restore.hosts_flag": "Die Wiederherstellung würde Schlüssel an die obigen Adressen senden: Bestätigen Sie dies in einem Terminal, oder führen Sie sie erneut mit --accept-hosts aus (--yes deckt das nicht ab).",
+  "cli.restore.hosts_refused": "Es wurde nichts wiederhergestellt.",
   "cli.list_providers.aggregator": " (Aggregator)",
   "cost.plan.no_account": "Kein konfiguriertes Konto heißt {account}; verwenden Sie seine ID oder provider:name.",
   "cost.by.requests": {

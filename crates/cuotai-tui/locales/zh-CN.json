@@ -23,7 +23,11 @@
       "cost.by.requests",
       "channels.cli.outcome.rate_limited",
       "channels.cli.outcome.held",
-      "channels.cli.outcome.failing_notice"
+      "channels.cli.outcome.failing_notice",
+      "cli.restore.hosts",
+      "cli.restore.hosts_confirm",
+      "cli.restore.hosts_flag",
+      "cli.restore.hosts_refused"
     ]
   },
   "about.brazil": "特别感谢：由巴西人创建的项目",
@@ -700,6 +704,10 @@
   "cli.backup.history_large": "备份包含 {size} MiB 的历史记录；复制可能较慢。",
   "cli.restore.merge": "合并",
   "cli.restore.rows": "行：{rows}，此处新增：{new}",
+  "cli.restore.hosts": "这些账户会把密钥发送到其提供商自身地址以外的地方：",
+  "cli.restore.hosts_confirm": "要把这些账户的密钥发送到上面的地址吗？[y/N] ",
+  "cli.restore.hosts_flag": "恢复会把密钥发送到上面的地址：请在终端中确认，或加上 --accept-hosts 重新运行（--yes 不包括这些）。",
+  "cli.restore.hosts_refused": "未恢复任何内容。",
   "cli.list_providers.aggregator": " (聚合器)",
   "cost.plan.no_account": "没有名为 {account} 的已配置账户；请使用其 id 或 provider:name。",
   "cost.by.requests": {

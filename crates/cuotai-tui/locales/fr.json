@@ -239,7 +239,11 @@
       "cost.by.requests",
       "channels.cli.outcome.rate_limited",
       "channels.cli.outcome.held",
-      "channels.cli.outcome.failing_notice"
+      "channels.cli.outcome.failing_notice",
+      "cli.restore.hosts",
+      "cli.restore.hosts_confirm",
+      "cli.restore.hosts_flag",
+      "cli.restore.hosts_refused"
     ]
   },
   "about.brazil": "Remerciements particuliers : projets créés par des Brésiliens",
@@ -934,6 +938,10 @@
   "cli.backup.history_large": "La sauvegarde contient {size} Mio d'historique ; sa copie peut être lente.",
   "cli.restore.merge": "fusionner",
   "cli.restore.rows": "lignes : {rows}, nouvelles ici : {new}",
+  "cli.restore.hosts": "Ces comptes enverraient une clé ailleurs qu’à l’adresse de leur fournisseur :",
+  "cli.restore.hosts_confirm": "Envoyer les clés de ces comptes aux adresses ci-dessus ? [y/N] ",
+  "cli.restore.hosts_flag": "La restauration enverrait des clés aux adresses ci-dessus : confirmez dans un terminal, ou relancez-la avec --accept-hosts (--yes ne les couvre pas).",
+  "cli.restore.hosts_refused": "Rien n’a été restauré.",
   "cli.list_providers.aggregator": " (agrégateur)",
   "cost.plan.no_account": "Aucun compte configuré ne s’appelle {account} ; utilisez son identifiant ou provider:name.",
   "cost.by.requests": {

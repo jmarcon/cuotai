@@ -1,5 +1,5 @@
 //! PRD 0046 RF2/RF3/RF5: `cuotai --backup FILE [--with-history]` and
-//! `cuotai --restore FILE [--check] [--yes] [--only
+//! `cuotai --restore FILE [--check] [--yes] [--accept-hosts] [--only
 //! config|prefs|user|history]`, over the core's `bundle`.
 //! `--restore FILE --check` is also the way to see what differs between a
 //! backup and this computer (RF5.1).
@@ -190,6 +190,19 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
             text.push('\n');
         }
     }
+    // Owner decision of 2026-11-18: the accounts that would send a key to
+    // another address or run another program, before anything is asked.
+    if !plan.hosts.is_empty() {
+        text += l10n::tr_in(
+            locale,
+            "cli.restore.hosts",
+            "These accounts would send a key somewhere other than their provider's own address:",
+        );
+        text.push('\n');
+        for host in &plan.hosts {
+            text += &format!("  ! {}\n", host.text.resolve(locale));
+        }
+    }
     if !plan.unplaced.is_empty() {
         text += l10n::tr_in(
             locale,
@@ -229,12 +242,17 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
 /// `--restore FILE`. With `--check`: print the plan, exit 0 (2 for a
 /// damaged or newer backup). Otherwise apply it: additions always, each
 /// replacement after a `y` in the terminal, or all of them with `--yes`.
+/// Accounts the plan lists as sending a key elsewhere ([`Plan::hosts`])
+/// need their own `y` in the terminal, or `--accept-hosts`; `--yes` does
+/// not cover them.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn restore(
     file: &Path,
     config: Option<PathBuf>,
     only: Option<&str>,
     check: bool,
     yes: bool,
+    accept_hosts: bool,
     json: bool,
     locale: &str,
 ) -> io::Result<u8> {
@@ -271,6 +289,38 @@ pub(crate) fn restore(
         return Ok(0);
     }
     let terminal = io::stdin().is_terminal();
+    let mut input = io::stdin().lock();
+    let mut hosts_confirmed = accept_hosts || plan.hosts.is_empty();
+    if !hosts_confirmed {
+        if !terminal {
+            eprintln!(
+                "cuotai: {}",
+                l10n::tr_in(
+                    locale,
+                    "cli.restore.hosts_flag",
+                    "The restore would send keys to the addresses above: confirm in a terminal, or run it again with --accept-hosts (--yes does not cover them).",
+                )
+            );
+            return Ok(1);
+        }
+        let question = l10n::tr_in(
+            locale,
+            "cli.restore.hosts_confirm",
+            "Send these accounts' keys to the addresses above? [y/N] ",
+        );
+        write!(stdout, "{question}")?;
+        stdout.flush()?;
+        let mut answer = String::new();
+        hosts_confirmed =
+            input.read_line(&mut answer).is_ok() && answer.trim().eq_ignore_ascii_case("y");
+        if !hosts_confirmed {
+            eprintln!(
+                "cuotai: {}",
+                l10n::tr_in(locale, "cli.restore.hosts_refused", "Nothing was restored.")
+            );
+            return Ok(1);
+        }
+    }
     if plan.has_conflicts() && !yes && !terminal {
         eprintln!(
             "cuotai: {}",
@@ -282,8 +332,7 @@ pub(crate) fn restore(
         );
         return Ok(1);
     }
-    let mut input = io::stdin().lock();
-    let applied = plan.apply(|item| {
+    let applied = plan.apply(hosts_confirmed, |item| {
         if yes {
             return true;
         }

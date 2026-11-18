@@ -54,7 +54,11 @@
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
       "settings.channels.kindInline.webhook",
-      "settings.channels.maxReached"
+      "settings.channels.maxReached",
+      "restore.hosts.title",
+      "restore.hosts.confirm",
+      "restore.hosts.required",
+      "restore.after"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -1811,6 +1815,10 @@
   "restore.step.signIn": "Đăng nhập",
   "restore.restartHint": "Khởi động lại Cuotai để áp dụng các tùy chọn đã khôi phục.",
   "restore.restart": "Khởi động lại Cuotai",
+  "restore.hosts.title": "Các tài khoản này sẽ gửi khóa đến nơi khác ngoài địa chỉ của chính nhà cung cấp",
+  "restore.hosts.confirm": "Gửi khóa của các tài khoản này đến các địa chỉ ở trên",
+  "restore.hosts.required": "Hãy chọn ô ở trên để khôi phục, hoặc hủy.",
+  "restore.after": "Việc còn phải làm sau khi khôi phục",
   "coreText.doctorKeyTerminal": "Khóa của tài khoản được thiết lập trong terminal.",
   "coreText.doctorKeyMissing": "Tài khoản này chưa lưu khóa nào.",
   "coreText.doctorNoKey": "Tài khoản này chưa lưu khóa nào; bỏ qua nếu nó đăng nhập theo cách khác.",

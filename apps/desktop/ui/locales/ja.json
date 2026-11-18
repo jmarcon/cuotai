@@ -72,7 +72,11 @@
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
       "settings.channels.kindInline.webhook",
-      "settings.channels.maxReached"
+      "settings.channels.maxReached",
+      "restore.hosts.title",
+      "restore.hosts.confirm",
+      "restore.hosts.required",
+      "restore.after"
     ]
   },
   "agg.alertEach": "接続ごとに通知",
@@ -1829,6 +1833,10 @@
   "restore.step.signIn": "サインイン",
   "restore.restartHint": "復元した環境設定を反映するには Cuotai を再起動してください。",
   "restore.restart": "Cuotai を再起動",
+  "restore.hosts.title": "これらのアカウントは、プロバイダー自身のアドレス以外にキーを送信します",
+  "restore.hosts.confirm": "これらのアカウントのキーを上記のアドレスに送信する",
+  "restore.hosts.required": "復元するには上のボックスにチェックを入れるか、キャンセルしてください。",
+  "restore.after": "復元後にまだ必要な作業",
   "coreText.doctorKeyTerminal": "キーはターミナルで設定されています。",
   "coreText.doctorKeyMissing": "このアカウントにはキーが保存されていません。",
   "coreText.doctorNoKey": "このアカウントにはキーが保存されていません。別の方法でサインインする場合は無視してください。",

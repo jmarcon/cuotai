@@ -694,6 +694,10 @@
   "cli.backup.history_large": "O backup guarda {size} MiB de histórico; pode demorar para copiar.",
   "cli.restore.merge": "mesclar",
   "cli.restore.rows": "linhas: {rows}, novas aqui: {new}",
+  "cli.restore.hosts": "Estas contas enviariam uma chave para um endereço diferente do próprio provedor:",
+  "cli.restore.hosts_confirm": "Enviar as chaves destas contas para os endereços acima? [y/N] ",
+  "cli.restore.hosts_flag": "A restauração enviaria chaves para os endereços acima: confirme num terminal, ou rode-a de novo com --accept-hosts (--yes não cobre isso).",
+  "cli.restore.hosts_refused": "Nada foi restaurado.",
   "cli.list_providers.aggregator": " (agregador)",
   "cost.plan.no_account": "Nenhuma conta configurada se chama {account}; use o id dela ou provider:name.",
   "cost.by.requests": {

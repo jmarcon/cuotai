@@ -277,6 +277,10 @@ struct Args {
     /// With --restore, only one part: config, prefs, user or history.
     #[arg(long, value_name = "PART", value_parser = ["config", "prefs", "user", "history"], requires = "restore")]
     only: Option<String>,
+    /// With --restore, confirms the accounts the plan lists as sending a key
+    /// to another address or running another program; --yes does not.
+    #[arg(long, requires = "restore")]
+    accept_hosts: bool,
     /// Usage statistics from the local history (limits reached, average peak
     /// of the tightest limit, extra spending, peak per day and per account),
     /// without querying the providers. With --days 7|30 (default 7) and
@@ -1351,6 +1355,7 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             args.only.as_deref(),
             args.check,
             args.yes,
+            args.accept_hosts,
             args.json,
             ui::tui_locale(),
         )?);

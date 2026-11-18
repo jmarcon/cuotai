@@ -93,7 +93,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -146,6 +149,7 @@
   "bundle.error.schema": "Esta copia la hizo un Cuotai más reciente (formato {schema}); actualiza Cuotai para restaurarla.",
   "bundle.error.secret": "{path} contiene algo que parece una clave o un token, así que no se escribió ninguna copia; quítalo del archivo y vuelve a intentarlo.",
   "bundle.error.target": "Cuotai no escribe una copia de seguridad sobre sus propios archivos de historial, configuración o datos, ni sobre una carpeta; elige otro archivo.",
+  "bundle.error.hosts": "Esta restauración enviaría claves a las direcciones que indica su plan; confírmalas para restaurar.",
   "bundle.excluded.cost_index": "Índice de coste local: cada equipo lo reconstruye a partir de sus propios registros.",
   "bundle.excluded.extensions": "Extensiones: las revisas y apruebas en cada equipo.",
   "bundle.excluded.logs": "Registros: solo describen este equipo.",
@@ -2802,6 +2806,8 @@
   "bundle.setting.digest": "Resumen semanal",
   "bundle.setting.alerts": "Alertas de uso",
   "bundle.setting.hooks": "Ejecutar hooks",
+  "bundle.host.url": "La cuenta {number} ({provider}) envía su clave a {host}.",
+  "bundle.host.program": "La cuenta {number} ({provider}) ejecuta {host} en lugar de la herramienta de su proveedor, con las credenciales de este equipo.",
   "cost.settings.plans_ignored": {
     "one": "{count} precio de plan guardado no es válido y se ignora; escríbalo de nuevo.",
     "other": "{count} precios de plan guardados no son válidos y se ignoran; escríbalos de nuevo."

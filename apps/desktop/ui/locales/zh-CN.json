@@ -78,7 +78,11 @@
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
       "settings.channels.kindInline.webhook",
-      "settings.channels.maxReached"
+      "settings.channels.maxReached",
+      "restore.hosts.title",
+      "restore.hosts.confirm",
+      "restore.hosts.required",
+      "restore.after"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -1835,6 +1839,10 @@
   "restore.step.signIn": "登录",
   "restore.restartHint": "重启 Cuotai 以应用恢复的偏好设置。",
   "restore.restart": "重启 Cuotai",
+  "restore.hosts.title": "这些账户会把密钥发送到其提供商自身地址以外的地方",
+  "restore.hosts.confirm": "把这些账户的密钥发送到上面的地址",
+  "restore.hosts.required": "勾选上面的复选框即可恢复，或取消。",
+  "restore.after": "恢复后仍需完成的事项",
   "coreText.doctorKeyTerminal": "其密钥已在终端中设置。",
   "coreText.doctorKeyMissing": "此账户未保存密钥。",
   "coreText.doctorNoKey": "此账户未保存密钥；如果它以其他方式登录，可忽略此项。",

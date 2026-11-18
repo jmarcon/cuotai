@@ -233,7 +233,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -485,6 +488,7 @@
   "bundle.error.schema": "यह बैकअप नए Cuotai (प्रारूप {schema}) से बना है; इसे पुनर्स्थापित करने के लिए Cuotai अपडेट करें।",
   "bundle.error.secret": "{path} में कुंजी या टोकन जैसा कुछ है, इसलिए कोई बैकअप नहीं लिखा गया; इसे फ़ाइल से हटाकर फिर कोशिश करें।",
   "bundle.error.target": "Cuotai अपनी इतिहास, सेटिंग या डेटा फ़ाइलों पर, या किसी फ़ोल्डर पर, बैकअप नहीं लिखता; कोई दूसरी फ़ाइल चुनें।",
+  "bundle.error.hosts": "यह पुनर्स्थापना कुंजियाँ उन पतों पर भेजेगी जो इसकी योजना में सूचीबद्ध हैं; पुनर्स्थापित करने के लिए उनकी पुष्टि करें।",
   "bundle.excluded.cost_index": "स्थानीय लागत इंडेक्स: हर कंप्यूटर इसे अपने लॉग से फिर बनाता है।",
   "bundle.excluded.extensions": "एक्सटेंशन: आप उन्हें हर कंप्यूटर पर जाँचते और मंज़ूर करते हैं।",
   "bundle.excluded.logs": "लॉग: वे केवल इसी कंप्यूटर का वर्णन करते हैं।",
@@ -2942,6 +2946,8 @@
   "bundle.setting.digest": "साप्ताहिक सार",
   "bundle.setting.alerts": "उपयोग अलर्ट",
   "bundle.setting.hooks": "हुक चलाएँ",
+  "bundle.host.url": "खाता {number} ({provider}) अपनी कुंजी {host} को भेजता है।",
+  "bundle.host.program": "खाता {number} ({provider}) अपने प्रदाता के टूल की जगह {host} चलाता है, इस कंप्यूटर के क्रेडेंशियल के साथ।",
   "cost.settings.plans_ignored": {
     "one": "{count} सहेजा गया प्लान मूल्य अमान्य है और अनदेखा किया गया; उसे फिर से लिखें।",
     "other": "{count} सहेजे गए प्लान मूल्य अमान्य हैं और अनदेखे किए गए; उन्हें फिर से लिखें।"

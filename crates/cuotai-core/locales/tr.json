@@ -215,7 +215,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -467,6 +470,7 @@
   "bundle.error.schema": "Bu yedek daha yeni bir Cuotai ile alındı (biçim {schema}); geri yüklemek için Cuotai'yi güncelleyin.",
   "bundle.error.secret": "{path} bir anahtar veya belirteç gibi görünen bir şey içeriyor, bu yüzden yedek yazılmadı; dosyadan kaldırıp yeniden deneyin.",
   "bundle.error.target": "Cuotai yedeği kendi geçmiş, ayar veya veri dosyalarının ya da bir klasörün üzerine yazmaz; başka bir dosya seçin.",
+  "bundle.error.hosts": "Bu geri yükleme, anahtarları planında listelenen adreslere gönderir; geri yüklemek için bunları onaylayın.",
   "bundle.excluded.cost_index": "Yerel maliyet dizini: her bilgisayar onu kendi günlüklerinden yeniden oluşturur.",
   "bundle.excluded.extensions": "Uzantılar: her bilgisayarda onları inceleyip onaylarsınız.",
   "bundle.excluded.logs": "Günlükler: yalnızca bu bilgisayarı anlatır.",
@@ -2924,6 +2928,8 @@
   "bundle.setting.digest": "Haftalık özet",
   "bundle.setting.alerts": "Kullanım uyarıları",
   "bundle.setting.hooks": "Kancaları çalıştır",
+  "bundle.host.url": "{number}. hesap ({provider}) anahtarını {host} adresine gönderir.",
+  "bundle.host.program": "{number}. hesap ({provider}), sağlayıcısının aracı yerine {host} programını bu bilgisayarın kimlik bilgileriyle çalıştırır.",
   "cost.settings.plans_ignored": {
     "one": "Kayıtlı {count} plan fiyatı geçersiz ve yok sayıldı; yeniden yazın.",
     "other": "Kayıtlı {count} plan fiyatı geçersiz ve yok sayıldı; yeniden yazın."

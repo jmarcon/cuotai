@@ -167,7 +167,7 @@ export const backupWrite = (withHistory) => call("backup_write", { withHistory }
 /** PRD 0046 RF3.3: the shell opens the native open dialog and plans the chosen backup ({ token, plan }, null when
  *  cancelled); the application names that file by its token (`accept`: the replacements chosen). */
 export const restorePlan = () => call("restore_plan");
-export const restoreApply = (token, accept) => call("restore_apply", { token, accept });
+export const restoreApply = (token, accept, acceptHosts = false) => call("restore_apply", { token, accept, acceptHosts });
 /** PRD 0046 RF3.3: restart the app so restored settings apply. */
 export const restartApp = () => call("restart_app");
 /** PRD 0016 RF2.2: what a paste keeps (names, counts, expiry), never the value. */
@@ -3898,10 +3898,23 @@ const demo = {
     needs: [
       { id: "bundle.need.env", params: { number: 1, provider: "groq", variable: "GROQ_API_KEY" }, fallback: "Set {variable} for account {number} ({provider})." },
       { id: "bundle.need.sign_in", params: { number: 2, provider: "claude" }, fallback: "Sign in again to account {number} ({provider})." },
+      // PRD 0046 G-0046-1: a consent switch the backup had on stays off here (no button in Next steps).
+      { id: "bundle.need.setting", params: { setting: { id: "bundle.setting.serve", params: {}, fallback: "Local server" } },
+        fallback: "Local server was on in the backup and stays off on this computer; turn it on in Settings if you want it." },
+      { id: "bundle.need.channel", params: { label: "Team", kind: "slack" }, fallback: "Type the address of the notification channel Team (slack) again." },
     ],
-    next_steps: [{ kind: "env", account: 0, provider: "groq" }, { kind: "sign_in", account: 1, provider: "claude" }],
+    next_steps: [{ kind: "env", account: 0, provider: "groq" }, { kind: "sign_in", account: 1, provider: "claude" },
+      { kind: "setting", account: 0, provider: "serve" }, { kind: "channel", account: 0, provider: "slack" }],
+    // PRD 0046 M-03: an account that would send its key to a proxy needs the dialog's own checkbox.
+    hosts: [{ account: 2, provider: "litellm", kind: "base_url", host: "https://proxy.example.com:8443",
+      text: { id: "bundle.host.url", params: { number: 3, provider: "litellm", host: "https://proxy.example.com:8443" },
+        fallback: "Account 3 (litellm) sends its key to https://proxy.example.com:8443." } }],
   } }),
-  restore_apply: async ({ accept }) => ({ written: 2 + accept.length, restart: accept.includes("prefs/desktop.json") }),
+  restore_apply: async ({ accept, acceptHosts }) => {
+    // The core refuses to write the accounts file before the hosts are confirmed (`bundle.error.hosts`).
+    if (!acceptHosts) throw JSON.stringify({ id: "bundle.error.hosts", params: {}, fallback: "This restore would send keys to the addresses its plan lists; confirm them to restore." });
+    return { written: 2 + accept.length, restart: accept.includes("prefs/desktop.json") };
+  },
   restart_app: async () => location.reload(),
   vault_prune: async ({ keys }) => { const deleted = demoSettings.vaultPruned ? [] : keys.slice(0, 1); demoSettings.vaultPruned = true; return { deleted, skipped: [] }; },
   vault_remove: async () => { demoSettings.vaultRemoved = true; return "owner_unknown"; },
