@@ -223,7 +223,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2168,6 +2169,7 @@
   "query.router_grok.provider_not_supported": "Penyedia tidak memiliki kueri di adaptor ini.",
   "query.router_keys.http": "Kueri mengembalikan HTTP {code}.",
   "query.meta.http": "Meta Model API mengembalikan HTTP {code}.",
+  "query.meta.console_http": "Konsol dev.meta.ai mengembalikan HTTP {code}; tidak ada yang dibaca.",
   "query.meta.team_id_invalid": "\"ID tim\" bukan ID tim dev.meta.ai; salin angka setelah team_id= di alamat halaman penggunaan.",
   "query.meta.project_id_invalid": "\"ID proyek\" bukan ID proyek dev.meta.ai; salin angka setelah project_id= di alamat halaman penggunaan.",
   "query.meta.session_expired": "Sesi dev.meta.ai kedaluwarsa atau dicabut; masuk lagi dari akun.",

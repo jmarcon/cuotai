@@ -242,7 +242,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -2187,6 +2188,7 @@
   "query.router_grok.provider_not_supported": "이 어댑터에서 조회할 수 없는 제공업체입니다.",
   "query.router_keys.http": "조회가 HTTP {code}을(를) 반환했습니다.",
   "query.meta.http": "Meta Model API가 HTTP {code}을(를) 반환했습니다.",
+  "query.meta.console_http": "dev.meta.ai 콘솔이 HTTP {code}을(를) 반환했습니다. 아무것도 읽지 않았습니다.",
   "query.meta.team_id_invalid": "\"팀 ID\"는 dev.meta.ai 팀 ID가 아닙니다. 사용량 페이지 주소에서 team_id= 뒤의 숫자를 복사하세요.",
   "query.meta.project_id_invalid": "\"프로젝트 ID\"는 dev.meta.ai 프로젝트 ID가 아닙니다. 사용량 페이지 주소에서 project_id= 뒤의 숫자를 복사하세요.",
   "query.meta.session_expired": "dev.meta.ai 세션이 만료되었거나 취소되었습니다. 계정에서 다시 로그인하세요.",

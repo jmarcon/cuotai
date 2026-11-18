@@ -241,7 +241,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2213,6 +2214,7 @@
   "query.router_grok.provider_not_supported": "इस एडेप्टर में प्रदाता की जाँच नहीं है।",
   "query.router_keys.http": "जाँच ने HTTP {code} लौटाया।",
   "query.meta.http": "Meta Model API ने HTTP {code} लौटाया।",
+  "query.meta.console_http": "dev.meta.ai कंसोल ने HTTP {code} लौटाया; कुछ भी नहीं पढ़ा गया।",
   "query.meta.team_id_invalid": "\"टीम ID\" dev.meta.ai टीम ID नहीं है; उपयोग पेज के पते में team_id= के बाद की संख्या कॉपी करें।",
   "query.meta.project_id_invalid": "\"प्रोजेक्ट ID\" dev.meta.ai प्रोजेक्ट ID नहीं है; उपयोग पेज के पते में project_id= के बाद की संख्या कॉपी करें।",
   "query.meta.session_expired": "dev.meta.ai सत्र समाप्त या रद्द हो गया; खाते से फिर से साइन इन करें।",

@@ -1139,7 +1139,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -3111,6 +3112,7 @@
   "query.router_grok.provider_not_supported": "Fournisseur sans requête dans cet adaptateur.",
   "query.router_keys.http": "La requête a renvoyé HTTP {code}.",
   "query.meta.http": "La Meta Model API a renvoyé HTTP {code}.",
+  "query.meta.console_http": "La console dev.meta.ai a renvoyé HTTP {code} ; rien n’a été lu.",
   "query.meta.team_id_invalid": "\"ID de l'équipe\" n'est pas un ID d'équipe dev.meta.ai ; copiez le nombre après team_id= dans l'adresse de la page d'utilisation.",
   "query.meta.project_id_invalid": "\"ID du projet\" n'est pas un ID de projet dev.meta.ai ; copiez le nombre après project_id= dans l'adresse de la page d'utilisation.",
   "query.meta.session_expired": "Session dev.meta.ai expirée ou révoquée ; reconnectez-vous depuis le compte.",

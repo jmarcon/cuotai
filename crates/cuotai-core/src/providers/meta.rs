@@ -64,6 +64,21 @@ pub(crate) async fn fetch_at(
 ) -> Result<Data, QueryError> {
     // A malformed session is refused before any request.
     let session = super::web_session(account, ctx, SESSION_SLOT)?;
+    // PRD 0049 RF8: an invalid Team ID is refused before any request, the
+    // key check included.
+    let team = match param_id(account, "team_id") {
+        Param::Set(team) => Some(team),
+        Param::Empty => None,
+        Param::Invalid if session.is_none() => None,
+        Param::Invalid => return Err(QueryError {
+            diagnostic: None,
+            status: Status::NeedsConfiguration,
+            note: Localized::fixed(
+                "query.meta.team_id_invalid",
+                "The Team ID is not a dev.meta.ai team id; copy the number after team_id= in the usage page address.",
+            ),
+        }),
+    };
     // The console session reads usage on its own; without a key the key
     // check is skipped instead of failing the whole account (the session
     // test before save runs with the typed session only).
@@ -80,7 +95,7 @@ pub(crate) async fn fetch_at(
     };
     match session {
         Some(session) => {
-            let usage = console_usage(account, ctx, console, &session.cookie).await?;
+            let usage = console_usage(account, ctx, console, &session.cookie, team, has_key).await?;
             metrics.extend(usage.0);
             notes.extend(usage.1);
         }
@@ -134,13 +149,8 @@ async fn key_check(
         .with_retry_after(super::retry_after_seconds(response.headers())));
     }
     let headers = response.headers().clone();
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| QueryError::transport())?;
-    if bytes.len() > BODY_LIMIT {
-        return Err(QueryError::schema());
-    }
+    // Bounded while streaming: an oversize body is a schema error.
+    let bytes = super::read_body(response, BODY_LIMIT).await?;
     let body: Value = serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())?;
     if !body.get("data").is_some_and(Value::is_array) {
         return Err(QueryError::schema_at(&body, &["data"], "array"));
@@ -204,13 +214,17 @@ async fn key_check(
 }
 
 /// PRD 0049 RF8/RF9: the console usage of the account's team, as metrics
-/// and notes. An expired session is an authentication error; anything else
-/// the console answers degrades to a note, so the key check still shows.
+/// and notes. An expired session is an authentication error. Any other
+/// unusable console answer degrades to a note when the key check ran
+/// (`key_checked`), so the key check still shows; without a key it is the
+/// account's error, since nothing was read.
 async fn console_usage(
     account: &Account,
     ctx: &Context<'_>,
     console: &str,
     cookie: &str,
+    team: Option<String>,
+    key_checked: bool,
 ) -> Result<(Vec<Metric>, Notes), QueryError> {
     let console = console.trim_end_matches('/');
     let mut notes = Notes::new();
@@ -218,27 +232,27 @@ async fn console_usage(
         "note.meta.console_undocumented",
         "Usage read from the dev.meta.ai console's internal interface; it may change without notice.",
     );
-    let team = match param_id(account, "team_id") {
-        Param::Set(team) => team,
-        Param::Invalid => {
-            return Err(QueryError {
-                diagnostic: None,
-                status: Status::NeedsConfiguration,
-                note: Localized::fixed(
-                    "query.meta.team_id_invalid",
-                    "The Team ID is not a dev.meta.ai team id; copy the number after team_id= in the usage page address.",
-                ),
-            })
-        }
-        Param::Empty => {
-            let Some(body) = console_get(ctx, &format!("{console}/api/portal/teams"), &[], cookie, None)
-                .await?
-            else {
-                notes.push(
-                    "note.meta.teams_unavailable",
-                    "The dev.meta.ai console did not list the teams; set the Team ID from the usage page address.",
-                );
-                return Ok((Vec::new(), notes));
+    let team = match team {
+        Some(team) => team,
+        None => {
+            let body = match console_get(
+                ctx,
+                &format!("{console}/api/portal/teams"),
+                &[],
+                cookie,
+                None,
+            )
+            .await?
+            {
+                Ok(body) => body,
+                Err(error) if !key_checked => return Err(error),
+                Err(_) => {
+                    notes.push(
+                        "note.meta.teams_unavailable",
+                        "The dev.meta.ai console did not list the teams; set the Team ID from the usage page address.",
+                    );
+                    return Ok((Vec::new(), notes));
+                }
             };
             let teams = team_ids(&body);
             match teams.as_slice() {
@@ -280,12 +294,16 @@ async fn console_usage(
     let query = usage_query(&period);
     let url = format!("{console}/api/portal/teams/{team}/usage/batch");
     let referer = format!("{console}/usage?team_id={team}");
-    let Some(body) = console_get(ctx, &url, &query, cookie, Some(&referer)).await? else {
-        notes.push(
-            "note.meta.usage_unavailable",
-            "The dev.meta.ai console did not return the usage; the card shows only the key check.",
-        );
-        return Ok((Vec::new(), notes));
+    let body = match console_get(ctx, &url, &query, cookie, Some(&referer)).await? {
+        Ok(body) => body,
+        Err(error) if !key_checked => return Err(error),
+        Err(_) => {
+            notes.push(
+                "note.meta.usage_unavailable",
+                "The dev.meta.ai console did not return the usage; the card shows only the key check.",
+            );
+            return Ok((Vec::new(), notes));
+        }
     };
     let Some(series) = body.get("metrics").and_then(Value::as_object) else {
         if cfg!(debug_assertions) {
@@ -366,16 +384,19 @@ fn team_ids(body: &Value) -> Vec<String> {
         .collect()
 }
 
-/// A console GET with the session cookie. `Ok(None)` for an answer that is
-/// not usable (another code, a non-object body); `Err` for an expired or
-/// rejected session.
+/// A console GET with the session cookie. The outer `Err` is an expired or
+/// rejected session (or a refused redirect, or a transport failure); the
+/// inner `Err` an answer that is not usable: another HTTP code (429 is a
+/// rate limit with its `Retry-After`) or a 2xx body that is not a JSON
+/// object (a schema error). The caller decides whether the inner one fails
+/// the account.
 async fn console_get(
     ctx: &Context<'_>,
     url: &str,
     query: &[(&str, String)],
     cookie: &str,
     referer: Option<&str>,
-) -> Result<Option<Value>, QueryError> {
+) -> Result<Result<Value, QueryError>, QueryError> {
     let mut request = ctx
         .http
         .get(url)
@@ -391,7 +412,8 @@ async fn console_get(
     }
     // A redirect (the sign-in of an expired session) is refused, never followed.
     let response = super::send_session(request, crate::Provider::Meta, SESSION_SLOT).await?;
-    match response.status().as_u16() {
+    let code = response.status().as_u16();
+    match code {
         401 | 403 => Err(QueryError {
             diagnostic: None,
             status: Status::AuthenticationError,
@@ -400,11 +422,27 @@ async fn console_get(
                 "dev.meta.ai session expired or revoked; sign in again from the account.",
             ),
         }),
-        200..=299 => {
-            let body = super::body_value(response).await.ok();
-            Ok(body.filter(Value::is_object))
+        200..=299 => Ok(super::body_value(response).await.and_then(|body| {
+            if body.is_object() {
+                Ok(body)
+            } else {
+                Err(QueryError::schema())
+            }
+        })),
+        _ => Ok(Err(QueryError {
+            diagnostic: None,
+            status: if code == 429 {
+                Status::RateLimited
+            } else {
+                Status::Error
+            },
+            note: Localized::with_params(
+                "query.meta.console_http",
+                params([("code", ParamValue::from(code))]),
+                "The dev.meta.ai console returned HTTP {code}; nothing was read.",
+            ),
         }
-        _ => Ok(None),
+        .with_retry_after(super::retry_after_seconds(response.headers())))),
     }
 }
 
@@ -1208,6 +1246,230 @@ mod tests {
                 .expect_err("invalid");
             assert_eq!(err.status, Status::NeedsConfiguration, "{key}");
         }
+    }
+
+    /// A session-only account (no key) against a console mock: `teams`
+    /// answers the team listing when given, `usage` the usage request.
+    async fn session_only(
+        account: &Account,
+        teams: Option<ResponseTemplate>,
+        usage: ResponseTemplate,
+    ) -> Result<Data, QueryError> {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(models()))
+            .expect(0)
+            .mount(&server)
+            .await;
+        if let Some(teams) = teams {
+            Mock::given(method("GET"))
+                .and(path("/api/portal/teams"))
+                .respond_with(teams)
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        Mock::given(method("GET"))
+            .and(path("/api/portal/teams/1001/usage/batch"))
+            .respond_with(usage)
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        let ctx = Context {
+            http: &http,
+            direct: &http,
+            credentials: &SessionOnly,
+            timeout: Duration::from_secs(5),
+        };
+        fetch_at(
+            account,
+            &ctx,
+            &format!("{}/v1/models", server.uri()),
+            &server.uri(),
+        )
+        .await
+    }
+
+    /// The report the pre-save session test sees for `result`.
+    fn report_of(result: Result<Data, QueryError>) -> crate::Report {
+        let account = session_account(&[]);
+        let (status, metrics, notes_l10n) = match result {
+            Ok(data) => (Status::Ready, data.metrics, data.notes_l10n),
+            Err(error) => (error.status, Vec::new(), vec![error.note]),
+        };
+        crate::Report {
+            account_id: None,
+            diagnostic: None,
+            account: account.name.clone(),
+            provider: account.provider,
+            checked_at: Utc::now(),
+            status,
+            metrics,
+            notes: notes_l10n.iter().map(|n| n.fallback.to_string()).collect(),
+            notes_l10n,
+            source: String::new(),
+            session_expires_at: None,
+            sub_reports: Vec::new(),
+            as_of: None,
+            overage_hint: None,
+            breakdown: Vec::new(),
+        }
+    }
+
+    /// PRD 0049 re-validation R49-01: without a key, a console answer that
+    /// reads nothing is the account's error, never "Up to date", and the
+    /// pre-save session test rejects it.
+    #[tokio::test]
+    async fn session_only_console_failure_is_an_error() {
+        let err = session_only(
+            &session_account(&[("team_id", "1001")]),
+            None,
+            ResponseTemplate::new(500).set_body_string("placeholder-session SECRET"),
+        )
+        .await
+        .expect_err("nothing read");
+        assert_eq!(err.status, Status::Error);
+        assert_eq!(err.note.id, "query.meta.console_http");
+        assert!(err.note.text().contains("500"));
+        for absent in ["placeholder", "SECRET", "127.0.0.1"] {
+            assert!(!err.note.text().contains(absent), "{absent}");
+        }
+        assert_eq!(
+            crate::user_session::SessionCheck::of(&report_of(Err(err))),
+            crate::user_session::SessionCheck::Rejected
+        );
+    }
+
+    #[tokio::test]
+    async fn session_only_console_rate_limit_keeps_the_wait() {
+        let err = session_only(
+            &session_account(&[("team_id", "1001")]),
+            None,
+            ResponseTemplate::new(429).insert_header("retry-after", "120"),
+        )
+        .await
+        .expect_err("rate limited");
+        assert_eq!(err.status, Status::RateLimited);
+        let Some(crate::text::ParamValue::Text(seconds)) =
+            err.note.params.get(crate::Report::RETRY_AFTER_PARAM)
+        else {
+            panic!("the wait is kept");
+        };
+        let seconds: u64 = seconds.parse().unwrap();
+        assert!((119..=120).contains(&seconds), "{seconds}");
+    }
+
+    #[tokio::test]
+    async fn session_only_console_html_is_a_schema_error() {
+        let err = session_only(
+            &session_account(&[("team_id", "1001")]),
+            None,
+            ResponseTemplate::new(200).set_body_raw("<html>sign in</html>", "text/html"),
+        )
+        .await
+        .expect_err("schema");
+        assert_eq!(err.note.id, QueryError::schema().note.id);
+        assert_eq!(err.status, Status::Error);
+    }
+
+    #[tokio::test]
+    async fn session_only_team_listing_failure_is_an_error() {
+        let err = session_only(
+            &session_account(&[]),
+            Some(ResponseTemplate::new(500)),
+            ResponseTemplate::new(200).set_body_json(zero_sample()),
+        )
+        .await
+        .expect_err("no team listing");
+        assert_eq!(err.status, Status::Error);
+        assert_eq!(err.note.id, "query.meta.console_http");
+    }
+
+    /// The console answered with the session: several teams verify it, so
+    /// the account stays readable and the pre-save test passes.
+    #[tokio::test]
+    async fn session_only_several_teams_is_still_ready() {
+        let teams = ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "teams": [{ "team_id": "1001" }, { "team_id": "1002" }]
+        }));
+        let data = session_only(
+            &session_account(&[]),
+            Some(teams),
+            ResponseTemplate::new(500),
+        )
+        .await
+        .expect("the session answered");
+        assert!(data.metrics.is_empty());
+        assert!(data.notes.iter().any(|n| n.contains("2 teams")));
+        assert_eq!(
+            crate::user_session::SessionCheck::of(&report_of(Ok(data))),
+            crate::user_session::SessionCheck::Passed
+        );
+    }
+
+    /// RF9 unchanged: with a key, a console failure degrades to a note and
+    /// the key check still shows.
+    #[tokio::test]
+    async fn keyed_console_failure_degrades_to_a_note() {
+        let data = console(
+            &session_account(&[("team_id", "1001")]),
+            None,
+            ResponseTemplate::new(500),
+        )
+        .await
+        .expect("key check still shows");
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|n| n.id == "note.meta.usage_unavailable"));
+        assert!(data
+            .notes_l10n
+            .iter()
+            .any(|n| n.id == "note.meta.key_valid"));
+    }
+
+    /// PRD 0049 RF8: an invalid Team ID makes no request at all, the key
+    /// check included.
+    #[tokio::test]
+    async fn invalid_team_id_makes_no_request_at_all() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(models()))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let http = reqwest::Client::new();
+        let ctx = Context {
+            http: &http,
+            direct: &http,
+            credentials: &KeyAndSession,
+            timeout: Duration::from_secs(5),
+        };
+        let err = fetch_at(
+            &session_account(&[("team_id", "../x")]),
+            &ctx,
+            &format!("{}/v1/models", server.uri()),
+            &server.uri(),
+        )
+        .await
+        .expect_err("invalid");
+        assert_eq!(err.status, Status::NeedsConfiguration);
+        assert_eq!(err.note.id, "query.meta.team_id_invalid");
+    }
+
+    /// R49-04: the key check refuses an oversize body while streaming.
+    #[tokio::test]
+    async fn oversize_model_listing_is_a_schema_error() {
+        let big = format!("{{\"data\":[],\"pad\":\"{}\"}}", "x".repeat(BODY_LIMIT));
+        let err = run(ResponseTemplate::new(200).set_body_string(big))
+            .await
+            .expect_err("oversize");
+        assert_eq!(err.status, Status::Error);
+        assert_eq!(err.note.id, QueryError::schema().note.id);
     }
 
     #[test]
