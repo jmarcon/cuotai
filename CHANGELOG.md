@@ -13,6 +13,40 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.86.10] - 2026-11-18
+
+### Fixed
+
+- A budget keeps counting after the provider resets its counter inside the budget period, and says when part of the period's use was not recorded (PRD 0041 RF2.2, RF2.3, RF4.1; 47ee346).
+- Two budgets on the same metric get their own names and alerts, and each balance floor warns on its own, also when it is set above the current balance (PRD 0041 RF1.2, RF2.1, RF2.4, RF3.1; 03d4649).
+- Budget notes, the budget period and the most restrictive limit line read in your language, with dates in your format (PRD 0041 RF2.1, RF2.4, RF2.5; 010148e).
+- A budget in another currency than its metric is refused with both currencies named, instead of reading as a missing metric (PRD 0041 RF1.2; e9f1737).
+- The budget and floor editors read amounts the way your language writes them, refuse one such as 1,000 that could be read two ways, and show each problem under its field (PRD 0041 RF1.2, RF5.1, RF5.2; e9d0ad2).
+- The `--cost-plan` and `--cost-currency` options refuse an amount such as 1,000 instead of saving 1 (PRD 0041 RF1.2, RF5.1, RF5.2; e9d0ad2).
+- A budget keeps its own name in the desktop details and carries the ◇ mark on the terminal card (PRD 0041 RF2; 5c78484).
+- An invalid budget or floor is left out with a note on its account instead of stopping every account from loading (PRD 0041 RF1.2, RF3.2; 711ca26).
+- The daily allowance says "less than" instead of 0 when little is left, shows nothing once a budget is used up, and gives a money budget's recent pace in money (PRD 0041 RF4.1, RF4.2; 2d22282).
+- The live block line and its projection now include the cost of models without a known price as "+ unknown cost", and project only tokens when most of them have no price (PRD 0042 RF3.3, RF6.2; 6cf0081).
+- The live block's amounts and the burn-rate message read in your language and say how many recent requests were seen (PRD 0042 RF3.3, RF6.2; 6cf0081).
+- Hiding a project now leaves it out of every local cost total, in the terminal, the desktop and `export::v1`, and each view says how many projects are hidden (PRD 0042 RF4.1, RF6.1, RF7; 3de1254).
+- Folder names and project dates now follow the index's retention (PRD 0042 RF4.3, RF1.1, RF7; 9587bca).
+- Log lines dated in the future are no longer stored in the local cost index (PRD 0042 RF1.1; ee64ea1).
+- The output of `cuotai --cost-sources` now shows the size of the local cost index (PRD 0042 RF1.1; ee64ea1).
+- The session list of `cuotai --cost --by session` names each session's project by its label, keeps a labelled session's time, and explains the code in brackets (PRD 0042 RF2.2, RF3.2, RF5.1, RF5.2, RF5.3; 1cbcde7).
+- Blocks and sessions that cross midnight show their end date, and the active block is listed first everywhere (PRD 0042 RF2.2, RF3.2, RF5.1, RF5.2, RF5.3; 1cbcde7).
+- The live view of `cuotai --cost-live` redraws without filling the scrollback and exits 2 for a source that is off, and `--top` is refused where it does not apply (PRD 0042 RF2.2, RF3.2, RF5.1, RF5.2, RF5.3; 1cbcde7).
+- The desktop's sessions, blocks and projects page fits every language, shows each session's name and code, lists older sessions on request, and announces only a changed live line to screen readers (PRD 0042 RF6.1, RF6.2; 0c81f8f).
+
+### Security
+
+- Budget names, units and filters, including budgets on breakdown rows, can no longer carry invisible direction characters into the outputs (PRD 0041 RF1.2, RF3.2; 711ca26).
+- Turning the folder-name hint off now also stops a scan already running from keeping names, and removes them from the pre-upgrade copy of the index (PRD 0042 RF4.3, RF1.1, RF7; 9587bca).
+- The `cuotai --cost --by project --json` output no longer prints folder names (PRD 0042 RF4.3, RF1.1, RF7; 9587bca).
+- Turning a local cost source off removes the folder names it kept and turns its hint off (PRD 0042 RF4.3, RF1.1, RF7; 9587bca).
+- Session and project labels and folder names can no longer carry invisible or direction characters (PRD 0042 RF4.2; 78a4dcd).
+- The desktop's local cost breakdown, labels, hidden projects and source options can only be read or changed from the Settings window (PRD 0042 RF6.1; ab147fb).
+- Session, request and log-file fingerprints in the local cost index are keyed to this computer, as project fingerprints already were (PRD 0042 RF1.1; 0cd98e0).
+
 ## [0.86.9] - 2026-11-17
 
 ### Added
@@ -1096,7 +1130,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.9...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.86.10...HEAD
+[0.86.10]: https://github.com/jmarcon/cuotai/compare/v0.86.9...v0.86.10
 [0.86.9]: https://github.com/jmarcon/cuotai/compare/v0.86.8...v0.86.9
 [0.86.8]: https://github.com/jmarcon/cuotai/compare/v0.86.7...v0.86.8
 [0.86.7]: https://github.com/jmarcon/cuotai/compare/v0.86.6...v0.86.7

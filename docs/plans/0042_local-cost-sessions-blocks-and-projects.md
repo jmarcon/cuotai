@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0042 |
-| Status | Awaiting owner verification (2026-11-17 re-validation fixes in vNEXT) |
+| Status | Awaiting owner verification (2026-11-17 re-validation fixes in 0.86.10) |
 | Owner | `cuotai-core` (`cost` index schema v2, `cost::blocks`, `cost::sessions`, `cost::projects`, live summary), `cuotai-tui` (`--cost --by`, `--cost-live`), desktop (Local cost tabs, card line) |
 | Consumers | Every front end; `export::v1` `local_cost` (additive); PRD 0026 stats |
 | Depends on | PRD 0015 (local cost index and scanner), PRD 0030 (price table, plan value) |
@@ -17,21 +17,21 @@
 
 | RF | Version | Delivery |
 |---|---|---|
-| RF1 | 0.83.0 | `cost.sqlite3` schema 2 (migration 3): `requests` (one row per request: time, model, session digest, project fingerprint, token counts), `projects` (label, opt-in `folder_hint`, `hidden`, first/last seen) and `session_labels`. The migration re-reads each followed file once from its start and adds only the request rows of lines already counted (`files.backfill`), so day totals never change; history whose logs are gone keeps its day totals but has no sessions or blocks. The three readers hash `cwd` (Claude Code lines, Codex `session_meta`/`turn_context`) into a 16-hex fingerprint and drop it (keyed with the per-install key since 0.85.4, PRD 0015 S-03; session, request and log-file digests keyed too since vNEXT, see the 2026-11-17 re-validation); Gemini CLI has no folder, so its fingerprint is a digest of its own `projectHash`. The disclosure wording is version 2 (new `extracted_v2`/`never_v2` sentences); a source consented under version 1 is reported as `reconsent` and reads nothing until accepted again. `block_start` is not stored: blocks are computed at query time, because the block length is a setting. |
+| RF1 | 0.83.0 | `cost.sqlite3` schema 2 (migration 3): `requests` (one row per request: time, model, session digest, project fingerprint, token counts), `projects` (label, opt-in `folder_hint`, `hidden`, first/last seen) and `session_labels`. The migration re-reads each followed file once from its start and adds only the request rows of lines already counted (`files.backfill`), so day totals never change; history whose logs are gone keeps its day totals but has no sessions or blocks. The three readers hash `cwd` (Claude Code lines, Codex `session_meta`/`turn_context`) into a 16-hex fingerprint and drop it (keyed with the per-install key since 0.85.4, PRD 0015 S-03; session, request and log-file digests keyed too since 0.86.10, see the 2026-11-17 re-validation); Gemini CLI has no folder, so its fingerprint is a digest of its own `projectHash`. The disclosure wording is version 2 (new `extracted_v2`/`never_v2` sentences); a source consented under version 1 is reported as `reconsent` and reads nothing until accepted again. `block_start` is not stored: blocks are computed at query time, because the block length is a setting. |
 | RF2 | 0.83.0 | `Scanner::sessions` (`cost::sessions` pure): per session digest, source, first/last, duration, models, tokens, cost, requests and the main project; paging; labels with `--cost-label session PREFIX LABEL` or inline in the desktop. |
 | RF3 | 0.83.0 | `Scanner::blocks`/`cost::blocks`: a block starts at the hour of the first request after the previous one ended (as `ccusage`), lasts `block_hours` (per source, 1–24; default 5 for Claude Code and Codex CLI, 24 for Gemini CLI), and the provider's 5-hour window of a ready account is attached beside the active block, never merged. `cost::live`: burn rate over the last 10 minutes (`None` under 3 requests or 3 minutes), projection only from 20% elapsed and never for unpriced usage. |
 | RF4 | 0.83.0 | `Scanner::projects`/`cost::projects`: label or "Project ab12cd34", "No project" for lines without a folder, hidden projects listed and left out of the totals; `--cost-label project`, `--cost-hide`/`--cost-unhide`; the opt-in folder-name hint (`--cost-folder-hint SOURCE on|off`, Settings), off by default, deleted when turned off, never exported. |
 | RF5 | 0.83.0 | `cuotai --cost --by day|model|session|block|project [--top N|--all] [--json]`, `cuotai --cost-live [--source S] [--watch-interval S] [--json]` (in place with `q` on a terminal, NDJSON with `--json`), `--cost-block-hours SOURCE HOURS`; exit codes as `--cost`. The provider window appears only in front ends that hold readings (desktop, TUI details), not in the CLI. |
 | RF6 | 0.83.0 | Settings › Advanced › Local cost › **Sessions, blocks and projects**: the per-source block length and folder-name hint, a Days · Models · Sessions · Blocks · Projects segmented control with the KPI header, inline labels, Hide, and the active block's live figures refreshed from the index every 30 s. The card's "This block ≈ $4.10 · 38K tok/min" line under the local usage (tooltip: honest-data suffix and projection); the TUI details show the same line. |
 | RF7 | 0.83.0 | `export::v1` `local_cost` gains `blocks[]` (last 7 days), `live[]` (one per source with an active block) and `projects[]` (labels or digest prefixes, never hidden projects or folder names), all omitted when empty; docs updated. The cross-check with PRD 0040's fed session cost is not done (optional, display only). |
-| 2026-11-17 re-validation | vNEXT | Fixes of RF1.1, RF2.2, RF3.2, RF3.3, RF4.1–RF4.3, RF5.1–RF5.3, RF6.1, RF6.2 and RF7 (1 high, 12 medium, 26 low findings); see "2026-11-17 re-validation" below. |
+| 2026-11-17 re-validation | 0.86.10 | Fixes of RF1.1, RF2.2, RF3.2, RF3.3, RF4.1–RF4.3, RF5.1–RF5.3, RF6.1, RF6.2 and RF7 (1 high, 12 medium, 26 low findings); see "2026-11-17 re-validation" below. |
 | Owner verification | — | The nine-item checklist under "2026-11-17 re-validation" (§2.1 of `0000_control.md`). |
 
-### 2026-11-17 re-validation (vNEXT)
+### 2026-11-17 re-validation (0.86.10)
 
-The re-validation (Visual, Security, Review) found 1 high, 12 medium and 26 low findings; the fixes ship in vNEXT, one commit per group:
+The re-validation (Visual, Security, Review) found 1 high, 12 medium and 26 low findings; the fixes ship in 0.86.10, one commit per group:
 
-| Group | Findings | RF | Delivery (vNEXT) |
+| Group | Findings | RF | Delivery (0.86.10) |
 |---|---|---|---|
 | K1 | H-01 (high), M-04, M-08, R-05 (live) | RF3.3, RF6.2 | The live line always carries "+ unknown cost of N tokens" for models without a price, and its money is formatted in the reader's language (one formatter, `cost_part`, shared with every usage line). The projection splits priced and unpriced tokens over the burn window: below half unpriced it reads "≈ $X + unknown cost of about N tokens by 18:53" (`money_partial`); at half or more it projects tokens only and `projected_block_cost` is null (`tokens`). `rate_missing` gives the reason there is no burn rate: too few recent requests, with the count seen, or a block younger than 3 minutes. `export::v1` `live` gains `unknown_tokens`, `projected_tokens`, `projected_unknown_tokens`, `projection_kind` and `rate_missing` (additive). |
 | K2 | M-05, R-02 (figure), R-05 (hidden) | RF4.1, RF6.1, RF7 | A hidden project is left out of every total and figure: days, models, sessions, blocks, the live block, the plan value, the card, `--cost --json` and `export::v1` (`hidden_projects`, `hidden_note`). It stays listed, flagged, in the Projects view, and every view says "N hidden projects are not counted in these figures." (`cost.hidden.note`); `--by project` adds the `--cost-unhide` hint. Blocks stay aligned on every request, because the provider's window counts them all; a block with only hidden requests is not listed. The Blocks total is the sum of the listed blocks. |
@@ -52,7 +52,7 @@ The re-validation (Visual, Security, Review) found 1 high, 12 medium and 26 low 
 - **No size cap** on the index, for the reason in K5.
 
 **Deviations, documented:**
-- RF1's first row said "16-hex SHA-256 fingerprint"; project fingerprints have been keyed since 0.85.4 (PRD 0015 S-03), and session, request and file digests are keyed since vNEXT (K9).
+- RF1's first row said "16-hex SHA-256 fingerprint"; project fingerprints have been keyed since 0.85.4 (PRD 0015 S-03), and session, request and file digests are keyed since 0.86.10 (K9).
 - `--cost-live --json` stays a plain array of blocks; the hidden note appears in its text output only.
 - The desktop KPI keeps the `.long` shorter-figure step that the design system's DS-CMP-KPI-1 amendment requires; the figure now wraps.
 - Turning the folder-name hint off also deletes `cost.sqlite3.bak`, the migration's rollback copy, as an erase already does.
