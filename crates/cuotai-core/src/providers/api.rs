@@ -331,7 +331,7 @@ async fn openai(account: &Account, ctx: &Context<'_>, base: &str) -> Result<Data
                 rows.extend(found);
                 crate::breakdown::push_notes(&mut notes, extra);
             }
-            Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+            Err(error) => notes.push_note(crate::breakdown::unavailable_note(kind, &error)),
         }
     }
 
@@ -835,7 +835,10 @@ async fn anthropic(account: &Account, ctx: &Context<'_>, base: &str) -> Result<D
                 rows = found;
                 crate::breakdown::push_notes(&mut notes, extra);
             }
-            Err(error) => notes.push_note(crate::breakdown::unavailable_note(&error)),
+            Err(error) => notes.push_note(crate::breakdown::unavailable_note(
+                crate::BreakdownKind::Workspaces,
+                &error,
+            )),
         }
     }
 
@@ -1732,7 +1735,10 @@ mod tests {
         assert!(rows.iter().filter(|r| r.is_others()).count() == 1);
         // The card line names projects, in money.
         let top = crate::breakdown::top_line(rows, crate::breakdown::CARD_ROWS).unwrap();
-        assert_eq!(top.text(), "Top: Project …rojc $920 · Project …rojb $910");
+        assert_eq!(
+            top.text(),
+            "Top: Project …rojc $920.00 · Project …rojb $910.00"
+        );
     }
 
     #[tokio::test]
@@ -1818,7 +1824,7 @@ mod tests {
             crate::breakdown::top_line(rows, crate::breakdown::CARD_ROWS)
                 .unwrap()
                 .text(),
-            "Top: Proj-A $412 · Proj-B $298"
+            "Top: Proj-A $412.00 · Proj-B $298.00"
         );
     }
 

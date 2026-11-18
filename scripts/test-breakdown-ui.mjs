@@ -72,7 +72,13 @@ const five = {
     row("e", "Proj-E", spend(1)),
   ],
   by_percent: [1, 0, 2, 3, 4],
-  top: text("breakdown.top", "Top: Proj-A $412 · Proj-B $92", { items: "Proj-A $412 · Proj-B $92" }),
+  // PRD 0045 re-validation (V-04): the core sends each item nested, its amount as `amount.money`.
+  top: text("breakdown.top", "Top: Proj-A $412.00 · Proj-B $92.00", {
+    items: text("breakdown.top_pair", "Proj-A $412.00 · Proj-B $92.00", {
+      first: text("breakdown.top_item", "Proj-A $412.00", { label: verbatim("Proj-A"), amount: text("amount.money", "$412.00", { value: "412", currency: "USD" }) }),
+      second: text("breakdown.top_item", "Proj-B $92.00", { label: verbatim("Proj-B"), amount: text("amount.money", "$92.00", { value: "92", currency: "USD" }) }),
+    }),
+  }),
   truncated: null,
 };
 for (const locale of locales) {
@@ -123,7 +129,11 @@ const components = await import("../apps/desktop/ui/js/components.js");
 const density = await import("../apps/desktop/ui/js/density.js");
 const card = { ...cardReport({ provider: "open_router", account: "Org" }), breakdown: five };
 density.applyRowLayout({ preset: "detailed" });
-assert.match(components.rowHtml(card, { title: "OpenRouter" }), /data-breakdown-top>Top: Proj-A \$412 · Proj-B \$92</);
+assert.match(components.rowHtml(card, { title: "OpenRouter" }), /data-breakdown-top>Top: Proj-A \$412\.00 · Proj-B \$92\.00</);
+// In German the amounts follow the locale's number format.
+await i18n.setLocale?.("de");
+assert.match(components.rowHtml(card, { title: "OpenRouter" }), /data-breakdown-top>Größte: Proj-A 412,00\s\$ · Proj-B 92,00\s\$</);
+await i18n.setLocale?.("en-US");
 density.applyRowLayout({ preset: "standard" });
 assert.ok(!components.rowHtml(card, { title: "OpenRouter" }).includes("data-breakdown-top"));
 density.applyRowLayout({ preset: "detailed" });

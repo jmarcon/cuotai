@@ -117,10 +117,33 @@ impl BreakdownRow {
     }
 
     /// The label to show: "Others (N)" through the catalog for the sum row,
-    /// the redacted provider name verbatim otherwise.
+    /// a generated label of the row's own scope ([`fallback_label`]: "Key",
+    /// "Key …ab12") through the catalog too (`breakdown.fallback`,
+    /// `breakdown.noun.*`), the redacted provider name verbatim otherwise.
+    /// The stored `label` stays English.
     pub fn label_text(&self) -> Localized {
-        match self.others_count() {
-            Some(count) => others_label(count),
+        if let Some(count) = self.others_count() {
+            return others_label(count);
+        }
+        let english = scope_noun(self.scope);
+        if self.label == english {
+            return noun_text(self.scope);
+        }
+        let tail = self
+            .label
+            .strip_prefix(english)
+            .and_then(|rest| rest.strip_prefix(" …"))
+            .filter(|tail| (1..=4).contains(&tail.len()))
+            .filter(|tail| tail.bytes().all(|b| b.is_ascii_alphanumeric()));
+        match tail {
+            Some(tail) => Localized::with_params(
+                "breakdown.fallback",
+                params([
+                    ("noun", ParamValue::from(noun_text(self.scope))),
+                    ("tail", ParamValue::from(tail)),
+                ]),
+                "{noun} …{tail}",
+            ),
             None => metric_text(&self.label),
         }
     }
@@ -271,44 +294,47 @@ pub fn top_line(rows: &[BreakdownRow], count: usize) -> Option<Localized> {
             .find(|row| !row.is_others())
             .map(|row| row.scope)
     })?;
-    let items: Vec<String> = sorted(rows, SortBy::Spend)
+    let items = sorted(rows, SortBy::Spend)
         .into_iter()
         .filter(|row| !row.is_others() && row.scope == scope)
         .filter_map(|row| {
             let metric = row.primary()?;
-            Some(format!(
-                "{} {}",
-                row.label,
-                amount_text(metric.used?, &metric.unit)
+            let used = metric.used.filter(|used| used.is_finite())?;
+            Some(Localized::with_params(
+                "breakdown.top_item",
+                params([
+                    ("label", ParamValue::from(row.label_text())),
+                    ("amount", ParamValue::from(amount(used, &metric.unit))),
+                ]),
+                "{label} {amount}",
             ))
         })
         .take(count)
-        .collect();
-    if items.is_empty() {
-        return None;
-    }
+        .reduce(|first, second| {
+            Localized::with_params(
+                "breakdown.top_pair",
+                params([
+                    ("first", ParamValue::from(first)),
+                    ("second", ParamValue::from(second)),
+                ]),
+                "{first} · {second}",
+            )
+        })?;
     Some(Localized::with_param(
         "breakdown.top",
         "items",
-        items.join(" · "),
+        items,
         "Top: {items}",
     ))
 }
 
-/// "$412", "$0.25", "1.2k tokens": a compact amount for the card line.
-pub fn amount_text(value: f64, unit: &str) -> String {
-    let compact = |value: f64| {
-        if value.abs() >= 1000.0 {
-            format!("{:.1}k", value / 1000.0)
-        } else if value.abs() >= 100.0 || value.fract() == 0.0 {
-            format!("{value:.0}")
-        } else {
-            format!("{value:.2}")
-        }
-    };
-    match unit {
-        "USD" => format!("${}", compact(value)),
-        unit => format!("{} {}", compact(value), metric_text(unit).text()),
+/// An amount of the card line in the reader's number format: money through
+/// [`crate::text::number::money`], other units with their unit's text.
+fn amount(value: f64, unit: &str) -> Localized {
+    if unit == "USD" {
+        crate::text::number::money(value, unit)
+    } else {
+        crate::text::number::units_text(value, metric_text(unit))
     }
 }
 
@@ -394,16 +420,31 @@ fn last4(text: &str) -> String {
     tail.into_iter().rev().collect()
 }
 
-/// The generic label of a row without a usable name: "Key …ab12".
-pub fn fallback_label(scope: ScopeKind, id: &str) -> String {
-    let noun = match scope {
+/// The English noun of a scope ("Virtual key"), as [`fallback_label`]
+/// writes it.
+fn scope_noun(scope: ScopeKind) -> &'static str {
+    match scope {
         ScopeKind::Key => "Key",
         ScopeKind::VirtualKey => "Virtual key",
         ScopeKind::Project => "Project",
         ScopeKind::Workspace => "Workspace",
         ScopeKind::Team => "Team",
         ScopeKind::Model => "Model",
-    };
+    }
+}
+
+/// `breakdown.noun.<scope>`: the scope's noun in the reader's language.
+fn noun_text(scope: ScopeKind) -> Localized {
+    Localized::fixed(
+        format!("breakdown.noun.{}", scope_slug(scope)),
+        scope_noun(scope),
+    )
+}
+
+/// The generic label of a row without a usable name: "Key …ab12". It is
+/// stored in English; [`BreakdownRow::label_text`] shows it translated.
+pub fn fallback_label(scope: ScopeKind, id: &str) -> String {
+    let noun = scope_noun(scope);
     match last4(id) {
         tail if tail.is_empty() => noun.to_owned(),
         tail => format!("{noun} …{tail}"),
@@ -564,8 +605,11 @@ pub(crate) fn disabled_note() -> Localized {
 }
 
 /// §6 Resilience: the account note of a breakdown request that failed,
-/// with the failure class; the main report stands.
-pub(crate) fn unavailable_note(error: &crate::providers::QueryError) -> Localized {
+/// with the kind that failed and the failure class; the main report stands.
+pub(crate) fn unavailable_note(
+    kind: BreakdownKind,
+    error: &crate::providers::QueryError,
+) -> Localized {
     use crate::Status;
     let (slug, text) = match error.status {
         Status::AuthenticationError | Status::NeedsConfiguration => {
@@ -578,11 +622,16 @@ pub(crate) fn unavailable_note(error: &crate::providers::QueryError) -> Localize
         }
         _ => ("other", "query failed"),
     };
-    Localized::with_param(
+    Localized::with_params(
         "note.breakdown.unavailable",
-        "class",
-        Localized::fixed(format!("breakdown.error.{slug}"), text),
-        "The breakdown is unavailable right now ({class}); the account total is still correct.",
+        params([
+            ("kind", ParamValue::from(kind.label())),
+            (
+                "class",
+                ParamValue::from(Localized::fixed(format!("breakdown.error.{slug}"), text)),
+            ),
+        ]),
+        "The {kind} breakdown is unavailable right now ({class}); the account total is still correct.",
     )
 }
 
@@ -950,7 +999,7 @@ mod tests {
         assert_eq!(by_percent, ["b", "a", "c"]);
         assert_eq!(
             top_line(&rows, CARD_ROWS).unwrap().text(),
-            "Top: Proj-c $412 · Proj-a $90"
+            "Top: Proj-c $412.00 · Proj-a $90.00"
         );
         assert!(top_line(&[], CARD_ROWS).is_none());
         assert_eq!(rows[1].fraction(), Some(1.0));
@@ -958,9 +1007,20 @@ mod tests {
 
     #[test]
     fn the_unavailable_note_names_the_class_only() {
-        let note = unavailable_note(&crate::providers::QueryError::schema());
+        let note = unavailable_note(
+            BreakdownKind::Teams,
+            &crate::providers::QueryError::schema(),
+        );
         assert_eq!(note.id, "note.breakdown.unavailable");
-        assert!(note.text().contains("unexpected answer"));
+        assert_eq!(
+            note.text(),
+            "The Teams breakdown is unavailable right now (unexpected answer); the account total is still correct."
+        );
+        assert!(!note.text().contains("http"));
+        assert_eq!(
+            note.resolve("de"),
+            "Die Aufschlüsselung nach Teams ist gerade nicht verfügbar (unerwartete Antwort); die Kontosumme bleibt korrekt."
+        );
     }
 }
 
@@ -1216,3 +1276,7 @@ mod units_tests;
 #[cfg(test)]
 #[path = "breakdown_others_tests.rs"]
 mod others_tests;
+
+#[cfg(test)]
+#[path = "breakdown_text_tests.rs"]
+mod text_tests;
