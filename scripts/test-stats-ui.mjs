@@ -196,4 +196,17 @@ await i18n.setLocale("en-US");
   await i18n.setLocale("en-US");
 }
 
+// PRD 0043 re-validation V-01: the popover's 24-hour strip is named by its summary, so its chart has no visible caption;
+// the Stats card keeps one caption per chart. The strip itself is drawn with the Stats tokens (ui-shots `tray-strip`).
+{
+  assert.ok(demo.rhythm, "the demo answer carries the rhythm");
+  const card = statsBodyHtml(demo, view, "st-rh", { range: "days30" });
+  assert.equal((card.match(/<figcaption/g) ?? []).length, 3, "the Rhythm card keeps its three captions");
+  const strip = rhythmChartHtml(demo.rhythm.last_24h, "pop-strip", "day", { caption: false });
+  assert.ok(!strip.includes("<figcaption"), "the popover strip has no figcaption");
+  assert.match(strip, /role="img" aria-label="[^"]+" aria-describedby="pop-strip-day-table"/, "the strip keeps its name and table");
+  const tray = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/tray.js", root)), "utf8");
+  assert.match(tray, /rhythmChartHtml\(strip\.rhythm, "pop-strip", "day", \{ caption: false \}\)/, "the popover asks for no caption");
+}
+
 console.log("PASS: Stats view and reset timeline render honestly in pt-BR, en-US, es and it; catalog keys match");

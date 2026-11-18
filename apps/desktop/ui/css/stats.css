@@ -3,7 +3,8 @@
    shared tokens land. No animation: charts never animate their entrance (DS-CHT-2). */
 
 .stats,
-.timeline {
+.timeline,
+.pop-strip {
   --sp-1: var(--space-1, 4px);
   --sp-2: var(--space-2, 8px);
   --sp-3: var(--space-3, 12px);
