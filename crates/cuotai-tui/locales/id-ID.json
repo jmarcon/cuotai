@@ -679,6 +679,10 @@
   "cli.backup.history_large": "Cadangan memuat {size} MiB riwayat; menyalinnya bisa lambat.",
   "cli.restore.merge": "gabungkan",
   "cli.restore.rows": "baris: {rows}, baru di sini: {new}",
+  "cli.restore.hosts": "Akun-akun ini akan mengirim kunci ke alamat selain alamat penyedianya sendiri:",
+  "cli.restore.hosts_confirm": "Kirim kunci akun-akun ini ke alamat di atas? [y/N] ",
+  "cli.restore.hosts_flag": "Pemulihan akan mengirim kunci ke alamat di atas: konfirmasi di terminal, atau jalankan lagi dengan --accept-hosts (--yes tidak mencakupnya).",
+  "cli.restore.hosts_refused": "Tidak ada yang dipulihkan.",
   "cli.list_providers.aggregator": " (agregator)",
   "cost.plan.no_account": "Tidak ada akun terkonfigurasi bernama {account}; gunakan id-nya atau provider:name.",
   "cost.by.requests": {

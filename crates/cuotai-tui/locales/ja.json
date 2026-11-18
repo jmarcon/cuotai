@@ -49,7 +49,11 @@
       "cost.by.requests",
       "channels.cli.outcome.rate_limited",
       "channels.cli.outcome.held",
-      "channels.cli.outcome.failing_notice"
+      "channels.cli.outcome.failing_notice",
+      "cli.restore.hosts",
+      "cli.restore.hosts_confirm",
+      "cli.restore.hosts_flag",
+      "cli.restore.hosts_refused"
     ]
   },
   "about.brazil": "特別な感謝：ブラジル人が作ったプロジェクト",
@@ -726,6 +730,10 @@
   "cli.backup.history_large": "バックアップには {size} MiB の履歴が含まれます。コピーに時間がかかる場合があります。",
   "cli.restore.merge": "統合",
   "cli.restore.rows": "行：{rows}、ここでの新規：{new}",
+  "cli.restore.hosts": "これらのアカウントは、プロバイダー自身のアドレス以外にキーを送信します：",
+  "cli.restore.hosts_confirm": "これらのアカウントのキーを上記のアドレスに送信しますか？ [y/N] ",
+  "cli.restore.hosts_flag": "復元すると上記のアドレスにキーが送信されます。ターミナルで確認するか、--accept-hosts を付けてもう一度実行してください（--yes では確認になりません）。",
+  "cli.restore.hosts_refused": "何も復元されませんでした。",
   "cli.list_providers.aggregator": " (アグリゲーター)",
   "cost.plan.no_account": "{account} という名前の設定済みアカウントはありません。ID または provider:name を使ってください。",
   "cost.by.requests": {

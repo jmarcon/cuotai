@@ -1131,7 +1131,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1383,6 +1386,7 @@
   "bundle.error.schema": "Cette sauvegarde vient d'un Cuotai plus récent (format {schema}) ; mettez Cuotai à jour pour la restaurer.",
   "bundle.error.secret": "{path} contient quelque chose qui ressemble à une clé ou un jeton ; aucune sauvegarde n'a été écrite. Retirez-le du fichier et réessayez.",
   "bundle.error.target": "Cuotai n’écrit pas de sauvegarde par-dessus ses propres fichiers d’historique, de réglages ou de données, ni par-dessus un dossier ; choisissez un autre fichier.",
+  "bundle.error.hosts": "Cette restauration enverrait des clés aux adresses que liste son plan ; confirmez-les pour restaurer.",
   "bundle.excluded.cost_index": "Index des coûts locaux : chaque ordinateur le reconstruit à partir de ses propres journaux.",
   "bundle.excluded.extensions": "Extensions : vous les examinez et les approuvez sur chaque ordinateur.",
   "bundle.excluded.logs": "Journaux : ils ne décrivent que cet ordinateur.",
@@ -3840,6 +3844,8 @@
   "bundle.setting.digest": "Résumé hebdomadaire",
   "bundle.setting.alerts": "Alertes d’utilisation",
   "bundle.setting.hooks": "Exécuter les hooks",
+  "bundle.host.url": "Le compte {number} ({provider}) envoie sa clé à {host}.",
+  "bundle.host.program": "Le compte {number} ({provider}) exécute {host} à la place de l’outil de son fournisseur, avec les identifiants de cet ordinateur.",
   "cost.settings.plans_ignored": {
     "one": "{count} prix de forfait enregistré est invalide et ignoré ; saisissez-le à nouveau.",
     "other": "{count} prix de forfait enregistrés sont invalides et ignorés ; saisissez-les à nouveau."

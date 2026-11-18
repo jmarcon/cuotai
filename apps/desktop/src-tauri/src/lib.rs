@@ -596,9 +596,16 @@ async fn backup_with(
     .map_err(|_| "unexpected".to_owned())?
 }
 
-/// The restore plan of the backup at `path` over this desktop. Only a
-/// regular file is read (never a folder, a device or a symbolic link).
-fn desktop_plan(path: &std::path::Path) -> Result<cuotai_core::bundle::Plan, String> {
+/// The restore plan of the backup at `path` over `locations` (this
+/// desktop's, [`bundle_locations`]), with the digest of the bytes it
+/// planned. Only a regular file is read (never a folder, a device or a
+/// symbolic link). With `expected`, a file whose bytes differ from the ones
+/// the preview planned is refused before planning (PRD 0046 L-05).
+fn desktop_plan(
+    path: &std::path::Path,
+    locations: &cuotai_core::bundle::Locations,
+    expected: Option<file_dialog::Digest>,
+) -> Result<(cuotai_core::bundle::Plan, file_dialog::Digest), String> {
     use cuotai_core::bundle::{self, Bundle, BundleError};
     let io = || {
         bundle_error(&BundleError::Io {
@@ -613,11 +620,19 @@ fn desktop_plan(path: &std::path::Path) -> Result<cuotai_core::bundle::Plan, Str
         _ => return Err(io()),
     }
     let bytes = std::fs::read(path).map_err(|_| io())?;
+    let digest = bundle::digest(&bytes);
+    if expected.is_some_and(|expected| expected != digest) {
+        return Err(bundle_error(&BundleError::Conflict {
+            path: cuotai_core::text::home_relative(path),
+        }));
+    }
     let bundle = Bundle::from_zip(&bytes).map_err(|error| bundle_error(&error))?;
     // The desktop never reads variables (PRD 0047 G1): every key the
     // backup's accounts read from one is a key to type again.
     let var = |_: &str| None;
-    bundle::plan(&bundle, &bundle_locations(), None, &var).map_err(|error| bundle_error(&error))
+    let plan =
+        bundle::plan(&bundle, locations, None, &var).map_err(|error| bundle_error(&error))?;
+    Ok((plan, digest))
 }
 
 /// What **Restore…** found in the file the person chose: its plan and the
@@ -636,22 +651,29 @@ async fn restore_plan(
     app: AppHandle,
     pending: tauri::State<'_, file_dialog::PendingRestore>,
 ) -> Result<Option<RestorePick>, String> {
-    restore_pick(&file_dialog::DialogPicker::new(&app), &pending).await
+    restore_pick(
+        &file_dialog::DialogPicker::new(&app),
+        &pending,
+        bundle_locations(),
+    )
+    .await
 }
 
 async fn restore_pick(
     picker: &dyn file_dialog::FilePicker,
     pending: &file_dialog::PendingRestore,
+    locations: cuotai_core::bundle::Locations,
 ) -> Result<Option<RestorePick>, String> {
     let Some(path) = picker.open("Cuotai backup".into(), "zip".into()).await else {
         return Ok(None);
     };
     let read = path.clone();
-    let plan = tauri::async_runtime::spawn_blocking(move || desktop_plan(&read))
-        .await
-        .map_err(|_| "unexpected".to_owned())??;
+    let (plan, digest) =
+        tauri::async_runtime::spawn_blocking(move || desktop_plan(&read, &locations, None))
+            .await
+            .map_err(|_| "unexpected".to_owned())??;
     Ok(Some(RestorePick {
-        token: pending.put(path),
+        token: pending.put(path, digest),
         plan,
     }))
 }
@@ -667,8 +689,11 @@ struct RestoreDone {
 /// PRD 0046 RF3.3: apply the plan of the backup chosen under `token` (the
 /// last [`restore_plan`]; any other token is refused): additions and
 /// merges always, each replacement only when its bundle path is in
-/// `accept`. The plan is made again, so a file changed since the preview is
-/// planned anew (and every write still refuses a concurrent change). The
+/// `accept`. A backup file whose bytes changed since the preview is
+/// refused; the plan is made again, so a local file changed since the
+/// preview is planned anew (and every write still refuses a concurrent
+/// change). The accounts a plan lists as sending a key elsewhere need
+/// `accept_hosts` (the dialog's own checkbox), or nothing is written. The
 /// accounts are reloaded; nothing is written to the vault.
 #[tauri::command]
 async fn restore_apply(
@@ -678,9 +703,11 @@ async fn restore_apply(
     pending: tauri::State<'_, file_dialog::PendingRestore>,
     token: u64,
     accept: Vec<String>,
+    accept_hosts: bool,
 ) -> Result<RestoreDone, String> {
     window_scope::require(&window, window_scope::MAIN_OR_SETTINGS)?;
-    let (done, config) = restore_chosen(&pending, token, accept).await?;
+    let (done, config) =
+        restore_chosen(&pending, token, accept, accept_hosts, bundle_locations()).await?;
     if config {
         // The accounts file changed under the app: read it again.
         let _ = b.reload_config(&app).await;
@@ -694,16 +721,18 @@ async fn restore_chosen(
     pending: &file_dialog::PendingRestore,
     token: u64,
     accept: Vec<String>,
+    accept_hosts: bool,
+    locations: cuotai_core::bundle::Locations,
 ) -> Result<(RestoreDone, bool), String> {
-    let path = pending
+    let (path, digest) = pending
         .get(token)
         .ok_or_else(|| bundle_error(&cuotai_core::bundle::BundleError::Invalid))?;
     let (written, restart, config) = tauri::async_runtime::spawn_blocking(move || {
-        let plan = desktop_plan(&path)?;
+        let (plan, _) = desktop_plan(&path, &locations, Some(digest))?;
         let mut restart = false;
         let mut config = false;
         let written = plan
-            .apply(|item| accept.contains(&item.path))
+            .apply(accept_hosts, |item| accept.contains(&item.path))
             .map_err(|error| bundle_error(&error))?;
         for item in &plan.items {
             let taken = match item.action {
@@ -3662,21 +3691,29 @@ mod tests {
         let cancelled = super::backup_with(&FakePicker::new(None), false).await;
         assert!(matches!(cancelled, Ok(None)));
 
+        let dir = tempfile::tempdir().unwrap();
+        // A sandboxed desktop: never this computer's own files.
+        let here = |root: &std::path::Path| cuotai_core::bundle::Locations {
+            config: root.join("config/cuotai.toml"),
+            desktop_settings: Some(root.join("config/desktop.json")),
+            user_dir: Some(root.join("user")),
+            data_root: Some(root.join("data")),
+        };
+        let sandbox = here(&dir.path().join("here"));
         let pending = PendingRestore::default();
         assert!(matches!(
-            super::restore_pick(&FakePicker::new(None), &pending).await,
+            super::restore_pick(&FakePicker::new(None), &pending, sandbox.clone()).await,
             Ok(None)
         ));
-        let refused = super::restore_chosen(&pending, 1, Vec::new())
+        let refused = super::restore_chosen(&pending, 1, Vec::new(), true, sandbox.clone())
             .await
             .err()
             .unwrap();
         assert!(refused.contains("bundle.error.invalid"), "{refused}");
 
-        let dir = tempfile::tempdir().unwrap();
         let folder = dir.path().join("folder.zip");
         std::fs::create_dir(&folder).unwrap();
-        let error = super::restore_pick(&FakePicker::new(Some(folder)), &pending)
+        let error = super::restore_pick(&FakePicker::new(Some(folder)), &pending, sandbox.clone())
             .await
             .err()
             .unwrap();
@@ -3687,13 +3724,68 @@ mod tests {
             std::fs::write(&target, "not a backup").unwrap();
             let link = dir.path().join("link.zip");
             std::os::unix::fs::symlink(&target, &link).unwrap();
-            let error = super::restore_pick(&FakePicker::new(Some(link)), &pending)
-                .await
-                .err()
-                .unwrap();
+            let error =
+                super::restore_pick(&FakePicker::new(Some(link)), &pending, sandbox.clone())
+                    .await
+                    .err()
+                    .unwrap();
             assert!(error.contains("bundle.error.io"), "{error}");
         }
         assert_eq!(pending.get(1), None, "a refused pick keeps no token");
+
+        // PRD 0046 M-03 and L-05: an account sending its key to another
+        // address needs the dialog's own checkbox, and a backup file that
+        // changed after the preview is refused.
+        let backup_of = |name: &str, config: &str| {
+            let source = dir.path().join(name);
+            std::fs::create_dir_all(source.join("config")).unwrap();
+            std::fs::write(source.join("config/cuotai.toml"), config).unwrap();
+            let at = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc);
+            cuotai_core::bundle::collect(&here(&source), at, "9.9.9")
+                .unwrap()
+                .to_zip()
+        };
+        let remote = "[[accounts]]\nid = \"proxy\"\nprovider = \"litellm\"\ncredential_env = \"PROXY_KEY\"\n\n[accounts.params]\nbase_url = \"https://proxy.example.com\"\n";
+        let file = dir.path().join("hosts.cuotai-backup.zip");
+        std::fs::write(&file, backup_of("source-a", remote)).unwrap();
+        let picked = super::restore_pick(
+            &FakePicker::new(Some(file.clone())),
+            &pending,
+            sandbox.clone(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(picked.plan.hosts.len(), 1);
+        let error =
+            super::restore_chosen(&pending, picked.token, Vec::new(), false, sandbox.clone())
+                .await
+                .err()
+                .unwrap();
+        assert!(error.contains("bundle.error.hosts"), "{error}");
+        assert!(
+            !sandbox.config.exists(),
+            "nothing written without the checkbox"
+        );
+        let other = remote.replace("proxy.example.com", "other.example.com");
+        std::fs::write(&file, backup_of("source-b", &other)).unwrap();
+        let error =
+            super::restore_chosen(&pending, picked.token, Vec::new(), true, sandbox.clone())
+                .await
+                .err()
+                .unwrap();
+        assert!(error.contains("bundle.error.conflict"), "{error}");
+        assert!(!sandbox.config.exists(), "a changed backup writes nothing");
+        let picked = super::restore_pick(&FakePicker::new(Some(file)), &pending, sandbox.clone())
+            .await
+            .unwrap()
+            .unwrap();
+        super::restore_chosen(&pending, picked.token, Vec::new(), true, sandbox.clone())
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(&sandbox.config).unwrap(), other);
     }
 
     #[test]

@@ -217,7 +217,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -467,6 +470,7 @@
   "bundle.error.schema": "Bản sao lưu này do Cuotai mới hơn tạo (định dạng {schema}); hãy cập nhật Cuotai để khôi phục.",
   "bundle.error.secret": "{path} chứa thứ trông giống khóa hoặc token nên không có bản sao lưu nào được ghi; hãy xóa nó khỏi tệp rồi thử lại.",
   "bundle.error.target": "Cuotai không ghi bản sao lưu đè lên các tệp lịch sử, cài đặt hoặc dữ liệu của chính nó, cũng không đè lên một thư mục; hãy chọn tệp khác.",
+  "bundle.error.hosts": "Lần khôi phục này sẽ gửi khóa đến các địa chỉ mà kế hoạch liệt kê; hãy xác nhận chúng để khôi phục.",
   "bundle.excluded.cost_index": "Chỉ mục chi phí cục bộ: mỗi máy tự dựng lại từ nhật ký của mình.",
   "bundle.excluded.extensions": "Tiện ích mở rộng: bạn xem xét và phê duyệt trên từng máy.",
   "bundle.excluded.logs": "Nhật ký: chỉ mô tả máy này.",
@@ -2869,6 +2873,8 @@
   "bundle.setting.digest": "Tóm tắt hằng tuần",
   "bundle.setting.alerts": "Cảnh báo sử dụng",
   "bundle.setting.hooks": "Chạy hook",
+  "bundle.host.url": "Tài khoản {number} ({provider}) gửi khóa của nó đến {host}.",
+  "bundle.host.program": "Tài khoản {number} ({provider}) chạy {host} thay cho công cụ của nhà cung cấp, với thông tin xác thực của máy này.",
   "cost.settings.plans_ignored": {
     "other": "{count} giá gói đã lưu không hợp lệ và bị bỏ qua; hãy nhập lại."
   },

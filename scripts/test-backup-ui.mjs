@@ -56,6 +56,16 @@ const plan = {
   ],
   next_steps: [{ kind: "env", account: 0, provider: "groq" }, { kind: "sign_in", account: 1, provider: "claude" }],
 };
+// PRD 0046 M-03/R-03: a plan whose accounts send a key elsewhere, with a consent switch held off (G-0046-1).
+const hostPlan = {
+  ...plan,
+  needs: [...plan.needs, { id: "bundle.need.setting", params: { setting: { id: "bundle.setting.serve", params: {}, fallback: "Local server" } },
+    fallback: "Local server was on in the backup and stays off on this computer; turn it on in Settings if you want it." }],
+  next_steps: [...plan.next_steps, { kind: "setting", account: 0, provider: "serve" }],
+  hosts: [{ account: 2, provider: "litellm", kind: "base_url", host: "https://proxy.example.com:8443",
+    text: { id: "bundle.host.url", params: { number: 3, provider: "litellm", host: "https://proxy.example.com:8443" },
+      fallback: "Account 3 (litellm) sends its key to https://proxy.example.com:8443." } }],
+};
 
 const VARIABLE = /SEEDED_GROQ_VARIABLE|_env\b|\{[a-z]+\}/;
 for (const { code } of i18n.LOCALES) {
@@ -74,6 +84,24 @@ for (const { code } of i18n.LOCALES) {
   assert.match(body, /120/, code);
   assert.match(body, /80/, code);
   assert.ok(!/\{[a-z]+\}/.test(body), `${code}: an unfilled placeholder: ${body}`);
+  // M-03/R-03: the hosts come before Restore with their own unchecked box, and the preview lists what is still to do.
+  assert.ok(!body.includes("restore-hosts"), `${code}: a plan without hosts shows no host box`);
+  const hosts = planBodyHtml(hostPlan);
+  assert.match(hosts, /class="restore-hosts" role="group"/, code);
+  assert.match(hosts, /proxy\.example\.com:8443/, code);
+  assert.match(hosts, /<input type="checkbox" data-restore-hosts \/>/, `${code}: the host box starts unchecked`);
+  assert.match(hosts, /data-restore-hosts-hint/, code);
+  assert.ok(hosts.includes(i18n.te("restore.after")), `${code}: the needs list is in the preview`);
+  assert.equal((hosts.match(/<li>/g) ?? []).length - (body.match(/<li>/g) ?? []).length, 1 + hostPlan.needs.length - plan.needs.length, code);
+  assert.ok(!/data-restore-step/.test(hosts), `${code}: the preview has no step buttons`);
+  assert.ok(!/\{[a-z]+\}/.test(hosts), `${code}: an unfilled placeholder: ${hosts}`);
+  for (const key of ["restore.hosts.title", "restore.hosts.confirm", "restore.hosts.required", "restore.after"]) {
+    assert.notEqual(i18n.t(key), key, `${code}: ${key} missing`);
+  }
+  // Next steps: the setting line has no button.
+  const settingSteps = nextStepsHtml(hostPlan, { written: 3, restart: false }, true);
+  assert.equal((settingSteps.match(/data-restore-step=/g) ?? []).length, 2, code);
+  assert.equal((settingSteps.match(/<li>/g) ?? []).length, hostPlan.needs.length, code);
   // RF3.3 next steps: one action per need once the backup's accounts are the ones in use; never a variable name.
   const steps = nextStepsHtml(plan, { written: 3, restart: true }, true);
   assert.equal((steps.match(/data-restore-step=/g) ?? []).length, 2, code);
@@ -93,6 +121,13 @@ for (const command of ["backup_preview", "backup_write", "restore_plan", "restor
   assert.match(libRs, new RegExp(`\\n\\s+${command},\\n`), `${command} is not registered`);
   assert.match(libJs, new RegExp(`call\\("${command}"`), `${command} is not called`);
 }
+// M-03: the shell passes the host confirmation to the core, and Restore waits for the box.
+assert.match(libJs, /call\("restore_apply", \{ token, accept, acceptHosts \}\)/);
+assert.match(libRs, /accept_hosts: bool,\n\) -> Result<RestoreDone, String>/);
+const dialogJs = await readFile(fileURLToPath(new URL("apps/desktop/ui/js/backup-dialog.js", root)), "utf8");
+assert.match(dialogJs, /aria-disabled="true"/);
+assert.match(dialogJs, /if \(go\.getAttribute\("aria-disabled"\) === "true"\) return;/);
+assert.match(dialogJs, /restoreApply\(token, accept, !!hostsBox\?\.checked\)/);
 const guide = libJs.match(/BACKUP_GUIDE_URL = "([^"]+)"/)[1];
 assert.ok(aboutRs.includes(`"${guide}"`), "the backup guide is not allow-listed");
 

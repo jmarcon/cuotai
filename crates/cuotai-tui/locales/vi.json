@@ -22,7 +22,11 @@
       "cost.by.requests",
       "channels.cli.outcome.rate_limited",
       "channels.cli.outcome.held",
-      "channels.cli.outcome.failing_notice"
+      "channels.cli.outcome.failing_notice",
+      "cli.restore.hosts",
+      "cli.restore.hosts_confirm",
+      "cli.restore.hosts_flag",
+      "cli.restore.hosts_refused"
     ]
   },
   "about.brazil": "Đặc biệt cảm ơn: các dự án do người Brazil tạo ra",
@@ -699,6 +703,10 @@
   "cli.backup.history_large": "Bản sao lưu chứa {size} MiB lịch sử; việc sao chép có thể chậm.",
   "cli.restore.merge": "gộp",
   "cli.restore.rows": "dòng: {rows}, mới ở đây: {new}",
+  "cli.restore.hosts": "Các tài khoản này sẽ gửi khóa đến nơi khác ngoài địa chỉ của chính nhà cung cấp:",
+  "cli.restore.hosts_confirm": "Gửi khóa của các tài khoản này đến các địa chỉ ở trên? [y/N] ",
+  "cli.restore.hosts_flag": "Việc khôi phục sẽ gửi khóa đến các địa chỉ ở trên: hãy xác nhận trong terminal, hoặc chạy lại với --accept-hosts (--yes không bao gồm việc này).",
+  "cli.restore.hosts_refused": "Không có gì được khôi phục.",
   "cli.list_providers.aggregator": " (bộ tổng hợp)",
   "cost.plan.no_account": "Không có tài khoản đã cấu hình nào tên là {account}; hãy dùng id của nó hoặc provider:name.",
   "cost.by.requests": {

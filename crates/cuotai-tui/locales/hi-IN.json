@@ -697,6 +697,10 @@
   "cli.backup.history_large": "बैकअप में {size} MiB इतिहास है; इसे कॉपी करने में समय लग सकता है।",
   "cli.restore.merge": "मिलाएँ",
   "cli.restore.rows": "पंक्तियाँ: {rows}, यहाँ नई: {new}",
+  "cli.restore.hosts": "ये खाते अपने प्रदाता के पते के अलावा कहीं और कुंजी भेजेंगे:",
+  "cli.restore.hosts_confirm": "इन खातों की कुंजियाँ ऊपर के पतों पर भेजें? [y/N] ",
+  "cli.restore.hosts_flag": "पुनर्स्थापना ऊपर के पतों पर कुंजियाँ भेजेगी: टर्मिनल में पुष्टि करें, या इसे --accept-hosts के साथ फिर से चलाएँ (--yes इन्हें शामिल नहीं करता)।",
+  "cli.restore.hosts_refused": "कुछ भी पुनर्स्थापित नहीं किया गया।",
   "cli.list_providers.aggregator": " (एग्रीगेटर)",
   "cost.plan.no_account": "किसी भी कॉन्फ़िगर किए गए खाते का नाम {account} नहीं है; उसकी id या provider:name इस्तेमाल करें।",
   "cost.by.requests": {

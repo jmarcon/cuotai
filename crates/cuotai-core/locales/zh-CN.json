@@ -253,7 +253,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -503,6 +506,7 @@
   "bundle.error.schema": "此备份由更新版本的 Cuotai 创建（格式 {schema}）；请更新 Cuotai 后再恢复。",
   "bundle.error.secret": "{path} 中含有看似密钥或令牌的内容，因此未写入备份；请从文件中删除后重试。",
   "bundle.error.target": "Cuotai 不会将备份写入并覆盖其自身的历史、设置或数据文件，也不会覆盖文件夹；请选择其他文件。",
+  "bundle.error.hosts": "此次恢复会把密钥发送到计划中列出的地址；请确认这些地址后再恢复。",
   "bundle.excluded.cost_index": "本地成本索引：每台电脑会根据自己的日志重建。",
   "bundle.excluded.extensions": "扩展：需在每台电脑上审核并批准。",
   "bundle.excluded.logs": "日志：只描述这台电脑。",
@@ -2905,6 +2909,8 @@
   "bundle.setting.digest": "每周摘要",
   "bundle.setting.alerts": "用量提醒",
   "bundle.setting.hooks": "运行钩子",
+  "bundle.host.url": "账户 {number}（{provider}）会把它的密钥发送到 {host}。",
+  "bundle.host.program": "账户 {number}（{provider}）会用这台电脑的凭据运行 {host}，代替其提供商的工具。",
   "cost.settings.plans_ignored": {
     "other": "{count} 个已保存的套餐价格无效，已忽略；请重新输入。"
   },

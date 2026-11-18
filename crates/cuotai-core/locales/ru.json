@@ -266,7 +266,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -522,6 +525,7 @@
   "bundle.error.schema": "Эта копия сделана более новым Cuotai (формат {schema}); обновите Cuotai, чтобы её восстановить.",
   "bundle.error.secret": "В {path} есть что-то похожее на ключ или токен, поэтому резервная копия не записана; удалите это из файла и повторите.",
   "bundle.error.target": "Cuotai не записывает резервную копию поверх собственных файлов истории, настроек или данных, а также поверх папки; выберите другой файл.",
+  "bundle.error.hosts": "Это восстановление отправит ключи на адреса, перечисленные в его плане; подтвердите их, чтобы восстановить.",
   "bundle.excluded.cost_index": "Локальный индекс затрат: каждый компьютер строит его заново из своих журналов.",
   "bundle.excluded.extensions": "Расширения: вы проверяете и одобряете их на каждом компьютере.",
   "bundle.excluded.logs": "Журналы: они описывают только этот компьютер.",
@@ -3089,6 +3093,8 @@
   "bundle.setting.digest": "Недельная сводка",
   "bundle.setting.alerts": "Оповещения об использовании",
   "bundle.setting.hooks": "Выполнять хуки",
+  "bundle.host.url": "Учётная запись {number} ({provider}) отправляет свой ключ на {host}.",
+  "bundle.host.program": "Учётная запись {number} ({provider}) запускает {host} вместо инструмента своего провайдера, с учётными данными этого компьютера.",
   "cost.settings.plans_ignored": {
     "one": "{count} сохранённая цена тарифа недействительна и пропущена; введите её снова.",
     "few": "{count} сохранённые цены тарифов недействительны и пропущены; введите их снова.",

@@ -28,7 +28,11 @@
       "cost.by.requests",
       "channels.cli.outcome.rate_limited",
       "channels.cli.outcome.held",
-      "channels.cli.outcome.failing_notice"
+      "channels.cli.outcome.failing_notice",
+      "cli.restore.hosts",
+      "cli.restore.hosts_confirm",
+      "cli.restore.hosts_flag",
+      "cli.restore.hosts_refused"
     ]
   },
   "about.brazil": "Особая благодарность: проекты бразильских авторов",
@@ -759,6 +763,10 @@
   "cli.backup.history_large": "Резервная копия содержит {size} МиБ истории; копирование может занять время.",
   "cli.restore.merge": "объединить",
   "cli.restore.rows": "строк: {rows}, новых здесь: {new}",
+  "cli.restore.hosts": "Эти учётные записи отправят ключ не на собственный адрес своего провайдера:",
+  "cli.restore.hosts_confirm": "Отправить ключи этих учётных записей на адреса выше? [y/N] ",
+  "cli.restore.hosts_flag": "Восстановление отправит ключи на адреса выше: подтвердите в терминале или запустите его снова с --accept-hosts (--yes этого не покрывает).",
+  "cli.restore.hosts_refused": "Ничего не восстановлено.",
   "cli.list_providers.aggregator": " (агрегатор)",
   "cost.plan.no_account": "Нет настроенной учётной записи с именем {account}; используйте её id или provider:name.",
   "cost.by.requests": {

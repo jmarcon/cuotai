@@ -234,7 +234,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} 계정은 저장되지만 숫자 대신 이 사유가 표시됩니다.",
@@ -484,6 +487,7 @@
   "bundle.error.schema": "이 백업은 더 새로운 Cuotai(형식 {schema})로 만들어졌습니다. 복원하려면 Cuotai를 업데이트하세요.",
   "bundle.error.secret": "{path}에 키나 토큰처럼 보이는 내용이 있어 백업을 쓰지 않았습니다. 파일에서 제거한 뒤 다시 시도하세요.",
   "bundle.error.target": "Cuotai는 자체 기록, 설정, 데이터 파일이나 폴더 위에 백업을 쓰지 않습니다. 다른 파일을 선택하세요.",
+  "bundle.error.hosts": "이 복원은 계획에 나열된 주소로 키를 보냅니다. 복원하려면 해당 주소를 확인하세요.",
   "bundle.excluded.cost_index": "로컬 비용 인덱스: 각 컴퓨터가 자체 로그에서 다시 만듭니다.",
   "bundle.excluded.extensions": "확장: 컴퓨터마다 검토하고 승인합니다.",
   "bundle.excluded.logs": "로그: 이 컴퓨터에 관한 내용만 담고 있습니다.",
@@ -2886,6 +2890,8 @@
   "bundle.setting.digest": "주간 요약",
   "bundle.setting.alerts": "사용량 알림",
   "bundle.setting.hooks": "훅 실행",
+  "bundle.host.url": "계정 {number}({provider})은(는) 키를 {host}(으)로 보냅니다.",
+  "bundle.host.program": "계정 {number}({provider})은(는) 제공업체의 도구 대신 {host}을(를) 이 컴퓨터의 자격 증명으로 실행합니다.",
   "cost.settings.plans_ignored": {
     "other": "저장된 요금제 가격 {count}개가 유효하지 않아 무시되었습니다. 다시 입력하세요."
   },

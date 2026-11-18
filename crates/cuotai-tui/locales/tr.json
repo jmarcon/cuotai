@@ -697,6 +697,10 @@
   "cli.backup.history_large": "Yedek {size} MiB geçmiş içeriyor; kopyalanması yavaş olabilir.",
   "cli.restore.merge": "birleştir",
   "cli.restore.rows": "satır: {rows}, burada yeni: {new}",
+  "cli.restore.hosts": "Bu hesaplar, anahtarı sağlayıcılarının kendi adresi dışında bir yere gönderir:",
+  "cli.restore.hosts_confirm": "Bu hesapların anahtarları yukarıdaki adreslere gönderilsin mi? [y/N] ",
+  "cli.restore.hosts_flag": "Geri yükleme, anahtarları yukarıdaki adreslere gönderir: bir terminalde onaylayın veya --accept-hosts ile yeniden çalıştırın (--yes bunları kapsamaz).",
+  "cli.restore.hosts_refused": "Hiçbir şey geri yüklenmedi.",
   "cli.list_providers.aggregator": " (toplayıcı)",
   "cost.plan.no_account": "{account} adında yapılandırılmış bir hesap yok; kimliğini veya provider:name kullanın.",
   "cost.by.requests": {

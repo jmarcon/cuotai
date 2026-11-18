@@ -78,6 +78,10 @@ pub enum BundleError {
     /// The backup target is one of Cuotai's own files or folders, a folder
     /// or a special file ([`crate::output_file`]); nothing was written.
     Target,
+    /// The plan lists accounts that would send a key to another address or
+    /// run another program ([`Plan::hosts`]) and nobody confirmed them;
+    /// nothing was written.
+    Hosts,
 }
 
 impl BundleError {
@@ -124,6 +128,10 @@ impl BundleError {
             Self::Target => Localized::fixed(
                 "bundle.error.target",
                 "Cuotai does not write a backup over its own history, settings or data files, nor over a folder; choose another file.",
+            ),
+            Self::Hosts => Localized::fixed(
+                "bundle.error.hosts",
+                "This restore would send keys to the addresses its plan lists; confirm them to restore.",
             ),
         }
     }
@@ -333,6 +341,13 @@ fn kind_of(path: &str) -> &'static str {
 
 fn sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
+}
+
+/// The SHA-256 of a backup file's bytes: the desktop keeps it between the
+/// preview and the apply, and refuses a file that changed in between
+/// ([`BundleError::Conflict`]).
+pub fn digest(bytes: &[u8]) -> [u8; 32] {
+    Sha256::digest(bytes).into()
 }
 
 /// Whether `text` holds a string shaped like a credential: a known key or
@@ -853,6 +868,133 @@ fn channel_needs(desktop: &[u8]) -> Vec<(Localized, NextStep)> {
         .collect()
 }
 
+/// PRD 0046 M-03 (owner decision of 2026-11-18): one restored account that
+/// would send a key somewhere other than its provider's own address, or run
+/// another program in place of its provider's tool. A restore that writes
+/// the accounts file goes ahead only once these are confirmed
+/// ([`Plan::apply`]); `--yes` does not cover them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct HostCheck {
+    /// The account's position in the backup's file (0-based).
+    pub account: usize,
+    /// The provider slug.
+    pub provider: String,
+    /// The parameter: `base_url` or `cli_path`.
+    pub kind: &'static str,
+    /// For `base_url`, `scheme://host[:port]` only (never a user, a path or
+    /// a query); for `cli_path`, the program's path with `~` for the home
+    /// folder.
+    pub host: String,
+    /// The sentence the plan shows.
+    pub text: Localized,
+}
+
+/// Whether `account` reads a key from somewhere: a variable, a sign-in, a
+/// web session or a `params.*_env` variable. Whether the variable is set
+/// here does not matter, so the CLI and the desktop plan alike.
+fn has_credential_source(account: &Account) -> bool {
+    account
+        .credential_env
+        .as_deref()
+        .is_some_and(|name| !name.trim().is_empty())
+        || account.oauth.is_some()
+        || account.session.is_some()
+        || account
+            .params
+            .iter()
+            .any(|(key, value)| key.ends_with("_env") && !value.trim().is_empty())
+}
+
+/// `scheme://host[:port]` of a `base_url` that leaves this machine; `None`
+/// for a loopback host or a value that is not a URL (no provider sends to
+/// one).
+fn remote_origin(value: &str) -> Option<String> {
+    let url = url::Url::parse(value.trim()).ok()?;
+    let host = url.host()?;
+    if crate::transport::is_loopback_host(&host) {
+        return None;
+    }
+    let host = url.host_str()?;
+    Some(match url.port() {
+        Some(port) => format!("{}://{host}:{port}", url.scheme()),
+        None => format!("{}://{host}", url.scheme()),
+    })
+}
+
+/// The [`HostCheck`]s of the backup's accounts file `incoming` over the
+/// local one: each account it adds, or changes with another value for the
+/// parameter, by stable id (as [`account_changes`] counts them).
+fn host_checks(local: Option<&[u8]>, incoming: &[u8]) -> Vec<HostCheck> {
+    let read = |bytes: &[u8]| {
+        std::str::from_utf8(bytes)
+            .ok()
+            .and_then(|text| config_file::parse(text, ConfigParseMode::Tolerant).ok())
+            .map(|parsed| parsed.config.accounts)
+    };
+    let Some(incoming) = read(incoming) else {
+        return Vec::new();
+    };
+    let local: BTreeMap<String, Account> = local
+        .and_then(read)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|account| (account.id().as_str().to_owned(), account))
+        .collect();
+    let mut checks = Vec::new();
+    for (index, account) in incoming.iter().enumerate() {
+        let before = local.get(account.id().as_str());
+        let new_value = |key: &str| {
+            let value = account
+                .params
+                .get(key)
+                .map(|v| v.trim())
+                .filter(|v| !v.is_empty())?;
+            let old = before
+                .and_then(|local| local.params.get(key))
+                .map(|v| v.trim());
+            (old != Some(value)).then_some(value)
+        };
+        let who = |host: &str| {
+            [
+                ("number", ParamValue::from(index + 1)),
+                ("provider", ParamValue::from(account.provider.slug())),
+                ("host", ParamValue::from(host)),
+            ]
+        };
+        let mut push = |kind: &'static str, host: String, text: Localized| {
+            checks.push(HostCheck {
+                account: index,
+                provider: account.provider.slug().to_owned(),
+                kind,
+                host,
+                text,
+            });
+        };
+        if let Some(origin) = new_value("base_url")
+            .filter(|_| has_credential_source(account))
+            .and_then(remote_origin)
+        {
+            let host = crate::text::strip_disguising(&origin).into_owned();
+            let text = Localized::with_params(
+                "bundle.host.url",
+                params(who(&host)),
+                "Account {number} ({provider}) sends its key to {host}.",
+            );
+            push("base_url", host, text);
+        }
+        if let Some(path) = new_value("cli_path") {
+            let host = crate::text::strip_disguising(&home_relative(Path::new(path))).into_owned();
+            let text = Localized::with_params(
+                "bundle.host.program",
+                params(who(&host)),
+                "Account {number} ({provider}) runs {host} in place of its provider's tool, with this computer's credentials.",
+            );
+            push("cli_path", host, text);
+        }
+    }
+    checks
+}
+
 /// What a restore would do, and what the person still has to provide.
 #[derive(Debug, Clone, Serialize)]
 pub struct Plan {
@@ -872,6 +1014,11 @@ pub struct Plan {
     /// file here or the backup's copy (desktop settings, PRD 0051 RF3).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub newer: Vec<String>,
+    /// The restored accounts that would send a key to another address or
+    /// run another program (owner decision of 2026-11-18): [`Plan::apply`]
+    /// writes the accounts file only once they are confirmed.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub hosts: Vec<HostCheck>,
     #[serde(skip)]
     locations: Locations,
     #[serde(skip)]
@@ -1257,6 +1404,7 @@ pub fn plan(
     let mut newer = Vec::new();
     // PRD 0046 RF3.1: the switches the backup had on that stay off here.
     let mut held_settings = Vec::new();
+    let mut hosts = Vec::new();
     for (path, bytes) in &bundle.files {
         if only.is_some_and(|part| !part.holds(path)) {
             continue;
@@ -1323,6 +1471,9 @@ pub fn plan(
         let accounts = (path == "config/cuotai.toml" && action != Action::Keep)
             .then(|| account_changes(current.as_deref(), bytes))
             .flatten();
+        if path == "config/cuotai.toml" && action != Action::Keep {
+            hosts = host_checks(current.as_deref(), bytes);
+        }
         items.push(Item {
             path: path.clone(),
             target: home_relative(&target),
@@ -1366,6 +1517,7 @@ pub fn plan(
         next_steps,
         unplaced,
         newer,
+        hosts,
         locations: locations.clone(),
         cost_index,
     })
@@ -1501,14 +1653,34 @@ impl Plan {
     /// `add` items are always written and `keep` items never. Every write
     /// is atomic and refused when the file changed since the plan was
     /// made. Returns how many files were written.
-    pub fn apply(&self, mut confirm: impl FnMut(&Item) -> bool) -> Result<usize, BundleError> {
-        let mut written = 0;
-        for item in &self.items {
-            let go = match item.action {
+    ///
+    /// Every item is decided first: when the accounts file would be written
+    /// and the plan lists [`Plan::hosts`] that `hosts_confirmed` does not
+    /// cover, nothing is written ([`BundleError::Hosts`]).
+    pub fn apply(
+        &self,
+        hosts_confirmed: bool,
+        mut confirm: impl FnMut(&Item) -> bool,
+    ) -> Result<usize, BundleError> {
+        let decided: Vec<bool> = self
+            .items
+            .iter()
+            .map(|item| match item.action {
                 Action::Keep => false,
                 Action::Add | Action::Merge => true,
                 Action::Replace | Action::Skip => confirm(item),
-            };
+            })
+            .collect();
+        let writes_config = self
+            .items
+            .iter()
+            .zip(&decided)
+            .any(|(item, go)| *go && item.path == "config/cuotai.toml");
+        if writes_config && !self.hosts.is_empty() && !hosts_confirmed {
+            return Err(BundleError::Hosts);
+        }
+        let mut written = 0;
+        for (item, go) in self.items.iter().zip(decided) {
             if !go {
                 continue;
             }
@@ -1574,3 +1746,6 @@ mod tests;
 
 #[cfg(test)]
 mod consent_tests;
+
+#[cfg(test)]
+mod hosts_tests;

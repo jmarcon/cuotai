@@ -93,7 +93,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -345,6 +348,7 @@
   "bundle.error.schema": "Este backup foi feito por um Cuotai mais novo (formato {schema}); atualize o Cuotai para restaurá-lo.",
   "bundle.error.secret": "{path} contém algo que parece uma chave ou token, então nenhum backup foi gravado; remova isso do arquivo e tente de novo.",
   "bundle.error.target": "O Cuotai não grava um backup por cima dos próprios arquivos de histórico, configurações ou dados, nem por cima de uma pasta; escolha outro arquivo.",
+  "bundle.error.hosts": "Esta restauração enviaria chaves para os endereços listados no plano; confirme-os para restaurar.",
   "bundle.excluded.cost_index": "Índice de custo local: cada computador o reconstrói a partir dos próprios logs.",
   "bundle.excluded.extensions": "Extensões: você as revisa e aprova em cada computador.",
   "bundle.excluded.logs": "Logs: descrevem só este computador.",
@@ -2802,6 +2806,8 @@
   "bundle.setting.digest": "Resumo semanal",
   "bundle.setting.alerts": "Alertas de uso",
   "bundle.setting.hooks": "Executar hooks",
+  "bundle.host.url": "A conta {number} ({provider}) envia sua chave para {host}.",
+  "bundle.host.program": "A conta {number} ({provider}) executa {host} no lugar da ferramenta do provedor, com as credenciais deste computador.",
   "cost.settings.plans_ignored": {
     "one": "{count} preço de plano salvo é inválido e foi ignorado; digite-o de novo.",
     "other": "{count} preços de plano salvos são inválidos e foram ignorados; digite-os de novo."

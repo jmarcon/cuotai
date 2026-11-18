@@ -223,7 +223,7 @@ fn a_restore_on_a_fresh_machine_adds_everything_and_lists_what_is_missing() {
         ]
     );
     let written = plan
-        .apply(|_| panic!("no question for a fresh machine"))
+        .apply(false, |_| panic!("no question for a fresh machine"))
         .unwrap();
     assert_eq!(written, 7);
     assert_eq!(
@@ -247,7 +247,7 @@ fn a_restore_on_a_fresh_machine_adds_everything_and_lists_what_is_missing() {
     // Restoring again changes nothing.
     let again = super::plan(&bundle, &fresh.locations(), None, &no_vars).unwrap();
     assert!(again.items.iter().all(|item| item.action == Action::Keep));
-    assert_eq!(again.apply(|_| true).unwrap(), 0);
+    assert_eq!(again.apply(false, |_| true).unwrap(), 0);
 
     let with_var = |name: &str| (name == "GROQ_WORK").then(|| "set".to_owned());
     let plan = super::plan(&bundle, &fresh.locations(), Some(Part::User), &with_var).unwrap();
@@ -287,7 +287,7 @@ fn a_conflicting_local_edit_is_planned_and_only_written_when_confirmed() {
     );
     assert!(plan.has_conflicts());
     let before = std::fs::read(target.at("config/cuotai.toml")).unwrap();
-    plan.apply(|_| false).unwrap();
+    plan.apply(false, |_| false).unwrap();
     assert_eq!(
         std::fs::read(target.at("config/cuotai.toml")).unwrap(),
         before
@@ -297,7 +297,7 @@ fn a_conflicting_local_edit_is_planned_and_only_written_when_confirmed() {
     assert_eq!(desktop["motion"], "system", "declined");
 
     let plan = super::plan(&bundle, &target.locations(), None, &none).unwrap();
-    plan.apply(|_| true).unwrap();
+    plan.apply(false, |_| true).unwrap();
     assert_eq!(
         std::fs::read_to_string(target.at("config/cuotai.toml")).unwrap(),
         TOML
@@ -321,7 +321,7 @@ fn a_conflicting_local_edit_is_planned_and_only_written_when_confirmed() {
     std::fs::create_dir_all(racing.target_path.parent().unwrap()).unwrap();
     std::fs::write(&racing.target_path, "accounts = []\n").unwrap();
     assert!(matches!(
-        plan.apply(|_| true),
+        plan.apply(false, |_| true),
         Err(BundleError::Conflict { .. })
     ));
 }
@@ -433,7 +433,11 @@ fn the_history_travels_by_account_and_merges_on_restore() {
     );
     assert_eq!(item.merge, Some(ImportCount { rows: 2, new: 2 }));
     assert!(plan.needs.is_empty(), "--only history asks for nothing");
-    assert_eq!(plan.apply(|_| panic!("a merge asks nothing")).unwrap(), 1);
+    assert_eq!(
+        plan.apply(false, |_| panic!("a merge asks nothing"))
+            .unwrap(),
+        1
+    );
     let again = super::plan(&bundle, &fresh.locations(), Some(Part::History), &none).unwrap();
     assert_eq!(again.items[0].action, Action::Keep);
     assert_eq!(again.items[0].merge, Some(ImportCount { rows: 2, new: 0 }));
@@ -491,7 +495,7 @@ fn channel_definitions_travel_without_their_address_and_merge_by_id() {
         ["Type the address of the notification channel Phone (ntfy) again."]
     );
     assert_eq!(plan.next_steps[0].kind, "channel");
-    plan.apply(|_| true).unwrap();
+    plan.apply(false, |_| true).unwrap();
     let merged: serde_json::Value =
         serde_json::from_slice(&std::fs::read(target.at("config/desktop.json")).unwrap()).unwrap();
     let ids: Vec<_> = merged["channels"]
@@ -574,7 +578,7 @@ fn an_explicit_configuration_keeps_away_from_this_computers_other_files() {
             "user/themes/night.css",
         ]
     );
-    assert_eq!(plan.apply(|_| true).unwrap(), 2);
+    assert_eq!(plan.apply(false, |_| true).unwrap(), 2);
     assert!(!fresh.at("config/desktop.json").exists());
     assert!(!fresh.at("user").exists());
     assert!(!fresh.at("data").exists());
@@ -653,7 +657,7 @@ fn history_restored_on_a_fresh_computer_follows_the_ids_the_app_derives() {
     };
     let none = |_: &str| None;
     let plan = plan(&bundle, &target, None, &none).unwrap();
-    plan.apply(|_| true).unwrap();
+    plan.apply(false, |_| true).unwrap();
 
     // What the app reads once the file exists.
     let identity = ConfigIdentity::of_path(&target.config).unwrap();
@@ -685,7 +689,7 @@ fn desktop_settings_of_a_newer_major_are_left_untouched() {
     let plan = plan(&bundle, &target.locations(), Some(Part::Prefs), &none).unwrap();
     assert!(plan.items.is_empty());
     assert_eq!(plan.newer, ["prefs/desktop.json"]);
-    plan.apply(|_| true).unwrap();
+    plan.apply(false, |_| true).unwrap();
     assert_eq!(
         std::fs::read_to_string(target.at("config/desktop.json")).unwrap(),
         local,
@@ -823,7 +827,7 @@ fn a_restore_never_turns_a_local_cost_source_on() {
         .next_steps
         .iter()
         .any(|step| step.kind == "cost_sources"));
-    plan.apply(|_| true).unwrap();
+    plan.apply(false, |_| true).unwrap();
     let store = crate::cost::SettingsStore::at(fresh.at("data/cost/settings.json"));
     let restored = store.load().unwrap();
     assert!(restored.sources.is_empty());
@@ -837,7 +841,7 @@ fn a_restore_never_turns_a_local_cost_source_on() {
         r#"{"sources":{"codex_cli":{"enabled":true}},"retention_days":90}"#,
     );
     let plan = super::plan(&bundle, &local.locations(), None, &none).unwrap();
-    plan.apply(|_| true).unwrap();
+    plan.apply(false, |_| true).unwrap();
     let restored: serde_json::Value =
         serde_json::from_slice(&std::fs::read(local.at("data/cost/settings.json")).unwrap())
             .unwrap();

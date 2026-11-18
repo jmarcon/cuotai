@@ -259,7 +259,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -509,6 +512,7 @@
   "bundle.error.schema": "このバックアップは新しい Cuotai（形式 {schema}）で作成されました。復元するには Cuotai を更新してください。",
   "bundle.error.secret": "{path} にキーやトークンのようなものが含まれているため、バックアップは書き込まれませんでした。ファイルから削除してもう一度お試しください。",
   "bundle.error.target": "Cuotai は自身の履歴・設定・データファイルやフォルダーを上書きしてバックアップしません。別のファイルを選んでください。",
+  "bundle.error.hosts": "この復元では、計画に記載されたアドレスにキーが送信されます。復元するには、それらを確認してください。",
   "bundle.excluded.cost_index": "ローカル費用のインデックス：各コンピューターが自分のログから再構築します。",
   "bundle.excluded.extensions": "拡張機能：コンピューターごとに確認して承認します。",
   "bundle.excluded.logs": "ログ：このコンピューターのことだけを記録しています。",
@@ -2911,6 +2915,8 @@
   "bundle.setting.digest": "週次ダイジェスト",
   "bundle.setting.alerts": "使用量アラート",
   "bundle.setting.hooks": "フックを実行",
+  "bundle.host.url": "アカウント {number}（{provider}）はキーを {host} に送信します。",
+  "bundle.host.program": "アカウント {number}（{provider}）は、プロバイダーのツールの代わりに {host} を、このコンピューターの認証情報で実行します。",
   "cost.settings.plans_ignored": {
     "other": "保存されたプラン料金 {count} 件が無効なため無視されました。もう一度入力してください。"
   },

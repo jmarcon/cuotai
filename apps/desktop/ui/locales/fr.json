@@ -340,7 +340,11 @@
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
       "settings.channels.kindInline.webhook",
-      "settings.channels.maxReached"
+      "settings.channels.maxReached",
+      "restore.hosts.title",
+      "restore.hosts.confirm",
+      "restore.hosts.required",
+      "restore.after"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -2125,6 +2129,10 @@
   "restore.step.signIn": "Se connecter",
   "restore.restartHint": "Redémarrez Cuotai pour appliquer les préférences restaurées.",
   "restore.restart": "Redémarrer Cuotai",
+  "restore.hosts.title": "Ces comptes enverraient une clé ailleurs qu’à l’adresse de leur fournisseur",
+  "restore.hosts.confirm": "Envoyer les clés de ces comptes aux adresses ci-dessus",
+  "restore.hosts.required": "Cochez la case ci-dessus pour restaurer, ou annulez.",
+  "restore.after": "Reste à faire après la restauration",
   "coreText.doctorKeyTerminal": "Sa clé est configurée dans le terminal.",
   "coreText.doctorKeyMissing": "Aucune clé n'est enregistrée pour ce compte.",
   "coreText.doctorNoKey": "Aucune clé n'est enregistrée pour ce compte ; ignorez ceci s'il se connecte autrement.",

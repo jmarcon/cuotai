@@ -98,10 +98,21 @@ const itemHtml = (item, index) => {
     : `<li class="${item.action === "keep" ? "dim" : ""}">${what}${accounts}</li>`;
 };
 
-/** RF3.3: the plan as a list with a choice per replacement. */
+/** PRD 0046 M-03: the accounts that would send a key elsewhere, with their own unchecked consent (DS-CMP-CHK-2). */
+const hostsHtml = (hosts) => hosts?.length ? `<div class="restore-hosts" role="group" aria-labelledby="restore-hosts-title">
+    <h3 class="sub" id="restore-hosts-title">${te("restore.hosts.title")}</h3>
+    <ul>${hosts.map((h) => `<li>${esc(tl(h.text))}</li>`).join("")}</ul>
+    <label class="check"><input type="checkbox" data-restore-hosts /> ${te("restore.hosts.confirm")}</label>
+    <p class="hint" id="restore-hosts-hint" data-restore-hosts-hint>${te("restore.hosts.required")}</p>
+  </div>` : "";
+
+/** RF3.1/RF3.3: the plan as a list with a choice per replacement, the hosts to confirm and what is still to do. */
 export const planBodyHtml = (plan) => `<p>${te("restore.intro", { date: new Date(plan.created_at).toLocaleString(document.documentElement.lang || undefined), version: plan.cuotai_version })}</p>
   ${plan.items.length ? `<ul class="hook-runs">${plan.items.map(itemHtml).join("")}</ul>` : `<p class="hint">${te("restore.nothing")}</p>`}
   <p class="hint">${te("restore.skipHint")}</p>
+  ${hostsHtml(plan.hosts)}
+  ${plan.needs.length ? `<h3 class="sub">${te("restore.after")}</h3>
+  <ul class="hook-runs">${plan.needs.map((need) => `<li>${esc(tl(need))}</li>`).join("")}</ul>` : ""}
   <p class="err" data-restore-error role="alert"></p>`;
 
 /** RF3.3 **Next steps**: what the backup could not carry, each with the action that opens the right dialog. */
@@ -133,12 +144,23 @@ export async function openRestoreDialog(from = null, { onOpenAccount = null } = 
     title: t("restore.title"),
     body: planBodyHtml(plan),
     foot: `<button class="btn" data-shell-close>${te("confirm.cancel")}</button>
-      <button class="btn primary" data-restore-go>${te("restore.go")}</button>`,
+      <button class="btn primary" data-restore-go${plan.hosts?.length ? ' aria-disabled="true" aria-describedby="restore-hosts-hint"' : ""}>${te("restore.go")}</button>`,
   });
-  box.querySelector("[data-restore-go]").onclick = async () => {
+  // Restore stays unavailable until the hosts are confirmed; the core refuses anyway if this is bypassed.
+  const go = box.querySelector("[data-restore-go]");
+  const hostsBox = box.querySelector("[data-restore-hosts]");
+  if (hostsBox) {
+    hostsBox.onchange = () => {
+      if (hostsBox.checked) go.removeAttribute("aria-disabled");
+      else go.setAttribute("aria-disabled", "true");
+      box.querySelector("[data-restore-hosts-hint]").hidden = hostsBox.checked;
+    };
+  }
+  go.onclick = async () => {
+    if (go.getAttribute("aria-disabled") === "true") return;
     const accept = [...box.querySelectorAll("[data-restore-item]")].filter((c) => c.checked).map((c) => plan.items[Number(c.dataset.restoreItem)].path);
     let done;
-    try { done = await restoreApply(token, accept); }
+    try { done = await restoreApply(token, accept, !!hostsBox?.checked); }
     catch (e) { box.querySelector("[data-restore-error]").textContent = errText(e); return; }
     // The steps open accounts by their position in the backup's file: only once that file is the one in use.
     const config = plan.items.find((i) => i.path === "config/cuotai.toml");

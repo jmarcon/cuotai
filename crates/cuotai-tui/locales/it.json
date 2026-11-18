@@ -694,6 +694,10 @@
   "cli.backup.history_large": "Il backup contiene {size} MiB di cronologia; potrebbe essere lento da copiare.",
   "cli.restore.merge": "unisci",
   "cli.restore.rows": "righe: {rows}, nuove qui: {new}",
+  "cli.restore.hosts": "Questi account invierebbero una chiave a un indirizzo diverso da quello del loro provider:",
+  "cli.restore.hosts_confirm": "Inviare le chiavi di questi account agli indirizzi sopra? [y/N] ",
+  "cli.restore.hosts_flag": "Il ripristino invierebbe chiavi agli indirizzi sopra: conferma in un terminale oppure eseguilo di nuovo con --accept-hosts (--yes non li copre).",
+  "cli.restore.hosts_refused": "Non è stato ripristinato nulla.",
   "cli.list_providers.aggregator": " (aggregatore)",
   "cost.plan.no_account": "Nessun account configurato si chiama {account}; usa il suo id o provider:name.",
   "cost.by.requests": {

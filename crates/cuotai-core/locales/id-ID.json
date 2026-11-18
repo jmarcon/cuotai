@@ -215,7 +215,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -465,6 +468,7 @@
   "bundle.error.schema": "Cadangan ini dibuat oleh Cuotai yang lebih baru (format {schema}); perbarui Cuotai untuk memulihkannya.",
   "bundle.error.secret": "{path} berisi sesuatu yang tampak seperti kunci atau token, jadi tidak ada cadangan yang ditulis; hapus dari file lalu coba lagi.",
   "bundle.error.target": "Cuotai tidak menulis cadangan di atas file riwayat, pengaturan, atau datanya sendiri, maupun di atas folder; pilih file lain.",
+  "bundle.error.hosts": "Pemulihan ini akan mengirim kunci ke alamat yang tercantum dalam rencananya; konfirmasi alamat tersebut untuk memulihkan.",
   "bundle.excluded.cost_index": "Indeks biaya lokal: setiap komputer membangunnya ulang dari log miliknya.",
   "bundle.excluded.extensions": "Ekstensi: Anda meninjau dan menyetujuinya di setiap komputer.",
   "bundle.excluded.logs": "Log: hanya menggambarkan komputer ini.",
@@ -2867,6 +2871,8 @@
   "bundle.setting.digest": "Ringkasan mingguan",
   "bundle.setting.alerts": "Peringatan penggunaan",
   "bundle.setting.hooks": "Jalankan hook",
+  "bundle.host.url": "Akun {number} ({provider}) mengirim kuncinya ke {host}.",
+  "bundle.host.program": "Akun {number} ({provider}) menjalankan {host} sebagai pengganti alat penyedianya, dengan kredensial komputer ini.",
   "cost.settings.plans_ignored": {
     "other": "{count} harga paket tersimpan tidak valid dan diabaikan; ketik ulang."
   },

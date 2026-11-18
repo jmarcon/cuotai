@@ -238,7 +238,10 @@
       "bundle.setting.notify_names",
       "bundle.setting.digest",
       "bundle.setting.alerts",
-      "bundle.setting.hooks"
+      "bundle.setting.hooks",
+      "bundle.host.url",
+      "bundle.host.program",
+      "bundle.error.hosts"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -490,6 +493,7 @@
   "bundle.error.schema": "Diese Sicherung stammt von einem neueren Cuotai (Format {schema}); aktualisiere Cuotai, um sie wiederherzustellen.",
   "bundle.error.secret": "{path} enthält etwas, das wie ein Schlüssel oder Token aussieht, daher wurde keine Sicherung geschrieben; entferne es aus der Datei und versuche es erneut.",
   "bundle.error.target": "Cuotai schreibt keine Sicherung über seine eigenen Verlaufs-, Einstellungs- oder Datendateien und auch nicht über einen Ordner; wähle eine andere Datei.",
+  "bundle.error.hosts": "Diese Wiederherstellung würde Schlüssel an die Adressen senden, die ihr Plan auflistet; bestätigen Sie diese, um wiederherzustellen.",
   "bundle.excluded.cost_index": "Lokaler Kostenindex: Jeder Computer baut ihn aus seinen eigenen Protokollen neu auf.",
   "bundle.excluded.extensions": "Erweiterungen: Sie prüfen und genehmigen sie auf jedem Computer.",
   "bundle.excluded.logs": "Protokolle: Sie beschreiben nur diesen Computer.",
@@ -2947,6 +2951,8 @@
   "bundle.setting.digest": "Wochenüberblick",
   "bundle.setting.alerts": "Nutzungswarnungen",
   "bundle.setting.hooks": "Hooks ausführen",
+  "bundle.host.url": "Konto {number} ({provider}) sendet seinen Schlüssel an {host}.",
+  "bundle.host.program": "Konto {number} ({provider}) führt {host} anstelle des Werkzeugs seines Anbieters aus, mit den Anmeldedaten dieses Computers.",
   "cost.settings.plans_ignored": {
     "one": "{count} gespeicherter Planpreis ist ungültig und wird ignoriert; geben Sie ihn erneut ein.",
     "other": "{count} gespeicherte Planpreise sind ungültig und werden ignoriert; geben Sie sie erneut ein."
