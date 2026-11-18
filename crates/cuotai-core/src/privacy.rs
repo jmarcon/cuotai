@@ -977,7 +977,7 @@ pub fn flow(purpose: Purpose) -> Flow {
         Purpose::NotificationChannels => (
             "only the webhook, ntfy, Slack or Discord address you add as a channel (a plain-HTTP, local or private-network one directly, never through an environment proxy)",
             "a notification Cuotai would show on this computer, after the same preferences and quiet hours, at most 20 per hour per channel; Send test",
-            "the notification's title and text (account names only if you choose), its kind and severity; never readings in bulk or a credential",
+            "the notification's title and text, its kind and severity; for a webhook also the provider, the stable account id, the metric window, the percent used and the reset time; the metric label and the account name only if you choose to show names; with the digest kind on, the weekly digest text (a section per account when names are shown), covering only the accounts the channel's filter admits; never readings in bulk or a credential",
             "off: nothing until you add a channel",
             "0044",
         ),
