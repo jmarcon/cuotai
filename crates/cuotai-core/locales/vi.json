@@ -225,7 +225,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2170,6 +2171,7 @@
   "query.router_grok.provider_not_supported": "Nhà cung cấp không có truy vấn nào trong bộ điều hợp này.",
   "query.router_keys.http": "Truy vấn trả về HTTP {code}.",
   "query.meta.http": "Meta Model API trả về HTTP {code}.",
+  "query.meta.console_http": "Bảng điều khiển dev.meta.ai trả về HTTP {code}; không đọc được gì.",
   "query.meta.team_id_invalid": "\"ID nhóm\" không phải ID nhóm dev.meta.ai; hãy sao chép số sau team_id= trong địa chỉ trang mức dùng.",
   "query.meta.project_id_invalid": "\"ID dự án\" không phải ID dự án dev.meta.ai; hãy sao chép số sau project_id= trong địa chỉ trang mức dùng.",
   "query.meta.session_expired": "Phiên dev.meta.ai đã hết hạn hoặc bị thu hồi; hãy đăng nhập lại từ tài khoản.",

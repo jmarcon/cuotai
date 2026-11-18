@@ -101,7 +101,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -1493,6 +1494,7 @@
   "query.router_grok.provider_not_supported": "Proveedor sin consulta en este adaptador.",
   "query.router_keys.http": "La consulta devolvió HTTP {code}.",
   "query.meta.http": "Meta Model API devolvió HTTP {code}.",
+  "query.meta.console_http": "La consola dev.meta.ai devolvió HTTP {code}; no se leyó nada.",
   "query.meta.team_id_invalid": "\"ID del equipo\" no es un ID de equipo de dev.meta.ai; copie el número tras team_id= en la dirección de la página de uso.",
   "query.meta.project_id_invalid": "\"ID del proyecto\" no es un ID de proyecto de dev.meta.ai; copie el número tras project_id= en la dirección de la página de uso.",
   "query.meta.session_expired": "Sesión de dev.meta.ai caducada o revocada; vuelva a iniciar sesión desde la cuenta.",

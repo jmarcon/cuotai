@@ -274,7 +274,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -2300,6 +2301,7 @@
   "query.router_grok.provider_not_supported": "Для провайдера в этом адаптере нет запроса.",
   "query.router_keys.http": "Запрос вернул HTTP {code}.",
   "query.meta.http": "Meta Model API вернул HTTP {code}.",
+  "query.meta.console_http": "Консоль dev.meta.ai вернула HTTP {code}; ничего не прочитано.",
   "query.meta.team_id_invalid": "\"ID команды\" не является ID команды dev.meta.ai; скопируйте число после team_id= в адресе страницы использования.",
   "query.meta.project_id_invalid": "\"ID проекта\" не является ID проекта dev.meta.ai; скопируйте число после project_id= в адресе страницы использования.",
   "query.meta.session_expired": "Сессия dev.meta.ai истекла или отозвана; войдите снова из учётной записи.",

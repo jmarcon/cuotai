@@ -246,7 +246,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -2218,6 +2219,7 @@
   "query.router_grok.provider_not_supported": "Anbieter ohne Abfrage in diesem Adapter.",
   "query.router_keys.http": "Die Abfrage lieferte HTTP {code}.",
   "query.meta.http": "Die Meta Model API antwortete mit HTTP {code}.",
+  "query.meta.console_http": "Die dev.meta.ai-Konsole antwortete mit HTTP {code}; es wurde nichts gelesen.",
   "query.meta.team_id_invalid": "\"Team-ID\" ist keine dev.meta.ai-Team-ID; kopieren Sie die Zahl nach team_id= in der Adresse der Nutzungsseite.",
   "query.meta.project_id_invalid": "\"Projekt-ID\" ist keine dev.meta.ai-Projekt-ID; kopieren Sie die Zahl nach project_id= in der Adresse der Nutzungsseite.",
   "query.meta.session_expired": "dev.meta.ai-Sitzung abgelaufen oder widerrufen; melden Sie sich im Konto erneut an.",

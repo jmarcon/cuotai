@@ -267,7 +267,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2212,6 +2213,7 @@
   "query.router_grok.provider_not_supported": "このアダプターではこのプロバイダーを照会できません。",
   "query.router_keys.http": "照会が HTTP {code} を返しました。",
   "query.meta.http": "Meta Model API が HTTP {code} を返しました。",
+  "query.meta.console_http": "dev.meta.ai コンソールが HTTP {code} を返しました。何も読み取っていません。",
   "query.meta.team_id_invalid": "\"チーム ID\" は dev.meta.ai のチーム ID ではありません。使用量ページのアドレスの team_id= の後の数字をコピーしてください。",
   "query.meta.project_id_invalid": "\"プロジェクト ID\" は dev.meta.ai のプロジェクト ID ではありません。使用量ページのアドレスの project_id= の後の数字をコピーしてください。",
   "query.meta.session_expired": "dev.meta.ai のセッションが期限切れか取り消されました。アカウントから再度サインインしてください。",

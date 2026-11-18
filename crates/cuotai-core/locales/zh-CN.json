@@ -261,7 +261,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -2206,6 +2207,7 @@
   "query.router_grok.provider_not_supported": "此适配器不支持查询该提供商。",
   "query.router_keys.http": "查询返回 HTTP {code}。",
   "query.meta.http": "Meta Model API 返回 HTTP {code}。",
+  "query.meta.console_http": "dev.meta.ai 控制台返回 HTTP {code}；未读取任何内容。",
   "query.meta.team_id_invalid": "\"团队 ID\" 不是 dev.meta.ai 团队 ID；请复制用量页面地址中 team_id= 后面的数字。",
   "query.meta.project_id_invalid": "\"项目 ID\" 不是 dev.meta.ai 项目 ID；请复制用量页面地址中 project_id= 后面的数字。",
   "query.meta.session_expired": "dev.meta.ai 会话已过期或被撤销；请在账户中重新登录。",

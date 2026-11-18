@@ -223,7 +223,8 @@
       "query.env_name_invalid",
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
-      "user_session.key_not_found"
+      "user_session.key_not_found",
+      "query.meta.console_http"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -2195,6 +2196,7 @@
   "query.router_grok.provider_not_supported": "Sağlayıcının bu bağdaştırıcıda sorgusu yok.",
   "query.router_keys.http": "Sorgu HTTP {code} döndürdü.",
   "query.meta.http": "Meta Model API HTTP {code} döndürdü.",
+  "query.meta.console_http": "dev.meta.ai konsolu HTTP {code} döndürdü; hiçbir şey okunmadı.",
   "query.meta.team_id_invalid": "\"Ekip kimliği\" bir dev.meta.ai ekip kimliği değil; kullanım sayfası adresinde team_id= sonrasındaki sayıyı kopyalayın.",
   "query.meta.project_id_invalid": "\"Proje kimliği\" bir dev.meta.ai proje kimliği değil; kullanım sayfası adresinde project_id= sonrasındaki sayıyı kopyalayın.",
   "query.meta.session_expired": "dev.meta.ai oturumunun süresi doldu veya iptal edildi; hesaptan yeniden oturum açın.",
