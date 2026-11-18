@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0049 |
-| Status | Awaiting owner verification (RF1–RF5 and RF7–RF10 delivered in 0.81.0; RF6 and RF11, the real-account checks, are the owner's) |
+| Status | Awaiting owner verification (RF1–RF5 and RF7–RF10 delivered in 0.81.0, 2026-11-18 re-validation fixes in vNEXT; RF6 and RF11, the real-account checks, are the owner's) |
 | Owner | `cuotai-core` (model, adapter, access descriptor, account fields, catalog entry) |
 | Consumers | `apps/desktop` and `crates/cuotai-tui` (generic rendering only) |
 | Depends on | PRD 0005 RF1 (`access::describe`), PRD 0047 (typed keys kept in the system vault), PRD 0048 (session capture window) |
@@ -23,10 +23,28 @@
 | RF5 | 0.81.0 | `wiremock` contract tests: headers present, absent, partial, 401/403, 429, schema drift, missing key. |
 | RF6 | — | Owner check with a real key. |
 | RF7 | 0.81.0 | `meta` session descriptor `session_env` (`llama_dev_sess`, host `dev.meta.ai`) with a PRD 0048 capture of `https://dev.meta.ai/usage` and its exact-host sign-in allow-list. |
-| RF8 | 0.81.0 | Optional `team_id` / `project_id` params (`project_id` validated but not sent: the console's usage request carries only the team); team discovered through `/api/portal/teams` when the session has one team. |
+| RF8 | 0.81.0 | Optional `team_id` param; team discovered through `/api/portal/teams` when the session has one team. The `project_id` param of 0.81.0 (validated but never sent: the console's usage request carries only the team) was removed from the form in vNEXT (re-validation R49-02). |
 | RF9 | 0.81.0 | Console usage read through the owner-confirmed `GET /api/portal/teams/{team}/usage/batch` (month to date, UTC) and its `metrics.<NAME>.series[TOTAL]` shape; access level `Undocumented` / user session for the session mode. |
 | RF10 | 0.81.0 | `wiremock`, parser, allow-list and capture tests; debug-only diagnostics (navigation hosts/paths, unrecognised usage field names). |
 | RF11 | — | Request and shape confirmed by the owner on 2026-10-27 (§5.1); pending: a non-zero sample to confirm the cents offset (§5.2) and the card in dev mode (§5.4 step 4). |
+| 2026-11-18 re-validation | vNEXT | Fixes of RF1, RF7, RF8 and RF9 (2 medium, 5 low findings): a session-only account fails, and keeps the console's `Retry-After`, when the console reads nothing; an invalid Team ID makes no request; the Project ID field is gone; the spend reads `amount` only; the Models view's Meta evidence date is 2026-10-27; see "2026-11-18 re-validation" below. |
+
+### 2026-11-18 re-validation (vNEXT)
+
+The re-validation (Visual and Security, then Review on `2a18777b`, delivered with PRD 0050 on one pair branch) found 2 medium and 5 low findings. Every one is fixed in vNEXT, or recorded below as an open item.
+
+| Group | Findings | Requirement | Delivery (vNEXT) |
+|---|---|---|---|
+| G1 | R49-01 (medium), R49-04 | RF8, RF9 | `console_get` returns an unusable console answer as an error: HTTP 429 is a rate limit with the console's `Retry-After`, another code an error (`query.meta.console_http`, 13 catalogs), a 2xx body that is not a JSON object a schema error. With a key it still degrades to a note (RF9); without one it is the account's error, so a session-only account is no longer "Up to date" with nothing read and its pre-save session test no longer passes. A team listing with several teams or an empty usage series stays `Ok`. The Team ID is validated before any request, the key check included. The key check reads the model listing with the shared bounded reader. |
+| G2 | R49-02 (medium) | RF8 | The Meta form offers the Team ID and the session variable only; `project_id` stays a managed key, so a save from the form strips a legacy value, and the adapter ignores a legacy value with the note `note.meta.project_ignored`. The ids `field.meta.project_id.{label,help}`, `query.meta.project_id_invalid` and the orphan `note.meta.no_usage_api` are removed from the 13 catalogs; the example config drops `project_id`. |
+| G3 | R49-03 | RF9, §5.2 | The spend sums the cost points' `amount` only; a point without it is not counted, so an unexpected answer leaves the spend unknown instead of `value / offset` (100 times too small). |
+| G4 | R49-06, R49-07 | RF1, RF7, RF8, §4, §5.2 | The Models view's Meta evidence carries its own date (2026-10-27) and `docs/providers.md` is regenerated; this record and the amended requirements. |
+
+**Open items:**
+- **R49-05:** with a key, a console 429 degrades to a note (RF9), so its `Retry-After` does not delay the next console request, and a refresh makes up to three requests (key check, team listing, usage). Honouring the wait needs a retry hint on the shared `Data` that every adapter would carry, out of scope for a re-validation fix. A session-only account already waits (G1). Caching the discovered team id per process would remove one request.
+- **§3 of `0000_control.md`:** the 0.81.0 row for 0049 lists RF6 among the delivered requirements, although RF6 is the owner's pending real-key check. That row is generated from the `Refs:` trailers at release, so it is left as it is; RF6 stays pending here.
+
+**Owner checks:** RF6 and RF11 are unchanged (a real key; a real session with non-zero spend). In dev mode, the Meta account form now shows two fields (Team ID and the session variable).
 
 ## 1. Context and evidence (checked on 2026-10-27)
 
@@ -38,19 +56,19 @@
 | Successful token-based responses carry `x-ratelimit-limit-tokens`, `x-ratelimit-remaining-tokens`, `x-ratelimit-limit-requests`, `x-ratelimit-remaining-requests`; 429 carries `Retry-After`. Limits apply per team, not per key. | <https://dev.meta.ai/docs/pricing-rate-limits> |
 | No usage, spend, credit or balance endpoint is documented. Usage and billing are shown only in the console (`dev.meta.ai/usage`). | same page; the API reference index lists only Responses, Chat completions, Messages, Files, Images, Voice and Models |
 
-Team and project ids appear only in console URLs; the Model API does not need them. The console usage (§5) does, so they are optional params for the session mode.
+Team and project ids appear only in console URLs; the Model API does not need them. The console usage (§5) needs the team id only, so it is an optional param for the session mode.
 
 ## 2. Requirements
 
-- **RF1** The adapter makes one token-free read, `GET https://api.meta.ai/v1/models`, with the account key. A 2xx answer whose body is a JSON object with a `data` array is a valid key; anything else is a schema error. Model ids are not copied anywhere.
+- **RF1** The adapter makes one token-free read, `GET https://api.meta.ai/v1/models`, with the account key. A 2xx answer whose body is a JSON object with a `data` array is a valid key; anything else is a schema error. Model ids are not copied into notes or metrics; the Models view lists them on request.
 - **RF2** When both the limit and the remaining header of a bucket (requests, tokens) are present and numeric, the bucket becomes a `RateLimit` metric. A missing or partial bucket is omitted and a note says the window is unknown: never zero. Meta documents the headers on token-based responses, so the listing may not carry them.
 - **RF3** 401/403 are authentication errors, 429 is rate limited (with `Retry-After`), other codes are errors; no body or URL is exposed.
 - **RF4** The card says that Meta documents no usage or balance API and points to the dev.meta.ai console.
 - **RF5** The key-creation page is `https://dev.meta.ai/api-keys` (without team or project ids). When the API-key-link mechanism lands, this provider uses that URL.
 - **RF6** Owner check: add the account with a real key, confirm the card reaches "Up to date" and whether rate-limit metrics appear.
-- **RF7** A `session_env` session descriptor requires the console cookie `llama_dev_sess`, sent only over HTTPS to `dev.meta.ai`. Its capture opens `https://dev.meta.ai/usage`, reads the `dev.meta.ai` cookies and may visit only `dev.meta.ai`, `auth.meta.com`, `auth.meta.ai`, `accountscenter.meta.com`, `www.meta.com`, `www.facebook.com`, `m.facebook.com` and `www.instagram.com`, matched exactly. Anonymous cookies (`datr`) and sign-in helpers never end the capture.
-- **RF8** `params.team_id` and `params.project_id` are optional ids copied from `dev.meta.ai/usage?team_id=…&project_id=…` (digits, letters, `_`, `-`, at most 64 characters; anything else is a configuration error before any request). Without `team_id`, `GET /api/portal/teams` picks the session's only team; with several, a note asks for `team_id`.
-- **RF9** With a session, the adapter calls `GET https://dev.meta.ai/api/portal/teams/{team_id}/usage/batch?metrics=…&start_date=…&end_date=…&timezone=…` (the current calendar month to date) with the cookie, `Content-Type: application/json` and the `Referer` of the usage page. 401/403 or a redirect is "session expired" (authentication error); other codes degrade to a note and the key check still shows; a 2xx body without a `metrics` object is a schema error. The sum of each metric's `TOTAL` series becomes a monthly metric (cost → `Spend` in the currency code, tokens, requests and the other counters → `Usage`); an empty series is left out, never zero, while explicit `0` points are a real zero. The session mode's access level is `Undocumented`, so the card says it may change without notice.
+- **RF7** A `session_env` session descriptor requires the console cookie `llama_dev_sess`, sent only over HTTPS to `dev.meta.ai`. Its capture opens `https://dev.meta.ai/usage`, reads the `dev.meta.ai` cookies and may visit only `dev.meta.ai`, `auth.meta.com`, `auth.meta.ai`, `accountscenter.meta.com`, `www.meta.com`, `www.facebook.com`, `m.facebook.com`, `www.instagram.com`, `accounts.google.com` and `github.com`, matched exactly (Google and GitHub since the owner test of 2026-10-27, when the sign-in page offered both and they were refused until listed). Because the sign-in offers Google, the capture runs in PRD 0056's shared Google window (`shared: Some(SharedSignIn::Google)`). Anonymous cookies (`datr`) and sign-in helpers never end the capture.
+- **RF8** `params.team_id` is an optional id copied from `dev.meta.ai/usage?team_id=…` (digits, letters, `_`, `-`, at most 64 characters; with a session, anything else is a configuration error before any request, the key check included). Without `team_id`, `GET /api/portal/teams` picks the session's only team; with several, a note asks for `team_id`. The console's usage request has no project filter, so there is no Project ID: a legacy `params.project_id` is ignored, never sent, and a note says the card shows the whole team (vNEXT).
+- **RF9** With a session, the adapter calls `GET https://dev.meta.ai/api/portal/teams/{team_id}/usage/batch?metrics=…&start_date=…&end_date=…&timezone=…` (the current calendar month to date) with the cookie, `Content-Type: application/json` and the `Referer` of the usage page. 401/403 or a redirect is "session expired" (authentication error). With a key, other codes and a 2xx body that is not a JSON object degrade to a note and the key check still shows; without a key they are the account's error (429 rate limited with `Retry-After`, other codes an error, a non-object body a schema error), since nothing was read (vNEXT). A team listing with several teams or an empty usage series is not an error: the console answered with the session. A 2xx body without a `metrics` object is a schema error. The sum of each metric's `TOTAL` series becomes a monthly metric (cost → `Spend` in the currency code, from the points' `amount` only, tokens, requests and the other counters → `Usage`); an empty series is left out, never zero, while explicit `0` points are a real zero. The session mode's access level is `Undocumented`, so the card says it may change without notice.
 - **RF10** Tests use placeholder data only. Debug builds print the capture window's navigation host and path (no query) and the field names (no values) of an unrecognised usage body.
 - **RF11** Owner check with a real session (§5.4).
 
@@ -62,7 +80,10 @@ Team and project ids appear only in console URLs; the Model API does not need th
 
 - 2026-10-27: provider slug `meta`, label "Meta Model API"; level `Derived`, like Groq.
 - 2026-10-27: the model listing is not offered in the Models view (`no_evidence`): its schema is not published in field detail.
+- Superseded (`55d0bcf`, 0.81.0): the Models view lists the account's models from `GET /v1/models` with the account key (`models.source.meta`); since vNEXT its evidence carries the date the reference was read, 2026-10-27, instead of the catalog-wide 2026-10-20.
 - 2026-10-27 (owner): usage may be read through a dev.meta.ai web session captured in a Cuotai window (PRD 0048 style). Agent: slot `session_env` (as Alibaba), cookie `llama_dev_sess` (the one `/api/auth/logout` clears), team discovery from `/api/portal/teams` with `team_id`/`project_id` params as overrides, inferred body parser with a debug field-name diagnostic until the owner confirms the shape.
+- 2026-11-18 (re-validation, R49-02): the Project ID field is removed. The confirmed usage request carries no `project_id`, and the console's only `project_id`-filtered routes (`/api/model-api/models`, `/api/uploads/token`) carry no usage, so there is no project filter to send.
+- 2026-11-18 (re-validation, R49-03): a cost point without `amount` is not counted; nothing evidences the unit of its `value`.
 - 2026-10-27 (owner): the signed-in console's usage request and answer were observed and confirmed (§5.1). Agent: the adapter now sends exactly that request (`usage/batch`, the 15 metric names, month to date) and drops `project_id` from it; the timezone is `UTC` because no adapter reads the system IANA zone and `iana-time-zone` is not a direct dependency; `ecto_1_sess` becomes an optional session cookie; the cost is `amount / currency.offset` (offset `100` read as cents, inferred).
 
 ## 5. Console usage evidence (2026-10-27)
@@ -88,7 +109,7 @@ The agent used no sign-in and no credentials; the usage request and answer in §
 
 ### 5.2 Inferred (not observed)
 
-- `currency.offset: 100` means the `amount` values are minor units (cents), so the cost is `amount / offset`: the owner's sample was all zeros. `value` is read when `amount` is absent. `models` (empty in the sample) may carry a per-model breakdown; it is ignored.
+- `currency.offset: 100` means the `amount` values are minor units (cents), so the cost is `amount / offset`: the owner's sample was all zeros. A cost point without `amount` is not counted (vNEXT; before, its `value` was divided by the offset, a unit nothing evidences). `models` (empty in the sample) may carry a per-model breakdown; it is ignored.
 - The timezone is sent as `UTC` (the console sends the browser's IANA zone), so day boundaries may differ from the console page by the UTC offset.
 - Currency defaults to USD only because Meta's pricing page is in USD.
 - Sign-in hosts beyond `auth.meta.com`/`auth.meta.ai`: `auth.meta.com` refuses non-browser clients (`400`), so `www.meta.com`, `www.facebook.com`, `m.facebook.com` and `www.instagram.com` (Meta account sign-in with Facebook or Instagram) are inferred. A missing host shows as a refused navigation in the debug log.

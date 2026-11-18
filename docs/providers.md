@@ -518,7 +518,7 @@ Evidence of each listing (PRD 0028 RF10.1), generated from `models::evidence` an
 | `antigravity` | any | verified live | [reference](https://github.com/decolua/9router/blob/f01fb909e37189008080632ddaf404f096345cde/open-sse/services/usage/antigravity-weekly.js) | 2026-10-20 |
 | `kimchi` | any | none: `Unsupported` | — | — |
 | `eleven_labs` | any | none: `Unsupported` | — | — |
-| `meta` | any | documented | [reference](https://dev.meta.ai/docs/api-reference/models/list-models) | 2026-10-20 |
+| `meta` | any | documented | [reference](https://dev.meta.ai/docs/api-reference/models/list-models) | 2026-10-27 |
 | `jetbrains_ai` | any | none: `Unsupported` | — | — |
 | `nine_router` | any | none: `Unsupported` | — | — |
 | `open_router` | default | documented | [reference](https://openrouter.ai/docs/api/api-reference/models/get-models) | 2026-10-23 |

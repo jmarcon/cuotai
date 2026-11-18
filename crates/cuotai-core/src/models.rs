@@ -403,10 +403,16 @@ fn contract(account: &Account) -> Result<(Localized, ModelEvidence), Localized> 
                 ..documented("https://openrouter.ai/docs/api/api-reference/models/get-models")
             },
         ),
+        // The models reference was read when the provider was specified
+        // (2026-10-27), not on the catalog-wide 2026-10-20 (PRD 0049
+        // re-validation R49-07).
         Provider::Meta => source(
             "models.source.meta",
             "Meta Model API GET /v1/models with the account key; does not prove inference permission, price or current availability.",
-            documented("https://dev.meta.ai/docs/api-reference/models/list-models"),
+            ModelEvidence {
+                verified_on: "2026-10-27",
+                ..documented("https://dev.meta.ai/docs/api-reference/models/list-models")
+            },
         ),
         Provider::ElevenLabs => reason(
             "eleven_labs",
