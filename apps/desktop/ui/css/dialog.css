@@ -23,7 +23,9 @@
   gap: var(--space-0);
   font-weight: 400;
 }
-.f input,
+/* The text fields of a form; a membership check (`.chk`, DS-CMP-CHK-1) or a switch (`.sw`) inside a `.f` keeps its own
+   shape (PRD 0044 re-validation V-02); `:where` keeps the rule as weak as before, so field overrides still win. */
+.f input:where(:not(.chk, .sw)),
 .f select {
   height: 34px;
   padding: 0 var(--space-3);
@@ -33,7 +35,7 @@
   color: var(--fg);
   font: inherit;
 }
-.f input:focus,
+.f input:where(:not(.chk, .sw)):focus,
 .f select:focus {
   outline: 2px solid var(--focus);
   outline-offset: -1px;

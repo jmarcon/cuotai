@@ -1744,6 +1744,7 @@
   "settings.channels.testOk": "Inviato: {host} ha risposto {status}.",
   "settings.channels.testFailed": "Non inviato: {host} ({reason}).",
   "settings.channels.kindInline.webhook": "webhook",
+  "settings.channels.maxReached": "Al massimo {max} canali. Rimuovine uno per aggiungerne un altro.",
   "settings.kw.channels": "canali webhook ntfy slack discord telefono push team inviare destinazione",
   "settings.hooks.event.notification_sent": "una notifica ha raggiunto un canale",
   "settings.error.channels_unavailable": "I canali non sono disponibili finché la configurazione non è caricata.",

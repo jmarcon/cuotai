@@ -78,6 +78,9 @@ const paths = {
   arrowDown: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
   arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   mapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  // PRD 0044 re-validation V-12: generic glyphs for the Slack (a hash) and Discord (a speech bubble) channels, no logos.
+  hash: '<path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3l-2 18"/>',
+  message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 };
 export const icon = (name, cls = "") => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 
@@ -3436,6 +3439,36 @@ const demoExtensions = () => {
 // ---------- demo: notification channels (PRD 0044) ----------
 let demoChannels = [];
 const demoChannelLog = [];
+// PRD 0044 re-validation V-05: `?channels` starts with two channels (ntfy on this computer, and a webhook with the
+// weekly digest that has been failing for over a day) and five deliveries of mixed kinds and outcomes, one from
+// yesterday; `?channels=five` adds a Slack, a Discord and a second ntfy channel, so Add is at the maximum. The log
+// entries carry the core's labels (`kind_label`, `error_label`) as `Localized` serializes them.
+if (DEMO_QUERY.has("channels")) {
+  const ago = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
+  const kinds = ["reset", "threshold", "exhausted", "recovered", "projected", "overage", "floor", "session_expiring", "limit_changed"];
+  const channel = (id, kind, label, host, extra = {}) => ({ id, kind, label, host, enabled: true, created_at: ago(20000), signed: false,
+    filters: { kinds, accounts: [], min_severity: "info", include_names: null }, last: null, ...extra });
+  demoChannels = [
+    channel("a1b2c3d4e5f60718", "ntfy", "Phone", "127.0.0.1:8080", { last: { at: ago(10), outcome: "delivered", status: 200 } }),
+    channel("0f1e2d3c4b5a6978", "webhook", "Team dashboard", "hooks.example.com", { signed: true,
+      filters: { kinds: [...kinds, "digest"], accounts: ["acc_demo_work"], min_severity: "warning", include_names: true },
+      last: { at: ago(120), outcome: "failed", status: 503 }, failing_since: ago(1700), failing_status: 503, failing_long: true }),
+  ];
+  if (DEMO_QUERY.get("channels") === "five") demoChannels.push(
+    channel("1122334455667788", "slack", "Ops channel", "hooks.slack.com"),
+    channel("8877665544332211", "discord", "Release room", "discord.com", { enabled: false }),
+    channel("9999aaaabbbbcccc", "ntfy", "Laptop", "ntfy.example.com"));
+  const kind = (slug, fallback) => demoL10n(slug === "test" || slug === "rate_limit" || slug === "failing" ? `channels.log_kind.${slug}` : `channels.kind.${slug}`, {}, fallback);
+  const entry = (minutes, ch, slug, fallback, outcome, status, attempt, error) => ({ at: ago(minutes), channel: ch, kind: slug, outcome,
+    ...(status ? { status } : {}), attempt, ...(error ? { error } : {}), kind_label: kind(slug, fallback),
+    error_label: error ? demoL10n(`channels.error_category.${error}`, {}, "the request timed out") : null });
+  demoChannelLog.push(
+    entry(10, "a1b2c3d4e5f60718", "threshold", "Thresholds", "delivered", 200, 1),
+    entry(120, "0f1e2d3c4b5a6978", "threshold", "Thresholds", "failed", 503, 3),
+    entry(300, "a1b2c3d4e5f60718", "test", "Test", "delivered", 200, 1),
+    entry(480, "0f1e2d3c4b5a6978", "reset", "Resets", "rate_limited", null, 0),
+    entry(1560, "0f1e2d3c4b5a6978", "digest", "Weekly digest", "failed", null, 3, "timeout"));
+}
 const DEMO_NOTICE_KINDS = [["reset", "Resets"], ["threshold", "Thresholds"], ["exhausted", "Exhaustion"], ["recovered", "Recovery"],
   ["projected", "Projected exhaustion"], ["overage", "Extra usage"], ["floor", "Balance floors"], ["session_expiring", "Session expiry"],
   ["limit_changed", "Limit changes"], ["digest", "Weekly digest"]];
@@ -3470,13 +3503,13 @@ function demoChannelConsent(draft, url) {
   const example = draft.kind === "ntfy" ? `Title: ${title}\nPriority: 4\nTags: warning\n\n${body}`
     : JSON.stringify(draft.kind === "slack" ? { text: `${title}\n${body}` } : draft.kind === "discord" ? { content: `**${title}**\n${body}` }
       : { schema: 1, kind: "threshold", severity: "warning", title, body, sample: true }, null, 2);
-  return { kind: draft.kind, host, masked: `${parsed.protocol}//${host}/••••`, warning: parsed.protocol === "http:"
+  return { kind: draft.kind, host: parsed.host, masked: `${parsed.protocol}//${parsed.host}/••••`, warning: parsed.protocol === "http:"
     ? demoL10n("channels.warning.plain_http", {}, "This address uses plain HTTP: anyone on your network can read the notifications. Use it only for a server on this computer or your private network.") : null,
   filters: demoFilterWords(draft.filters), example,
   sentence: demoL10n("channels.consent.sentence", {}, "Cuotai will send these texts to this address when a notification is due. Nothing else leaves this computer.") };
 }
 function demoChannelsView() {
-  return { channels: demoChannels.map((c) => ({ ...c, filters_text: demoFilterWords(c.filters), last: c.last ?? null, failing_since: null, failing_status: null, failing_long: false })),
+  return { channels: demoChannels.map((c) => ({ failing_since: null, failing_status: null, failing_long: false, ...c, filters_text: demoFilterWords(c.filters), last: c.last ?? null })),
     max: 5, kinds: ["webhook", "ntfy", "slack", "discord"], notice_kinds: DEMO_NOTICE_KINDS.map(([id, l]) => ({ id, label: demoL10n(`channels.kind.${id}`, {}, l) })),
     accounts: [{ id: "acc_demo_work", name: "Work" }, { id: "acc_demo_home", name: "Home" }], private: demoSettings.notify.private, log: demoChannelLog.slice(0, 30) };
 }
@@ -4282,7 +4315,8 @@ const demo = {
   channel_remove: async ({ id }) => { demoChannels = demoChannels.filter((c) => c.id !== id); },
   channel_test: async ({ id }) => {
     const c = demoChannels.find((x) => x.id === id);
-    demoChannelLog.unshift({ at: new Date().toISOString(), channel: id, kind: "test", outcome: "delivered", status: 200, attempt: 1 });
+    demoChannelLog.unshift({ at: new Date().toISOString(), channel: id, kind: "test", outcome: "delivered", status: 200, attempt: 1,
+      kind_label: demoL10n("channels.log_kind.test", {}, "Test"), error_label: null });
     c.last = { at: new Date().toISOString(), outcome: "delivered", status: 200 };
     return { outcome: "delivered", status: 200 };
   },

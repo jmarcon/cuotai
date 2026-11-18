@@ -1747,6 +1747,7 @@
   "settings.channels.testOk": "Gönderildi: {host} {status} yanıtını verdi.",
   "settings.channels.testFailed": "Gönderilmedi: {host} ({reason}).",
   "settings.channels.kindInline.webhook": "webhook",
+  "settings.channels.maxReached": "En fazla {max} kanal. Başka bir kanal eklemek için birini kaldırın.",
   "settings.kw.channels": "kanallar webhook ntfy slack discord telefon push ekip gönder hedef",
   "settings.hooks.event.notification_sent": "bir bildirim bir kanala ulaştı",
   "settings.error.channels_unavailable": "Yapılandırma yüklenene kadar kanallar kullanılamaz.",

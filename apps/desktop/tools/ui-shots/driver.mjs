@@ -97,6 +97,12 @@ export async function launch({ port, cdp, serve = true } = {}) {
       await sleep(400);
     }
   }
+  /** Focuses the first element matching `sel` and types `text` into it, as a paste would (input events included). */
+  async function fill(sel, text) {
+    await evaluate(`document.querySelector(${JSON.stringify(sel)})?.focus()`);
+    await send("Input.insertText", { text });
+    await sleep(200);
+  }
   /** Presses a key like a person at the keyboard (Tab, Shift+Tab, Enter, Space, Backspace, a digit or a letter). */
   async function press(key, { shift = false } = {}) {
     const named = { Tab: [9, "Tab", ""], Enter: [13, "Enter", "\r"], " ": [32, "Space", " "], Escape: [27, "Escape", ""], Backspace: [8, "Backspace", ""], ArrowDown: [40, "ArrowDown", ""], ArrowUp: [38, "ArrowUp", ""] };
@@ -112,5 +118,5 @@ export async function launch({ port, cdp, serve = true } = {}) {
     const { writeFileSync } = await import("node:fs");
     writeFileSync(file, Buffer.from(r.result.data, "base64"));
   }
-  return { open, click, press, shot, evaluate, send, close: () => { ws.close(); stop(); } };
+  return { open, click, fill, press, shot, evaluate, send, close: () => { ws.close(); stop(); } };
 }

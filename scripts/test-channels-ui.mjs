@@ -3,6 +3,8 @@
 // exactly once (an "&" is shown as "&", never as "&amp;"), and the Alerts page wires the channel list once, so Send
 // test posts once and Remove asks once. PRD 0044 re-validation (V-04, V-08, V-10): the log line reads the kind in the
 // person's language, a webhook is lowercase mid-sentence, and the default filters read as one "All kinds" item.
+// Re-validation V-13/V-12: at the maximum, Add stays focusable with its reason
+// (`aria-disabled`, a tooltip and a hint), and Slack and Discord rows carry different icons.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { installUiEnv } from "./ui-test-env.mjs";
@@ -51,6 +53,19 @@ assert.ok(german.includes("Schwellen"), "the log kind is German");
 assert.ok(german.includes("Netzwerkfehler"), "the log error is German");
 assert.ok(!/· threshold ·|network</.test(german), "no raw slug or category");
 await i18n.setLocale("en-US");
+const { icon } = await import("../apps/desktop/ui/js/lib.js");
+const five = ["webhook", "ntfy", "slack", "discord", "ntfy"].map((kind, i) => ({ ...channel, id: `${i}`.repeat(16), kind, label: `C${i}`, failing_long: false }));
+const full = listHtml({ channels: five, log: [], max: 5 });
+const add = full.match(/<button[^>]*data-channel-add[^>]*>/)?.[0] ?? "";
+assert.ok(add.includes('aria-disabled="true"') && add.includes("is-disabled") && add.includes('title="At most 5 channels.'), "Add at the maximum explains itself");
+assert.ok(!/\sdisabled[\s>]/.test(add), "and stays focusable");
+assert.ok(full.includes("data-channels-max") && full.includes("At most 5 channels. Remove one to add another."), "the hint says why");
+const open = listHtml({ channels: five.slice(0, 4), log: [], max: 5 }).match(/<button[^>]*data-channel-add[^>]*>/)?.[0] ?? "";
+assert.ok(!open.includes("aria-disabled") && !open.includes("is-disabled"), "below the maximum, Add is a plain button");
+const rowIcon = (id) => full.split(`data-row="channel-${id}"`)[1]?.match(/<svg[\s\S]*?<\/svg>/)?.[0];
+assert.equal(rowIcon("2".repeat(16)), icon("hash"), "Slack has the hash icon");
+assert.equal(rowIcon("3".repeat(16)), icon("message"), "Discord has the speech bubble icon");
+assert.notEqual(rowIcon("2".repeat(16)), rowIcon("3".repeat(16)), "Slack and Discord rows differ");
 
 const alerts = await readFile(new URL("../apps/desktop/ui/js/settings/alerts.js", import.meta.url), "utf8");
 assert.equal(alerts.match(/^\s*bindChannels\(/gm)?.length, 1, "the channel list is bound once");

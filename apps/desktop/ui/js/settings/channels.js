@@ -9,7 +9,7 @@ import { askDialog, l10nError } from "./common.js";
 import { buttons, disc, row, rowError, subpage, subRow, sw, toast } from "./rows.js";
 
 const KIND_NAMES = { webhook: "Webhook", ntfy: "ntfy", slack: "Slack", discord: "Discord" };
-const KIND_ICONS = { webhook: "globe", ntfy: "bell", slack: "plug", discord: "plug" };
+const KIND_ICONS = { webhook: "globe", ntfy: "bell", slack: "hash", discord: "message" };
 const SEVERITIES = ["info", "warning", "critical"];
 const DEFAULT_KINDS = ["reset", "threshold", "exhausted", "recovered", "projected", "overage", "floor", "session_expiring", "limit_changed"];
 
@@ -55,8 +55,12 @@ export function listHtml(view) {
       return `<li class="${e.outcome === "failed" ? "warn-txt" : ""}"><time datetime="${esc(e.at)}">${esc(when(e.at))}</time> ${esc(label)} · ${e.kind_label ? tle(e.kind_label) : esc(e.kind)} · ${te(`settings.channels.outcome.${e.outcome}`)}${e.status ? ` ${e.status}` : ""}${e.error_label ? ` · ${tle(e.error_label)}` : ""}</li>`;
     }).join("")}</ul>`
     : `<p class="hint" data-channel-log>${te("settings.channels.logEmpty")}</p>`;
+  // V-13 (DS-CMP-BTN-5): at the maximum, Add stays focusable with the reason in its tooltip and in a hint under it.
+  const full = view.channels.length >= view.max;
+  const maxText = te("settings.channels.maxReached", { max: view.max });
   return `${banner}<p class="hint">${te("settings.channels.intro")}</p>${rows}
-    <div class="dlg-actions left"><button class="btn" type="button" data-channel-add ${view.channels.length >= view.max ? "disabled" : ""}>${icon("plus")} ${te("settings.channels.add")}</button></div>
+    <div class="dlg-actions left"><button class="btn${full ? " is-disabled" : ""}" type="button" data-channel-add${full ? ` aria-disabled="true" aria-describedby="channels-max" title="${maxText}"` : ""}>${icon("plus")} ${te("settings.channels.add")}</button></div>
+    ${full ? `<p class="hint" id="channels-max" data-channels-max>${maxText}</p>` : ""}
     <p class="err" id="channels-msg" role="status"></p>
     ${disc("channel-log", te("settings.channels.log"), log)}`;
 }
@@ -221,6 +225,7 @@ export async function bindChannels(root, ctx) {
     if (!target) return;
     const find = (id) => view.channels.find((c) => c.id === id);
     if (target.matches("[data-channel-add]")) {
+      if (target.getAttribute("aria-disabled") === "true") return;
       if (await openEditor(view, null)) { toast(); ctx.changed?.("channels"); await paint(); }
     } else if (target.dataset.channelEdit) {
       if (await openEditor(view, find(target.dataset.channelEdit))) { toast(); await paint(); }

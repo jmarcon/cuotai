@@ -77,7 +77,8 @@
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
-      "settings.channels.kindInline.webhook"
+      "settings.channels.kindInline.webhook",
+      "settings.channels.maxReached"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -1794,6 +1795,7 @@
   "settings.channels.testOk": "已发送：{host} 返回 {status}。",
   "settings.channels.testFailed": "未发送：{host}（{reason}）。",
   "settings.channels.kindInline.webhook": "Webhook",
+  "settings.channels.maxReached": "最多 {max} 个渠道。请先移除一个再添加。",
   "settings.kw.channels": "渠道 webhook ntfy slack discord 手机 推送 团队 发送 目标",
   "settings.hooks.event.notification_sent": "一条通知已送达某个渠道",
   "settings.error.channels_unavailable": "配置加载完成之前，渠道不可用。",

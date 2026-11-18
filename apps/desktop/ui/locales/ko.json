@@ -73,7 +73,8 @@
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
-      "settings.channels.kindInline.webhook"
+      "settings.channels.kindInline.webhook",
+      "settings.channels.maxReached"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -1790,6 +1791,7 @@
   "settings.channels.testOk": "전송됨: {host}이(가) {status}(으)로 응답했습니다.",
   "settings.channels.testFailed": "전송 안 됨: {host} ({reason}).",
   "settings.channels.kindInline.webhook": "웹훅",
+  "settings.channels.maxReached": "채널은 최대 {max}개입니다. 다른 채널을 추가하려면 하나를 제거하세요.",
   "settings.kw.channels": "채널 웹훅 webhook ntfy slack discord 휴대폰 푸시 팀 보내기 대상",
   "settings.hooks.event.notification_sent": "알림이 채널에 도착함",
   "settings.error.channels_unavailable": "구성이 로드될 때까지 채널을 사용할 수 없습니다.",

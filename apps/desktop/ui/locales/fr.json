@@ -339,7 +339,8 @@
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
-      "settings.channels.kindInline.webhook"
+      "settings.channels.kindInline.webhook",
+      "settings.channels.maxReached"
     ]
   },
   "agg.alertEach": "Alerter pour chaque connexion",
@@ -2084,6 +2085,7 @@
   "settings.channels.testOk": "Envoyé : {host} a répondu {status}.",
   "settings.channels.testFailed": "Non envoyé : {host} ({reason}).",
   "settings.channels.kindInline.webhook": "webhook",
+  "settings.channels.maxReached": "{max} canaux au maximum. Supprimez-en un pour en ajouter un autre.",
   "settings.kw.channels": "canaux webhook ntfy slack discord téléphone push équipe envoyer destination",
   "settings.hooks.event.notification_sent": "une notification a atteint un canal",
   "settings.error.channels_unavailable": "Les canaux sont indisponibles tant que la configuration n’est pas chargée.",

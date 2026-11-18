@@ -53,7 +53,8 @@
       "settings.costBy.olderSessions",
       "settings.costBy.blocksCaption",
       "settings.costBy.kpi.partial",
-      "settings.channels.kindInline.webhook"
+      "settings.channels.kindInline.webhook",
+      "settings.channels.maxReached"
     ]
   },
   "agg.alertEach": "Cảnh báo cho từng kết nối",
@@ -1770,6 +1771,7 @@
   "settings.channels.testOk": "Đã gửi: {host} trả lời {status}.",
   "settings.channels.testFailed": "Chưa gửi: {host} ({reason}).",
   "settings.channels.kindInline.webhook": "webhook",
+  "settings.channels.maxReached": "Tối đa {max} kênh. Hãy xóa một kênh để thêm kênh khác.",
   "settings.kw.channels": "kênh webhook ntfy slack discord điện thoại push nhóm gửi đích",
   "settings.hooks.event.notification_sent": "một thông báo đã tới một kênh",
   "settings.error.channels_unavailable": "Kênh không khả dụng cho đến khi cấu hình được tải.",

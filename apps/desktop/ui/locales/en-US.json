@@ -1715,6 +1715,7 @@
   "settings.channels.logEmpty": "No delivery in the last 7 days.",
   "settings.channels.intro": "Up to 5 destinations you own receive the same notifications as this computer, after the same preferences and quiet hours.",
   "settings.channels.add": "Add channel",
+  "settings.channels.maxReached": "At most {max} channels. Remove one to add another.",
   "settings.channels.log": "Delivery log",
   "settings.channels.editTitle": "Edit channel",
   "settings.channels.addTitle": "Add a notification channel",
