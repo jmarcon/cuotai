@@ -78,6 +78,139 @@ fn de_uses_the_sie_form() {
     assert!(bad.is_empty(), "de texts use du instead of Sie: {bad:#?}");
 }
 
+/// German du-imperatives that `de_uses_the_sie_form` cannot see, because
+/// they carry no pronoun ("Gib den Schlüssel ein"). The Sie form names the
+/// verb in its infinitive ("Geben Sie"), so these forms never start a Sie
+/// imperative.
+const DE_DU_IMPERATIVES: &[&str] = &[
+    "Gib",
+    "Wähle",
+    "Öffne",
+    "Starte",
+    "Führe",
+    "Prüfe",
+    "Korrigiere",
+    "Entferne",
+    "Setze",
+    "Schreibe",
+    "Tippe",
+    "Füge",
+    "Schalte",
+    "Lösche",
+    "Installiere",
+    "Melde",
+    "Beende",
+    "Aktualisiere",
+    "Erlaube",
+    "Entsperre",
+    "Verschiebe",
+    "Erstelle",
+    "Ignoriere",
+    "Speichere",
+    "Repariere",
+    "Sende",
+    "Lass",
+    "Bestätige",
+    "Versuche",
+    "Verwende",
+];
+
+/// The de ids that still use a du-imperative (PRD 0046 RF4.2, PRD 0035
+/// RF11.5). They lie outside the backup, restore and setup-check surfaces
+/// that PRD 0046 moved to "Sie"; their PRDs' owners move them later. The
+/// list only shrinks: a moved id fails until it is removed here.
+const DE_DU_IMPERATIVE_RATCHET: &[&str] = &[
+    "core:budget.error.amount_ambiguous",
+    "core:budget.error.characters",
+    "core:budget.error.selector",
+    "core:budget.error.unit_mismatch",
+    "core:config.account.requires_newer",
+    "core:cost.view.unreadable",
+    "core:edit_error.config_inline_accounts",
+    "core:edit_error.config_newer_accounts",
+    "core:feed.banner.claude_code",
+    "core:feed.banner.codex_cli",
+    "core:history.error.damaged",
+    "core:history.error.erase_incomplete",
+    "core:history.error.export_target",
+    "core:note.claude_code.no_feed",
+    "core:note.codex_cli.no_feed",
+    "core:secret_input.duplicate_slot",
+    "core:secret_input.help",
+    "core:secret_input.unknown_slot",
+    "core:state.error.newer_major",
+    "core:state.error.newer_major_history",
+    "tui:canary.foreign_folder",
+    "tui:history_actions.path_empty",
+    "tui:report.healthy",
+    "tui:report.open_link",
+    "ui:coreText.doctorNoKey",
+    "ui:coreText.toolMissing",
+    "ui:dialog.monogram.invalid",
+    "ui:settings.dataDir.pending",
+    "ui:settings.erase.partial",
+    "ui:settings.erase.word",
+    "ui:settings.error.busy",
+    "ui:settings.error.newer",
+    "ui:settings.insights.digestTestOff",
+];
+
+/// Whether `text` holds a du-imperative from [`DE_DU_IMPERATIVES`] at the
+/// start of a sentence or clause (after `.`, `!`, `?`, `:` or `;`) or right
+/// after `und`/`oder`, not followed by " Sie".
+fn has_du_imperative(text: &str) -> bool {
+    let pattern = format!(
+        r"(?i)(?:^|[.!?:;]\s+|\b(?:und|oder)\s+)(?:{})\b",
+        DE_DU_IMPERATIVES.join("|")
+    );
+    let verb = Regex::new(&pattern).unwrap();
+    let text = without_placeholders(text, " ");
+    let found = verb
+        .find_iter(&text)
+        .any(|found| !text[found.end()..].starts_with(" Sie"));
+    found
+}
+
+// G10
+/// V35-02 (PRD 0046 V-3): German instructions use the Sie imperative
+/// ("Geben Sie …"), never the du imperative ("Gib …"), except the ids of
+/// [`DE_DU_IMPERATIVE_RATCHET`].
+#[test]
+fn de_uses_the_sie_imperative() {
+    let found = offending_ids("de", |_, text| has_du_imperative(text));
+    let allowed: BTreeSet<String> = DE_DU_IMPERATIVE_RATCHET
+        .iter()
+        .map(|id| id.to_string())
+        .collect();
+    let new: Vec<_> = found.difference(&allowed).collect();
+    let gone: Vec<_> = allowed.difference(&found).collect();
+    assert!(
+        new.is_empty(),
+        "de texts use a du-imperative; write the Sie form (\"Geben Sie …\"): {new:#?}"
+    );
+    assert!(
+        gone.is_empty(),
+        "these de ids no longer use a du-imperative; remove them from \
+         DE_DU_IMPERATIVE_RATCHET: {gone:#?}"
+    );
+}
+
+// G10
+/// The du-imperative rule finds the forms it names and leaves the Sie form,
+/// conjugated verbs and longer words alone.
+#[test]
+fn du_imperative_detection() {
+    assert!(has_du_imperative("Gib den Schlüssel erneut ein."));
+    assert!(has_du_imperative("Datei geändert; starte sie erneut."));
+    assert!(has_du_imperative("Prüfe die Adresse und sende einen Test."));
+    assert!(has_du_imperative("{field}: Setze kind."));
+    assert!(!has_du_imperative("Geben Sie den Schlüssel erneut ein."));
+    assert!(!has_du_imperative("Starten Sie Cuotai neu."));
+    assert!(!has_du_imperative("Cuotai gibt nichts weiter."));
+    assert!(!has_du_imperative("Die Startseite öffnet sich."));
+    assert!(!has_du_imperative("Drei Versuche. Gibt es mehr?"));
+}
+
 // G10
 /// V35-03: Simplified Chinese drops the pronoun; 您 only in error, consent,
 /// privacy and warning texts, never 你.
