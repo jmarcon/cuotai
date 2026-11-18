@@ -3459,12 +3459,12 @@ where
                     ("from", crate::insights::plain(change.from).into()),
                     ("to", crate::insights::plain(change.to).into()),
                 ]),
-                "{metric} limit {from} → {to}",
+                "{metric}: {from} → {to}",
             ),
             None => Localized::with_params(
                 "alerts.item.limit_changed_unknown",
                 params([("metric", metric_param(label))]),
-                "{metric} limit changed",
+                "{metric}: limit changed",
             ),
         },
     }

@@ -218,7 +218,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -364,8 +366,8 @@
   "alerts.item.balance_below_floor": "{metric} 低于设定的下限",
   "alerts.item.balance_recovered": "{metric} 已回到设定的下限以上",
   "alerts.item.exhausted": "{metric} 已达限额",
-  "alerts.item.limit_changed": "{metric} 上限 {from} → {to}",
-  "alerts.item.limit_changed_unknown": "{metric} 上限已变更",
+  "alerts.item.limit_changed": "{metric}：{from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}：上限已变更",
   "alerts.item.overage_cap": "额外预算已用尽",
   "alerts.item.overage_started": "已开始额外用量 · {amount}",
   "alerts.item.overage_started_unknown": "已开始额外用量",
@@ -1368,7 +1370,11 @@
   "incident.state.operational": "运行正常",
   "incident.state.partial_outage": "部分故障",
   "incident.state.unknown": "状态未知",
-  "insights.limit_changed.note": "{metric} 上限于 {date} 变更：{from} → {to} {unit}",
+  "insights.limit_changed.note": "{metric}：上限于 {date} 变更 {from} → {to} {unit}",
+  "insights.rhythm.day_off": "休息",
+  "insights.rhythm.samples": {
+    "other": "{count} 天"
+  },
   "journal.removed_account": "已移除的账户",
   "login.alibaba_token_plan.bailian_console.completion_notice": "已在专用配置文件中完成 bl auth login --console。",
   "login.alibaba_model_studio.bailian_console.completion_notice": "已在专用配置文件中完成 bl auth login --console。",

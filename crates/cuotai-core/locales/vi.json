@@ -182,7 +182,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -328,8 +330,8 @@
   "alerts.item.balance_below_floor": "{metric} dưới mức sàn của bạn",
   "alerts.item.balance_recovered": "{metric} đã trở lại trên mức sàn của bạn",
   "alerts.item.exhausted": "{metric} đã chạm giới hạn",
-  "alerts.item.limit_changed": "giới hạn {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "giới hạn {metric} đã thay đổi",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: giới hạn đã thay đổi",
   "alerts.item.overage_cap": "ngân sách thêm đã dùng hết",
   "alerts.item.overage_started": "mức sử dụng thêm bắt đầu · {amount}",
   "alerts.item.overage_started_unknown": "mức sử dụng thêm bắt đầu",
@@ -1332,7 +1334,11 @@
   "incident.state.operational": "Hoạt động",
   "incident.state.partial_outage": "Sự cố một phần",
   "incident.state.unknown": "Chưa rõ trạng thái",
-  "insights.limit_changed.note": "Giới hạn {metric} đã đổi {from} → {to} {unit} vào {date}",
+  "insights.limit_changed.note": "{metric}: giới hạn đã đổi {from} → {to} {unit} vào {date}",
+  "insights.rhythm.day_off": "nghỉ",
+  "insights.rhythm.samples": {
+    "other": "{count} ngày"
+  },
   "journal.removed_account": "Đã xóa tài khoản",
   "login.alibaba_token_plan.bailian_console.completion_notice": "Đã hoàn tất đăng nhập `bl auth login --console` trong hồ sơ riêng.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "Đã hoàn tất đăng nhập `bl auth login --console` trong hồ sơ riêng.",

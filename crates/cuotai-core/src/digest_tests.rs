@@ -116,8 +116,19 @@ fn the_weekly_digest_summarizes_a_fixture_week() {
         "{lines:?}"
     );
     assert!(
-        lines.contains(&"Busiest hours: 10:00–13:00".to_owned()),
+        lines.contains(&"Busiest hours: 10\u{a0}AM–1\u{a0}PM".to_owned()),
         "{lines:?}"
+    );
+    // V-05: the hours in the language's hour cycle.
+    let de: Vec<String> = digest
+        .short_lines("de")
+        .iter()
+        .map(|l| l.resolve("de"))
+        .collect();
+    assert!(
+        de.iter()
+            .any(|l| l.ends_with(" 10–13") && !l.contains(":00")),
+        "{de:?}"
     );
     assert!(lines.contains(&"1 limit change".to_owned()), "{lines:?}");
     assert_eq!(
@@ -131,7 +142,7 @@ fn the_weekly_digest_summarizes_a_fixture_week() {
     let markdown = digest.markdown("en");
     assert!(markdown.starts_with("# Your week in Cuotai"));
     assert!(markdown.contains("## Work · Claude"));
-    assert!(markdown.contains("limit changed 100 → 150"));
+    assert!(markdown.contains(": limit changed 100 → 150"));
     // Every catalog words every line.
     for locale in crate::text::catalog_locales() {
         for line in digest.short_lines(locale) {

@@ -57,7 +57,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -200,8 +202,8 @@
   "alerts.item.balance_below_floor": "{metric} sotto la tua soglia minima",
   "alerts.item.balance_recovered": "{metric} di nuovo sopra la tua soglia minima",
   "alerts.item.exhausted": "{metric} al limite",
-  "alerts.item.limit_changed": "limite di {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "il limite di {metric} è cambiato",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: limite cambiato",
   "alerts.item.pool_exhausted": "{pool}: tutti esauriti",
   "alerts.item.pool_recovered": "{pool} di nuovo disponibile",
   "alerts.item.recovered": "{metric} di nuovo disponibile",
@@ -777,7 +779,12 @@
   "incident.state.operational": "Operativo",
   "incident.state.partial_outage": "Interruzione parziale",
   "incident.state.unknown": "Stato sconosciuto",
-  "insights.limit_changed.note": "Limite di {metric} cambiato {from} → {to} {unit} il {date}",
+  "insights.limit_changed.note": "{metric}: limite cambiato {from} → {to} {unit} il {date}",
+  "insights.rhythm.day_off": "libero",
+  "insights.rhythm.samples": {
+    "one": "{count} giorno",
+    "other": "{count} giorni"
+  },
   "login.alibaba_token_plan.bailian_console.completion_notice": "bl auth login --console completato sul profilo dedicato.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "bl auth login --console completato sul profilo dedicato.",
   "login.alibaba_model_studio.bailian_console.help": "Esegue \"bl auth login --console\" su un profilo bl dedicato; il login risiede nello store locale di bl, fuori dal vault di Cuotai. Annullare non annulla ciò che bl ha registrato. La quota gratuita e la panoramica d'uso vengono lette con questo profilo; la chiave DashScope non viene inviata a quella query.",

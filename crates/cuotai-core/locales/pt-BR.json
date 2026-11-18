@@ -58,7 +58,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -204,8 +206,8 @@
   "alerts.item.balance_below_floor": "{metric} abaixo do seu piso",
   "alerts.item.balance_recovered": "{metric} acima do seu piso de novo",
   "alerts.item.exhausted": "{metric} no limite",
-  "alerts.item.limit_changed": "limite de {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "limite de {metric} mudou",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: limite mudou",
   "alerts.item.overage_cap": "orçamento extra esgotado",
   "alerts.item.overage_started": "uso extra iniciado · {amount}",
   "alerts.item.overage_started_unknown": "uso extra iniciado",
@@ -1229,7 +1231,12 @@
   "incident.state.operational": "Operacional",
   "incident.state.partial_outage": "Interrupção parcial",
   "incident.state.unknown": "Status desconhecido",
-  "insights.limit_changed.note": "Limite de {metric} mudou {from} → {to} {unit} em {date}",
+  "insights.limit_changed.note": "{metric}: limite mudou {from} → {to} {unit} em {date}",
+  "insights.rhythm.day_off": "folga",
+  "insights.rhythm.samples": {
+    "one": "{count} dia",
+    "other": "{count} dias"
+  },
   "journal.removed_account": "Conta removida",
   "login.alibaba_token_plan.bailian_console.completion_notice": "Login `bl auth login --console` concluído no perfil dedicado.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "Login `bl auth login --console` concluído no perfil dedicado.",

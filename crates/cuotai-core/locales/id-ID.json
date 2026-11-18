@@ -180,7 +180,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -326,8 +328,8 @@
   "alerts.item.balance_below_floor": "{metric} di bawah batas bawah Anda",
   "alerts.item.balance_recovered": "{metric} kembali di atas batas bawah Anda",
   "alerts.item.exhausted": "{metric} mencapai batas",
-  "alerts.item.limit_changed": "batas {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "batas {metric} berubah",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: batas berubah",
   "alerts.item.overage_cap": "anggaran ekstra habis terpakai",
   "alerts.item.overage_started": "penggunaan ekstra dimulai · {amount}",
   "alerts.item.overage_started_unknown": "penggunaan ekstra dimulai",
@@ -1330,7 +1332,11 @@
   "incident.state.operational": "Beroperasi",
   "incident.state.partial_outage": "Gangguan sebagian",
   "incident.state.unknown": "Status tidak diketahui",
-  "insights.limit_changed.note": "Batas {metric} berubah {from} → {to} {unit} pada {date}",
+  "insights.limit_changed.note": "{metric}: batas berubah {from} → {to} {unit} pada {date}",
+  "insights.rhythm.day_off": "libur",
+  "insights.rhythm.samples": {
+    "other": "{count} hari"
+  },
   "journal.removed_account": "Akun dihapus",
   "login.alibaba_token_plan.bailian_console.completion_notice": "Login `bl auth login --console` selesai di profil khusus.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "Login `bl auth login --console` selesai di profil khusus.",

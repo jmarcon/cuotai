@@ -723,9 +723,7 @@ fn read_limit_notes(
         .unwrap_or_default()
         .iter()
         .filter(|change| change.shows_at(now))
-        .map(|change| {
-            change.note(|at| cuotai_core::instant::format_local(at, &chrono::Local, "%Y-%m-%d"))
-        })
+        .map(|change| change.note_local(&chrono::Local))
         .collect()
 }
 

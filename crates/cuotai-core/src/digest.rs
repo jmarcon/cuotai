@@ -433,8 +433,9 @@ impl Digest {
             lines.push(Localized::with_params(
                 "digest.line.hours",
                 params([
-                    ("from", ParamValue::Text(format!("{from:02}:00"))),
-                    ("to", ParamValue::Text(format!("{to:02}:00"))),
+                    // PRD 0043 re-validation (V-05): the language's hour cycle.
+                    ("from", crate::text::clock::hour(from.into()).into()),
+                    ("to", crate::text::clock::hour(to.into()).into()),
                 ]),
                 "Busiest hours: {from}–{to}",
             ));
@@ -537,7 +538,9 @@ impl Digest {
                 ));
             }
             for change in &account.limit_changes {
-                let note = change.note(|at| at.format("%Y-%m-%d").to_string());
+                // PRD 0043 re-validation (R-04): the day as the language
+                // writes it, in this computer's zone (every digest caller's).
+                let note = change.note_local(&chrono::Local);
                 out.push_str(&format!("- {}\n", note.resolve(locale)));
             }
             for budget in &account.budgets {

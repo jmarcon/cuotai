@@ -58,7 +58,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} La cuenta se guardará, pero mostrará este motivo en lugar de números.",
@@ -201,8 +203,8 @@
   "alerts.item.balance_below_floor": "{metric} por debajo de tu mínimo",
   "alerts.item.balance_recovered": "{metric} de nuevo por encima de tu mínimo",
   "alerts.item.exhausted": "{metric} en el límite",
-  "alerts.item.limit_changed": "límite de {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "el límite de {metric} cambió",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: el límite cambió",
   "alerts.item.pool_exhausted": "{pool}: todas agotadas",
   "alerts.item.pool_recovered": "{pool} disponible de nuevo",
   "alerts.item.recovered": "{metric} disponible de nuevo",
@@ -778,7 +780,12 @@
   "incident.state.operational": "Operativo",
   "incident.state.partial_outage": "Interrupción parcial",
   "incident.state.unknown": "Estado desconocido",
-  "insights.limit_changed.note": "El límite de {metric} cambió {from} → {to} {unit} el {date}",
+  "insights.limit_changed.note": "{metric}: el límite cambió {from} → {to} {unit} el {date}",
+  "insights.rhythm.day_off": "libre",
+  "insights.rhythm.samples": {
+    "one": "{count} día",
+    "other": "{count} días"
+  },
   "login.alibaba_token_plan.bailian_console.completion_notice": "bl auth login --console completado en el perfil dedicado.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "bl auth login --console completado en el perfil dedicado.",
   "login.alibaba_model_studio.bailian_console.help": "Ejecuta \"bl auth login --console\" en un perfil dedicado de bl; el inicio de sesión queda en el almacenamiento local de bl, fuera del almacén de Cuotai. Cancelar no deshace lo que bl guardó. La cuota gratuita y el resumen de uso se leen con este perfil; la clave de DashScope no se envía a esa consulta.",

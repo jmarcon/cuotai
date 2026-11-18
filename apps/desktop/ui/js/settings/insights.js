@@ -1,7 +1,7 @@
 // Settings › Alerts, "Insights" disclosure (PRD 0043): notify when a limit changes (RF2.3, off by default), the days
 // off the rhythm and the digest mark (RF1.3), and the opt-in weekly digest with its day, hour and test (RF3.2, RF4.3).
 // Everything lives in the `notify` section of desktop.json; the core decides when the digest is due.
-import { t, te } from "../i18n.js";
+import { t, te, tle } from "../i18n.js";
 import { icon, sendTestDigest, setInsightPrefs } from "../lib.js";
 import { errorText } from "./common.js";
 import { buttons, disc, row, rowError, select, sw, toast } from "./rows.js";
@@ -12,7 +12,8 @@ export function insightsHtml(n) {
   const daysOff = new Set(n.days_off ?? ["sat", "sun"]);
   const digest = n.digest ?? { enabled: false, weekday: 0, hour: 9 };
   const weekdays = DAYS.map((d, i) => [i, te(`settings.insights.day.${d}`)]);
-  const hours = Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, "0")}:00`]);
+  // PRD 0043 re-validation (V-05): each hour in the language's hour cycle ("9 AM", "09").
+  const hours = Array.from({ length: 24 }, (_, h) => [h, tle({ id: "at.hour", params: { hour: String(h) }, fallback: `${h}:00` })]);
   return disc("insights", te("settings.insights.title"),
     row({ key: "limit-changes", label: te("settings.insights.limitChanges"), info: te("settings.insights.limitChangesHelp"),
       control: (x) => sw("limit-changes-on", !!n.limit_changes, x) })

@@ -1096,7 +1096,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -1242,8 +1244,8 @@
   "alerts.item.balance_below_floor": "{metric} sous votre plancher",
   "alerts.item.balance_recovered": "{metric} de nouveau au-dessus de votre plancher",
   "alerts.item.exhausted": "{metric} à la limite",
-  "alerts.item.limit_changed": "limite de {metric} {from} → {to}",
-  "alerts.item.limit_changed_unknown": "la limite de {metric} a changé",
+  "alerts.item.limit_changed": "{metric} : {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric} : limite modifiée",
   "alerts.item.overage_cap": "budget supplémentaire épuisé",
   "alerts.item.overage_started": "utilisation supplémentaire commencée · {amount}",
   "alerts.item.overage_started_unknown": "utilisation supplémentaire commencée",
@@ -2267,7 +2269,12 @@
   "incident.state.operational": "Opérationnel",
   "incident.state.partial_outage": "Panne partielle",
   "incident.state.unknown": "État inconnu",
-  "insights.limit_changed.note": "Limite de {metric} modifiée {from} → {to} {unit} le {date}",
+  "insights.limit_changed.note": "{metric} : limite modifiée {from} → {to} {unit} le {date}",
+  "insights.rhythm.day_off": "repos",
+  "insights.rhythm.samples": {
+    "one": "{count} jour",
+    "other": "{count} jours"
+  },
   "journal.removed_account": "Compte retiré",
   "login.alibaba_token_plan.bailian_console.completion_notice": "bl auth login --console terminé dans le profil dédié.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "bl auth login --console terminé dans le profil dédié.",

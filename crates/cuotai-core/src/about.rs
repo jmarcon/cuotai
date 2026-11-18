@@ -425,7 +425,7 @@ static LIBRARIES: &[Library] = &[
         "MIT OR Apache-2.0",
         "https://github.com/unicode-rs/unicode-width",
         Role::Runtime,
-        &[Tui],
+        &[Core, Tui],
     ),
     lib(
         "windows-sys",

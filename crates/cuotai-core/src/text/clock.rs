@@ -302,6 +302,15 @@ pub fn day(date: NaiveDate, today: NaiveDate) -> Localized {
     }
 }
 
+/// Local day `date` alone as a day and month (`at.date` without a time:
+/// "11/18", "18.11."), whatever its distance from today.
+pub fn date(date: NaiveDate) -> Localized {
+    with_fallback(
+        DATE,
+        params([("day", number(date.day())), ("month", number(date.month()))]),
+    )
+}
+
 /// Local day `date` as the heading of a list read on `today`: "Today",
 /// "Yesterday", then [`day`].
 pub fn day_heading(date: NaiveDate, today: NaiveDate) -> Localized {

@@ -180,7 +180,9 @@
       "cost.by.code_help_session",
       "cost.by.code_help_project",
       "cost.live.source_off",
-      "cost.error.top_needs_list"
+      "cost.error.top_needs_list",
+      "insights.rhythm.day_off",
+      "insights.rhythm.samples"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -326,8 +328,8 @@
   "alerts.item.balance_below_floor": "{metric} alt sınırının altında",
   "alerts.item.balance_recovered": "{metric} yeniden alt sınırının üstünde",
   "alerts.item.exhausted": "{metric} sınırda",
-  "alerts.item.limit_changed": "{metric} limiti {from} → {to}",
-  "alerts.item.limit_changed_unknown": "{metric} limiti değişti",
+  "alerts.item.limit_changed": "{metric}: {from} → {to}",
+  "alerts.item.limit_changed_unknown": "{metric}: limit değişti",
   "alerts.item.overage_cap": "ek bütçe tükendi",
   "alerts.item.overage_started": "ek kullanım başladı · {amount}",
   "alerts.item.overage_started_unknown": "ek kullanım başladı",
@@ -1351,7 +1353,12 @@
   "incident.state.operational": "Çalışıyor",
   "incident.state.partial_outage": "Kısmi kesinti",
   "incident.state.unknown": "Durum bilinmiyor",
-  "insights.limit_changed.note": "{metric} limiti {date} tarihinde değişti: {from} → {to} {unit}",
+  "insights.limit_changed.note": "{metric}: limit {date} tarihinde değişti {from} → {to} {unit}",
+  "insights.rhythm.day_off": "izinli",
+  "insights.rhythm.samples": {
+    "one": "{count} gün",
+    "other": "{count} gün"
+  },
   "journal.removed_account": "Hesap kaldırıldı",
   "login.alibaba_token_plan.bailian_console.completion_notice": "`bl auth login --console` oturum açması özel profilde tamamlandı.",
   "login.alibaba_model_studio.bailian_console.completion_notice": "`bl auth login --console` oturum açması özel profilde tamamlandı.",
