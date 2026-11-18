@@ -28,6 +28,9 @@ pub mod payload;
 #[cfg(test)]
 mod digest_filter_tests;
 #[cfg(test)]
+#[path = "channels/aggregator_filter_tests.rs"]
+mod aggregator_filter_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::oauth::{OAuthToken, TokenStore};
@@ -270,9 +273,13 @@ impl Filters {
         self.kinds.contains(&kind) && kind.severity() >= self.min_severity
     }
 
-    /// Whether the account `id` passes.
+    /// Whether the account `id` passes. An aggregator account listed in the
+    /// filter covers its connections (`<parent>/<sub>`, PRD 0044 RF1.3).
     pub fn admits_account(&self, id: &str) -> bool {
-        self.accounts.is_empty() || self.accounts.contains(id)
+        self.accounts.is_empty()
+            || self.accounts.contains(id)
+            || crate::account_id::AccountId::parent(id)
+                .is_some_and(|parent| self.accounts.contains(parent))
     }
 
     /// Whether account names appear, given PRD 0032's `private` setting.

@@ -27,7 +27,7 @@ Addresses with a user name or password, a `#` fragment, more than 2048 bytes or 
 | Filter | Default | Values |
 |---|---|---|
 | Kinds | every kind but the weekly digest | `reset`, `threshold`, `exhausted`, `recovered`, `projected`, `overage`, `floor`, `session_expiring`, `limit_changed`, `digest` |
-| Accounts | every account | stable account ids (`--channel-list --json` and the TOML show them) |
+| Accounts | every account | stable account ids (`--channel-list --json` and the TOML show them). An aggregator account (9router, OpenRouter, …) covers its connections, whose notifications keep their own `account.id`, `<aggregator id>/<connection id>` |
 | Minimum level | every level | `info` (resets, recovery, limit changes, digest), `warning` (thresholds, projection, extra usage, session expiry), `critical` (exhaustion, balance floors) |
 | Account names | follows "Hide account names in notifications" (hidden by default) | `on`, `off`, `default` |
 
