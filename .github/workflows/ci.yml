@@ -454,7 +454,9 @@ jobs:
   # waits for. `cargo xtask preflight` runs the same scripts unsharded.
   # Two parts reached the 20-minute limit once the PRD 0040 agent-feed pages
   # were added (run 44141727621: 19 and 20 minutes), so the overflow check
-  # now runs in three.
+  # ran in three. Three parts took 16, 18 and over 20 minutes once the PRD
+  # 0045 and 0046 re-validation pages were added (run 44309836735), so it
+  # now runs in four.
   ui-checks:
     name: ui checks (${{ matrix.part }})
     needs: changes
@@ -465,15 +467,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - part: overflow 1/3
+          - part: overflow 1/4
             group: overflow
-            shard: 1/3
-          - part: overflow 2/3
+            shard: 1/4
+          - part: overflow 2/4
             group: overflow
-            shard: 2/3
-          - part: overflow 3/3
+            shard: 2/4
+          - part: overflow 3/4
             group: overflow
-            shard: 3/3
+            shard: 3/4
+          - part: overflow 4/4
+            group: overflow
+            shard: 4/4
           - part: locales, keyboard, CSP
             group: locales
           - part: zoom, accessibility, timing
