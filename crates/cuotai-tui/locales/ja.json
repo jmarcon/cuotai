@@ -694,7 +694,7 @@
   "channels.cli.no_settings": "このシステムには設定フォルダーがないため、チャンネルを保存できません。",
   "channels.cli.kind": "種類は webhook、ntfy、slack、discord のいずれかです。",
   "channels.cli.label": "--channel-add には --label 名前 が必要です。",
-  "channels.cli.prompt": "アドレスを貼り付けてください（シェルの履歴には残りません）：",
+  "channels.cli.prompt": "アドレスを貼り付けてください（表示されず、シェルの履歴にも残りません）：",
   "channels.cli.consent_title": "新しい {kind} チャンネル「{label}」",
   "channels.cli.host": "アドレス",
   "channels.cli.filters": "送信内容",

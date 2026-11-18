@@ -7,7 +7,7 @@ Nothing is sent until you add a channel. A channel receives **the same notificat
 ## Adding a channel
 
 - **Desktop:** Settings › Alerts › **Notification channels** › **Add channel**. Pick the kind, give it a name, paste the address and choose what it receives. **Continue** shows the consent step: the kind, the host, the filters in words and an example payload, followed by the sentence "Cuotai will send these texts to this address when a notification is due. Nothing else leaves this computer." **Save** is your consent, and the channel starts on. **Send test** posts a sample marked as a test.
-- **Terminal:** `cuotai --channel-add <webhook|ntfy|slack|discord> --label NAME [--filter key=value]… [--sign]` reads the address from standard input or a prompt, never from an argument, so it never enters your shell history. It prints the same consent and asks for a confirmation in the terminal. When the address is piped, pass `--yes` after reading the consent. See [advanced usage](advanced.md#notification-channels).
+- **Terminal:** `cuotai --channel-add <webhook|ntfy|slack|discord> --label NAME [--filter key=value]… [--sign]` reads the address from standard input or a prompt, never from an argument, so it never enters your shell history; the terminal prompt does not show the address as you paste it. It prints the same consent and asks for a confirmation in the terminal. When the address is piped, pass `--yes` after reading the consent. See [advanced usage](advanced.md#notification-channels).
 
 You can add up to **5 channels**. Editing a channel with a new address asks for consent again; turning a channel off asks nothing. **Remove** deletes the address from the vault.
 

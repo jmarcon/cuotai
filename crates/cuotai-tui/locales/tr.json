@@ -668,7 +668,7 @@
   "channels.cli.no_settings": "Bu sistemde yapılandırma klasörü yok, bu yüzden kanallar saklanamaz.",
   "channels.cli.kind": "Tür webhook, ntfy, slack veya discord olmalıdır.",
   "channels.cli.label": "--channel-add için --label AD gerekir.",
-  "channels.cli.prompt": "Adresi yapıştırın (kabuk geçmişinize girmez): ",
+  "channels.cli.prompt": "Adresi yapıştırın (gösterilmez ve kabuk geçmişinize girmez): ",
   "channels.cli.consent_title": "Yeni {kind} kanalı \"{label}\"",
   "channels.cli.host": "Adres",
   "channels.cli.filters": "Gönderir",

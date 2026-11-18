@@ -668,7 +668,7 @@
   "channels.cli.no_settings": "此系统上没有配置文件夹，因此无法保存渠道。",
   "channels.cli.kind": "类型为 webhook、ntfy、slack 或 discord。",
   "channels.cli.label": "--channel-add 需要 --label 名称。",
-  "channels.cli.prompt": "粘贴地址（不会进入 shell 历史记录）： ",
+  "channels.cli.prompt": "粘贴地址（不会显示，也不会进入 shell 历史记录）： ",
   "channels.cli.consent_title": "新的 {kind} 渠道“{label}”",
   "channels.cli.host": "地址",
   "channels.cli.filters": "发送内容",

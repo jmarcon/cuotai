@@ -685,7 +685,7 @@
   "channels.cli.no_settings": "Kein Konfigurationsordner auf diesem System, daher können Kanäle nicht gespeichert werden.",
   "channels.cli.kind": "Die Art ist webhook, ntfy, slack oder discord.",
   "channels.cli.label": "--channel-add benötigt --label NAME.",
-  "channels.cli.prompt": "Fügen Sie die Adresse ein (sie bleibt aus Ihrem Shell-Verlauf heraus): ",
+  "channels.cli.prompt": "Fügen Sie die Adresse ein (sie wird nicht angezeigt und bleibt aus Ihrem Shell-Verlauf heraus): ",
   "channels.cli.consent_title": "Neuer {kind}-Kanal „{label}“",
   "channels.cli.host": "Adresse",
   "channels.cli.filters": "Sendet",

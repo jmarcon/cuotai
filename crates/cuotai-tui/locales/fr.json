@@ -902,7 +902,7 @@
   "channels.cli.no_settings": "Aucun dossier de configuration sur ce système, les canaux ne peuvent donc pas être conservés.",
   "channels.cli.kind": "Le type est webhook, ntfy, slack ou discord.",
   "channels.cli.label": "--channel-add nécessite --label NOM.",
-  "channels.cli.prompt": "Collez l’adresse (elle reste hors de l’historique du shell) : ",
+  "channels.cli.prompt": "Collez l’adresse (elle ne s’affiche pas et reste hors de l’historique du shell) : ",
   "channels.cli.consent_title": "Nouveau canal {kind} \"{label}\"",
   "channels.cli.host": "Adresse",
   "channels.cli.filters": "Envoie",

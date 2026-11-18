@@ -667,7 +667,7 @@
   "channels.cli.no_settings": "Hệ thống này không có thư mục cấu hình nên không thể lưu kênh.",
   "channels.cli.kind": "Loại là webhook, ntfy, slack hoặc discord.",
   "channels.cli.label": "--channel-add cần --label TÊN.",
-  "channels.cli.prompt": "Dán địa chỉ (không lưu vào lịch sử shell của bạn): ",
+  "channels.cli.prompt": "Dán địa chỉ (không hiển thị và không lưu vào lịch sử shell của bạn): ",
   "channels.cli.consent_title": "Kênh {kind} mới \"{label}\"",
   "channels.cli.host": "Địa chỉ",
   "channels.cli.filters": "Gửi",

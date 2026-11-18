@@ -665,7 +665,7 @@
   "channels.cli.no_settings": "No hay carpeta de configuración en este sistema, así que no se pueden guardar canales.",
   "channels.cli.kind": "El tipo es webhook, ntfy, slack o discord.",
   "channels.cli.label": "--channel-add necesita --label NOMBRE.",
-  "channels.cli.prompt": "Pega la dirección (queda fuera del historial del shell): ",
+  "channels.cli.prompt": "Pega la dirección (no se muestra y queda fuera del historial del shell): ",
   "channels.cli.consent_title": "Nuevo canal {kind} \"{label}\"",
   "channels.cli.host": "Dirección",
   "channels.cli.filters": "Envía",
