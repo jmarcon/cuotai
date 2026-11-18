@@ -85,6 +85,13 @@ impl AccountId {
         Self(format!("{parent}/{sub}"))
     }
 
+    /// PRD 0044 RF1.3: the aggregator account id of a connection id made by
+    /// [`AccountId::connection`] (the part before the first `/`), or `None`
+    /// for an account's own id, which never contains a `/`.
+    pub fn parent(id: &str) -> Option<&str> {
+        id.split_once('/').map(|(parent, _)| parent)
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
