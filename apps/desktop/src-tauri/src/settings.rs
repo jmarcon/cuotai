@@ -3574,4 +3574,51 @@ mod tests {
         apply_preference(&mut s, "show_in_dock", &true.into()).unwrap();
         assert_eq!(s.show_in_dock, None);
     }
+
+    /// PRD 0046 RF3.1 (re-validation G-0046-1): a restore leaves every
+    /// consent path of a backup with all of them on absent on a fresh
+    /// computer (core `bundle::consent_tests`, case (a)), and each absent
+    /// path reads as off or "ask" here.
+    #[test]
+    fn absent_consent_paths_read_as_off() {
+        let merged = serde_json::json!({
+            "motion": "off",
+            "serve": {"port": 6740, "token": true},
+            "updater": {},
+            "detect": {"dismissed": ["codex"]},
+            "widgets": {"max_accounts": 3},
+            "notify": {"lead_minutes": 15, "digest": {"weekday": 4, "hour": 8}},
+            "alerts": {"thresholds": [50]}
+        });
+        let stored: Stored = serde_json::from_value(merged).unwrap();
+        let serve = serve_of(&stored);
+        let default = ServePrefs::default();
+        assert_eq!(
+            (
+                serve.enabled,
+                serve.allow_browsers,
+                serve.stats,
+                &serve.allowed_origins,
+                &serve.access_log
+            ),
+            (
+                default.enabled,
+                default.allow_browsers,
+                default.stats,
+                &default.allowed_origins,
+                &default.access_log
+            )
+        );
+        assert_eq!(serve.port, 6740, "the port travels");
+        let updater = updater_of(&stored);
+        assert!(!updater.consent_answered && !updater.automatic);
+        assert_eq!(detect_of(&stored).enabled, None);
+        let widgets = widgets_of(&stored);
+        assert!(!widgets.enabled && !widgets.include_identity);
+        assert!(!status_queries_of(&stored));
+        assert!(!hooks_of(&stored));
+        let notify = notify_of(&stored);
+        assert!(!notify.enabled && notify.private && !notify.digest.enabled);
+        assert!(!alerts_of(&stored).enabled);
+    }
 }

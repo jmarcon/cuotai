@@ -294,7 +294,7 @@
   "cli.restore.confirm": "Remplacer {path} ? [y/N] ",
   "cli.restore.done": "Fichiers restaurés : {count}.",
   "cli.restore.keep": "garder (identique)",
-  "cli.restore.needs": "Les secrets ne voyagent pas ; après la restauration :",
+  "cli.restore.needs": "Reste à faire après la restauration (les secrets et les consentements ne voyagent pas) :",
   "cli.restore.needs_terminal": "La restauration remplacerait des fichiers : confirmez chacun dans un terminal, ou ajoutez --yes.",
   "cli.restore.newer": "Laissés tels quels (un Cuotai plus récent les a écrits, ici ou dans la sauvegarde) :",
   "cli.restore.nothing": "Rien à restaurer.",

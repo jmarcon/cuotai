@@ -216,7 +216,7 @@ pub(crate) fn plan_text(plan: &Plan, file: &Path, locale: &str) -> String {
         text += l10n::tr_in(
             locale,
             "cli.restore.needs",
-            "Secrets do not travel; after the restore:",
+            "Still to do after the restore (secrets and consents do not travel):",
         );
         text.push('\n');
         for need in &plan.needs {

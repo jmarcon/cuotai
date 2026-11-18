@@ -218,6 +218,7 @@ fn a_restore_on_a_fresh_machine_adds_everything_and_lists_what_is_missing() {
         [
             "Set GROQ_WORK for account 1 (groq).",
             "Sign in again to account 2 (claude).",
+            "Serve usage locally was on in the backup and stays off on this computer; turn it on in Settings if you want it.",
             "Local cost sources stay off after a restore: turn each one on on this computer (Settings › Local cost or cuotai --cost-sources)."
         ]
     );
@@ -235,6 +236,11 @@ fn a_restore_on_a_fresh_machine_adds_everything_and_lists_what_is_missing() {
         desktop.get("config_file").is_none(),
         "a marker is never written"
     );
+    assert!(
+        desktop["serve"].get("enabled").is_none(),
+        "the server stays off on this computer"
+    );
+    assert_eq!(desktop["serve"]["port"], 6740, "the port travels");
     assert!(fresh.at("user/themes/night.css").is_file());
     assert!(!fresh.at("data/serve/token").exists());
 
@@ -338,6 +344,11 @@ fn next_steps_follow_the_needs_one_for_one() {
                 kind: "sign_in",
                 account: 1,
                 provider: "claude".into()
+            },
+            NextStep {
+                kind: "setting",
+                account: 0,
+                provider: "serve".into()
             },
             NextStep {
                 kind: "cost_sources",
@@ -590,13 +601,13 @@ fn machine_members_of_the_desktop_settings_neither_travel_nor_restore() {
     let crafted = br#"{"motion":"off","data_dir":"/tmp/elsewhere","config_file":"/tmp/other.toml","user_dir":"/tmp/themes","main_window":{"x":9},"migrations":{"done":true}}"#;
     let local = br#"{"motion":"system","data_dir":"/here/data","main_window":{"x":1}}"#;
     let merged: serde_json::Value =
-        serde_json::from_slice(&merge_desktop(Some(local), crafted).unwrap()).unwrap();
+        serde_json::from_slice(&merge_desktop(Some(local), crafted).unwrap().0).unwrap();
     assert_eq!(
         merged,
         serde_json::json!({"motion": "off", "data_dir": "/here/data", "main_window": {"x": 1}})
     );
     let fresh: serde_json::Value =
-        serde_json::from_slice(&merge_desktop(None, crafted).unwrap()).unwrap();
+        serde_json::from_slice(&merge_desktop(None, crafted).unwrap().0).unwrap();
     assert_eq!(fresh, serde_json::json!({"motion": "off"}));
 }
 

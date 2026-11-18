@@ -77,7 +77,7 @@
   "cli.restore.confirm": "Thay thế {path}? [y/N] ",
   "cli.restore.done": "Số tệp đã khôi phục: {count}.",
   "cli.restore.keep": "giữ (giống hệt)",
-  "cli.restore.needs": "Bí mật không được chuyển theo; sau khi khôi phục:",
+  "cli.restore.needs": "Việc còn phải làm sau khi khôi phục (bí mật và sự đồng ý không được chuyển theo):",
   "cli.restore.needs_terminal": "Việc khôi phục sẽ thay thế tệp: hãy xác nhận từng tệp trong terminal, hoặc thêm --yes.",
   "cli.restore.newer": "Giữ nguyên (do một phiên bản Cuotai mới hơn ghi, ở đây hoặc trong bản sao lưu):",
   "cli.restore.nothing": "Không có gì để khôi phục.",
