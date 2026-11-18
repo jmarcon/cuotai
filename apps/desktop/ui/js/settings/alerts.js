@@ -8,7 +8,7 @@ import { errorText, group } from "./common.js";
 import { uiPath } from "../util.js";
 import { buttons, disc, row, rowError, select, seg, sw, toast } from "./rows.js";
 import { bindQuiet, quietHtml } from "./quiet.js";
-import { bindInsights, insightsHtml } from "./insights.js";
+import { bindInsights, insightsHtml, setDigestTestAvailable } from "./insights.js";
 import { bindChannels, channelsHtml, channelsRowHtml } from "./channels.js";
 
 export { quietDaysHtml, quietSummary } from "./quiet.js";
@@ -54,7 +54,7 @@ export function html({ settings: s }) {
       // PRD 0044 RF5.1: the notification channels open as a sub-page.
       + channelsRowHtml())
     + quietHtml(s.quiet)
-    + insightsHtml(n)
+    + insightsHtml(n, { canTest: !!(n.enabled || a.enabled || lead != null) })
     + channelsHtml()
     + row({ key: "test", label: te("settings.notify.test"), info: te("settings.notify.accounts"), msgRole: "status",
       control: () => buttons(`<button class="btn" data-notify-test aria-labelledby="test-label" ${n.enabled || a.enabled || lead != null ? "" : "disabled"}>${icon("bell")}</button>`),
@@ -80,6 +80,7 @@ export function bind(root, ctx) {
     for (const el of projectedLead.querySelectorAll("button")) el.disabled = !projectedOn.checked;
     for (const el of [lead, other, ...when.querySelectorAll("button")]) el.disabled = !on.checked;
     for (const el of root.querySelectorAll("#alert-new, [data-alert-add], #alert-chips button, #alerts-exhaustion, #alerts-recovery, #alerts-overage")) el.disabled = !alertsOn.checked;
+    setDigestTestAvailable(root, on.checked || alertsOn.checked || projectedOn.checked);
   };
   const toggle = (box, enable, key) => async () => {
     const want = box.checked;
