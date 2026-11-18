@@ -113,7 +113,7 @@ fn backup_text(bundle: &Bundle, out: &Path, locale: &str) -> String {
     let mut text = l10n::trf_in(
         locale,
         "cli.backup.written",
-        "Backup written to {path}. It holds no secret.",
+        "Backup written to {path}. Cuotai left out keys, tokens and sign-ins, and found none in the files it took.",
         &[("path", &out.display())],
     ) + "\n";
     text += l10n::tr_in(locale, "cli.backup.included", "Included:");

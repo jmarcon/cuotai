@@ -55,7 +55,7 @@
   "cli.account_not_found": "Konto nicht in der Konfiguration gefunden: {name}",
   "cli.backup.excluded": "Ausgelassen:",
   "cli.backup.included": "Enthalten:",
-  "cli.backup.written": "Sicherung nach {path} geschrieben. Sie enthält kein Geheimnis.",
+  "cli.backup.written": "Sicherung nach {path} geschrieben. Cuotai hat Schlüssel, Tokens und Logins weggelassen und in den übernommenen Dateien keine gefunden.",
   "cli.check_config.valid": "Die Konfiguration {path} ist gültig.",
   "cli.days_needs_mode": "--days gilt nur mit --cost, --stats oder --events-log.",
   "cli.dev_sqlite_warning": "WARNUNG: Zugangsdaten in UNVERSCHLÜSSELTER SQLite (Entwicklung); der Schlüsselbund wird nicht verwendet. Die Datenbank nicht weitergeben.",

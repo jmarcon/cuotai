@@ -1770,7 +1770,7 @@
   "settings.backup.restore": "Restore…",
   "settings.backup.guide": "Move to a new computer",
   "backup.title": "Back up settings",
-  "backup.intro": "Everything below goes into one .zip file you keep. It holds no secret.",
+  "backup.intro": "Everything below goes into one .zip file you keep. Keys, tokens and sign-ins stay out, and Cuotai stops if a file looks like it holds one.",
   "backup.included": "Goes in",
   "backup.excluded": "Stays out",
   "backup.withHistory": "Include the last 90 days of history",

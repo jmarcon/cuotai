@@ -1825,7 +1825,7 @@
   "settings.backup.restore": "Wiederherstellen…",
   "settings.backup.guide": "Auf einen neuen Computer umziehen",
   "backup.title": "Einstellungen sichern",
-  "backup.intro": "Alles unten kommt in eine einzige .zip-Datei, die Sie behalten. Sie enthält kein Geheimnis.",
+  "backup.intro": "Alles unten kommt in eine einzige .zip-Datei, die Sie behalten. Schlüssel, Tokens und Logins bleiben draußen, und Cuotai bricht ab, wenn eine Datei so aussieht, als enthalte sie einen davon.",
   "backup.included": "Kommt hinein",
   "backup.excluded": "Bleibt draußen",
   "backup.withHistory": "Die letzten 90 Tage Verlauf einschließen",

@@ -56,7 +56,7 @@
   "cli.account_not_found": "配置中未找到该账户：{name}",
   "cli.backup.excluded": "未包含：",
   "cli.backup.included": "已包含：",
-  "cli.backup.written": "备份已写入 {path}。其中不含任何机密。",
+  "cli.backup.written": "备份已写入 {path}。Cuotai 未包含密钥、令牌和登录信息，也未在所取的文件中发现任何此类内容。",
   "cli.check_config.valid": "配置 {path} 有效。",
   "cli.days_needs_mode": "--days 仅能与 --cost、--stats 或 --events-log 一起使用。",
   "cli.dev_sqlite_warning": "警告：凭据以未加密方式存储在 SQLite 中（开发模式）；不会使用钥匙串。请勿分享该数据库。",

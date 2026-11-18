@@ -28,7 +28,7 @@
   "cli.account_not_found": "Conta não encontrada na configuração: {name}",
   "cli.backup.excluded": "Deixados de fora:",
   "cli.backup.included": "Incluídos:",
-  "cli.backup.written": "Backup gravado em {path}. Ele não contém nenhum segredo.",
+  "cli.backup.written": "Backup gravado em {path}. O Cuotai deixou de fora chaves, tokens e logins, e não encontrou nenhum nos arquivos que levou.",
   "cli.check_config.valid": "A configuração {path} é válida.",
   "cli.days_needs_mode": "--days só vale com --cost, --stats ou --events-log.",
   "cli.dev_sqlite_warning": "AVISO: credenciais em SQLite SEM CRIPTOGRAFIA (desenvolvimento); Keychain não será usado. Não compartilhe o banco.",

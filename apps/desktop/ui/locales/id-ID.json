@@ -1731,7 +1731,7 @@
   "settings.backup.restore": "Pulihkan…",
   "settings.backup.guide": "Pindah ke komputer baru",
   "backup.title": "Cadangkan pengaturan",
-  "backup.intro": "Semua di bawah ini masuk ke satu file .zip yang Anda simpan. File ini tidak memuat rahasia apa pun.",
+  "backup.intro": "Semua di bawah ini masuk ke satu file .zip yang Anda simpan. Kunci, token, dan info masuk tidak disertakan, dan Cuotai berhenti jika sebuah file tampak memuat salah satunya.",
   "backup.included": "Disertakan",
   "backup.excluded": "Tidak disertakan",
   "backup.withHistory": "Sertakan riwayat 90 hari terakhir",

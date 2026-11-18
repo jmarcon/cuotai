@@ -31,7 +31,7 @@
   "cli.account_not_found": "कॉन्फ़िगरेशन में खाता नहीं मिला: {name}",
   "cli.backup.excluded": "छोड़ा गया:",
   "cli.backup.included": "शामिल:",
-  "cli.backup.written": "बैकअप {path} में लिखा गया। इसमें कोई रहस्य नहीं है।",
+  "cli.backup.written": "बैकअप {path} में लिखा गया। Cuotai ने कुंजियाँ, टोकन और साइन-इन बाहर रखे, और जो फ़ाइलें ली गईं उनमें कोई नहीं मिला।",
   "cli.check_config.valid": "कॉन्फ़िगरेशन {path} मान्य है।",
   "cli.days_needs_mode": "--days केवल --cost, --stats या --events-log के साथ काम करता है।",
   "cli.dev_sqlite_warning": "चेतावनी: क्रेडेंशियल बिना एन्क्रिप्शन के SQLite में हैं (डेवलपमेंट); कीचेन इस्तेमाल नहीं होगा। डेटाबेस साझा न करें।",

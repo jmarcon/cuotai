@@ -1787,7 +1787,7 @@
   "settings.backup.restore": "Khôi phục…",
   "settings.backup.guide": "Chuyển sang máy tính mới",
   "backup.title": "Sao lưu cài đặt",
-  "backup.intro": "Mọi thứ bên dưới được đưa vào một tệp .zip do bạn giữ. Tệp không chứa bí mật nào.",
+  "backup.intro": "Mọi thứ bên dưới được đưa vào một tệp .zip do bạn giữ. Khóa, token và thông tin đăng nhập được để riêng, và Cuotai sẽ dừng nếu một tệp có vẻ chứa một trong số đó.",
   "backup.included": "Được đưa vào",
   "backup.excluded": "Không đưa vào",
   "backup.withHistory": "Bao gồm lịch sử 90 ngày gần nhất",

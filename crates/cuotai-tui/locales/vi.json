@@ -55,7 +55,7 @@
   "cli.account_not_found": "Không tìm thấy tài khoản trong cấu hình: {name}",
   "cli.backup.excluded": "Không đưa vào:",
   "cli.backup.included": "Đã đưa vào:",
-  "cli.backup.written": "Đã ghi bản sao lưu vào {path}. Nó không chứa bí mật nào.",
+  "cli.backup.written": "Đã ghi bản sao lưu vào {path}. Cuotai đã để riêng khóa, token và thông tin đăng nhập, và không tìm thấy cái nào trong các tệp đã lấy.",
   "cli.check_config.valid": "Cấu hình {path} hợp lệ.",
   "cli.days_needs_mode": "--days chỉ hoạt động với --cost, --stats hoặc --events-log.",
   "cli.dev_sqlite_warning": "CẢNH BÁO: thông tin xác thực nằm trong SQLite KHÔNG MÃ HÓA (phát triển); sẽ không dùng Keychain. Đừng chia sẻ cơ sở dữ liệu này.",

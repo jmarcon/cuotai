@@ -381,47 +381,136 @@ pub fn digest(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }
 
-/// Whether `text` holds a string shaped like a credential: a known key or
-/// token prefix followed by a long run of token characters, a PEM private
-/// key, or a JSON Web Token. Variable names (`OPENAI_ADMIN_KEY`) and
-/// vault references never match.
+/// Whether `text` holds a string shaped like a credential, so a backup
+/// stops before it writes the file. Each rule is a fixed marker followed by
+/// a long run of token characters, so names and labels never match:
+///
+/// - a known key or token prefix (`sk-`, `xai-`, `ya29.`, `1//0`, `ghp_`,
+///   `xoxb-` and the like) followed by 16 or more token characters; an AWS
+///   key id (`AKIA`, `ASIA`) needs 16 upper-case letters or digits;
+/// - a Slack or Discord webhook address with 8 or more token characters
+///   after its fixed path;
+/// - a URL with a password in it (`scheme://user:password@host`);
+/// - `Bearer ` (any case) followed by 16 or more token characters;
+/// - `aws_secret_access_key` (any case) assigned a 30-or-more-character
+///   key;
+/// - a PEM private key (`-----BEGIN` and `PRIVATE KEY` on one line);
+/// - a JSON Web Token.
+///
+/// Variable names (`OPENAI_ADMIN_KEY`, `secret_env = "…"`), vault
+/// references, hex fingerprints and colours never match. This scan does not
+/// reuse the redaction patterns of `diagnostics::redact` on purpose: those
+/// mask anything that might be a key in a log line (8 characters after
+/// `sk-`, any long token, any `secret = …` assignment), which would refuse
+/// the backup of a legitimate TOML or cost-labels file. A miss here is not
+/// proof that a file holds no secret, so the wording only says that Cuotai
+/// found none.
 pub fn looks_secret(text: &str) -> bool {
-    const PREFIXES: [&str; 16] = [
+    const PREFIXES: [&str; 24] = [
         "sk-",
         "sk_live_",
+        "sk_test_",
         "rk_live_",
+        "rk_test_",
         "ghp_",
         "gho_",
         "ghs_",
         "ghu_",
         "github_pat_",
         "glpat-",
+        "glptt-",
+        "xoxa-",
         "xoxb-",
         "xoxp-",
-        "AKIA",
+        "xoxr-",
+        "xoxs-",
         "AIza",
         "hf_",
         "gsk_",
         "pplx-",
+        "xai-",
+        "ya29.",
+        "1//0",
+    ];
+    const WEBHOOKS: [&str; 3] = [
+        "hooks.slack.com/services/",
+        "discord.com/api/webhooks/",
+        "discordapp.com/api/webhooks/",
     ];
     let token_char = |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.');
-    if text.contains("-----BEGIN") && text.contains("PRIVATE KEY") {
+    // The byte length of the run of `accept` characters that opens `rest`.
+    let run = |rest: &str, accept: &dyn Fn(char) -> bool| {
+        rest.find(|c: char| !accept(c)).unwrap_or(rest.len())
+    };
+    // Whether `marker` occurs in `text` at a word start, followed by at
+    // least `min` characters that `accept` takes.
+    let marked = |haystack: &str, marker: &str, min: usize, accept: &dyn Fn(char) -> bool| {
+        haystack.match_indices(marker).any(|(at, _)| {
+            let before = haystack[..at].chars().next_back();
+            !before.is_some_and(token_char) && run(&haystack[at + marker.len()..], accept) >= min
+        })
+    };
+    if text.lines().any(|line| {
+        line.find("-----BEGIN")
+            .is_some_and(|at| line[at..].contains("PRIVATE KEY"))
+    }) {
         return true;
     }
-    for prefix in PREFIXES {
-        for (at, _) in text.match_indices(prefix) {
-            let before = text[..at].chars().next_back();
-            if before.is_some_and(token_char) {
-                continue;
-            }
-            let run = text[at + prefix.len()..]
-                .chars()
-                .take_while(|c| token_char(*c))
-                .count();
-            if run >= 16 {
-                return true;
-            }
+    if PREFIXES
+        .iter()
+        .any(|prefix| marked(text, prefix, 16, &token_char))
+    {
+        return true;
+    }
+    // An AWS access key id is exactly 20 upper-case letters and digits, so a
+    // name such as `ASIA_PACIFIC_REGION` never matches.
+    let key_id = |c: char| c.is_ascii_uppercase() || c.is_ascii_digit();
+    if ["AKIA", "ASIA"]
+        .iter()
+        .any(|prefix| marked(text, prefix, 16, &key_id))
+    {
+        return true;
+    }
+    let path_char = |c: char| token_char(c) || c == '/';
+    // A webhook host may carry a subdomain (`ptb.discord.com`), so the
+    // marker needs no word start.
+    if WEBHOOKS.iter().any(|hook| {
+        text.match_indices(hook)
+            .any(|(at, _)| run(&text[at + hook.len()..], &path_char) >= 8)
+    }) {
+        return true;
+    }
+    // A password inside an address: `://user:password@`.
+    let userinfo = |c: char| !c.is_whitespace() && !matches!(c, '/' | '@' | '"' | '\'' | '<' | '>');
+    if text.match_indices("://").any(|(at, _)| {
+        let rest = &text[at + 3..];
+        let user = run(rest, &|c| userinfo(c) && c != ':');
+        let after = &rest[user..];
+        user > 0 && after.starts_with(':') && {
+            let password = run(&after[1..], &userinfo);
+            password > 0 && after[1 + password..].starts_with('@')
         }
+    }) {
+        return true;
+    }
+    // The ASCII lower-case copy keeps every byte offset of `text`.
+    let lower = text.to_ascii_lowercase();
+    let b64 = |c: char| token_char(c) || matches!(c, '~' | '+' | '/' | '=');
+    if marked(&lower, "bearer ", 16, &b64) {
+        return true;
+    }
+    let aws_key = |c: char| c.is_ascii_alphanumeric() || matches!(c, '/' | '+' | '=');
+    if lower
+        .match_indices("aws_secret_access_key")
+        .any(|(at, marker)| {
+            let rest = &text[at + marker.len()..];
+            let gap = run(rest, &|c| {
+                c.is_whitespace() || matches!(c, '=' | ':' | '"' | '\'')
+            });
+            gap > 0 && run(&rest[gap..], &aws_key) >= 30
+        })
+    {
+        return true;
     }
     // A JSON Web Token: three base64url parts, the first two `eyJ`.
     text.match_indices("eyJ").any(|(at, _)| {
@@ -1860,3 +1949,6 @@ mod consent_tests;
 
 #[cfg(test)]
 mod hosts_tests;
+
+#[cfg(test)]
+mod secret_tests;
