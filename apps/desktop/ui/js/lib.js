@@ -1110,13 +1110,13 @@ export function captureSharedOf(slot, region = null) {
 export function sessionCaptureHintHtml(slot, region = null) {
   if (!slot?.capture) return "";
   const shared = captureSharedOf(slot, region) === "google";
-  return `<span class="session-capture-hint" data-capture-hint="${esc(slot.slot)}">`
+  return `<div class="session-capture-hint" data-capture-hint="${esc(slot.slot)}">`
     + (shared
       ? `<small class="hint">${te("dialog.session.captureSharedHint")}</small> `
         + `<small class="hint">${te("dialog.session.capturePasskeyHint")}</small>`
         + `<button type="button" class="link" data-capture-forget>${te("dialog.session.captureForget")}</button>`
       : `<small class="hint">${te("dialog.session.captureHint")}</small>`)
-    + "</span>";
+    + "</div>";
 }
 /** Owner request: "Create key on <host>" under a typed key, for the page the core declares (`SecretInput.key_page`);
  * the shell opens only those exact addresses (`open_external`). */

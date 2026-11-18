@@ -244,6 +244,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["details-eleven", "index.html?eleven", 1200, 820, {}, '.card[data-card="eleven_labs::unlimited@example.com"] [data-details]'],
   ["details-eleven-incident", "index.html?eleven", 1200, 820, {}, '.card[data-card="eleven_labs::eu@example.com"] [data-details]'],
   ["dialog-add-eleven", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="eleven_labs"]']],
+  // PRD 0048 re-validation V-01/V-03: the web-session box with "Sign in and capture session", and the demo's
+  // "unavailable" answer after a click (no capture window in the browser preview).
+  ["dialog-add-xiaomi", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="xiaomi_mimo"]']],
+  ["dialog-add-xiaomi-capture", "index.html", 1200, 820, {}, ["[data-add]", '.pick[data-provider="xiaomi_mimo"]', "[data-capture]"]],
   // PRD 0038 re-validation: the OpenRouter set (a key with its limit, spend by period and free-model counter, a key
   // without a limit, a positive credit balance with spend by provider over completed UTC days, a negative balance under
   // the low-balance threshold, a rate-limited key with its retry instant), its details and tray rows, and the Add
