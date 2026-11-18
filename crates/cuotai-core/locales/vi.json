@@ -226,7 +226,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1269,8 +1270,6 @@
   "field.zed.user_id.label": "ID dạng số của người dùng Zed",
   "field.meta.team_id.label": "ID nhóm (tùy chọn)",
   "field.meta.team_id.help": "Chỉ khi có phiên dev.meta.ai. Để trống = nhóm duy nhất của phiên. Để chọn, mở dev.meta.ai/usage và sao chép số sau team_id= trên thanh địa chỉ.",
-  "field.meta.project_id.label": "ID dự án (tùy chọn)",
-  "field.meta.project_id.help": "Chỉ khi có phiên dev.meta.ai. Để trống = cả nhóm. Để đọc một dự án, sao chép số sau project_id= trong địa chỉ dev.meta.ai/usage.",
   "field.meta.session_env.label": "Biến phiên dev.meta.ai (tùy chọn)",
   "field.meta.session_env.help": "Để trống = phiên đã thu bằng \"Đăng nhập\" trong trình hướng dẫn tài khoản (kho bí mật hệ thống). Nếu muốn dùng biến, nhập TÊN biến chứa cookie dev.meta.ai (llama_dev_sess); không bao giờ dán cookie vào đây.",
   "history.error.export": "Không ghi được bản xuất lịch sử.",
@@ -1753,7 +1752,6 @@
   "note.meta.key_valid": "Khóa được danh sách mô hình của Meta Model API chấp nhận; không tiêu tốn token nào.",
   "note.meta.rate_limit_headers_missing": "Phản hồi này không có header `x-ratelimit-*`; khung rate limit của nhóm chưa rõ.",
   "note.meta.rate_limit_team": "Rate limit tính theo nhóm và được mọi khóa của nhóm dùng chung.",
-  "note.meta.no_usage_api": "Meta không công bố API sử dụng, chi tiêu hay số dư; xem mức sử dụng và thanh toán trong bảng điều khiển dev.meta.ai.",
   "note.meta.no_key_session_only": "Tài khoản này không có khóa API; mức dùng lấy từ phiên dev.meta.ai và bỏ qua bước kiểm tra khóa.",
   "note.meta.sign_in_for_usage": "Meta không công bố API mức dùng, chi tiêu hay số dư; hãy đăng nhập dev.meta.ai từ tài khoản để đọc mức dùng của bảng điều khiển.",
   "note.meta.console_undocumented": "Mức dùng được đọc từ giao diện nội bộ của bảng điều khiển dev.meta.ai; có thể thay đổi mà không báo trước.",
@@ -1763,6 +1761,7 @@
   },
   "note.meta.usage_unavailable": "Bảng điều khiển dev.meta.ai không trả về mức dùng; thẻ chỉ hiển thị kiểm tra khóa.",
   "note.meta.usage_empty": "Bảng điều khiển dev.meta.ai không trả về chuỗi mức dùng nào cho tháng này; mức dùng là không rõ, không phải bằng 0.",
+  "note.meta.project_ignored": "ID dự án bị bỏ qua: bảng điều khiển dev.meta.ai báo cáo mức dùng theo nhóm, nên thẻ hiển thị toàn bộ nhóm.",
   "note.router_keys.kimi_internal_route": "Tuyến nội bộ của Kimi được ghi nhận trong 9router; có thể thay đổi và chịu các hạn chế của nhà cung cấp.",
   "note.router_keys.kimi_no_numeric_quota": "Phản hồi Kimi không có khối hạn mức dạng số; thiếu không có nghĩa là không giới hạn.",
   "note.router_keys.kimi_plan": "Gói: {plan}.",
@@ -2173,7 +2172,6 @@
   "query.meta.http": "Meta Model API trả về HTTP {code}.",
   "query.meta.console_http": "Bảng điều khiển dev.meta.ai trả về HTTP {code}; không đọc được gì.",
   "query.meta.team_id_invalid": "\"ID nhóm\" không phải ID nhóm dev.meta.ai; hãy sao chép số sau team_id= trong địa chỉ trang mức dùng.",
-  "query.meta.project_id_invalid": "\"ID dự án\" không phải ID dự án dev.meta.ai; hãy sao chép số sau project_id= trong địa chỉ trang mức dùng.",
   "query.meta.session_expired": "Phiên dev.meta.ai đã hết hạn hoặc bị thu hồi; hãy đăng nhập lại từ tài khoản.",
   "query.router_keys.kimi_access_denied": "Truy vấn trả về HTTP 403. Hãy kiểm tra quyền truy cập và quyền hạn.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: xác thực đã hết hạn. Hãy làm mới token hoặc khóa API.",

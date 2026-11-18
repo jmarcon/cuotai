@@ -247,7 +247,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -1309,8 +1310,6 @@
   "field.zed.user_id.label": "Numerische Zed-Benutzer-ID",
   "field.meta.team_id.label": "Team-ID (optional)",
   "field.meta.team_id.help": "Nur mit der dev.meta.ai-Sitzung. Leer = das einzige Team der Sitzung. Zum Auswählen dev.meta.ai/usage öffnen und die Zahl nach team_id= in der Adressleiste kopieren.",
-  "field.meta.project_id.label": "Projekt-ID (optional)",
-  "field.meta.project_id.help": "Nur mit der dev.meta.ai-Sitzung. Leer = das ganze Team. Für ein Projekt die Zahl nach project_id= in der Adresse von dev.meta.ai/usage kopieren.",
   "field.meta.session_env.label": "Variable der dev.meta.ai-Sitzung (optional)",
   "field.meta.session_env.help": "Leer = die mit „Anmelden“ im Kontoassistenten erfasste Sitzung (Systemtresor). Wenn Sie eine Variable bevorzugen, geben Sie den NAMEN der Variable mit dem dev.meta.ai-Cookie (llama_dev_sess) an; fügen Sie das Cookie nie hier ein.",
   "history.error.export": "Der Export des Verlaufs konnte nicht geschrieben werden.",
@@ -1799,7 +1798,6 @@
   "note.meta.key_valid": "Schlüssel von der Modellliste der Meta Model API akzeptiert; es werden keine Tokens verbraucht.",
   "note.meta.rate_limit_headers_missing": "Diese Antwort enthielt keine Header `x-ratelimit-*`; das Ratenlimit-Fenster des Teams ist unbekannt.",
   "note.meta.rate_limit_team": "Ratenlimits gelten pro Team und werden von allen Schlüsseln des Teams geteilt.",
-  "note.meta.no_usage_api": "Meta dokumentiert keine API für Nutzung, Ausgaben oder Guthaben; Nutzung und Abrechnung stehen in der Konsole dev.meta.ai.",
   "note.meta.no_key_session_only": "Kein API-Schlüssel für dieses Konto; die Nutzung kommt aus der dev.meta.ai-Sitzung und die Schlüsselprüfung entfällt.",
   "note.meta.sign_in_for_usage": "Meta dokumentiert keine Nutzungs-, Ausgaben- oder Guthaben-API; melden Sie sich im Konto bei dev.meta.ai an, um die Nutzung der Konsole zu lesen.",
   "note.meta.console_undocumented": "Nutzung aus der internen Schnittstelle der dev.meta.ai-Konsole; kann sich ohne Ankündigung ändern.",
@@ -1810,6 +1808,7 @@
   },
   "note.meta.usage_unavailable": "Die dev.meta.ai-Konsole hat die Nutzung nicht geliefert; die Karte zeigt nur die Schlüsselprüfung.",
   "note.meta.usage_empty": "Die dev.meta.ai-Konsole lieferte für diesen Monat keine Nutzungsreihe; die Nutzung ist unbekannt, nicht null.",
+  "note.meta.project_ignored": "Die Projekt-ID wird ignoriert: Die dev.meta.ai-Konsole meldet die Nutzung pro Team, daher zeigt die Karte das ganze Team.",
   "note.router_keys.kimi_internal_route": "Interne Kimi-Route, in 9router beobachtet; Änderungen und Einschränkungen des Anbieters vorbehalten.",
   "note.router_keys.kimi_no_numeric_quota": "Kimi-Antwort ohne numerischen Kontingentblock; fehlend bedeutet nicht unbegrenzt.",
   "note.router_keys.kimi_plan": "Tarif: {plan}.",
@@ -2221,7 +2220,6 @@
   "query.meta.http": "Die Meta Model API antwortete mit HTTP {code}.",
   "query.meta.console_http": "Die dev.meta.ai-Konsole antwortete mit HTTP {code}; es wurde nichts gelesen.",
   "query.meta.team_id_invalid": "\"Team-ID\" ist keine dev.meta.ai-Team-ID; kopieren Sie die Zahl nach team_id= in der Adresse der Nutzungsseite.",
-  "query.meta.project_id_invalid": "\"Projekt-ID\" ist keine dev.meta.ai-Projekt-ID; kopieren Sie die Zahl nach project_id= in der Adresse der Nutzungsseite.",
   "query.meta.session_expired": "dev.meta.ai-Sitzung abgelaufen oder widerrufen; melden Sie sich im Konto erneut an.",
   "query.router_keys.kimi_access_denied": "Die Abfrage lieferte HTTP 403. Prüfen Sie Zugriff und Berechtigungen.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: Authentifizierung abgelaufen. Erneuern Sie das Token oder den API-Schlüssel.",

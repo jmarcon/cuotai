@@ -268,7 +268,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -1311,8 +1312,6 @@
   "field.zed.user_id.label": "Zed ユーザーの数値 ID",
   "field.meta.team_id.label": "チーム ID（任意）",
   "field.meta.team_id.help": "dev.meta.ai のセッション使用時のみ。空欄 = セッションの唯一のチーム。選ぶには dev.meta.ai/usage を開き、アドレスバーの team_id= の後の数字をコピーしてください。",
-  "field.meta.project_id.label": "プロジェクト ID（任意）",
-  "field.meta.project_id.help": "dev.meta.ai のセッション使用時のみ。空欄 = チーム全体。1 つのプロジェクトを読むには dev.meta.ai/usage のアドレスの project_id= の後の数字をコピーしてください。",
   "field.meta.session_env.label": "dev.meta.ai セッションの変数（任意）",
   "field.meta.session_env.help": "空欄 = アカウントウィザードの「サインイン」で取得したセッション（システムの保管庫）。変数を使う場合は dev.meta.ai の Cookie（llama_dev_sess）を保持する変数の名前を入力してください。Cookie をここに貼り付けないでください。",
   "history.error.export": "履歴のエクスポートを書き込めませんでした。",
@@ -1795,7 +1794,6 @@
   "note.meta.key_valid": "Meta Model API のモデル一覧がキーを受け付けました。トークンは消費しません。",
   "note.meta.rate_limit_headers_missing": "この応答に `x-ratelimit-*` ヘッダーがありません。チームのレート制限のウィンドウは不明です。",
   "note.meta.rate_limit_team": "レート制限はチーム単位で、チームのすべてのキーで共有されます。",
-  "note.meta.no_usage_api": "Meta は使用量、支出、残高の API を公開していません。使用量と請求は dev.meta.ai のコンソールで確認してください。",
   "note.meta.no_key_session_only": "このアカウントには API キーがありません。使用量は dev.meta.ai のセッションから取得し、キーの確認は省略します。",
   "note.meta.sign_in_for_usage": "Meta は使用量、支出、残高の API を公開していません。コンソールの使用量を読むには、アカウントから dev.meta.ai にサインインしてください。",
   "note.meta.console_undocumented": "dev.meta.ai コンソールの内部インターフェースから読み取った使用量です。予告なく変わる可能性があります。",
@@ -1805,6 +1803,7 @@
   },
   "note.meta.usage_unavailable": "dev.meta.ai コンソールが使用量を返しませんでした。カードにはキーの確認のみ表示されます。",
   "note.meta.usage_empty": "dev.meta.ai コンソールは今月の使用量の系列を返しませんでした。使用量は不明であり、ゼロではありません。",
+  "note.meta.project_ignored": "プロジェクト ID は無視されます。dev.meta.ai コンソールは使用量をチーム単位で報告するため、カードにはチーム全体が表示されます。",
   "note.router_keys.kimi_internal_route": "9router で確認された Kimi の内部ルート。プロバイダーの変更や制限の影響を受けます。",
   "note.router_keys.kimi_no_numeric_quota": "Kimi の応答に数値のクォータのブロックがありません。ないことは無制限を意味しません。",
   "note.router_keys.kimi_plan": "プラン：{plan}。",
@@ -2215,7 +2214,6 @@
   "query.meta.http": "Meta Model API が HTTP {code} を返しました。",
   "query.meta.console_http": "dev.meta.ai コンソールが HTTP {code} を返しました。何も読み取っていません。",
   "query.meta.team_id_invalid": "\"チーム ID\" は dev.meta.ai のチーム ID ではありません。使用量ページのアドレスの team_id= の後の数字をコピーしてください。",
-  "query.meta.project_id_invalid": "\"プロジェクト ID\" は dev.meta.ai のプロジェクト ID ではありません。使用量ページのアドレスの project_id= の後の数字をコピーしてください。",
   "query.meta.session_expired": "dev.meta.ai のセッションが期限切れか取り消されました。アカウントから再度サインインしてください。",
   "query.router_keys.kimi_access_denied": "照会が HTTP 403 を返しました。アクセスと権限を確認してください。",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding：認証の期限が切れました。トークンまたは API キーを更新してください。",

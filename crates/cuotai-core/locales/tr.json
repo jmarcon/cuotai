@@ -224,7 +224,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -1286,8 +1287,6 @@
   "field.zed.user_id.label": "Zed kullanıcısının sayısal kimliği",
   "field.meta.team_id.label": "Ekip kimliği (isteğe bağlı)",
   "field.meta.team_id.help": "Yalnızca dev.meta.ai oturumuyla. Boş = oturumun tek ekibi. Seçmek için dev.meta.ai/usage sayfasını açın ve adres çubuğunda team_id= sonrasındaki sayıyı kopyalayın.",
-  "field.meta.project_id.label": "Proje kimliği (isteğe bağlı)",
-  "field.meta.project_id.help": "Yalnızca dev.meta.ai oturumuyla. Boş = tüm ekip. Tek bir proje için dev.meta.ai/usage adresinde project_id= sonrasındaki sayıyı kopyalayın.",
   "field.meta.session_env.label": "dev.meta.ai oturum değişkeni (isteğe bağlı)",
   "field.meta.session_env.help": "Boş = hesap sihirbazında \"Oturum aç\" ile yakalanan oturum (sistem kasası). Değişken tercih ederseniz dev.meta.ai çerezini (llama_dev_sess) tutan değişkenin ADINI girin; çerezi asla buraya yapıştırmayın.",
   "history.error.export": "Geçmiş dışa aktarımı yazılamadı.",
@@ -1776,7 +1775,6 @@
   "note.meta.key_valid": "Anahtar, Meta Model API model listesi tarafından kabul edildi; token harcanmaz.",
   "note.meta.rate_limit_headers_missing": "Bu yanıtta `x-ratelimit-*` başlıkları yok; ekibin hız sınırı penceresi bilinmiyor.",
   "note.meta.rate_limit_team": "Hız sınırları ekip başınadır ve ekibin tüm anahtarlarınca paylaşılır.",
-  "note.meta.no_usage_api": "Meta kullanım, harcama veya bakiye API'si belgelemez; kullanımı ve faturalamayı dev.meta.ai konsolunda görün.",
   "note.meta.no_key_session_only": "Bu hesap için API anahtarı yok; kullanım dev.meta.ai oturumundan gelir ve anahtar denetimi atlanır.",
   "note.meta.sign_in_for_usage": "Meta kullanım, harcama veya bakiye API'si belgelemiyor; konsol kullanımını okumak için hesaptan dev.meta.ai'ye oturum açın.",
   "note.meta.console_undocumented": "Kullanım dev.meta.ai konsolunun iç arayüzünden okunur; haber verilmeden değişebilir.",
@@ -1787,6 +1785,7 @@
   },
   "note.meta.usage_unavailable": "dev.meta.ai konsolu kullanımı döndürmedi; kart yalnızca anahtar denetimini gösterir.",
   "note.meta.usage_empty": "dev.meta.ai konsolu bu ay için kullanım serisi döndürmedi; kullanım bilinmiyor, sıfır değil.",
+  "note.meta.project_ignored": "Proje kimliği yok sayılır: dev.meta.ai konsolu kullanımı ekip başına bildirir, bu yüzden kart tüm ekibi gösterir.",
   "note.router_keys.kimi_internal_route": "9router'da gözlemlenen dahili Kimi rotası; değişebilir ve sağlayıcı kısıtlamalarına tabidir.",
   "note.router_keys.kimi_no_numeric_quota": "Sayısal kota bloğu olmayan Kimi yanıtı; olmaması sınırsız anlamına gelmez.",
   "note.router_keys.kimi_plan": "Plan: {plan}.",
@@ -2198,7 +2197,6 @@
   "query.meta.http": "Meta Model API HTTP {code} döndürdü.",
   "query.meta.console_http": "dev.meta.ai konsolu HTTP {code} döndürdü; hiçbir şey okunmadı.",
   "query.meta.team_id_invalid": "\"Ekip kimliği\" bir dev.meta.ai ekip kimliği değil; kullanım sayfası adresinde team_id= sonrasındaki sayıyı kopyalayın.",
-  "query.meta.project_id_invalid": "\"Proje kimliği\" bir dev.meta.ai proje kimliği değil; kullanım sayfası adresinde project_id= sonrasındaki sayıyı kopyalayın.",
   "query.meta.session_expired": "dev.meta.ai oturumunun süresi doldu veya iptal edildi; hesaptan yeniden oturum açın.",
   "query.router_keys.kimi_access_denied": "Sorgu HTTP 403 döndürdü. Erişimi ve izinleri kontrol edin.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: kimlik doğrulamanın süresi doldu. Jetonu veya API anahtarını yenileyin.",

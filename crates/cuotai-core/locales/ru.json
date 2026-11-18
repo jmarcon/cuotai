@@ -275,7 +275,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1375,8 +1376,6 @@
   "field.zed.user_id.label": "Числовой ID пользователя Zed",
   "field.meta.team_id.label": "ID команды (необязательно)",
   "field.meta.team_id.help": "Только с сессией dev.meta.ai. Пусто = единственная команда сессии. Чтобы выбрать, откройте dev.meta.ai/usage и скопируйте число после team_id= в адресной строке.",
-  "field.meta.project_id.label": "ID проекта (необязательно)",
-  "field.meta.project_id.help": "Только с сессией dev.meta.ai. Пусто = вся команда. Для одного проекта скопируйте число после project_id= в адресе dev.meta.ai/usage.",
   "field.meta.session_env.label": "Переменная сессии dev.meta.ai (необязательно)",
   "field.meta.session_env.help": "Пусто = сессия, захваченная кнопкой «Войти» в мастере учётной записи (системное хранилище). Если нужна переменная, укажите ИМЯ переменной с cookie dev.meta.ai (llama_dev_sess); никогда не вставляйте сюда cookie.",
   "history.error.export": "Не удалось записать экспорт истории.",
@@ -1877,7 +1876,6 @@
   "note.meta.key_valid": "Ключ принят списком моделей Meta Model API; токены не расходуются.",
   "note.meta.rate_limit_headers_missing": "В этом ответе нет заголовков `x-ratelimit-*`; окно лимита команды неизвестно.",
   "note.meta.rate_limit_team": "Лимиты частоты действуют на команду и общие для всех её ключей.",
-  "note.meta.no_usage_api": "Meta не документирует API расхода, затрат или баланса; смотрите расход и оплату в консоли dev.meta.ai.",
   "note.meta.no_key_session_only": "У этой учётной записи нет ключа API; расход берётся из сессии dev.meta.ai, проверка ключа пропускается.",
   "note.meta.sign_in_for_usage": "Meta не документирует API использования, расходов или баланса; войдите в dev.meta.ai из учётной записи, чтобы читать использование из консоли.",
   "note.meta.console_undocumented": "Использование из внутреннего интерфейса консоли dev.meta.ai; может измениться без предупреждения.",
@@ -1890,6 +1888,7 @@
   },
   "note.meta.usage_unavailable": "Консоль dev.meta.ai не вернула использование; карточка показывает только проверку ключа.",
   "note.meta.usage_empty": "Консоль dev.meta.ai не вернула ни одного ряда использования за этот месяц; использование неизвестно, а не ноль.",
+  "note.meta.project_ignored": "ID проекта игнорируется: консоль dev.meta.ai сообщает использование по командам, поэтому карточка показывает всю команду.",
   "note.router_keys.kimi_internal_route": "Внутренний маршрут Kimi, замеченный в 9router; может измениться и зависит от ограничений провайдера.",
   "note.router_keys.kimi_no_numeric_quota": "Ответ Kimi без числового блока квоты; отсутствие не означает безлимит.",
   "note.router_keys.kimi_plan": "Тариф: {plan}.",
@@ -2303,7 +2302,6 @@
   "query.meta.http": "Meta Model API вернул HTTP {code}.",
   "query.meta.console_http": "Консоль dev.meta.ai вернула HTTP {code}; ничего не прочитано.",
   "query.meta.team_id_invalid": "\"ID команды\" не является ID команды dev.meta.ai; скопируйте число после team_id= в адресе страницы использования.",
-  "query.meta.project_id_invalid": "\"ID проекта\" не является ID проекта dev.meta.ai; скопируйте число после project_id= в адресе страницы использования.",
   "query.meta.session_expired": "Сессия dev.meta.ai истекла или отозвана; войдите снова из учётной записи.",
   "query.router_keys.kimi_access_denied": "Запрос вернул HTTP 403. Проверьте доступ и права.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: аутентификация истекла. Обновите токен или ключ API.",

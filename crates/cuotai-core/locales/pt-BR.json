@@ -102,7 +102,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -1164,8 +1165,6 @@
   "field.zed.user_id.label": "ID numérico do usuário Zed",
   "field.meta.team_id.label": "ID da equipe (opcional)",
   "field.meta.team_id.help": "Só com a sessão do dev.meta.ai. Vazio = a única equipe da sessão. Para escolher uma, abra dev.meta.ai/usage e copie o número depois de team_id= na barra de endereço.",
-  "field.meta.project_id.label": "ID do projeto (opcional)",
-  "field.meta.project_id.help": "Só com a sessão do dev.meta.ai. Vazio = a equipe inteira. Para ler um projeto, copie o número depois de project_id= no endereço de dev.meta.ai/usage.",
   "field.meta.session_env.label": "Variável da sessão do dev.meta.ai (opcional)",
   "field.meta.session_env.help": "Vazio = a sessão capturada com \"Entrar\" no assistente da conta (cofre do sistema). Se preferir uma variável, informe o NOME da variável com o cookie do dev.meta.ai (llama_dev_sess); nunca cole o cookie aqui.",
   "history.error.export": "Falha ao gravar a exportação do histórico.",
@@ -1654,7 +1653,6 @@
   "note.meta.key_valid": "Chave aceita pela listagem de modelos da Meta Model API; nenhum token é consumido.",
   "note.meta.rate_limit_headers_missing": "Esta resposta não trouxe cabeçalhos `x-ratelimit-*`; a janela de rate limit do time é desconhecida.",
   "note.meta.rate_limit_team": "Os rate limits valem por time e são compartilhados por todas as chaves do time.",
-  "note.meta.no_usage_api": "A Meta não documenta API de uso, gasto ou saldo; veja uso e cobrança no console dev.meta.ai.",
   "note.meta.no_key_session_only": "Nenhuma chave de API nesta conta; o uso vem da sessão de dev.meta.ai e a verificação da chave é pulada.",
   "note.meta.sign_in_for_usage": "A Meta não documenta API de uso, gasto ou saldo; entre no dev.meta.ai pela conta para ler o uso do console.",
   "note.meta.console_undocumented": "Uso lido na interface interna do console dev.meta.ai; pode mudar sem aviso.",
@@ -1665,6 +1663,7 @@
   },
   "note.meta.usage_unavailable": "O console dev.meta.ai não devolveu o uso; o cartão mostra só a verificação da chave.",
   "note.meta.usage_empty": "O console do dev.meta.ai não retornou série de uso para este mês; o uso é desconhecido, não zero.",
+  "note.meta.project_ignored": "O ID do projeto é ignorado: o console dev.meta.ai informa o uso por equipe, então o cartão mostra a equipe inteira.",
   "note.router_keys.kimi_internal_route": "Rota interna não documentada publicamente (referência: 9router MIT, commit f01fb909); pode mudar sem aviso.",
   "note.router_keys.kimi_no_numeric_quota": "Conta conectada; a API não retornou janelas de quota numérica nesta resposta.",
   "note.router_keys.kimi_plan": "Plano reportado pela API: {plan}.",
@@ -2076,7 +2075,6 @@
   "query.meta.http": "A Meta Model API retornou HTTP {code}.",
   "query.meta.console_http": "O console dev.meta.ai retornou HTTP {code}; nada foi lido.",
   "query.meta.team_id_invalid": "\"ID da equipe\" não é um ID de equipe do dev.meta.ai; copie o número depois de team_id= no endereço da página de uso.",
-  "query.meta.project_id_invalid": "\"ID do projeto\" não é um ID de projeto do dev.meta.ai; copie o número depois de project_id= no endereço da página de uso.",
   "query.meta.session_expired": "Sessão do dev.meta.ai expirada ou revogada; entre de novo pela conta.",
   "query.router_keys.kimi_access_denied": "Consulta retornou HTTP 403. Verifique acesso e permissões.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: autenticação expirada. Renove o token ou a API key.",

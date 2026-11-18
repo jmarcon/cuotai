@@ -101,7 +101,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -1142,7 +1143,6 @@
   "note.meta.key_valid": "Chiave accettata dall'elenco dei modelli di Meta Model API; nessun token consumato.",
   "note.meta.rate_limit_headers_missing": "Questa risposta non conteneva header `x-ratelimit-*`; la finestra di rate limit del team è sconosciuta.",
   "note.meta.rate_limit_team": "I rate limit valgono per team e sono condivisi da tutte le chiavi del team.",
-  "note.meta.no_usage_api": "Meta non documenta un'API di utilizzo, spesa o saldo; vedi utilizzo e fatturazione nella console dev.meta.ai.",
   "note.meta.no_key_session_only": "Nessuna chiave API per questo account; l'utilizzo arriva dalla sessione di dev.meta.ai e il controllo della chiave viene saltato.",
   "note.meta.sign_in_for_usage": "Meta non documenta un'API di utilizzo, spesa o saldo; accedi a dev.meta.ai dall'account per leggere l'utilizzo della console.",
   "note.meta.console_undocumented": "Utilizzo letto dall'interfaccia interna della console dev.meta.ai; può cambiare senza preavviso.",
@@ -1153,6 +1153,7 @@
   },
   "note.meta.usage_unavailable": "La console dev.meta.ai non ha restituito l'utilizzo; la scheda mostra solo la verifica della chiave.",
   "note.meta.usage_empty": "La console di dev.meta.ai non ha restituito serie di utilizzo per questo mese; l'utilizzo è sconosciuto, non zero.",
+  "note.meta.project_ignored": "L'ID del progetto viene ignorato: la console dev.meta.ai riporta l'utilizzo per team, quindi la scheda mostra l'intero team.",
   "note.router_keys.kimi_internal_route": "Rotta interna di Kimi osservata in 9router; soggetta a modifiche e restrizioni del provider.",
   "note.router_keys.kimi_no_numeric_quota": "Risposta di Kimi senza blocco di quota numerica; assente non significa illimitato.",
   "note.router_keys.kimi_plan": "Piano: {plan}.",
@@ -1495,7 +1496,6 @@
   "query.meta.http": "Meta Model API ha restituito HTTP {code}.",
   "query.meta.console_http": "La console dev.meta.ai ha restituito HTTP {code}; non è stato letto nulla.",
   "query.meta.team_id_invalid": "\"ID del team\" non è un ID di team di dev.meta.ai; copia il numero dopo team_id= nell'indirizzo della pagina di utilizzo.",
-  "query.meta.project_id_invalid": "\"ID del progetto\" non è un ID di progetto di dev.meta.ai; copia il numero dopo project_id= nell'indirizzo della pagina di utilizzo.",
   "query.meta.session_expired": "Sessione di dev.meta.ai scaduta o revocata; accedi di nuovo dall'account.",
   "query.router_keys.kimi_access_denied": "La query ha restituito HTTP 403. Controlla accesso e permessi.",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: autenticazione scaduta. Rinnova il token o la chiave API.",
@@ -2140,8 +2140,6 @@
   "field.litellm.show_both.help": "Elenco separato da virgole degli identificatori che continuano ad apparire fuori dalla sezione di LiteLLM.",
   "field.meta.team_id.label": "ID del team (facoltativo)",
   "field.meta.team_id.help": "Solo con la sessione di dev.meta.ai. Vuoto = l'unico team della sessione. Per sceglierne uno, apri dev.meta.ai/usage e copia il numero dopo team_id= nella barra degli indirizzi.",
-  "field.meta.project_id.label": "ID del progetto (facoltativo)",
-  "field.meta.project_id.help": "Solo con la sessione di dev.meta.ai. Vuoto = tutto il team. Per leggere un progetto, copia il numero dopo project_id= nell'indirizzo di dev.meta.ai/usage.",
   "field.meta.session_env.label": "Variabile della sessione di dev.meta.ai (facoltativa)",
   "field.meta.session_env.help": "Vuoto = la sessione acquisita con \"Accedi\" nella procedura dell'account (portachiavi di sistema). Se preferisci una variabile, indica il NOME della variabile con il cookie di dev.meta.ai (llama_dev_sess); non incollare mai il cookie qui.",
   "access.summary.litellm": "Budget e spesa in USD per provider del tuo proxy LiteLLM, tramite la rotta documentata dei budget per provider.",

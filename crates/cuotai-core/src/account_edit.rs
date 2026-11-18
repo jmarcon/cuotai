@@ -595,6 +595,10 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
         Provider::AlibabaModelStudio => &["region", "cli_path"],
         Provider::AlibabaCodingPlan => &["region", "session_env"],
         Provider::AlibabaTokenPlan => &["session_env", "cli_path"],
+        // `project_id` has no field any more (PRD 0049 re-validation
+        // R49-02: the console's usage request has no project filter); it
+        // stays managed so the next save from the form strips a legacy
+        // value.
         Provider::Meta => &["team_id", "project_id", "session_env"],
         Provider::JetbrainsAi => &["client_secret_env"],
         Provider::AlibabaCloud => &[
@@ -2149,19 +2153,14 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         ),
         BL_CLI_PATH,
     ];
-    // PRD 0049 RF8: the console ids are the user's, copied from the usage
-    // page address `dev.meta.ai/usage?team_id=<team>&project_id=<project>`.
-    const META: [FieldDescriptor; 3] = [
+    // PRD 0049 RF8: the team id is the user's, copied from the usage page
+    // address `dev.meta.ai/usage?team_id=<team>`. The console reports usage
+    // per team, so there is no Project ID field (re-validation R49-02).
+    const META: [FieldDescriptor; 2] = [
         FieldDescriptor::text(
             "team_id",
             "Team ID (optional)",
             "Only with the dev.meta.ai session. Empty = the session's only team. To choose one, open dev.meta.ai/usage and copy the number after team_id= in the address bar.",
-            false,
-        ),
-        FieldDescriptor::text(
-            "project_id",
-            "Project ID (optional)",
-            "Only with the dev.meta.ai session. Empty = the whole team. To read one project, copy the number after project_id= in the dev.meta.ai/usage address.",
             false,
         ),
         FieldDescriptor::text(
@@ -4368,6 +4367,42 @@ mod tests {
         assert!(validate_param("billing_cycle", "2026/09", &BTreeMap::new()).is_err());
         assert!(validate_param("token_env", "TOKEN_NAME", &BTreeMap::new()).is_ok());
         assert!(validate_param("token_env", "bad name", &BTreeMap::new()).is_err());
+    }
+
+    /// PRD 0049 re-validation R49-02: the Meta form offers the Team ID and
+    /// the session variable only, and a save from it strips a legacy
+    /// `project_id`.
+    #[test]
+    fn meta_form_has_no_project_id_and_a_save_strips_a_legacy_one() {
+        let keys: Vec<_> = field_descriptors(Provider::Meta)
+            .iter()
+            .map(|d| d.key)
+            .collect();
+        assert_eq!(keys, ["team_id", "session_env"]);
+        let mut params = BTreeMap::from([
+            ("project_id".to_string(), "2002".to_string()),
+            ("team_id".to_string(), "1".to_string()),
+            ("kept".to_string(), "yes".to_string()),
+        ]);
+        let selections = BTreeMap::new();
+        let login_params = BTreeMap::new();
+        apply_draft_fields(
+            Provider::Meta,
+            &mut params,
+            &[
+                text_field("team_id", "Team ID", "1001"),
+                text_field("session_env", "Session", "META_SESSION"),
+            ],
+            &empty_visibility(&login_params, &selections),
+        )
+        .expect("valid draft");
+        assert!(!params.contains_key("project_id"));
+        assert_eq!(params.get("team_id").map(String::as_str), Some("1001"));
+        assert_eq!(
+            params.get("session_env").map(String::as_str),
+            Some("META_SESSION")
+        );
+        assert_eq!(params.get("kept").map(String::as_str), Some("yes"));
     }
 
     #[test]

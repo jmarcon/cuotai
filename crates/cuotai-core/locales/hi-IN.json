@@ -242,7 +242,8 @@
       "doctor.account.env_invalid",
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
-      "query.meta.console_http"
+      "query.meta.console_http",
+      "note.meta.project_ignored"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -1304,8 +1305,6 @@
   "field.zed.user_id.label": "Zed उपयोगकर्ता की संख्यात्मक ID",
   "field.meta.team_id.label": "टीम ID (वैकल्पिक)",
   "field.meta.team_id.help": "केवल dev.meta.ai सत्र के साथ। खाली = सत्र की एकमात्र टीम। चुनने के लिए dev.meta.ai/usage खोलें और एड्रेस बार में team_id= के बाद की संख्या कॉपी करें।",
-  "field.meta.project_id.label": "प्रोजेक्ट ID (वैकल्पिक)",
-  "field.meta.project_id.help": "केवल dev.meta.ai सत्र के साथ। खाली = पूरी टीम। एक प्रोजेक्ट पढ़ने के लिए dev.meta.ai/usage के पते में project_id= के बाद की संख्या कॉपी करें।",
   "field.meta.session_env.label": "dev.meta.ai सत्र चर (वैकल्पिक)",
   "field.meta.session_env.help": "खाली = खाता विज़ार्ड में \"साइन इन\" से कैप्चर किया गया सत्र (सिस्टम वॉल्ट)। चर पसंद हो तो dev.meta.ai कुकी (llama_dev_sess) रखने वाले चर का नाम दें; कुकी यहाँ कभी न चिपकाएँ।",
   "history.error.export": "इतिहास का निर्यात लिखा नहीं जा सका।",
@@ -1794,7 +1793,6 @@
   "note.meta.key_valid": "Meta Model API की मॉडल सूची ने कुंजी स्वीकार की; कोई टोकन खर्च नहीं होता।",
   "note.meta.rate_limit_headers_missing": "इस जवाब में `x-ratelimit-*` हेडर नहीं थे; टीम की रेट लिमिट विंडो अज्ञात है।",
   "note.meta.rate_limit_team": "रेट लिमिट टीम के हिसाब से है और टीम की सभी कुंजियाँ इसे साझा करती हैं।",
-  "note.meta.no_usage_api": "Meta उपयोग, खर्च या बैलेंस का कोई API दस्तावेज़ित नहीं करता; उपयोग और बिलिंग dev.meta.ai कंसोल में देखें।",
   "note.meta.no_key_session_only": "इस खाते के लिए कोई API कुंजी नहीं है; उपयोग dev.meta.ai सत्र से आता है और कुंजी जाँच छोड़ दी जाती है।",
   "note.meta.sign_in_for_usage": "Meta उपयोग, खर्च या शेष राशि का कोई API प्रलेखित नहीं करता; कंसोल का उपयोग पढ़ने के लिए खाते से dev.meta.ai में साइन इन करें।",
   "note.meta.console_undocumented": "उपयोग dev.meta.ai कंसोल के आंतरिक इंटरफ़ेस से पढ़ा गया; यह बिना सूचना के बदल सकता है।",
@@ -1805,6 +1803,7 @@
   },
   "note.meta.usage_unavailable": "dev.meta.ai कंसोल ने उपयोग नहीं लौटाया; कार्ड केवल कुंजी की जाँच दिखाता है।",
   "note.meta.usage_empty": "dev.meta.ai कंसोल ने इस महीने की कोई उपयोग शृंखला नहीं लौटाई; उपयोग अज्ञात है, शून्य नहीं।",
+  "note.meta.project_ignored": "प्रोजेक्ट ID को अनदेखा किया जाता है: dev.meta.ai कंसोल उपयोग टीम के हिसाब से बताता है, इसलिए कार्ड पूरी टीम दिखाता है।",
   "note.router_keys.kimi_internal_route": "आंतरिक रूट, सार्वजनिक रूप से दस्तावेज़ीकृत नहीं (संदर्भ: 9router MIT, कमिट f01fb909); बिना सूचना बदल सकता है।",
   "note.router_keys.kimi_no_numeric_quota": "खाता जुड़ा है; इस जवाब में API ने संख्यात्मक कोटा विंडो नहीं लौटाईं।",
   "note.router_keys.kimi_plan": "API द्वारा बताया गया प्लान: {plan}।",
@@ -2216,7 +2215,6 @@
   "query.meta.http": "Meta Model API ने HTTP {code} लौटाया।",
   "query.meta.console_http": "dev.meta.ai कंसोल ने HTTP {code} लौटाया; कुछ भी नहीं पढ़ा गया।",
   "query.meta.team_id_invalid": "\"टीम ID\" dev.meta.ai टीम ID नहीं है; उपयोग पेज के पते में team_id= के बाद की संख्या कॉपी करें।",
-  "query.meta.project_id_invalid": "\"प्रोजेक्ट ID\" dev.meta.ai प्रोजेक्ट ID नहीं है; उपयोग पेज के पते में project_id= के बाद की संख्या कॉपी करें।",
   "query.meta.session_expired": "dev.meta.ai सत्र समाप्त या रद्द हो गया; खाते से फिर से साइन इन करें।",
   "query.router_keys.kimi_access_denied": "जाँच ने HTTP 403 लौटाया। पहुँच और अनुमतियाँ जाँचें।",
   "query.router_keys.kimi_authentication_expired": "Kimi Coding: प्रमाणीकरण समाप्त हो गया। टोकन या API कुंजी नवीनीकृत करें।",
