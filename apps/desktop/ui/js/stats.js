@@ -115,8 +115,9 @@ const pts = (v) => t("stats.rhythm.points", { value: fmtNumber(v, 1) });
 
 /** One rhythm chart: equal columns scaled to its largest bucket; a bucket without samples is a hatched ghost column
  *  (never a zero bar), a reset is marked under its column, a day off is dimmed. Hidden from assistive technology,
- *  which reads the summary and the table (DS-CHT-10). */
-export function rhythmChartHtml(rhythm, id, kind) {
+ *  which reads the summary and the table (DS-CHT-10). `caption: false` leaves out the visible caption where a
+ *  surrounding label already names the chart (the popover strip's summary, PRD 0043 re-validation V-01). */
+export function rhythmChartHtml(rhythm, id, kind, { caption = true } = {}) {
   const buckets = rhythm.buckets ?? [];
   const max = Math.max(0, ...buckets.map((b) => b.consumption ?? 0));
   const labelOf = (b) => tl(b.label);
@@ -139,7 +140,7 @@ export function rhythmChartHtml(rhythm, id, kind) {
       lastAt: labelOf(last), last: last.consumption == null ? t("stats.chart.noData") : pts(last.consumption) })
     : t("stats.rhythm.empty");
   const rows = buckets.map((b) => `<tr><td>${esc(labelOf(b))}</td><td>${b.consumption == null ? te("stats.chart.noData") : esc(pts(b.consumption))}</td><td>${[b.reset ? te("stats.rhythm.reset") : "", b.day_off ? te("stats.rhythm.dayOff") : "", kind === "typical" && b.consumption != null ? te("stats.rhythm.samples", { count: b.samples }) : ""].filter(Boolean).join(" · ")}</td></tr>`).join("");
-  return `<figure class="rhythm" data-rhythm="${kind}"><figcaption class="micro">${te(`stats.rhythm.${kind}`)}</figcaption>
+  return `<figure class="rhythm" data-rhythm="${kind}">${caption ? `<figcaption class="micro">${te(`stats.rhythm.${kind}`)}</figcaption>` : ""}
     <div role="img" aria-label="${esc(alt)}" aria-describedby="${id}-${kind}-table">${known.length ? `<div class="bars rhythm-bars" aria-hidden="true"><ul${buckets.length > 7 ? ' class="dense"' : ""} style="--n:${buckets.length}">${cols}</ul></div>` : `<p class="sub st-empty">${esc(alt)}</p>`}</div>
     <div class="sr-only"><table id="${id}-${kind}-table"><caption>${esc(alt)}</caption>
       <thead><tr><th scope="col">${te(kind === "week" ? "stats.table.day" : "stats.rhythm.hour")}</th><th scope="col">${te("stats.rhythm.use")}</th><th scope="col">${te("stats.rhythm.marks")}</th></tr></thead><tbody>${rows}</tbody></table></div></figure>`;

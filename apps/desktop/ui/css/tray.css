@@ -339,11 +339,13 @@ body {
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
-/* PRD 0043 RF4.2 (DS-CHT-12): the 24-hour strip under the account rows, a disclosure labelled by its summary. */
+/* PRD 0043 RF4.2 (DS-CHT-12): the 24-hour strip under the account rows, a disclosure labelled by its summary, on the
+   rows' gutter like the "Not in menu bar" label (re-validation V-01). */
 .pop-strip {
-  margin: 0 var(--space-1) var(--space-2);
+  margin: 0 var(--space-3) var(--space-2);
 }
 .pop-strip > summary {
+  margin-inline: 0;
   cursor: pointer;
 }
 .pop-strip .rhythm {

@@ -75,7 +75,7 @@ async function loadStrip() {
 function stripHtml() {
   if (!strip?.rhythm?.buckets?.length) return "";
   return `<details class="pop-strip" data-pop-strip ${stripOpen ? "open" : ""}><summary class="pop-sub">${te("tray.strip.title", { name: strip.name })}</summary>
-    ${rhythmChartHtml(strip.rhythm, "pop-strip", "day")}</details>`;
+    ${rhythmChartHtml(strip.rhythm, "pop-strip", "day", { caption: false })}</details>`;
 }
 root.addEventListener("toggle", (e) => {
   if (!e.target.matches?.("[data-pop-strip]")) return;

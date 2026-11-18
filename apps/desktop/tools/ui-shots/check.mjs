@@ -535,6 +535,19 @@ const STATS_JS = `(() => {
   return out;
 })()`;
 
+// PRD 0043 re-validation V-01: every drawn rhythm column (not a ghost column for an hour without readings) is painted.
+// The bars take `--bar` from the Stats tokens; outside a scope that defines it they were transparent.
+const BARS_JS = `(() => {
+  const out = [];
+  const bars = [...document.querySelectorAll(".rhythm-bars .bar:not(.ghost)")];
+  if (new URLSearchParams(location.search).has("strip") && !bars.length) out.push({ kind: "unpainted-bar", ok: false, sel: "pop-strip", text: "no bar drawn" });
+  for (const b of bars) {
+    const c = getComputedStyle(b).backgroundColor.replace(/\\s+/g, "");
+    if (c === "transparent" || c === "rgba(0,0,0,0)" || /\\/0\\)$/.test(c)) { out.push({ kind: "unpainted-bar", ok: false, sel: b.closest("[data-rhythm]")?.dataset.rhythm ?? "bar", text: c }); break; }
+  }
+  return out;
+})()`;
+
 // Every unit of work of this run, in a fixed order: each page in each locale, then (full run) the themed pages and
 // the danger button of every built-in theme and mode. `--shard i/n` keeps every n-th item from the i-th, so the n
 // shards of CI cover the whole list exactly once whatever is added to it; `--shard-selftest` proves that.
@@ -576,6 +589,7 @@ async function checkPage(name, page, w, h, storage, click, openModels, locale) {
   if (selftest) await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
   const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];
   if (name.includes("stats")) found.push(...((await ui.evaluate(STATS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "stats probe failed" }]));
+  if (name.includes("stats") || name.startsWith("tray-strip")) found.push(...((await ui.evaluate(BARS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "bars probe failed" }]));
   // PRD 0034 re-validation V-11: the pseudo-locale pads every text by design, so its placeholder ends in the field's
   // ellipsis (allowed); a real language's placeholder must fit.
   if (locale === "en-XA") for (const f of found) if (f.kind === "placeholder-clipped") f.ok = true;
