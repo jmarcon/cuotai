@@ -2288,6 +2288,9 @@ fn coding_plan_capture_follows_the_region() {
         "https://account.qwencloud.com/sso/OIDCAuth",
         "https://evil.alibabacloud.com/",
         "http://modelstudio.console.alibabacloud.com/",
+        // RF3.4: the other region's consoles.
+        "https://bailian.console.aliyun.com/",
+        "https://bailian-cs.console.aliyun.com/data/api.json",
     ];
     let cn_blocked = [
         "https://account.alibabacloud.com/login/login.htm",
@@ -2300,6 +2303,9 @@ fn coding_plan_capture_follows_the_region() {
         "https://evil.aliyun.com/",
         "https://account.aliyun.com.evil.example/",
         "https://account-intl.aliyun.com/login/login.htm",
+        // RF3.4: the other region's consoles.
+        "https://modelstudio.console.alibabacloud.com/",
+        "https://bailian-singapore-cs.alibabacloud.com/",
     ];
     for blocked in intl_blocked {
         assert!(!d.capture_allows(blocked), "{blocked}");
@@ -2333,6 +2339,9 @@ fn every_capture() -> Vec<AnyCapture> {
         })
         .collect()
 }
+
+#[path = "user_session_consoles_tests.rs"]
+mod consoles;
 
 /// PRD 0056 RF1.1: a capture shares the Google sign-in exactly when its
 /// sign-in hosts include Google's, and the shared ones are those listed.
