@@ -187,11 +187,18 @@ pub(crate) fn digest(
         serde_json::to_writer_pretty(&mut stdout, &digest)?;
         writeln!(stdout)?;
     } else if markdown {
-        write!(stdout, "{}", digest.markdown(locale))?;
+        // PRD 0043 re-validation S-02: through `ui::safe`, as the `--once`
+        // lines, line by line so the Markdown keeps its lines.
+        for line in digest.markdown(locale).split_inclusive('\n') {
+            match line.strip_suffix('\n') {
+                Some(text) => writeln!(stdout, "{}", ui::safe(text))?,
+                None => write!(stdout, "{}", ui::safe(line))?,
+            }
+        }
     } else {
-        writeln!(stdout, "{}", digest.title().resolve(locale))?;
+        writeln!(stdout, "{}", ui::safe(&digest.title().resolve(locale)))?;
         for line in digest.short_lines(locale) {
-            writeln!(stdout, "  {}", line.resolve(locale))?;
+            writeln!(stdout, "  {}", ui::safe(&line.resolve(locale)))?;
         }
     }
     Ok(if digest.recorded { 0 } else { 2 })
