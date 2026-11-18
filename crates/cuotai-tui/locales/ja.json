@@ -82,7 +82,7 @@
   "cli.account_not_found": "設定にアカウントが見つかりません：{name}",
   "cli.backup.excluded": "含めなかったもの：",
   "cli.backup.included": "含めたもの：",
-  "cli.backup.written": "バックアップを {path} に書き込みました。シークレットは含まれていません。",
+  "cli.backup.written": "バックアップを {path} に書き込みました。Cuotai はキー、トークン、サインイン情報を除外し、取り込んだファイルにも見つかりませんでした。",
   "cli.check_config.valid": "設定 {path} は有効です。",
   "cli.days_needs_mode": "--days は --cost、--stats、--events-log と併用した場合のみ有効です。",
   "cli.dev_sqlite_warning": "警告：認証情報は暗号化されずに SQLite に保存されます（開発用）。キーチェーンは使用されません。データベースを共有しないでください。",

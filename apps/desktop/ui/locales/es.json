@@ -1756,7 +1756,7 @@
   "settings.backup.restore": "Restaurar…",
   "settings.backup.guide": "Pasar a un equipo nuevo",
   "backup.title": "Copia de los ajustes",
-  "backup.intro": "Todo lo de abajo va a un único archivo .zip que conservas. No guarda ningún secreto.",
+  "backup.intro": "Todo lo de abajo va a un único archivo .zip que conservas. Las claves, tokens e inicios de sesión quedan fuera, y Cuotai se detiene si un archivo parece contener alguno.",
   "backup.included": "Entra",
   "backup.excluded": "Queda fuera",
   "backup.withHistory": "Incluir los últimos 90 días de historial",

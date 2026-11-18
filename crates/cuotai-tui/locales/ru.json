@@ -61,7 +61,7 @@
   "cli.account_not_found": "Учётная запись не найдена в конфигурации: {name}",
   "cli.backup.excluded": "Не включено:",
   "cli.backup.included": "Включено:",
-  "cli.backup.written": "Резервная копия записана в {path}. В ней нет секретов.",
+  "cli.backup.written": "Резервная копия записана в {path}. Cuotai не включил ключи, токены и входы и не нашёл их во взятых файлах.",
   "cli.check_config.valid": "Конфигурация {path} корректна.",
   "cli.days_needs_mode": "--days действует только с --cost, --stats или --events-log.",
   "cli.dev_sqlite_warning": "ВНИМАНИЕ: учётные данные в НЕЗАШИФРОВАННОЙ SQLite (режим разработки); связка ключей не используется. Не передавайте эту базу.",

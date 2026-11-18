@@ -1811,7 +1811,7 @@
   "settings.backup.restore": "恢复…",
   "settings.backup.guide": "迁移到新电脑",
   "backup.title": "备份设置",
-  "backup.intro": "以下所有内容会放进一个自行保管的 .zip 文件。其中不含任何机密。",
+  "backup.intro": "以下所有内容会放进一个自行保管的 .zip 文件。密钥、令牌和登录信息不会放入；如果某个文件看起来包含此类内容，Cuotai 会停止。",
   "backup.included": "包含",
   "backup.excluded": "不包含",
   "backup.withHistory": "包含最近 90 天的历史记录",

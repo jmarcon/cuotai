@@ -31,7 +31,7 @@
   "cli.account_not_found": "Akun tidak ditemukan di konfigurasi: {name}",
   "cli.backup.excluded": "Tidak disertakan:",
   "cli.backup.included": "Disertakan:",
-  "cli.backup.written": "Cadangan ditulis ke {path}. Tidak berisi rahasia apa pun.",
+  "cli.backup.written": "Cadangan ditulis ke {path}. Cuotai tidak menyertakan kunci, token, dan info masuk, dan tidak menemukan satu pun di file yang diambilnya.",
   "cli.check_config.valid": "Konfigurasi {path} valid.",
   "cli.days_needs_mode": "--days hanya berfungsi dengan --cost, --stats, atau --events-log.",
   "cli.dev_sqlite_warning": "PERINGATAN: kredensial di SQLite TANPA ENKRIPSI (pengembangan); Keychain tidak akan dipakai. Jangan bagikan basis data ini.",

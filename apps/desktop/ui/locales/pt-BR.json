@@ -1756,7 +1756,7 @@
   "settings.backup.restore": "Restaurar…",
   "settings.backup.guide": "Mudar para outro computador",
   "backup.title": "Backup das configurações",
-  "backup.intro": "Tudo abaixo vai para um único arquivo .zip que fica com você. Ele não guarda nenhum segredo.",
+  "backup.intro": "Tudo abaixo vai para um único arquivo .zip que fica com você. Chaves, tokens e logins ficam de fora, e o Cuotai para se um arquivo parecer conter algum deles.",
   "backup.included": "Entra",
   "backup.excluded": "Fica de fora",
   "backup.withHistory": "Incluir os últimos 90 dias de histórico",

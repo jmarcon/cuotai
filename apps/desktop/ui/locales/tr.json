@@ -1759,7 +1759,7 @@
   "settings.backup.restore": "Geri yükle…",
   "settings.backup.guide": "Yeni bilgisayara geçiş",
   "backup.title": "Ayarları yedekle",
-  "backup.intro": "Aşağıdakilerin hepsi sizde kalan tek bir .zip dosyasına girer. Hiçbir sır içermez.",
+  "backup.intro": "Aşağıdakilerin hepsi sizde kalan tek bir .zip dosyasına girer. Anahtarlar, belirteçler ve oturum bilgileri dışarıda kalır; bir dosya bunlardan birini içeriyor gibi görünürse Cuotai durur.",
   "backup.included": "Girenler",
   "backup.excluded": "Dışarıda kalanlar",
   "backup.withHistory": "Son 90 günlük geçmişi ekle",

@@ -1805,7 +1805,7 @@
   "settings.backup.restore": "復元…",
   "settings.backup.guide": "新しいコンピューターへ移行",
   "backup.title": "設定のバックアップ",
-  "backup.intro": "以下のすべてを、手元に保管する 1 つの .zip ファイルにまとめます。秘密情報は含まれません。",
+  "backup.intro": "以下のすべてを、手元に保管する 1 つの .zip ファイルにまとめます。キー、トークン、サインイン情報は含まれず、それらを含むように見えるファイルがあれば Cuotai は中止します。",
   "backup.included": "含まれるもの",
   "backup.excluded": "含まれないもの",
   "backup.withHistory": "直近 90 日分の履歴を含める",

@@ -2101,7 +2101,7 @@
   "settings.backup.restore": "Restaurer…",
   "settings.backup.guide": "Passer à un nouvel ordinateur",
   "backup.title": "Sauvegarder les réglages",
-  "backup.intro": "Tout ce qui suit va dans un seul fichier .zip que vous gardez. Il ne contient aucun secret.",
+  "backup.intro": "Tout ce qui suit va dans un seul fichier .zip que vous gardez. Les clés, jetons et connexions restent à l’écart, et Cuotai s’arrête si un fichier semble en contenir un.",
   "backup.included": "Inclus",
   "backup.excluded": "Exclu",
   "backup.withHistory": "Inclure les 90 derniers jours d'historique",

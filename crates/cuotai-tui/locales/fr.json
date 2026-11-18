@@ -272,7 +272,7 @@
   "cli.account_not_found": "Compte introuvable dans la configuration : {name}",
   "cli.backup.excluded": "Laissé de côté :",
   "cli.backup.included": "Inclus :",
-  "cli.backup.written": "Sauvegarde écrite dans {path}. Elle ne contient aucun secret.",
+  "cli.backup.written": "Sauvegarde écrite dans {path}. Cuotai a laissé de côté les clés, jetons et connexions, et n’en a trouvé aucun dans les fichiers qu’il a pris.",
   "cli.check_config.valid": "La configuration {path} est valide.",
   "cli.days_needs_mode": "--days ne fonctionne qu’avec --cost, --stats ou --events-log.",
   "cli.dev_sqlite_warning": "ATTENTION : identifiants dans SQLite SANS CHIFFREMENT (développement) ; le trousseau ne sera pas utilisé. Ne partagez pas la base.",

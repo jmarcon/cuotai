@@ -1807,7 +1807,7 @@
   "settings.backup.restore": "복원…",
   "settings.backup.guide": "새 컴퓨터로 옮기기",
   "backup.title": "설정 백업",
-  "backup.intro": "아래의 모든 것이 직접 보관하는 하나의 .zip 파일에 들어갑니다. 비밀 정보는 들어 있지 않습니다.",
+  "backup.intro": "아래의 모든 것이 직접 보관하는 하나의 .zip 파일에 들어갑니다. 키, 토큰, 로그인 정보는 빠지며, 파일에 그런 정보가 있는 것처럼 보이면 Cuotai가 중단합니다.",
   "backup.included": "포함",
   "backup.excluded": "제외",
   "backup.withHistory": "최근 90일 기록 포함",
