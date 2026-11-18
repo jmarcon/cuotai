@@ -544,11 +544,7 @@ pub fn render(kind: ChannelKind, out: &Outgoing, secret: Option<&str>) -> Reques
 /// The sample notification of the consent dialog: a 90% threshold of a
 /// Claude account named "Work".
 pub fn sample_source(now: DateTime<Utc>) -> Source {
-    let account = Account {
-        name: "Work".into(),
-        provider: Provider::Claude,
-        ..Account::default()
-    };
+    let account = sample_account();
     let event = AlertEvent {
         account_key: account.state_key(),
         label: "Session (5h)".into(),
@@ -569,9 +565,96 @@ pub fn sample_source(now: DateTime<Utc>) -> Source {
     }
 }
 
+/// RF4.1 (re-validation V-11): the sample of the first kind the draft's
+/// filters admit, in the order threshold, exhausted, reset, digest; the
+/// threshold sample when none of them is admitted. Fixed texts, so the
+/// consent shows a notification the channel will actually receive.
+pub fn sample_source_for(filters: &Filters, now: DateTime<Utc>) -> Source {
+    let first = [
+        NoticeKind::Threshold,
+        NoticeKind::Exhausted,
+        NoticeKind::Reset,
+        NoticeKind::Digest,
+    ]
+    .into_iter()
+    .find(|kind| filters.admits(*kind));
+    match first {
+        Some(NoticeKind::Exhausted) => sample_exhausted(now),
+        Some(NoticeKind::Reset) => sample_reset(now),
+        Some(NoticeKind::Digest) => sample_digest(now),
+        _ => sample_source(now),
+    }
+}
+
+fn sample_account() -> Account {
+    Account {
+        name: "Work".into(),
+        provider: Provider::Claude,
+        ..Account::default()
+    }
+}
+
+/// The 5-hour window of "Work" used up.
+fn sample_exhausted(now: DateTime<Utc>) -> Source {
+    let mut source = sample_source(now);
+    if let Source::Alerts { events, .. } = &mut source {
+        for event in events {
+            event.kind = AlertKind::Exhausted;
+            event.threshold = 100;
+            event.consumed = 1.0;
+        }
+    }
+    source
+}
+
+/// The 5-hour window of "Work" resetting in five minutes.
+fn sample_reset(now: DateTime<Utc>) -> Source {
+    let account = sample_account();
+    let resets_at = now + chrono::TimeDelta::minutes(5);
+    let event = ResetEvent {
+        account_index: 0,
+        account_key: account.state_key(),
+        metrics: vec![crate::resets::ResetMetric {
+            label: "Session (5h)".into(),
+            window: MetricWindow::Window5h,
+            resets_at,
+        }],
+        resets_at,
+        notify_at: now,
+    };
+    Source::Reset { account, event }
+}
+
+/// A small weekly digest of the last seven days, with overall totals only
+/// (no account section, so no name either way).
+fn sample_digest(now: DateTime<Utc>) -> Source {
+    use crate::digest::{DayShare, Digest, DigestWeek};
+    let today = now.date_naive();
+    let first_day = today - chrono::TimeDelta::days(7);
+    Source::WeeklyDigest(Box::new(Digest {
+        week: DigestWeek::Last,
+        first_day,
+        last_day: today - chrono::TimeDelta::days(1),
+        hits: 1,
+        average_peak: Some(0.46),
+        extra_spent: None,
+        heaviest: Some(DayShare {
+            day: first_day + chrono::TimeDelta::days(1),
+            share: 0.82,
+        }),
+        lightest: Some(DayShare {
+            day: first_day + chrono::TimeDelta::days(5),
+            share: 0.12,
+        }),
+        busiest_hours: Some((14, 17)),
+        accounts: Vec::new(),
+        recorded: true,
+    }))
+}
+
 /// RF4.1: the example payload of a draft channel, as it would be sent
-/// (marked as a sample): the JSON body pretty-printed, or ntfy's headers
-/// and text.
+/// (marked as a sample, of the first kind it admits): the JSON body
+/// pretty-printed, or ntfy's headers and text.
 pub fn example(
     kind: ChannelKind,
     filters: &Filters,
@@ -586,7 +669,7 @@ pub fn example(
         include_names: Some(filters.names(private)),
     };
     let Some(mut out) = prepare(
-        &sample_source(now),
+        &sample_source_for(filters, now),
         &names,
         private,
         locale,
