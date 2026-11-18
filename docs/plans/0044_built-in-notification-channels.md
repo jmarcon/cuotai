@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0044 |
-| Status | Awaiting owner verification |
+| Status | Awaiting owner verification (2026-11-18 re-validation fixes in vNEXT) |
 | Owner | `cuotai-core` (`channels` module: definitions, payloads, delivery, consent state, vault references), desktop (Settings › Alerts › Channels), `cuotai-tui` (`--channel-*`, `--notify` delivery) |
 | Consumers | PRD 0003/0008/0023/0024/0032 notifications, PRD 0043 digest, PRD 0041 floors |
 | Depends on | PRD 0032 (single preference source, delivery decision, quiet hours, private texts, cross-process ledger), PRD 0029 (account id in payloads), the OAuth vault store (URL with an embedded secret kept in the vault) |
@@ -21,9 +21,11 @@
 | RF2 | 0.84.0 | `channels::payload`: one `Outgoing` rendered from the same sources as the system notice (`alerts::notice_with`, `ResetEvent::notice_with`, `quiet::digest`, the weekly digest) per channel, in the person's language, with the channel's names choice. E-mail and URL scrubbing, the webhook JSON (schema 1, optional `X-Cuotai-Signature` HMAC-SHA256), ntfy headers (RFC 2047 for non-ASCII titles), Slack text plus blocks, Discord content with mentions disabled, and the body caps. Tests: goldens for threshold, exhaustion and digest; redaction over every payload and kind; the HMAC vector. |
 | RF3 | 0.84.0 | `channels::Dispatcher`: background delivery on the captured runtime, 2 in flight, 10 s timeout, 3 attempts (5 s/30 s) on network errors and 5xx, no retry on 4xx or redirects (no redirect is followed). 20 per channel per hour with the end-of-hour summary, critical-only first minute, `channels/log.jsonl` (0600, 7 days, never a body, URL or label) and the 24-hour failing notice. It is called after PRD 0032's decision and the shared-ledger claim in the desktop and `--notify`. Tests (wiremock and a local endpoint): every kind, the retry matrix, the cap and summary, the startup grace, the quiet-hours hold and break-through, two processes sharing the ledger (core, and desktop + `--notify` sessions in the TUI), log redaction, the failing notice. |
 | RF4 | 0.84.0 | `channels::consent` (kind, host, masked URL, warning, filters in words, the example payload, the sentence), `needs_consent` for edits, Save as consent (enabled at once), **Send test** (`sample: true`, `kind: test`) in the desktop and `cuotai --channel-test`. |
-| RF5 | 0.84.0 | Desktop Settings › Alerts › **Notification channels**: list with kind, label, host, filters, last delivery and outcome, the switch, Send test, Edit, Remove (confirmation; the vault entries go), Add channel (kind, name, masked URL, filters), the consent step, the signing secret shown once, the failing banner and the delivery log. CLI `--channel-add <kind> --label L [--filter k=v]… [--sign] [--yes]` (URL from stdin or a prompt), `--channel-list`, `--channel-remove`, `--channel-test`, `--channel-log`. `cuotai --notify` delivers to the channels. |
+| RF5 | 0.84.0 | Desktop Settings › Alerts › **Notification channels**: list with kind, label, host, filters, last delivery and outcome, the switch, Send test, Edit, Remove (confirmation; the vault entries go), Add channel (kind, name, masked URL, filters), the consent step, the signing secret shown once, the failing banner and the delivery log. CLI `--channel-add <kind> --label L [--filter k=v]… [--sign] [--yes]` (URL from stdin or a prompt; `--yes` was refused by the generic guard until vNEXT), `--channel-list`, `--channel-remove`, `--channel-test`, `--channel-log`. `cuotai --notify` delivers to the channels. |
 | RF6 | 0.84.0 | The weekly digest is the `digest` kind (info, Markdown for webhook/Slack/Discord, plain for ntfy, off by default per channel). `notification_sent` (additive; `current.notification` and `current.channel`) reaches the desktop's hooks through the claimed runner. |
 | RF7 | 0.84.0 | `docs/notifications.md`, `docs/advanced.md` (CLI), `docs/events.md` (`notification_sent`), `docs/tui.md`, `docs/gui-features.md`, `SECURITY.md`, the privacy inventory (network row `notification_channels`, artifact `channels.log`). |
+| Fix | 0.85.1 | An account-less `notification_sent` event carries `provider: null` instead of inventing one (`6ea0b3b`). |
+| 2026-11-18 re-validation | vNEXT | Fixes of RF1.3, RF2.2, RF3.1, RF3.3, RF4.1, RF4.3, RF5.1–RF5.3, RF6.1 and RF7 (2 high, 5 medium, 15 low findings); see "2026-11-18 re-validation" below. |
 
 ### Decisions and deviations (2026-11-07)
 
@@ -42,10 +44,37 @@ The owner said not to stop and ask, so the recommended or most conservative opti
 - **`notification_sent` reaches the desktop's hooks.** `cuotai --watch --hooks` does not deliver to channels, so it never emits the event.
 - **`--label` and `--filter`** are the CLI names from RF5.2; both require `--channel-add`.
 
+### 2026-11-18 re-validation (vNEXT)
+
+The re-validation found 2 high, 5 medium and 15 low findings; every one is fixed in vNEXT. The digest filter (S-01, high) shipped with PRD 0043's G3. The other groups:
+
+| Group | Findings | RF | Delivery (vNEXT) |
+|---|---|---|---|
+| G-0044-1 | V-01/S-03 (high) | RF5.2, RF5.3 | `--channel-add` takes `--yes`, so a piped address saves headless as the guide shows (the generic `--yes` guard refused it; one `yes_is_consumed` rule now). A binary test covers the path with the debug store. |
+| G-0044-2 | V-07/S-06 | RF5.2 | On a terminal the address is read without echo (raw mode with bracketed paste, restored on every path); piped input is read as before. |
+| G-0044-3 | S-02 (medium), R-02 | RF2.2, RF6.1 | Every channel text and label passes one `scrub`: hidden marks, e-mail, whole web addresses and key-shaped text (`redact::tokens`), including metric labels and the account name. |
+| G-0044-4 | R-01 (medium) | RF1.3 | An aggregator account in a channel's filter covers its connections (`AccountId::parent`); the webhook's `account.id` stays the connection id. |
+| G-0044-5 | V-04 (medium), V-08, V-09, V-10, V-14 | RF3.3, RF4.1, RF5.1, RF5.2 | The delivery log, the Send-test error and the filter words are localised on the desktop and in the CLI (`channels::log::kind_label`/`error_label`); `--channel-log` aligns its columns by display width; "webhook" is lowercase mid-sentence; the default filters read "All kinds" (plus "Weekly digest" when on). `--channel-log --json` is unchanged. |
+| G-0044-6 | V-02, V-03 (medium), V-05, V-12, V-13 | RF5.1 | The channels page lines its texts up with the rows, the channel and hooks editors show round 20 px checks, Add channel at five explains itself (`aria-disabled`, hint), Slack and Discord have their own icons; a `?channels` demo and four UI-check pages cover the page. |
+| G-0044-7 | V-06, V-11 | RF4.1, RF5.1 | The consent shows a non-default port, and its example follows the draft's first admitted kind (threshold, exhaustion, reset or digest). Existing channels keep their stored host until their address is edited. |
+| G-0044-8 | S-04 | RF3.1 | A delivery slot is held per attempt only, so a failing channel no longer delays the others during its backoff. |
+| G-0044-9 | S-05, S-07 | RF4.1, RF4.3, RF7 | `channel_add`, `channel_edit`, `channel_set_enabled` and `channel_test` answer only the Settings window; `docs/privacy.md` and `docs/notifications.md` list every field a channel receives. |
+
+**Deviations, documented:**
+- `redact::tokens` redacts a bearer or colon-style value only when it looks like a key (16 characters, or 8 mixing letters with digits), so texts such as "Tokens: 40" keep their words.
+- A history CSV with a hidden-mark label is refused as a whole, as a control character already was.
+- A pasted line break in the hidden prompt is dropped; Enter confirms.
+
+**Open items:**
+- The hourly cap and the startup grace stay per process (documented deviation): the desktop and `--notify` together can reach 40 deliveries an hour per channel.
+- `FailingNotice` still puts the raw error category into the failing notice's status.
+- The hidden prompt has a test of its event logic only; a real-terminal check stays with the owner smoke.
+
 ### Left for the owner (§2.1 of the control file)
 
 - The real-destination smoke of §11: a self-hosted ntfy on loopback and a Discord test webhook, with the desktop and `cuotai --notify` both running; one message per crossing with the name hidden; a `grep` for the addresses in the preferences and logs finds nothing.
 - The system vault prompt on the packaged macOS app when the first channel is saved.
+- The hidden address prompt of `--channel-add` on a real terminal (paste, Backspace, Esc), and a piped `--channel-add … --yes` in the smoke.
 
 ## 1. Context
 
