@@ -96,7 +96,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -2647,6 +2650,7 @@
   "models.unsupported.reason.admin_key": "l'account memorizza una chiave di amministrazione, gestione o analisi, che il provider non documenta per elencare i modelli; metti quella chiave nel suo parametro e una chiave di inferenza come credenziale dell'account.",
   "models.unsupported.reason.admin_key_only": "l'account memorizza solo una chiave di amministrazione, che il provider non documenta per elencare i modelli.",
   "query.jetbrains_ai.missing_secret": "Credenziale mancante: {env} (il client secret dell'account di servizio).",
+  "query.env_name_invalid": "Il nome della variabile in {field} non è valido; inserisci il nome di una variabile esportata, mai il suo valore.",
   "note.jetbrains_ai.rate_limited": "JetBrains ha limitato le richieste.",
   "note.jetbrains_ai.client_rejected": "JetBrains ha rifiutato il client ID o il client secret dell'account di servizio; controlla entrambe le variabili o ruota il secret in JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "La Analytics API ha rifiutato il token dell'account di servizio; controlla l'account di servizio in JetBrains Central Console.",
@@ -2724,6 +2728,7 @@
   "doctor.account.extension_ok": "La sua estensione è approvata e non è cambiata da allora.",
   "doctor.account.extension_changed": "La sua estensione è cambiata da quando l'hai approvata, o non è mai stata approvata, quindi non viene eseguita.",
   "doctor.account.extension_missing": "Su questo computer non c'è la cartella delle estensioni.",
+  "doctor.account.env_invalid": "Il nome della sua variabile nel file di configurazione non è valido.",
   "doctor.fix.extension": "Rivedi e approva di nuovo l'estensione in Estensioni, oppure esegui cuotai --extension-check con il suo id.",
   "doctor.title.vault": "Portachiavi di sistema",
   "doctor.vault.unused": "Nessun account vi conserva il proprio accesso.",
@@ -2876,6 +2881,7 @@
   "doctor.title.metered": "Registro condiviso delle query fatturate {path}",
   "doctor.metered.unusable": "Non è una cartella privata del tuo utente o non è scrivibile; i comandi singoli non interrogano AWS Bedrock finché non viene corretta.",
   "doctor.fix.metered": "Rimuovi ciò che si trova in questo percorso (un file, un collegamento o la cartella di un altro utente) oppure rendilo una cartella che solo il tuo utente può leggere e scrivere; Cuotai la ricrea.",
+  "doctor.fix.env_invalid": "Inserisci in quel campo il nome di una variabile d'ambiente, mai la chiave stessa.",
   "doctor.metered.absent": "Non ancora creata; la prima query fatturata la crea.",
   "note.metered.record_unavailable": "Non interrogato: Cuotai non ha potuto usare il suo registro condiviso delle query fatturate di AWS Cost Explorer. Esegui `cuotai --doctor` per vedere la cartella e come correggerla.",
   "note.metered.record_busy": "Non interrogato: un altro programma Cuotai ha tenuto troppo a lungo il registro condiviso delle query fatturate di AWS Cost Explorer. Riprova tra un momento.",

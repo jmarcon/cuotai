@@ -219,7 +219,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -2716,6 +2719,7 @@
   "models.unsupported.reason.admin_key": "akun menyimpan kunci admin, manajemen, atau analitik, yang tidak didokumentasikan penyedia untuk mencantumkan model; simpan kunci itu di parameternya sendiri dan kunci inferensi sebagai kredensial akun.",
   "models.unsupported.reason.admin_key_only": "akun hanya menyimpan kunci admin, yang tidak didokumentasikan penyedia untuk mencantumkan model.",
   "query.jetbrains_ai.missing_secret": "Kredensial tidak ada: {env} (client secret akun layanan).",
+  "query.env_name_invalid": "Nama variabel di {field} tidak valid; isi dengan nama variabel yang diekspor, jangan nilainya.",
   "note.jetbrains_ai.rate_limited": "JetBrains membatasi kueri.",
   "note.jetbrains_ai.client_rejected": "JetBrains menolak client ID atau client secret akun layanan; periksa kedua variabel atau ganti secret di JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "Analytics API menolak token akun layanan; periksa akun layanan di JetBrains Central Console.",
@@ -2791,6 +2795,7 @@
   "doctor.account.extension_ok": "Ekstensinya sudah disetujui dan tidak berubah sejak itu.",
   "doctor.account.extension_changed": "Ekstensinya berubah sejak Anda menyetujuinya, atau belum pernah disetujui, jadi tidak berjalan.",
   "doctor.account.extension_missing": "Tidak ada folder ekstensi di komputer ini.",
+  "doctor.account.env_invalid": "Nama variabelnya di berkas konfigurasi tidak valid.",
   "doctor.fix.extension": "Tinjau dan setujui lagi ekstensi itu di Ekstensi, atau jalankan cuotai --extension-check dengan id-nya.",
   "doctor.title.vault": "Brankas sistem",
   "doctor.vault.unused": "Tidak ada akun yang menyimpan informasi masuknya di sana.",
@@ -2934,6 +2939,7 @@
   "doctor.title.metered": "Catatan bersama kueri berbayar {path}",
   "doctor.metered.unusable": "Ini bukan folder pribadi pengguna Anda, atau tidak dapat ditulisi; perintah sekali jalan tidak mengkueri AWS Bedrock sampai diperbaiki.",
   "doctor.fix.metered": "Hapus apa pun yang ada di jalur ini (file, tautan, atau folder pengguna lain) atau jadikan folder yang hanya dapat dibaca dan ditulis oleh pengguna Anda; Cuotai membuatnya kembali.",
+  "doctor.fix.env_invalid": "Isi kolom itu dengan nama variabel lingkungan, jangan kuncinya sendiri.",
   "doctor.metered.absent": "Belum dibuat; kueri berbayar pertama akan membuatnya.",
   "note.metered.record_unavailable": "Tidak dikueri: Cuotai tidak dapat memakai catatan bersama kueri AWS Cost Explorer berbayar miliknya. Jalankan `cuotai --doctor` untuk melihat foldernya dan cara memperbaikinya.",
   "note.metered.record_busy": "Tidak dikueri: program Cuotai lain menahan catatan bersama kueri AWS Cost Explorer berbayar terlalu lama. Coba lagi sebentar lagi.",

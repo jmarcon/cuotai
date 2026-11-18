@@ -672,6 +672,7 @@
   "coreText.sessionNeeded": "Connect this account's web session to see usage.",
   "coreText.sessionExpired": "The account's web session expired. Connect a new one to see usage.",
   "coreText.settingInvalid": "A setting of this account is not valid. Open Edit to fix it.",
+  "coreText.keySettingInvalid": "This account's key setting is not valid. Open Edit and type its key.",
   "coreText.settingMissing": "This account needs one more setting to show usage. Open Edit to add it.",
   "coreText.loginSecretMissing": "The sign-in setup of this account is incomplete. Check it in Edit.",
   "coreText.keyRequired": "Type the key for this account.",

@@ -221,7 +221,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -2718,6 +2721,7 @@
   "models.unsupported.reason.admin_key": "tài khoản lưu khóa quản trị, quản lý hoặc phân tích, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình; hãy để khóa đó trong tham số riêng và một khóa suy luận làm thông tin xác thực của tài khoản.",
   "models.unsupported.reason.admin_key_only": "tài khoản chỉ lưu khóa quản trị, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình.",
   "query.jetbrains_ai.missing_secret": "Thiếu thông tin xác thực: {env} (client secret của tài khoản dịch vụ).",
+  "query.env_name_invalid": "Tên biến trong {field} không hợp lệ; hãy nhập tên của một biến đã xuất, không bao giờ nhập giá trị của nó.",
   "note.jetbrains_ai.rate_limited": "JetBrains đã giới hạn truy vấn.",
   "note.jetbrains_ai.client_rejected": "JetBrains đã từ chối client ID hoặc client secret của tài khoản dịch vụ; hãy kiểm tra cả hai biến hoặc đổi secret trong JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "Analytics API đã từ chối token của tài khoản dịch vụ; hãy kiểm tra tài khoản dịch vụ trong JetBrains Central Console.",
@@ -2793,6 +2797,7 @@
   "doctor.account.extension_ok": "Tiện ích mở rộng của nó đã được duyệt và không thay đổi từ đó.",
   "doctor.account.extension_changed": "Tiện ích mở rộng của nó đã thay đổi kể từ khi bạn duyệt, hoặc chưa từng được duyệt, nên không chạy.",
   "doctor.account.extension_missing": "Máy tính này không có thư mục tiện ích mở rộng.",
+  "doctor.account.env_invalid": "Tên biến của tài khoản trong tệp cấu hình không hợp lệ.",
   "doctor.fix.extension": "Xem lại và duyệt lại tiện ích trong Tiện ích mở rộng, hoặc chạy cuotai --extension-check với id của nó.",
   "doctor.title.vault": "Kho bảo mật hệ thống",
   "doctor.vault.unused": "Không tài khoản nào lưu thông tin đăng nhập ở đó.",
@@ -2936,6 +2941,7 @@
   "doctor.title.metered": "Bản ghi dùng chung các truy vấn tính phí {path}",
   "doctor.metered.unusable": "Đây không phải thư mục riêng của người dùng của bạn, hoặc không ghi được; các lệnh chạy một lần sẽ không truy vấn AWS Bedrock cho đến khi được sửa.",
   "doctor.fix.metered": "Xóa thứ đang nằm ở đường dẫn này (một tệp, một liên kết hoặc thư mục của người dùng khác) hoặc biến nó thành thư mục chỉ người dùng của bạn đọc và ghi được; Cuotai sẽ tạo lại.",
+  "doctor.fix.env_invalid": "Nhập tên của một biến môi trường vào trường đó, không bao giờ nhập chính khóa.",
   "doctor.metered.absent": "Chưa được tạo; truy vấn tính phí đầu tiên sẽ tạo nó.",
   "note.metered.record_unavailable": "Chưa truy vấn: Cuotai không dùng được bản ghi dùng chung các truy vấn AWS Cost Explorer tính phí. Chạy `cuotai --doctor` để xem thư mục và cách sửa.",
   "note.metered.record_busy": "Chưa truy vấn: một chương trình Cuotai khác giữ bản ghi dùng chung các truy vấn AWS Cost Explorer tính phí quá lâu. Hãy thử lại sau giây lát.",

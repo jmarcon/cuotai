@@ -97,7 +97,10 @@
       "bundle.host.url",
       "bundle.host.program",
       "bundle.error.hosts",
-      "bundle.need.env_invalid"
+      "bundle.need.env_invalid",
+      "query.env_name_invalid",
+      "doctor.account.env_invalid",
+      "doctor.fix.env_invalid"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -2648,6 +2651,7 @@
   "models.unsupported.reason.admin_key": "a conta guarda uma chave de administração, gerenciamento ou analytics, que o provedor não documenta para listar modelos; deixe essa chave no parâmetro próprio dela e uma chave de inferência como credencial da conta.",
   "models.unsupported.reason.admin_key_only": "a conta guarda só uma chave de administração, que o provedor não documenta para listar modelos.",
   "query.jetbrains_ai.missing_secret": "Credencial ausente: {env} (o client secret da conta de serviço).",
+  "query.env_name_invalid": "O nome da variável em {field} não é válido; coloque ali o nome de uma variável exportada, nunca o valor dela.",
   "note.jetbrains_ai.rate_limited": "A JetBrains limitou as consultas.",
   "note.jetbrains_ai.client_rejected": "A JetBrains recusou o client ID ou o client secret da conta de serviço; confira as duas variáveis ou gere um novo secret no JetBrains Central Console.",
   "note.jetbrains_ai.token_rejected": "A Analytics API recusou o token da conta de serviço; confira a conta de serviço no JetBrains Central Console.",
@@ -2725,6 +2729,7 @@
   "doctor.account.extension_ok": "A extensão está aprovada e não mudou desde então.",
   "doctor.account.extension_changed": "A extensão mudou desde a sua aprovação, ou nunca foi aprovada, por isso não roda.",
   "doctor.account.extension_missing": "Não há pasta de extensões neste computador.",
+  "doctor.account.env_invalid": "O nome da variável dela no arquivo de configuração não é válido.",
   "doctor.fix.extension": "Revise e aprove a extensão de novo em Extensões, ou rode cuotai --extension-check com o id dela.",
   "doctor.title.vault": "Cofre do sistema",
   "doctor.vault.unused": "Nenhuma conta guarda o login nele.",
@@ -2877,6 +2882,7 @@
   "doctor.title.metered": "Registro compartilhado de consultas cobradas {path}",
   "doctor.metered.unusable": "Não é uma pasta privada do seu usuário, ou não pode ser gravada; comandos de execução única não consultam o AWS Bedrock até que seja corrigida.",
   "doctor.fix.metered": "Remova o que estiver neste caminho (um arquivo, um link ou a pasta de outro usuário) ou transforme-o em uma pasta que só o seu usuário possa ler e gravar; o Cuotai a recria.",
+  "doctor.fix.env_invalid": "Coloque nesse campo o nome de uma variável de ambiente, nunca a própria chave.",
   "doctor.metered.absent": "Ainda não foi criado; a primeira consulta cobrada o cria.",
   "note.metered.record_unavailable": "Não consultado: o Cuotai não conseguiu usar seu registro compartilhado de consultas cobradas do AWS Cost Explorer. Execute `cuotai --doctor` para ver a pasta e como corrigi-la.",
   "note.metered.record_busy": "Não consultado: outro programa do Cuotai segurou por tempo demais o registro compartilhado de consultas cobradas do AWS Cost Explorer. Tente de novo em instantes.",

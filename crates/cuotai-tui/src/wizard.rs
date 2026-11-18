@@ -2319,7 +2319,7 @@ impl Wizard {
     }
 
     fn env_status(&self) -> (&'static str, Color) {
-        if !edit::valid_env_name(self.credential.trim()) {
+        if !edit::usable_env_name(self.credential.trim()) {
             return (tr("wizard.env.invalid", "INVALID NAME"), DRACULA_RED);
         }
         // Same rule as the backend: present and non-empty value after trim.

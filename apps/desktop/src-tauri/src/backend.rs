@@ -5898,7 +5898,16 @@ impl Backend {
             .accounts
             .get(index)
             .ok_or_else(crate::desk_text::no_account)?;
-        let credential = account_edit::stored_credential(a);
+        // PRD 0047 S-06/R-02: a variable name that may be a pasted key never
+        // reaches the webview; the dialog then asks for the key, and a save
+        // drops that name.
+        let credential = if a.credential_env.as_deref().is_some_and(|name| {
+            !name.trim().is_empty() && !account_edit::usable_env_name(name.trim())
+        }) {
+            String::new()
+        } else {
+            account_edit::stored_credential(a)
+        };
         // auth_mode + auth_options for prefill. When the account has oauth,
         // the mode id is the one matching the provider: today the core only
         // emits "oauth" for flows with a Cuotai credential; AWS SSO/Bailian
@@ -5954,7 +5963,6 @@ impl Backend {
                 .iter()
                 .flat_map(|session| session.slots.iter().cloned())
                 .collect(),
-            session_migration: user_session::migration_candidates(a),
             credential_stored: a
                 .session
                 .as_ref()
@@ -6855,9 +6863,6 @@ pub struct AccountForm {
     fields: Vec<FieldValue>,
     /// PRD 0016 RF1: session slots this account keeps in the vault.
     session_slots: Vec<String>,
-    /// PRD 0016 RF1.2: sessions still read from a variable, offered for
-    /// migration to the vault.
-    session_migration: Vec<user_session::MigrationCandidate>,
     /// PRD 0047 G4: whether the main credential is kept in the vault (the
     /// dialog shows "saved" and a Replace action, never a value).
     credential_stored: bool,
@@ -9983,7 +9988,7 @@ mod tests {
         let store = Arc::new(MemoryStore::default());
         let backend = build_backend(store.clone(), vec![session_env_account(env)]).await;
         let before = backend.inner.get_account(0).await.unwrap();
-        assert_eq!(before.session_migration.len(), 1);
+        assert_eq!(before.vault_migration.len(), 1);
 
         backend
             .inner
@@ -10008,7 +10013,7 @@ mod tests {
             "{text}"
         );
         let after = backend.inner.get_account(0).await.unwrap();
-        assert!(after.session_migration.is_empty());
+        assert!(after.vault_migration.is_empty());
         assert_eq!(after.session_slots, ["platform_session_env"]);
     }
 
@@ -10368,6 +10373,39 @@ mod tests {
             let label = input["label"]["fallback"].as_str().unwrap().to_lowercase();
             assert!(!label.contains("variable"), "{label}");
         }
+    }
+
+    /// PRD 0047 S-06/R-02: a variable name that may be a pasted key never
+    /// reaches the webview: no `credential`, no migration offer, no `env`.
+    #[tokio::test(flavor = "current_thread")]
+    async fn an_invalid_variable_name_never_reaches_the_webview() {
+        let store = Arc::new(MemoryStore::default());
+        let account = Account {
+            name: "groq".into(),
+            provider: Provider::Groq,
+            credential_env: Some(format!("gsk_FAKE0047{}", "a1".repeat(24))),
+            ..Default::default()
+        };
+        let fine = Account {
+            name: "fine".into(),
+            provider: Provider::Groq,
+            credential_env: Some("FAKE_GROQ_0047_UNSET".into()),
+            ..Default::default()
+        };
+        let backend = build_backend(store, vec![account, fine]).await;
+        let form = backend.inner.get_account(0).await.unwrap();
+        assert_eq!(form.credential, "");
+        let json = serde_json::to_value(&form).unwrap();
+        assert!(!json.to_string().contains("FAKE0047"));
+        assert_eq!(json["secret_states"][0]["source"], "unset");
+        assert!(json["vault_migration"].as_array().unwrap().is_empty());
+        assert!(json.get("session_migration").is_none());
+
+        let json = serde_json::to_value(backend.inner.get_account(1).await.unwrap()).unwrap();
+        assert_eq!(json["credential"], "FAKE_GROQ_0047_UNSET");
+        let offers = json["vault_migration"].as_array().unwrap();
+        assert_eq!(offers.len(), 1);
+        assert!(offers[0].get("env").is_none());
     }
 
     /// PRD 0047 G5: an account set up in the terminal shows as such, without

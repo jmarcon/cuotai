@@ -82,7 +82,8 @@
       "restore.hosts.title",
       "restore.hosts.confirm",
       "restore.hosts.required",
-      "restore.after"
+      "restore.after",
+      "coreText.keySettingInvalid"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -1865,5 +1866,6 @@
   "detect.costOffer.codex_cli": "它的本地日志也可以按 API 价格估算费用；只有在开启 Codex CLI 来源后，Cuotai 才会读取。",
   "detect.costOffer.gemini_cli": "它的本地日志也可以按 API 价格估算费用；只有在开启 Gemini CLI 来源后，Cuotai 才会读取。",
   "coreText.sessionIncomplete": "已保存的网页会话缺少 Cookie {names}。请粘贴新的会话。",
+  "coreText.keySettingInvalid": "此账户的密钥设置无效。请打开“编辑”并输入其密钥。",
   "dialog.intervalHintMetered": "留空：每 {default} 分钟一次。最少 {effective} 分钟：{min} 到 {effective} 分钟会提高到 {effective} 分钟。"
 }

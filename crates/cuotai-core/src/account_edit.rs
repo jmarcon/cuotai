@@ -494,6 +494,26 @@ pub fn usable_env_name(value: &str) -> bool {
         && !value.split('_').any(opaque)
 }
 
+/// PRD 0047 S-06: the first variable-name field of `account` that is not a
+/// [`usable_env_name`], as `"credential_env"` or `"params.<key>"`. Never the
+/// value, which may be a pasted key. An empty field reads as absent, and a
+/// reserved `__CUOTAI_` name is the whole-config error of `Config::validate`,
+/// so both are skipped here.
+pub fn invalid_env_field(account: &Account) -> Option<String> {
+    let invalid = |name: &str| {
+        let name = name.trim();
+        !name.is_empty() && !name.starts_with("__CUOTAI_") && !usable_env_name(name)
+    };
+    if account.credential_env.as_deref().is_some_and(invalid) {
+        return Some("credential_env".to_owned());
+    }
+    account
+        .params
+        .iter()
+        .find(|(key, value)| key.ends_with("_env") && invalid(value))
+        .map(|(key, _)| format!("params.{key}"))
+}
+
 /// Keys managed by the editor: stripped from the cloned `params` on every
 /// save so they get re-written from the current form. Includes native-login
 /// exclusive keys (region/auth_method/...) — empty in env mode until a new
@@ -651,7 +671,7 @@ pub fn validate_param(
             }
         }
         k if k.ends_with("_env") => {
-            if valid_env_name(value) {
+            if usable_env_name(value) {
                 Ok(())
             } else {
                 Err(L10n::fixed(
@@ -2438,7 +2458,7 @@ pub fn resolve_credential_env(
             "Set the NAME of the environment variable holding the credential.",
         ));
     }
-    if !valid_env_name(trimmed) {
+    if !usable_env_name(trimmed) {
         return Err(crate::text::Localized::fixed(
             "edit_error.env_invalid",
             "Invalid variable name ([A-Za-z_][A-Za-z0-9_]*). Do not paste the token: set the name of the exported variable only.",
