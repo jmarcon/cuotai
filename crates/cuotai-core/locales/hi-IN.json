@@ -240,7 +240,8 @@
       "bundle.need.env_invalid",
       "query.env_name_invalid",
       "doctor.account.env_invalid",
-      "doctor.fix.env_invalid"
+      "doctor.fix.env_invalid",
+      "user_session.key_not_found"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -2932,6 +2933,7 @@
   "edit_error.key_or_session_required": "API कुंजी दर्ज करें या वेब सत्र पेस्ट करें।",
   "user_session.paste.too_long": "पेस्ट किया गया पाठ बहुत लंबा है; केवल Cookie हेडर, cURL के रूप में अनुरोध या कुकी तालिका कॉपी करें।",
   "user_session.paste.cookie_too_long": "सत्र की कुकीज़ भेजने के लिए बहुत लंबी हैं; नए साइन-इन के बाद उन्हें फिर से कॉपी करें।",
+  "user_session.key_not_found": "इस खाते के लिए सहेजी गई कुंजी सिस्टम वॉल्ट में नहीं है; खाता विज़ार्ड में इसे फिर से लिखें।",
   "oauth_error.store.too_long": "यह क्रेडेंशियल सिस्टम वॉल्ट के लिए बहुत बड़ा है।",
   "edit_error.config_reserved_name": "फ़ील्ड {field} Cuotai के लिए आरक्षित नाम का उपयोग करता है (यह __CUOTAI_ से शुरू होता है); अपने पर्यावरण चर का नाम दें, या खाता सहायक में सीक्रेट पेस्ट करें।",
   "vault.remove.in_use": "यह क्रेडेंशियल उपयोग में है; इसके बजाय इसका खाता या चैनल हटाएँ।",

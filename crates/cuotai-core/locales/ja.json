@@ -266,7 +266,8 @@
       "bundle.need.env_invalid",
       "query.env_name_invalid",
       "doctor.account.env_invalid",
-      "doctor.fix.env_invalid"
+      "doctor.fix.env_invalid",
+      "user_session.key_not_found"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -2901,6 +2902,7 @@
   "edit_error.key_or_session_required": "API キーを入力するか、Web セッションを貼り付けてください。",
   "user_session.paste.too_long": "貼り付けたテキストが長すぎます。Cookie ヘッダー、cURL 形式のリクエスト、または Cookie の表だけをコピーしてください。",
   "user_session.paste.cookie_too_long": "セッションの Cookie が長すぎて送信できません。サインインし直してからもう一度コピーしてください。",
+  "user_session.key_not_found": "このアカウントに保存したキーがシステムの保管庫にありません。アカウントのウィザードでもう一度入力してください。",
   "oauth_error.store.too_long": "この資格情報はシステムの保管庫には大きすぎます。",
   "edit_error.config_reserved_name": "フィールド {field} は Cuotai 用に予約された名前（__CUOTAI_ で始まる）を使っています。自分の環境変数の名前を指定するか、アカウントウィザードでシークレットを貼り付けてください。",
   "vault.remove.in_use": "この認証情報は使用中です。代わりにそのアカウントまたはチャネルを削除してください。",

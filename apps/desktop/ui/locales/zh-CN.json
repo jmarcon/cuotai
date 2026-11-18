@@ -83,7 +83,9 @@
       "restore.hosts.confirm",
       "restore.hosts.required",
       "restore.after",
-      "coreText.keySettingInvalid"
+      "coreText.keySettingInvalid",
+      "coreText.keyGone",
+      "dialog.move.buttonSession"
     ]
   },
   "agg.alertEach": "每个连接都提醒",
@@ -738,6 +740,7 @@
   "dialog.move.confirmHint": "再次点击以确认：Cuotai 会将这些值复制到系统保险库，账户将不再依赖终端设置。",
   "dialog.move.done": "已移入系统保险库。此账户不再依赖终端设置。",
   "dialog.move.unreadable": "由于应用看不到终端设置，Cuotai 无法在此读取该值。请使用“替换”输入它。",
+  "dialog.move.buttonSession": "将会话移入 Cuotai",
   "card.keyMissing": "此账户未保存密钥。打开“编辑”即可添加。",
   "card.connectSession": "连接会话",
   "dialog.session.connect": "请在下方粘贴该账户的网页会话；保存前会先测试。",
@@ -1867,5 +1870,6 @@
   "detect.costOffer.gemini_cli": "它的本地日志也可以按 API 价格估算费用；只有在开启 Gemini CLI 来源后，Cuotai 才会读取。",
   "coreText.sessionIncomplete": "已保存的网页会话缺少 Cookie {names}。请粘贴新的会话。",
   "coreText.keySettingInvalid": "此账户的密钥设置无效。请打开“编辑”并输入其密钥。",
+  "coreText.keyGone": "为此账户保存的密钥已不在系统保险库中。打开“编辑”并重新输入。",
   "dialog.intervalHintMetered": "留空：每 {default} 分钟一次。最少 {effective} 分钟：{min} 到 {effective} 分钟会提高到 {effective} 分钟。"
 }

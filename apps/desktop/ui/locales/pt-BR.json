@@ -665,6 +665,7 @@
   "dialog.move.confirmHint": "Clique de novo para confirmar: o Cuotai copia os valores para o cofre do sistema, e a conta deixa de depender da configuração do terminal.",
   "dialog.move.done": "Movido para o cofre do sistema. Esta conta não depende mais da configuração do terminal.",
   "dialog.move.unreadable": "O Cuotai não consegue ler este valor daqui, porque a configuração do terminal não é visível para o app. Use Substituir para digitá-lo.",
+  "dialog.move.buttonSession": "Mover sessão para o Cuotai",
   "card.keyMissing": "Nenhuma chave salva para esta conta. Abra Editar para adicioná-la.",
   "card.connectSession": "Conectar sessão",
   "dialog.session.connect": "Cole abaixo a sessão web da conta; ela é testada antes de ser salva.",
@@ -1811,5 +1812,6 @@
   "detect.costOffer.gemini_cli": "Os logs locais também podem estimar o custo a preços de API; o Cuotai só os lê depois que você ligar a fonte Gemini CLI.",
   "coreText.sessionIncomplete": "Faltam à sessão web guardada os cookies {names}. Cole uma nova.",
   "coreText.keySettingInvalid": "A configuração da chave desta conta não é válida. Abra Editar e digite a chave.",
+  "coreText.keyGone": "A chave salva para esta conta não está mais no cofre do sistema. Abra Editar e digite-a de novo.",
   "dialog.intervalHintMetered": "Vazio: uma vez a cada {default} minutos. Mínimo de {effective} minutos: de {min} a {effective} minutos sobe para {effective}."
 }

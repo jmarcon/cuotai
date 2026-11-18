@@ -281,6 +281,21 @@ assert.match(dialog, /\["trust", "replace"\]\.includes\(await confirmCertificate
 assert.match(dialog, /<fieldset class="f brk-field" data-field="breakdown" id="breakdown-box" hidden>/);
 assert.match(dialog, /`<label class="check brk-opt"><input type="checkbox" class="chk" data-breakdown value="\$\{esc\(m\.kind\)\}"/);
 assert.doesNotMatch(dialog, /class="extension-confirm"><input type="checkbox" data-breakdown/);
+// PRD 0047 re-validation (V-02): the secret input is `aria-required`, never `required`, so the browser's own
+// constraint check (in the system's language) never pre-empts `dialog.secret.required` on an empty key.
+assert.match(dialog, /\$\{required \? 'aria-required="true"' : ""\} \/>/);
+assert.doesNotMatch(dialog, /class="secret-input"[^>]*\$\{required \? "required" : ""\}/);
+assert.match(dialog, /secretEls\(\)\.find\(\(el\) => el\.getAttribute\("aria-required"\) === "true" && !el\.value\.trim\(\)\)/);
+// V-01: Edit on a card whose key is gone opens on that key's Replace input; V-04: the move button names a session.
+assert.match(dialog, /if \(lostKey\) replacing\.add\(lostKey\.slot\);/);
+assert.match(dialog, /\? "dialog\.move\.buttonSession" : "dialog\.move\.button";/);
+for (const file of locales) {
+  const catalog = JSON.parse(await readFile(ui(`locales/${file}`), "utf8"));
+  for (const key of ["coreText.keyGone", "dialog.move.buttonSession"]) {
+    assert.ok(typeof catalog[key] === "string" && catalog[key].trim(), `${file}: ${key}`);
+    if (file !== "en-US.json") assert.notEqual(catalog[key], en[key], `${file}: ${key} is untranslated`);
+  }
+}
 const dialogCss = await readFile(ui("css/dialog.css"), "utf8");
 assert.match(dialogCss, /^\.f input:where\(:not\(\[type="checkbox"\], \[type="radio"\]\)\),$/m);
 assert.match(dialogCss, /^\.f input:where\(:not\(\[type="checkbox"\], \[type="radio"\]\)\):focus,$/m);

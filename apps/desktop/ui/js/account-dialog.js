@@ -23,7 +23,7 @@ function open(html) {
   return dlg;
 }
 
-export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, onExtension = null, budgetDraft = null, budgetHint = null, floorDraft = null, prefill = null } = {}) {
+export async function openAccountDialog(index = null, { onSaved = () => {}, pasteSession = false, replaceKey = false, onExtension = null, budgetDraft = null, budgetHint = null, floorDraft = null, prefill = null } = {}) {
   // RF4: cheap external-change detection. If the file on disk
   // changed since the last view render, give the user a chance to
   // reload BEFORE they spend time editing the now-stale draft.
@@ -529,7 +529,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         <div class="secret-field" ${open ? "" : "hidden"}>
           <input type="password" id="${id}" class="secret-input" data-slot="${esc(s.slot)}" aria-labelledby="${id}-l" aria-describedby="${id}-h"
             autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"
-            placeholder="${te(source === "unset" ? "dialog.secret.placeholder" : "dialog.secret.replacePlaceholder")}" ${required ? "required" : ""} />
+            placeholder="${te(source === "unset" ? "dialog.secret.placeholder" : "dialog.secret.replacePlaceholder")}" ${required ? 'aria-required="true"' : ""} />
           <button type="button" class="icon secret-reveal" aria-controls="${id}" aria-pressed="false" aria-label="${te("dialog.secret.show")}" title="${te("dialog.secret.show")}">${icon("eye")}</button>
         </div>
         <small class="field-err" hidden></small>
@@ -738,13 +738,16 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
   const moveBox = dlg.querySelector("#move-box");
   function renderMove(status = "") {
     const offers = existing?.provider === provider ? existing?.vault_migration ?? [] : [];
+    // PRD 0047 V-04: the button names what it moves; a key, or a mix, keeps the PRD's "Move key into Cuotai".
+    const moveLabel = offers.length && offers.every((c) => (schema.sessions ?? []).some((s) => s.slot === c.slot))
+      ? "dialog.move.buttonSession" : "dialog.move.button";
     moveBox.hidden = !offers.length && !status;
     confirmMove = false;
     if (moveBox.hidden) { moveBox.innerHTML = ""; return; }
     moveBox.innerHTML = `<h3>${te("dialog.move.title")}</h3>`
       + (offers.length ? `<p class="hint">${te("dialog.move.intro")}</p>`
         + offers.map((c) => `<p class="hint">${esc(tl(c.consent))}</p>`).join("")
-        + `<div class="dlg-actions"><button type="button" class="btn" id="move-btn">${te("dialog.move.button")}</button></div>` : "")
+        + `<div class="dlg-actions"><button type="button" class="btn" id="move-btn">${te(moveLabel)}</button></div>` : "")
       + `<p class="hint" id="move-status" role="status" aria-live="polite">${esc(status)}</p>`;
     const btn = moveBox.querySelector("#move-btn");
     btn?.addEventListener("click", async () => {
@@ -771,7 +774,7 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         if (await closeIfAccountMoved(x)) return;
         btn.disabled = false;
         confirmMove = false;
-        btn.textContent = t("dialog.move.button");
+        btn.textContent = t(moveLabel);
         // The terminal setup is often invisible to a desktop app; never show the core's text, which names the variable.
         const parsed = parseErrorEnvelope(x);
         statusEl.textContent = parsed?.id?.startsWith("user_session.migrate.") ? t("dialog.move.unreadable") : errText(x);
@@ -1358,7 +1361,8 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     }
     const mode = credentialNeeded() ? selectedMode() : null;
     // PRD 0047 G1: a missing required secret is said in the form's own words (the core's text is terminal wording).
-    const missing = secretEls().find((el) => el.required && !el.value.trim());
+    // V-02: the input carries `aria-required`, not `required`, so the browser's own check never pre-empts this one.
+    const missing = secretEls().find((el) => el.getAttribute("aria-required") === "true" && !el.value.trim());
     if (missing) {
       setFieldError(missing.closest("[data-field]").dataset.field, t("dialog.secret.required"));
       return;
@@ -1617,15 +1621,22 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     const entry = catalogModes.find((m) => m.mode === (existing?.auth_mode ?? null)) ?? catalogModes[0];
     if (entry) paintHead(entry, null);
   }
+  // PRD 0047 V-01: Edit on a card whose key is gone from the vault opens on that key's Replace input.
+  const lostKey = replaceKey ? [mainSecret(), ...formSecrets()].find((s) => s && secretSource(s.slot) === "vault") ?? null : null;
+  if (lostKey) replacing.add(lostKey.slot);
   await renderDynamic();
   renderModels();
+  const lostKeyInput = lostKey ? dyn.querySelector(`#secret-${CSS.escape(lostKey.slot)}`) : null;
   // SES-01: "Paste a new session" opens this editor on the account's paste box.
   // The box opens on the session the account keeps (the one that failed), else the first one.
   const keptSlot = (existing?.session_slots ?? []).find((slot) => sessionBox.querySelector(`.session-paste[data-slot="${CSS.escape(slot)}"]`));
   const pasteField = pasteSession
     ? (keptSlot ? sessionBox.querySelector(`.session-paste[data-slot="${CSS.escape(keptSlot)}"]`) : null) ?? sessionBox.querySelector(".session-paste[data-slot]")
     : null;
-  if (pasteField) {
+  if (lostKeyInput) {
+    lostKeyInput.scrollIntoView({ block: "center" });
+    lostKeyInput.focus();
+  } else if (pasteField) {
     // PRD 0047 G1: "Connect session" (no session saved yet) does not speak of a rejected one.
     const hasSaved = (existing?.session_slots ?? []).some((slot) => (schema.sessions ?? []).some((s) => s.slot === slot));
     sessionBox.querySelector("#session-status").textContent = t(hasSaved ? "dialog.session.pasteNew" : "dialog.session.connect");

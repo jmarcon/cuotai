@@ -665,6 +665,7 @@
   "dialog.move.confirmHint": "Fai di nuovo clic per confermare: Cuotai copia i valori nel portachiavi di sistema e l'account non dipende più dalla configurazione del terminale.",
   "dialog.move.done": "Spostato nel portachiavi di sistema. Questo account non dipende più dalla configurazione del terminale.",
   "dialog.move.unreadable": "Cuotai non riesce a leggere questo valore da qui, perché la configurazione del terminale non è visibile all'app. Usa Sostituisci per digitarlo.",
+  "dialog.move.buttonSession": "Sposta la sessione in Cuotai",
   "card.keyMissing": "Nessuna chiave salvata per questo account. Apri Modifica per aggiungerla.",
   "card.connectSession": "Connetti sessione",
   "dialog.session.connect": "Incolla qui sotto la sessione web dell'account; viene provata prima di salvarla.",
@@ -1811,5 +1812,6 @@
   "detect.costOffer.gemini_cli": "I suoi log locali possono anche stimare il costo a prezzi API; Cuotai li legge solo dopo che attivi la fonte Gemini CLI.",
   "coreText.sessionIncomplete": "Alla sessione web salvata mancano i cookie {names}. Incollane una nuova.",
   "coreText.keySettingInvalid": "L'impostazione della chiave di questo account non è valida. Apri Modifica e inserisci la sua chiave.",
+  "coreText.keyGone": "La chiave salvata per questo account non è più nel vault di sistema. Apri Modifica e inseriscila di nuovo.",
   "dialog.intervalHintMetered": "Vuoto: una volta ogni {default} minuti. Minimo {effective} minuti: da {min} a {effective} minuti si sale a {effective}."
 }

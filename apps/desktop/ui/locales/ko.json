@@ -79,7 +79,9 @@
       "restore.hosts.confirm",
       "restore.hosts.required",
       "restore.after",
-      "coreText.keySettingInvalid"
+      "coreText.keySettingInvalid",
+      "coreText.keyGone",
+      "dialog.move.buttonSession"
     ]
   },
   "agg.alertEach": "연결마다 알림",
@@ -734,6 +736,7 @@
   "dialog.move.confirmHint": "확인하려면 한 번 더 클릭하세요. Cuotai가 값을 시스템 보관함에 복사하며, 계정은 더 이상 터미널 설정에 의존하지 않습니다.",
   "dialog.move.done": "시스템 보관함으로 옮겼습니다. 이 계정은 더 이상 터미널 설정에 의존하지 않습니다.",
   "dialog.move.unreadable": "터미널 설정이 앱에 보이지 않아 Cuotai가 여기서 이 값을 읽을 수 없습니다. 바꾸기로 직접 입력하세요.",
+  "dialog.move.buttonSession": "세션을 Cuotai로 옮기기",
   "card.keyMissing": "이 계정에 저장된 키가 없습니다. 편집을 열어 추가하세요.",
   "card.connectSession": "세션 연결",
   "dialog.session.connect": "아래에 계정의 웹 세션을 붙여 넣으세요. 저장하기 전에 테스트합니다.",
@@ -1863,5 +1866,6 @@
   "detect.costOffer.gemini_cli": "로컬 로그로 API 가격 기준 비용도 추정할 수 있습니다. Cuotai는 Gemini CLI 소스를 켠 뒤에만 읽습니다.",
   "coreText.sessionIncomplete": "저장된 웹 세션에 쿠키 {names}이(가) 없습니다. 새 세션을 붙여 넣으세요.",
   "coreText.keySettingInvalid": "이 계정의 키 설정이 올바르지 않습니다. 편집을 열고 키를 입력하세요.",
+  "coreText.keyGone": "이 계정에 저장한 키가 더 이상 시스템 보관소에 없습니다. 편집을 열어 다시 입력하세요.",
   "dialog.intervalHintMetered": "비우면 {default}분마다 한 번. 최소 {effective}분: {min}~{effective}분은 {effective}분으로 올립니다."
 }

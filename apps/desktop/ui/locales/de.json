@@ -69,7 +69,9 @@
       "restore.hosts.confirm",
       "restore.hosts.required",
       "restore.after",
-      "coreText.keySettingInvalid"
+      "coreText.keySettingInvalid",
+      "coreText.keyGone",
+      "dialog.move.buttonSession"
     ]
   },
   "agg.alertEach": "Bei jeder Verbindung warnen",
@@ -718,7 +720,7 @@
   "dialog.session.forgotten": "Sitzung vergessen: Der Eintrag im Systemtresor wurde gelöscht.",
   "dialog.credKey": "API-Schlüssel",
   "dialog.secret.placeholder": "Wert einfügen oder eingeben",
-  "dialog.secret.replacePlaceholder": "Neuen Wert einfügen, um den gespeicherten zu ersetzen",
+  "dialog.secret.replacePlaceholder": "Neuen Wert einfügen",
   "dialog.secret.createKey": "Schlüssel auf {site} erstellen",
   "dialog.secret.show": "Wert anzeigen",
   "dialog.secret.hide": "Wert verbergen",
@@ -735,6 +737,7 @@
   "dialog.move.confirmHint": "Zum Bestätigen erneut klicken: Cuotai kopiert die Werte in den Systemtresor, und das Konto hängt nicht mehr von der Terminal-Einrichtung ab.",
   "dialog.move.done": "In den Systemtresor verschoben. Dieses Konto hängt nicht mehr von der Terminal-Einrichtung ab.",
   "dialog.move.unreadable": "Cuotai kann diesen Wert hier nicht lesen, weil die Terminal-Einrichtung für die App nicht sichtbar ist. Geben Sie ihn stattdessen über „Ersetzen“ ein.",
+  "dialog.move.buttonSession": "Sitzung in Cuotai verschieben",
   "card.keyMissing": "Für dieses Konto ist kein Schlüssel gespeichert. Öffnen Sie „Bearbeiten“, um ihn hinzuzufügen.",
   "card.connectSession": "Sitzung verbinden",
   "dialog.session.connect": "Fügen Sie unten die Websitzung des Kontos ein; sie wird vor dem Speichern getestet.",
@@ -1881,5 +1884,6 @@
   "detect.costOffer.gemini_cli": "Seine lokalen Protokolle können auch die Kosten zu API-Preisen schätzen; Cuotai liest sie erst, wenn Sie die Quelle Gemini CLI einschalten.",
   "coreText.sessionIncomplete": "Der gespeicherten Websitzung fehlen die Cookies {names}. Fügen Sie eine neue ein.",
   "coreText.keySettingInvalid": "Die Schlüssel-Einstellung dieses Kontos ist ungültig. Öffnen Sie „Bearbeiten“ und geben Sie seinen Schlüssel ein.",
+  "coreText.keyGone": "Der für dieses Konto gespeicherte Schlüssel ist nicht mehr im Systemtresor. Öffnen Sie „Bearbeiten“ und geben Sie ihn erneut ein.",
   "dialog.intervalHintMetered": "Leer: einmal alle {default} Minuten. Mindestens {effective} Minuten: {min} bis {effective} Minuten werden auf {effective} angehoben."
 }

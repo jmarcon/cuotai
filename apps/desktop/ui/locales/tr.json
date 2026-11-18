@@ -668,6 +668,7 @@
   "dialog.move.confirmHint": "Onaylamak için yeniden tıklayın: Cuotai değerleri sistem kasasına kopyalar ve hesap artık terminal ayarına bağlı olmaz.",
   "dialog.move.done": "Sistem kasasına taşındı. Bu hesap artık terminal ayarına bağlı değil.",
   "dialog.move.unreadable": "Terminal ayarı uygulamaya görünmediği için Cuotai bu değeri buradan okuyamıyor. Bunun yerine Değiştir ile yazın.",
+  "dialog.move.buttonSession": "Oturumu Cuotai'ye taşı",
   "card.keyMissing": "Bu hesap için kayıtlı anahtar yok. Eklemek için Düzenle'yi açın.",
   "card.connectSession": "Oturumu bağla",
   "dialog.session.connect": "Hesabın web oturumunu aşağıya yapıştırın; kaydedilmeden önce test edilir.",
@@ -1814,5 +1815,6 @@
   "detect.costOffer.gemini_cli": "Yerel günlükleri maliyeti API fiyatlarıyla da tahmin edebilir; Cuotai bunları yalnızca Gemini CLI kaynağını açtıktan sonra okur.",
   "coreText.sessionIncomplete": "Kaydedilen web oturumunda {names} çerezleri eksik. Yeni bir oturum yapıştırın.",
   "coreText.keySettingInvalid": "Bu hesabın anahtar ayarı geçerli değil. Düzenle'yi açıp anahtarını girin.",
+  "coreText.keyGone": "Bu hesap için kaydedilen anahtar artık sistem kasasında değil. Düzenle'yi açıp yeniden girin.",
   "dialog.intervalHintMetered": "Boş: {default} dakikada bir. En az {effective} dakika: {min} ile {effective} dakika arası {effective} dakikaya yükseltilir."
 }

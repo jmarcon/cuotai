@@ -77,7 +77,9 @@
       "restore.hosts.confirm",
       "restore.hosts.required",
       "restore.after",
-      "coreText.keySettingInvalid"
+      "coreText.keySettingInvalid",
+      "coreText.keyGone",
+      "dialog.move.buttonSession"
     ]
   },
   "agg.alertEach": "Оповещать о каждом подключении",
@@ -765,6 +767,7 @@
   "dialog.move.confirmHint": "Нажмите ещё раз для подтверждения: Cuotai скопирует значения в системное хранилище, и учётная запись больше не будет зависеть от настройки терминала.",
   "dialog.move.done": "Перенесено в системное хранилище. Учётная запись больше не зависит от настройки терминала.",
   "dialog.move.unreadable": "Cuotai не может прочитать это значение отсюда: настройка терминала не видна приложению. Введите его через «Заменить».",
+  "dialog.move.buttonSession": "Перенести сеанс в Cuotai",
   "card.keyMissing": "Для этой учётной записи не сохранён ключ. Откройте «Изменить», чтобы добавить его.",
   "card.connectSession": "Подключить сеанс",
   "dialog.session.connect": "Вставьте ниже веб-сеанс учётной записи; перед сохранением он проверяется.",
@@ -1945,5 +1948,6 @@
   "detect.costOffer.gemini_cli": "Его локальные журналы также могут оценить стоимость по ценам API; Cuotai читает их только после того, как вы включите источник Gemini CLI.",
   "coreText.sessionIncomplete": "В сохранённом веб-сеансе нет файлов cookie {names}. Вставьте новый.",
   "coreText.keySettingInvalid": "Настройка ключа этой учётной записи недопустима. Откройте «Изменить» и введите её ключ.",
+  "coreText.keyGone": "Ключа, сохранённого для этой учётной записи, больше нет в системном хранилище. Откройте «Изменить» и введите его снова.",
   "dialog.intervalHintMetered": "Пусто: раз в {default} минут. Минимум {effective} минут: от {min} до {effective} минут повышается до {effective}."
 }
