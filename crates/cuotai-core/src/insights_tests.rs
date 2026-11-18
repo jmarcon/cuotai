@@ -332,7 +332,8 @@ fn rhythm_7d_marks_days_off_and_typical_needs_three_days() {
             .unwrap()
     };
     assert!(day(17).day_off && day(18).day_off && !day(19).day_off);
-    assert_eq!(day(19).consumption, Some(10.0));
+    // Only the 09:30 step: the overnight jump to 09:00 is a gap (V-02).
+    assert_eq!(day(19).consumption, Some(5.0));
     assert_eq!(day(20).consumption, None);
 
     let typical = RhythmQuery {
@@ -343,9 +344,10 @@ fn rhythm_7d_marks_days_off_and_typical_needs_three_days() {
     assert_eq!(profile.buckets.len(), 24);
     let nine = &profile.buckets[9];
     assert_eq!(nine.samples, 5);
-    // Points of a 200 limit: the first day +5, the next four +10 each
-    // (the 09:00 jump from the day before plus the 09:30 one): 9 on average.
-    assert!((nine.consumption.unwrap() - 9.0).abs() < 1e-9);
+    // Points of a 200 limit: +5 each day from the 09:30 step; the 09:00
+    // jump from the day before spans a gap in the readings and counts
+    // nowhere (V-02): 5 on average.
+    assert!((nine.consumption.unwrap() - 5.0).abs() < 1e-9);
     assert_eq!(profile.buckets[3].consumption, None, "no data at 03:00");
 }
 

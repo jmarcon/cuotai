@@ -143,6 +143,23 @@ impl RhythmRange {
 /// RF1.1: the typical profile needs this many days of data per hour.
 pub const TYPICAL_MIN_DAYS: usize = 3;
 
+/// RF1.1/RF3.1 (PRD 0043 re-validation, V-02): the use between two samples
+/// counts only when the earlier one lies in the same clock hour as the
+/// later one or in the hour just before it. Across a longer gap in the
+/// readings the use is unknown and goes to no bucket: drawing it in the
+/// hour after the gap would show a spike that never happened (PRD §6
+/// Honesty). Hours are compared on the timestamps, so the rule also holds
+/// for history thinned to one sample per hour.
+fn adjacent(previous: DateTime<Utc>, at: DateTime<Utc>) -> bool {
+    let hour = |t: DateTime<Utc>| t.timestamp().div_euclid(3600);
+    (0..=1).contains(&(hour(at) - hour(previous)))
+}
+
+/// How far before a span [`rhythm`] and [`hour_totals`] read, so the first
+/// sample in the span has its predecessor (R-06). One hour is the most
+/// [`adjacent`] can use.
+const LOOKBACK: chrono::TimeDelta = chrono::TimeDelta::hours(1);
+
 /// RF1.1/RF1.2: one bar of a [`Rhythm`].
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RhythmBucket {
@@ -274,9 +291,17 @@ pub fn rhythm<Tz: chrono::TimeZone>(
         RhythmRange::Typical30d => {
             let since = crate::budget::local_midnight(today - TimeDelta::days(29), tz)
                 .unwrap_or(now - TimeDelta::days(30));
-            let starts = (0..24)
+            // R-02: bucket `h` holds the local hour `h` (see `index_of`), so
+            // its start is today's `h:00` where that exists; on a DST change
+            // day an hour can be missing or doubled.
+            let midnight = crate::budget::local_midnight(today, tz).unwrap_or(now);
+            let starts = (0..24u32)
                 .map(|h| {
-                    crate::budget::local_midnight(today, tz).unwrap_or(now) + TimeDelta::hours(h)
+                    today
+                        .and_hms_opt(h, 0, 0)
+                        .and_then(|local| tz.from_local_datetime(&local).earliest())
+                        .map(|at| at.with_timezone(&Utc))
+                        .unwrap_or(midnight + TimeDelta::hours(i64::from(h)))
                 })
                 .collect();
             (starts, since)
@@ -314,16 +339,18 @@ pub fn rhythm<Tz: chrono::TimeZone>(
         }
     };
     for account in selected {
-        let histories = store.account_history(account, since..=now)?;
+        let histories = store.account_history(account, since - LOOKBACK..=now)?;
         let chosen = metric.filter(|_| scope.is_some());
         let Some((label, series)) = rhythm_series(&histories, chosen) else {
             continue;
         };
         labels.push(label);
-        let mut previous: Option<f64> = None;
+        let mut previous: Option<&crate::pace::Point> = None;
         for point in &series.points {
-            let delta = previous.map(|before| point.used - before);
-            previous = Some(point.used);
+            let delta = previous
+                .filter(|before| adjacent(before.taken_at, point.taken_at))
+                .map(|before| point.used - before.used);
+            previous = Some(point);
             let Some(index) = index_of(point.taken_at) else {
                 continue;
             };
@@ -362,9 +389,16 @@ pub fn rhythm<Tz: chrono::TimeZone>(
         .map(|(i, start)| {
             let local = start.with_timezone(tz);
             let daily = range == RhythmRange::Last7d;
+            // R-02: the typical profile's hour is its index, whatever the
+            // start resolved to on a DST change day.
+            let hour = if range == RhythmRange::Typical30d {
+                i as u32
+            } else {
+                local.hour()
+            };
             RhythmBucket {
                 start: *start,
-                hour: (!daily).then(|| local.hour() as u8),
+                hour: (!daily).then_some(hour as u8),
                 day: daily.then(|| local.date_naive()),
                 consumption: sums[i],
                 samples: counts[i],
@@ -373,7 +407,7 @@ pub fn rhythm<Tz: chrono::TimeZone>(
                 label: if daily {
                     crate::text::clock::day(local.date_naive(), today)
                 } else {
-                    crate::text::clock::hour(local.hour())
+                    crate::text::clock::hour(hour)
                 },
             }
         })
@@ -403,11 +437,14 @@ pub fn hour_totals<Tz: chrono::TimeZone>(
         None => accounts.iter().collect(),
     };
     for account in selected {
-        let histories = store.account_history(account, start..=end)?;
+        let histories = store.account_history(account, start - LOOKBACK..=end)?;
         let Some((_, series)) = rhythm_series(&histories, None) else {
             continue;
         };
         for pair in series.points.windows(2) {
+            if pair[1].taken_at < start || !adjacent(pair[0].taken_at, pair[1].taken_at) {
+                continue;
+            }
             let delta = pair[1].used - pair[0].used;
             if delta > 0.0 {
                 let hour = pair[1].taken_at.with_timezone(tz).hour() as usize;
@@ -584,3 +621,7 @@ impl DigestPrefs {
 #[cfg(test)]
 #[path = "insights_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "insights_gap_tests.rs"]
+mod gap_tests;
