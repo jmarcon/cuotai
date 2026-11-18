@@ -679,3 +679,7 @@ pub fn vault_migration_candidates(account: &Account) -> Vec<MigrationCandidate> 
 #[cfg(test)]
 #[path = "secret_input_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "secret_input_vault_param_tests.rs"]
+mod vault_param_tests;
