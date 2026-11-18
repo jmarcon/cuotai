@@ -650,7 +650,7 @@
   "channels.cli.no_settings": "Tidak ada folder konfigurasi di sistem ini, jadi saluran tidak dapat disimpan.",
   "channels.cli.kind": "Jenisnya webhook, ntfy, slack, atau discord.",
   "channels.cli.label": "--channel-add memerlukan --label NAMA.",
-  "channels.cli.prompt": "Tempelkan alamatnya (tidak masuk ke riwayat shell Anda): ",
+  "channels.cli.prompt": "Tempelkan alamatnya (tidak ditampilkan dan tidak masuk ke riwayat shell Anda): ",
   "channels.cli.consent_title": "Saluran {kind} baru \"{label}\"",
   "channels.cli.host": "Alamat",
   "channels.cli.filters": "Mengirim",

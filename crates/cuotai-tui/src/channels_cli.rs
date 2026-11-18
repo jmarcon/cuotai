@@ -4,13 +4,15 @@
 //! `--channel-log`.
 //!
 //! The URL is read from standard input or a prompt, never from an argument
-//! (so it never enters the shell history), and goes to the vault; the
+//! (so it never enters the shell history), without echo at the prompt (so
+//! it never enters the scrollback either), and goes to the vault; the
 //! consent text is printed before anything is saved, and saving needs a
 //! confirmation typed in a terminal (or `--yes` when the URL is piped).
 //! Nothing here prints a URL: the host and a masked form only.
 
 use crate::l10n::{tr, trf};
 use chrono::Utc;
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
 use cuotai_core::channels::{
     self, delivery, log::DeliveryLog, ChannelKind, Dispatcher, Draft, Filters, Outcome, Vault,
 };
@@ -21,6 +23,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 type Error = Box<dyn std::error::Error>;
+
+/// Reads the URL of `--channel-add`, given the input stream.
+type UrlReader<'r> = dyn FnMut(&mut dyn BufRead) -> io::Result<Zeroizing> + 'r;
 
 fn locale() -> &'static str {
     crate::ui::tui_locale()
@@ -65,24 +70,33 @@ pub(crate) struct AddArgs<'a> {
 /// `--channel-add`.
 pub(crate) fn add(session: &OAuthSession, args: AddArgs<'_>) -> Result<u8, Error> {
     let terminal = io::stdin().is_terminal() && io::stderr().is_terminal();
+    let mut read_url: Box<UrlReader> = if terminal {
+        Box::new(|_| read_hidden())
+    } else {
+        Box::new(read_line)
+    };
     add_with(
         &settings()?,
         &Vault::new(session.token_store()),
         &args,
         &mut io::stdin().lock(),
+        &mut *read_url,
         terminal,
         &mut io::stdout().lock(),
         &mut io::stderr().lock(),
     )
 }
 
-/// [`add`] over explicit streams: the URL is the first line of `input`
-/// (after a prompt on a `terminal`), the confirmation the next one.
+/// [`add`] over explicit streams: `read_url` reads the URL (after a
+/// prompt on a `terminal`: hidden there, the first line of `input` when
+/// piped), and the confirmation is the next line of `input`.
+#[allow(clippy::too_many_arguments)]
 fn add_with(
     settings: &std::path::Path,
     vault: &Vault,
     args: &AddArgs<'_>,
     input: &mut dyn BufRead,
+    read_url: &mut UrlReader,
     terminal: bool,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
@@ -116,14 +130,17 @@ fn add_with(
             "{}",
             tr(
                 "channels.cli.prompt",
-                "Paste the address (it stays out of your shell history): "
+                "Paste the address (it is not shown and stays out of your shell history): "
             )
         )?;
         stderr.flush()?;
     }
-    let mut url = String::new();
-    input.read_line(&mut url)?;
-    let url = zeroizing(url);
+    let url = match read_url(input) {
+        Err(error) if error.kind() == io::ErrorKind::Interrupted => {
+            return Err(tr("channels.cli.cancelled", "Nothing was saved.").into());
+        }
+        other => other?,
+    };
     let consent = channels::consent(&draft, url.trim(), private(), locale(), Utc::now())
         .map_err(localized)?;
     writeln!(
@@ -214,6 +231,92 @@ impl Drop for Zeroizing {
 
 fn zeroizing(text: String) -> Zeroizing {
     Zeroizing(text)
+}
+
+impl Zeroizing {
+    /// Overwrite the text from byte `at` on, then drop it.
+    fn cut(&mut self, at: usize) {
+        let tail = self.0.len() - at;
+        self.0.replace_range(at.., &" ".repeat(tail));
+        self.0.truncate(at);
+    }
+}
+
+/// The piped URL: the first line of `input`.
+fn read_line(input: &mut dyn BufRead) -> io::Result<Zeroizing> {
+    let mut url = zeroizing(String::new());
+    input.read_line(&mut url.0)?;
+    Ok(url)
+}
+
+/// Esc, Ctrl+C or the end of the input before Enter.
+#[derive(Debug, PartialEq)]
+struct Cancelled;
+
+/// The URL typed or pasted at a prompt that shows nothing: characters and
+/// pasted text append (a pasted line break is dropped, so Enter still
+/// confirms), Backspace removes a grapheme, Ctrl+U clears, Enter ends.
+fn collect_hidden(events: impl IntoIterator<Item = Event>) -> Result<Zeroizing, Cancelled> {
+    use unicode_segmentation::UnicodeSegmentation;
+    let mut url = zeroizing(String::with_capacity(2048));
+    for event in events {
+        match event {
+            Event::Paste(text) => {
+                let text = zeroizing(text);
+                url.0
+                    .extend(text.chars().filter(|c| !matches!(c, '\r' | '\n')));
+            }
+            Event::Key(key) if key.kind != KeyEventKind::Release => {
+                let control = key.modifiers.contains(KeyModifiers::CONTROL);
+                match key.code {
+                    KeyCode::Enter => return Ok(url),
+                    KeyCode::Esc => return Err(Cancelled),
+                    KeyCode::Char('c') if control => return Err(Cancelled),
+                    KeyCode::Char('u') if control => url.cut(0),
+                    KeyCode::Char(_) if control => {}
+                    KeyCode::Char(c) => url.0.push(c),
+                    KeyCode::Backspace => {
+                        if let Some((at, _)) = url.0.grapheme_indices(true).next_back() {
+                            url.cut(at);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+    Err(Cancelled)
+}
+
+/// [`collect_hidden`] over the terminal in raw mode, with bracketed
+/// paste; the terminal is restored on every path, panics included. A
+/// cancel is an [`io::ErrorKind::Interrupted`] error.
+fn read_hidden() -> io::Result<Zeroizing> {
+    use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
+    struct Restore;
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let _ = crossterm::execute!(io::stderr(), DisableBracketedPaste);
+            let _ = crossterm::terminal::disable_raw_mode();
+        }
+    }
+    crossterm::terminal::enable_raw_mode()?;
+    let _restore = Restore;
+    crossterm::execute!(io::stderr(), EnableBracketedPaste)?;
+    let mut failure = None;
+    let events = std::iter::from_fn(|| match crossterm::event::read() {
+        Ok(event) => Some(event),
+        Err(error) => {
+            failure = Some(error);
+            None
+        }
+    });
+    let collected = collect_hidden(events);
+    if let Some(error) = failure {
+        return Err(error);
+    }
+    collected.map_err(|Cancelled| io::Error::from(io::ErrorKind::Interrupted))
 }
 
 /// `--channel-list [--json]`.
@@ -412,6 +515,10 @@ pub(crate) fn log(json: bool) -> Result<u8, Error> {
 }
 
 #[cfg(test)]
+#[path = "channels_cli_hidden_tests.rs"]
+mod hidden_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use cuotai_core::oauth::{OAuthError, OAuthToken, TokenStore};
@@ -465,6 +572,7 @@ mod tests {
             &vault,
             &args,
             &mut io::Cursor::new(input.as_bytes()),
+            &mut read_line,
             terminal,
             &mut out,
             &mut err,
@@ -518,7 +626,7 @@ mod tests {
         assert_eq!(accepted.result, Ok(0));
         assert!(accepted.err.starts_with(tr(
             "channels.cli.prompt",
-            "Paste the address (it stays out of your shell history): "
+            "Paste the address (it is not shown and stays out of your shell history): "
         )));
         assert_eq!(channels::read(&accepted.settings).len(), 1);
         let wrong = run("https://example.com/x\n", false, true);

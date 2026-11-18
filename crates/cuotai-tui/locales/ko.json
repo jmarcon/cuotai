@@ -673,7 +673,7 @@
   "channels.cli.no_settings": "이 시스템에 구성 폴더가 없어 채널을 보관할 수 없습니다.",
   "channels.cli.kind": "종류는 webhook, ntfy, slack 또는 discord입니다.",
   "channels.cli.label": "--channel-add에는 --label 이름이 필요합니다.",
-  "channels.cli.prompt": "주소를 붙여 넣으세요(셸 기록에 남지 않음): ",
+  "channels.cli.prompt": "주소를 붙여 넣으세요(화면에 표시되지 않으며 셸 기록에 남지 않음): ",
   "channels.cli.consent_title": "새 {kind} 채널 \"{label}\"",
   "channels.cli.host": "주소",
   "channels.cli.filters": "보내는 내용",

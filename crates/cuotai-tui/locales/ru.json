@@ -727,7 +727,7 @@
   "channels.cli.no_settings": "В этой системе нет папки конфигурации, поэтому каналы нельзя сохранить.",
   "channels.cli.kind": "Тип: webhook, ntfy, slack или discord.",
   "channels.cli.label": "Для --channel-add нужен --label ИМЯ.",
-  "channels.cli.prompt": "Вставьте адрес (он не попадёт в историю оболочки): ",
+  "channels.cli.prompt": "Вставьте адрес (он не отображается и не попадёт в историю оболочки): ",
   "channels.cli.consent_title": "Новый канал {kind} «{label}»",
   "channels.cli.host": "Адрес",
   "channels.cli.filters": "Отправляет",

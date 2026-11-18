@@ -668,7 +668,7 @@
   "channels.cli.no_settings": "इस सिस्टम पर कोई कॉन्फ़िगरेशन फ़ोल्डर नहीं है, इसलिए चैनल नहीं रखे जा सकते।",
   "channels.cli.kind": "प्रकार webhook, ntfy, slack या discord है।",
   "channels.cli.label": "--channel-add को --label NAME चाहिए।",
-  "channels.cli.prompt": "पता चिपकाएँ (यह आपके शेल इतिहास में नहीं जाता): ",
+  "channels.cli.prompt": "पता चिपकाएँ (यह दिखाई नहीं देता और आपके शेल इतिहास में नहीं जाता): ",
   "channels.cli.consent_title": "नया {kind} चैनल \"{label}\"",
   "channels.cli.host": "पता",
   "channels.cli.filters": "भेजता है",
