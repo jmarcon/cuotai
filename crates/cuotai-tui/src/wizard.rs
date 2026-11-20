@@ -5132,7 +5132,7 @@ mod tests {
         let shown = wiz.aggregator_test.clone().unwrap().1;
         assert!(
             shown.contains(&fingerprint) || shown.contains("F6"),
-            "{shown}"
+            "the untrusted-certificate outcome shows the fingerprint or the F6 hint"
         );
         let tested = match press(&mut wiz, KeyCode::F(6)) {
             Action::TestAggregator { account, .. } => *account,

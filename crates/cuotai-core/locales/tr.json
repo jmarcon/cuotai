@@ -225,7 +225,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} Hesap kaydedilecek, ancak sayılar yerine bu nedeni gösterecek.",
@@ -1222,7 +1225,7 @@
   "field.litellm.show_both.label": "İki yerde de göster (isteğe bağlı)",
   "field.mistral.admin_key_env.help": "İsteğe bağlı: Admin API Key'i tutan değişkenin adı. Boş bırakılırsa Kimlik bilgisi adımındaki değişken kullanılır; bu, yönetici anahtarını içermelidir.",
   "field.mistral.admin_key_env.label": "Alternatif yönetici değişkeni",
-  "field.nine_router.allow_private_http.help": "Yalnızca özel ağ adresleri için geçerli (192.168.x.x, 10.x.x.x, Tailscale, .local). Evet = parola veya anahtar bu ağda şifresiz iletilir ve trafiği görebilen herkes okuyabilir; sabitlenmiş bir sertifikayla HTTPS tercih edin. Hayır = bu makine dışında HTTPS gerekir.",
+  "field.nine_router.allow_private_http.help": "Yalnızca özel ağ adresleri için (192.168.x.x, 10.x.x.x, Tailscale, .local) ve yalnızca panel girişi kapalı bir örnek için geçerli: Cuotai parolayı veya bir oturumu düz HTTP üzerinden asla bu bilgisayarın dışına göndermez, bu yüzden parolalı bir örnek HTTPS (sabitlenmiş bir sertifika yeterli) ya da SSH tüneli gibi bir loopback adresi gerektirir. Evet = o ağdaki parolasız bir 9router'ı düz HTTP üzerinden oku. Hayır = bu makine dışında HTTPS gerekir.",
   "field.nine_router.allow_private_http.label": "Özel ağda şifresiz bağlantı",
   "field.nine_router.allow_private_http.option.false": "Hayır (varsayılan)",
   "field.nine_router.allow_private_http.option.true": "Evet, özel ağımda",
@@ -3031,5 +3034,7 @@
   "note.metered.record_unavailable_shared": "Ücretli sorguların ortak kaydı kullanılamıyor, bu yüzden diğer Cuotai programları da bu hesabı sorgulayabilir.",
   "note.metered.refused": "Sorgulanmadı: son ücretli AWS Cost Explorer sorgusu {queried} saatindeydi; bir sonraki {next} saatinde mümkün.",
   "note.metered.shared_reading": "{time} tarihli ortak okumadan; yeni ücretli sorgu yapılmadı.",
-  "number.percent": "%{p}"
+  "number.percent": "%{p}",
+  "query.nine_router.secret_plain_http": "{host} adresindeki 9router düz HTTP kullanıyor ve Cuotai panel parolasını veya oturumunu düz HTTP üzerinden yalnızca bu bilgisayara gönderir; hiçbir şey gönderilmedi. 9router'ı HTTPS üzerinden sunun (Bağlantıyı test et sertifikasını sabitleyebilir) ya da ona SSH tüneli gibi bir loopback adresi üzerinden erişin.",
+  "config.warning.nine_router_secret_plain_http": "Uyarı: {path}, 9router'a özel ağınızda düz HTTP üzerinden ulaşıyor; Cuotai oraya panel parolasını veya oturumunu asla göndermez, bu yüzden bu hesap reddedilecek. 9router'ı sabitlenmiş bir sertifikayla HTTPS üzerinden sunun ya da ona SSH tüneli gibi bir loopback adresi üzerinden erişin."
 }

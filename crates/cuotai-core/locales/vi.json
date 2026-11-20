@@ -227,7 +227,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} Tài khoản sẽ được lưu, nhưng sẽ hiện lý do này thay cho số liệu.",
@@ -1205,7 +1208,7 @@
   "field.litellm.show_both.label": "Hiện ở cả hai nơi (không bắt buộc)",
   "field.mistral.admin_key_env.help": "Không bắt buộc: tên biến chứa Admin API Key. Để trống thì dùng biến ở bước Thông tin xác thực, biến đó phải chứa khóa quản trị.",
   "field.mistral.admin_key_env.label": "Biến quản trị thay thế",
-  "field.nine_router.allow_private_http.help": "Chỉ áp dụng cho địa chỉ mạng riêng (192.168.x.x, 10.x.x.x, Tailscale, .local). Có = mật khẩu hoặc khóa được truyền không mã hóa trong mạng đó, ai quan sát được mạng đều đọc được; nên dùng HTTPS với chứng chỉ được ghim. Không = cần HTTPS ngoài máy này.",
+  "field.nine_router.allow_private_http.help": "Chỉ áp dụng cho địa chỉ mạng riêng (192.168.x.x, 10.x.x.x, Tailscale, .local), và chỉ cho phiên bản đã tắt đăng nhập bảng điều khiển: Cuotai không bao giờ gửi mật khẩu hay phiên qua HTTP không mã hóa ra ngoài máy tính này, nên phiên bản có mật khẩu cần HTTPS (chứng chỉ được ghim cũng được) hoặc một địa chỉ loopback như đường hầm SSH. Có = đọc 9router không có mật khẩu qua HTTP không mã hóa trong mạng đó. Không = cần HTTPS bên ngoài máy này.",
   "field.nine_router.allow_private_http.label": "Kết nối không mã hóa trong mạng riêng",
   "field.nine_router.allow_private_http.option.false": "Không (mặc định)",
   "field.nine_router.allow_private_http.option.true": "Có, trong mạng riêng của tôi",
@@ -2967,5 +2970,7 @@
   "note.metered.record_unavailable_shared": "Bản ghi dùng chung các truy vấn tính phí không khả dụng, nên các chương trình Cuotai khác cũng có thể truy vấn tài khoản này.",
   "note.metered.refused": "Chưa truy vấn: truy vấn AWS Cost Explorer tính phí gần nhất lúc {queried}; truy vấn tiếp theo có thể thực hiện lúc {next}.",
   "note.metered.shared_reading": "Từ kết quả dùng chung lúc {time}; không có truy vấn tính phí mới.",
-  "number.percent": "{p}%"
+  "number.percent": "{p}%",
+  "query.nine_router.secret_plain_http": "9router tại {host} dùng HTTP không mã hóa, và Cuotai chỉ gửi mật khẩu hoặc phiên bảng điều khiển qua HTTP không mã hóa tới chính máy tính này; chưa gửi gì cả. Hãy phục vụ 9router qua HTTPS (Kiểm tra kết nối có thể ghim chứng chỉ của nó), hoặc truy cập qua một địa chỉ loopback như đường hầm SSH.",
+  "config.warning.nine_router_secret_plain_http": "Cảnh báo: {path} kết nối tới 9router qua HTTP không mã hóa trong mạng riêng của bạn, nơi Cuotai không bao giờ gửi mật khẩu hay phiên bảng điều khiển, nên tài khoản này sẽ bị từ chối. Hãy phục vụ 9router qua HTTPS với chứng chỉ được ghim, hoặc truy cập qua một địa chỉ loopback như đường hầm SSH."
 }

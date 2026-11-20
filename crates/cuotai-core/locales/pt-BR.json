@@ -103,7 +103,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} A conta será gravada, mas mostrará este motivo em vez de números.",
@@ -1100,7 +1103,7 @@
   "field.litellm.show_both.label": "Mostrar nos dois lugares (opcional)",
   "field.mistral.admin_key_env.help": "Opcional: nome da variável com Admin API Key. Vazio usa a variável da etapa Credencial, que deve conter chave administrativa.",
   "field.mistral.admin_key_env.label": "Variável administrativa alternativa",
-  "field.nine_router.allow_private_http.help": "Só vale para endereços de rede privada (192.168.x.x, 10.x.x.x, Tailscale, .local). Sim = a senha ou a chave trafega sem criptografia nessa rede, legível por qualquer pessoa que consiga observá-la; prefira HTTPS com um certificado fixado. Não = exige HTTPS fora desta máquina.",
+  "field.nine_router.allow_private_http.help": "Vale só para endereços de rede privada (192.168.x.x, 10.x.x.x, Tailscale, .local), e só para uma instância com o login do painel desligado: o Cuotai nunca envia a senha ou uma sessão por HTTP sem criptografia para fora deste computador, então uma instância com senha precisa de HTTPS (um certificado fixado serve) ou de um endereço de loopback, como um túnel SSH. Sim = ler um 9router sem senha por HTTP sem criptografia nessa rede. Não = HTTPS é exigido fora desta máquina.",
   "field.nine_router.allow_private_http.label": "Conexão sem criptografia na rede privada",
   "field.nine_router.allow_private_http.option.false": "Não (padrão)",
   "field.nine_router.allow_private_http.option.true": "Sim, na minha rede privada",
@@ -2909,5 +2912,7 @@
   "note.metered.record_unavailable_shared": "O registro compartilhado de consultas cobradas não está disponível, então outros programas do Cuotai também podem consultar esta conta.",
   "note.metered.refused": "Não consultado: a última consulta cobrada ao AWS Cost Explorer foi às {queried}; a próxima é possível às {next}.",
   "note.metered.shared_reading": "Da leitura compartilhada das {time}; nenhuma nova consulta cobrada foi feita.",
-  "number.percent": "{p}%"
+  "number.percent": "{p}%",
+  "query.nine_router.secret_plain_http": "O 9router em {host} usa HTTP sem criptografia, e o Cuotai envia a senha ou a sessão do painel por HTTP sem criptografia somente para este computador; nada foi enviado. Sirva o 9router por HTTPS (Testar conexão pode fixar o certificado dele) ou acesse-o por um endereço de loopback, como um túnel SSH.",
+  "config.warning.nine_router_secret_plain_http": "Aviso: {path} acessa o 9router por HTTP sem criptografia na sua rede privada, para onde o Cuotai nunca envia a senha ou a sessão do painel, então esta conta será recusada. Sirva o 9router por HTTPS com um certificado fixado ou acesse-o por um endereço de loopback, como um túnel SSH."
 }

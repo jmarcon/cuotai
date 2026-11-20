@@ -36,6 +36,12 @@
 //!   verdict is never reused, not even within one refresh.
 //! - Plain HTTP is accepted for loopback hosts, and for private-network
 //!   hosts only with `allow_private_http`; everything else needs HTTPS.
+//! - A secret over plain HTTP goes only to loopback (owner decision of
+//!   2026-11-20): on a private-network host reached over plain HTTP, no
+//!   request carries the password, the login session cookie or a pasted
+//!   SSO session (`query.nine_router.secret_plain_http`, refused before
+//!   anything is sent). `allow_private_http` still reads an instance whose
+//!   dashboard login is off.
 
 use super::{Context, Data, QueryError};
 use crate::aggregators;
@@ -714,6 +720,17 @@ impl<'a> Instance<'a> {
         }
     }
 
+    /// Owner decision of 2026-11-20: the password, the login session and
+    /// a pasted SSO session (one secret class: each opens the dashboard)
+    /// travel over plain HTTP only to loopback. A private-network host
+    /// reached with `allow_private_http` gets them only over HTTPS.
+    fn secret_may_go(&self) -> Result<(), QueryError> {
+        if self.base.scheme() == "http" && !base_is_loopback(&self.base) {
+            return Err(secret_plain_http(&self.base));
+        }
+        Ok(())
+    }
+
     fn is_verified(&self) -> bool {
         verified().contains(&self.key())
     }
@@ -790,6 +807,7 @@ impl<'a> Instance<'a> {
     /// other host or path can result.
     fn request(&self, route: &Route, token: Option<&str>) -> Result<RequestBuilder, QueryError> {
         if token.is_some() || *route == Route::Login {
+            self.secret_may_go()?;
             self.check_listener()?;
         }
         let url = self
@@ -983,8 +1001,37 @@ fn listener_foreign(port: u16) -> QueryError {
     }
 }
 
-/// The note of an instance reached over plain HTTP on the private network
-/// by the account's choice (both aggregators; the overlay chip reads it).
+/// Owner decision of 2026-11-20: a password or session is never sent over
+/// plain HTTP to a host off this computer. Names only the host and port.
+fn secret_plain_http(base: &Url) -> QueryError {
+    QueryError {
+        diagnostic: None,
+        status: Status::NeedsConfiguration,
+        note: secret_plain_http_note(&host_port(base)),
+    }
+}
+
+fn secret_plain_http_note(host: &str) -> Localized {
+    Localized::with_param(
+        "query.nine_router.secret_plain_http",
+        "host",
+        host,
+        "9router at {host} uses plain HTTP, and Cuotai sends the dashboard password or session over plain HTTP only to this computer; nothing was sent. Serve 9router over HTTPS (Test connection can pin its certificate), or reach it through a loopback address such as an SSH tunnel.",
+    )
+}
+
+/// `host[:port]` of a base URL: no scheme, path, user or query.
+fn host_port(base: &Url) -> String {
+    let host = base.host_str().unwrap_or_default();
+    match base.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    }
+}
+
+/// The note of a LiteLLM proxy reached over plain HTTP on the private
+/// network by the account's choice (the overlay chip reads it). A 9router
+/// never sends a secret there, so it never carries this note.
 pub(crate) fn private_http_note() -> Localized {
     Localized::fixed(
         "note.nine_router.private_http",
@@ -1080,10 +1127,14 @@ async fn start(
     now: DateTime<Utc>,
 ) -> Result<(Option<String>, Option<String>, bool), QueryError> {
     if let Some(token) = sso_token(account, ctx)? {
+        instance.secret_may_go()?;
         instance.ensure_genuine().await?;
         return Ok((Some(token), None, true));
     }
     let password = password_of(account, ctx)?;
+    if password.is_some() {
+        instance.secret_may_go()?;
+    }
     let token = instance.token(password.as_deref(), now, false).await?;
     Ok((token, password, false))
 }
@@ -1455,7 +1506,6 @@ pub(crate) async fn fetch_with(
     now: DateTime<Utc>,
     listener: &dyn ListenerCheck,
 ) -> Result<Data, QueryError> {
-    let allow_private = allows_private_http(account);
     let base = account_base(account).map_err(base_error)?;
     let trust = tls::mode(account, &base).map_err(tls_error)?;
     let own = tls::client(&trust, ctx.timeout, &base)?;
@@ -1539,9 +1589,6 @@ pub(crate) async fn fetch_with(
             "note.nine_router.exposed",
             "This 9router instance answers management requests without a password. Anyone who can reach it can read and change its connections.",
         );
-    }
-    if instance.base.scheme() == "http" && !base_is_loopback(&instance.base) && allow_private {
-        notes.push_note(private_http_note());
     }
     let mut data = Data::new(
         Vec::new(),
@@ -1671,6 +1718,10 @@ pub enum TestOutcome {
     /// could not be confirmed as the current user's (or the superuser's);
     /// the password or session was not sent.
     ListenerForeign { port: u16 },
+    /// Owner decision of 2026-11-20: a password or session is set and the
+    /// instance is a private-network host over plain HTTP (`host` is
+    /// `host[:port]`); nothing was sent.
+    SecretOverPlainHttp { host: String },
 }
 
 /// PRD 0036 RF10.3: the sentence of a LiteLLM proxy test, which never
@@ -1789,6 +1840,7 @@ fn outcome_text_with_min(outcome: &TestOutcome, min: Option<&str>) -> Localized 
             *port,
             "The program listening on port {port} could not be confirmed as yours (it may belong to another user); the password or session was not sent. Start 9router as yourself, or reach it over HTTPS with a pinned certificate.",
         ),
+        TestOutcome::SecretOverPlainHttp { host } => secret_plain_http_note(host),
     }
 }
 
@@ -1898,6 +1950,11 @@ pub(crate) async fn test_connection_with(
     let instance = Instance::new(http, base, limits, ctx.timeout)
         .with_pin_flag(flag)
         .with_listener(listener);
+    if (sso.is_some() || password.is_some()) && instance.secret_may_go().is_err() {
+        return TestOutcome::SecretOverPlainHttp {
+            host: host_port(&instance.base),
+        };
+    }
     let health = match instance.request(&Route::Health, None) {
         Ok(request) => match request.send().await {
             Ok(response) if response.status().is_success() => {
@@ -3321,7 +3378,10 @@ mod tests {
         // warning in the sentence; at or above it, the plain sentence.
         let old = outcome_text_with_min(&outcome, Some("0.6.0"));
         assert_eq!(old.id, "test.nine_router.connected_untested");
-        assert!(old.resolve("en-US").contains("older than 0.6.0"), "{old:?}");
+        assert!(
+            old.resolve("en-US").contains("older than 0.6.0"),
+            "the untested sentence names the tested minimum"
+        );
         assert_eq!(
             outcome_text_with_min(&outcome, Some("0.5.109")).id,
             "test.nine_router.connected"
@@ -4192,5 +4252,147 @@ mod tests {
         ));
         assert!(proxy.seen().is_empty(), "{:?}", proxy.seen());
         assert!(!server.received_requests().await.unwrap().is_empty());
+    }
+
+    /// Owner decision of 2026-11-20 (PRD 0036 RF2.3): a password or
+    /// session over plain HTTP goes only to loopback. A private-network
+    /// host with `allow_private_http` gets no secret, refused before any
+    /// request; a password-less instance there is still read. Every
+    /// request goes through a local wiremock used as the forward proxy, so
+    /// nothing leaves this machine.
+    #[tokio::test]
+    async fn a_private_network_instance_over_plain_http_never_gets_a_secret() {
+        const BASE: &str = "http://192.168.77.10:20128";
+        let proxy = MockServer::start().await;
+        mount_genuine(&proxy).await;
+        mount_json(
+            &proxy,
+            "/api/providers/client",
+            page(json!([connection("a", "claude", "A")]), 1),
+        )
+        .await;
+        mount_json(&proxy, "/api/usage/a", claude_usage()).await;
+        let proxied = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .proxy(reqwest::Proxy::http(proxy.uri()).unwrap())
+            .build()
+            .unwrap();
+        let private = |password: bool, sso: bool| {
+            let mut params = BTreeMap::from([
+                ("base_url".to_string(), BASE.to_string()),
+                ("allow_private_http".to_string(), "true".to_string()),
+            ]);
+            if sso {
+                params.insert(
+                    crate::user_session::NINE_ROUTER_SSO_SLOT.to_string(),
+                    "TEST_NR_SSO".to_string(),
+                );
+            }
+            Account {
+                name: "lan".into(),
+                provider: Provider::NineRouter,
+                credential_env: password.then(|| "TEST_NINE_ROUTER_PASSWORD".into()),
+                params,
+                ..Account::default()
+            }
+        };
+        let token = jwt(Utc::now().timestamp() + 3_600);
+        let sso_credentials = SsoOnly(format!("auth_token={token}"));
+        let check = FixedListener(Verdict::Trusted);
+        for sso in [false, true] {
+            forget_login(&format!("{BASE}/")).await;
+            let credentials: &dyn Credentials = if sso { &sso_credentials } else { &Env };
+            let ctx = Context {
+                http: &proxied,
+                direct: &proxied,
+                credentials,
+                timeout: Duration::from_secs(5),
+            };
+            let acct = private(!sso, sso);
+            let error = fetch_with(&acct, &ctx, Limits::DEFAULT, Utc::now(), &check)
+                .await
+                .unwrap_err();
+            assert_eq!(error.note.id, "query.nine_router.secret_plain_http");
+            assert_eq!(error.status, Status::NeedsConfiguration);
+            let text = error.note.resolve("en-US");
+            assert!(text.contains("192.168.77.10:20128"), "{text}");
+            assert!(
+                text.contains("HTTPS") && text.contains("nothing was sent"),
+                "{text}"
+            );
+            assert!(
+                !text.contains("http://") && !text.contains("correct"),
+                "{text}"
+            );
+            let outcome =
+                test_connection_with(&acct, &ctx, Limits::DEFAULT, Utc::now(), &check).await;
+            assert_eq!(
+                outcome,
+                TestOutcome::SecretOverPlainHttp {
+                    host: "192.168.77.10:20128".into()
+                }
+            );
+            assert_eq!(
+                outcome_text(&outcome).id,
+                "query.nine_router.secret_plain_http"
+            );
+            assert_eq!(outcome.field(), Some("params.base_url"));
+            assert!(
+                proxy.received_requests().await.unwrap().is_empty(),
+                "sso={sso}: nothing may be requested"
+            );
+        }
+
+        // The barrier under the early refusal: no request that carries the
+        // password or a cookie can even be built for that host.
+        let instance = Instance::new(
+            &proxied,
+            parse_base(BASE, true).unwrap(),
+            Limits::DEFAULT,
+            Duration::from_secs(5),
+        )
+        .with_listener(&check);
+        for (route, token) in [
+            (Route::Login, None),
+            (Route::Connections { page: 1 }, Some("t")),
+            (Route::Usage("a".into()), Some("t")),
+        ] {
+            let error = instance.request(&route, token).unwrap_err();
+            assert_eq!(error.note.id, "query.nine_router.secret_plain_http");
+        }
+        assert!(instance.request(&Route::Health, None).is_ok());
+
+        // Without a password the instance is still read over plain HTTP,
+        // with the "no password" warning and no private-HTTP note.
+        forget_login(&format!("{BASE}/")).await;
+        let ctx = Context {
+            http: &proxied,
+            direct: &proxied,
+            credentials: &Env,
+            timeout: Duration::from_secs(5),
+        };
+        let data = fetch_with(
+            &private(false, false),
+            &ctx,
+            Limits::DEFAULT,
+            Utc::now(),
+            &check,
+        )
+        .await
+        .unwrap();
+        assert_eq!(data.sub_reports[0].status, Status::Ready);
+        let ids: Vec<_> = data
+            .notes_l10n
+            .iter()
+            .map(|note| note.id.as_ref())
+            .collect();
+        assert!(ids.contains(&"note.nine_router.exposed"), "{ids:?}");
+        assert!(!ids.contains(&"note.nine_router.private_http"), "{ids:?}");
+        let requests = proxy.received_requests().await.unwrap();
+        assert!(!requests.is_empty());
+        for request in &requests {
+            assert!(request.headers.get("cookie").is_none());
+            assert_eq!(request.method.to_string(), "GET");
+        }
     }
 }

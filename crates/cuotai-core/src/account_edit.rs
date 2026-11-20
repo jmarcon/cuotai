@@ -1921,7 +1921,7 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
         FieldDescriptor::choice(
             "allow_private_http",
             "Unencrypted connection on the private network",
-            "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). Yes = the password or key travels unencrypted on that network, readable by anyone who can watch it; prefer HTTPS with a pinned certificate. No = HTTPS is required outside this machine.",
+            "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local), and only to an instance whose dashboard login is off: Cuotai never sends the password or a session over plain HTTP outside this computer, so an instance with a password needs HTTPS (a pinned certificate works) or a loopback address such as an SSH tunnel. Yes = read a password-less 9router over plain HTTP on that network. No = HTTPS is required outside this machine.",
             &[
                 ChoiceOptionDescriptor::new("false", "No (default)"),
                 ChoiceOptionDescriptor::new("true", "Yes, on my private network"),

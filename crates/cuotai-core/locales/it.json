@@ -102,7 +102,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} L'account verrà salvato, ma mostrerà questo motivo invece dei numeri.",
@@ -2124,7 +2127,7 @@
   "field.nine_router.base_url.label": "Indirizzo di 9router",
   "field.nine_router.base_url.help": "Predefinito http://127.0.0.1:20128. Usa http(s)://host[:porta][/prefisso], senza utente, query o frammento. Fuori da questa macchina serve HTTPS.",
   "field.nine_router.allow_private_http.label": "Connessione non cifrata nella rete privata",
-  "field.nine_router.allow_private_http.help": "Vale solo per indirizzi di rete privata (192.168.x.x, 10.x.x.x, Tailscale, .local). Sì = la password o la chiave viaggia senza cifratura in quella rete, leggibile da chiunque possa osservarla; meglio HTTPS con un certificato fissato. No = serve HTTPS fuori da questa macchina.",
+  "field.nine_router.allow_private_http.help": "Vale solo per gli indirizzi della rete privata (192.168.x.x, 10.x.x.x, Tailscale, .local), e solo per un'istanza con l'accesso alla dashboard disattivato: Cuotai non invia mai la password o una sessione tramite HTTP non cifrato fuori da questo computer, quindi un'istanza con password richiede HTTPS (va bene un certificato fissato) o un indirizzo di loopback, come un tunnel SSH. Sì = leggi un 9router senza password tramite HTTP non cifrato su quella rete. No = fuori da questa macchina serve HTTPS.",
   "field.nine_router.allow_private_http.option.false": "No (predefinito)",
   "field.nine_router.allow_private_http.option.true": "Sì, nella mia rete privata",
   "field.nine_router.include.label": "Solo questi provider (facoltativo)",
@@ -2908,5 +2911,7 @@
   "note.metered.record_unavailable_shared": "Il registro condiviso delle query fatturate non è disponibile, quindi anche altri programmi Cuotai potrebbero interrogare questo account.",
   "note.metered.refused": "Non interrogato: l'ultima query fatturata di AWS Cost Explorer è stata alle {queried}; la prossima è possibile alle {next}.",
   "note.metered.shared_reading": "Dalla lettura condivisa delle {time}; non è stata fatta nessuna nuova query fatturata.",
-  "number.percent": "{p}%"
+  "number.percent": "{p}%",
+  "query.nine_router.secret_plain_http": "9router su {host} usa HTTP non cifrato, e Cuotai invia la password o la sessione della dashboard tramite HTTP non cifrato solo a questo computer; non è stato inviato nulla. Servi 9router tramite HTTPS (Prova connessione può fissarne il certificato), oppure raggiungilo tramite un indirizzo di loopback, come un tunnel SSH.",
+  "config.warning.nine_router_secret_plain_http": "Avviso: {path} raggiunge 9router tramite HTTP non cifrato sulla tua rete privata, dove Cuotai non invia mai la password o la sessione della dashboard, quindi questo account verrà rifiutato. Servi 9router tramite HTTPS con un certificato fissato, oppure raggiungilo tramite un indirizzo di loopback, come un tunnel SSH."
 }

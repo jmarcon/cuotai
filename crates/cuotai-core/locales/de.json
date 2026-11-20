@@ -248,7 +248,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} Das Konto wird gespeichert, zeigt aber diesen Grund statt Zahlen an.",
@@ -1245,7 +1248,7 @@
   "field.litellm.show_both.label": "In beiden Bereichen zeigen (optional)",
   "field.mistral.admin_key_env.help": "Optional: Name der Variable mit dem Admin API Key. Leer verwendet die Variable des Schritts Zugangsdaten, die einen Administratorschlüssel enthalten muss.",
   "field.mistral.admin_key_env.label": "Alternative Administratorvariable",
-  "field.nine_router.allow_private_http.help": "Gilt nur für Adressen im privaten Netz (192.168.x.x, 10.x.x.x, Tailscale, .local). Ja = das Passwort oder der Schlüssel wird in diesem Netz unverschlüsselt übertragen und ist für jeden lesbar, der es beobachten kann; besser HTTPS mit einem angehefteten Zertifikat. Nein = verlangt HTTPS außerhalb dieses Rechners.",
+  "field.nine_router.allow_private_http.help": "Gilt nur für Adressen im privaten Netz (192.168.x.x, 10.x.x.x, Tailscale, .local) und nur für eine Instanz mit ausgeschalteter Dashboard-Anmeldung: Cuotai sendet das Passwort oder eine Sitzung nie über einfaches HTTP außerhalb dieses Rechners, daher braucht eine Instanz mit Passwort HTTPS (ein angeheftetes Zertifikat genügt) oder eine Loopback-Adresse wie einen SSH-Tunnel. Ja = ein 9router ohne Passwort wird in diesem Netz über einfaches HTTP gelesen. Nein = verlangt HTTPS außerhalb dieses Rechners.",
   "field.nine_router.allow_private_http.label": "Unverschlüsselte Verbindung im privaten Netz",
   "field.nine_router.allow_private_http.option.false": "Nein (Standard)",
   "field.nine_router.allow_private_http.option.true": "Ja, in meinem privaten Netz",
@@ -3054,5 +3057,7 @@
   "note.metered.record_unavailable_shared": "Das gemeinsame Protokoll abgerechneter Abfragen ist nicht verfügbar, daher fragen andere Cuotai-Programme dieses Konto möglicherweise ebenfalls ab.",
   "note.metered.refused": "Nicht abgefragt: Die letzte abgerechnete AWS-Cost-Explorer-Abfrage war um {queried}; die nächste ist um {next} möglich.",
   "note.metered.shared_reading": "Aus dem gemeinsamen Ergebnis von {time}; es wurde keine neue abgerechnete Abfrage gestellt.",
-  "number.percent": "{p} %"
+  "number.percent": "{p} %",
+  "query.nine_router.secret_plain_http": "9router unter {host} verwendet einfaches HTTP, und Cuotai sendet das Dashboard-Passwort oder die Sitzung über einfaches HTTP nur an diesen Rechner; es wurde nichts gesendet. Stellen Sie 9router über HTTPS bereit (Verbindung testen kann sein Zertifikat anheften), oder erreichen Sie es über eine Loopback-Adresse, zum Beispiel einen SSH-Tunnel.",
+  "config.warning.nine_router_secret_plain_http": "Warnung: {path} erreicht 9router über einfaches HTTP in Ihrem privaten Netz, wohin Cuotai das Dashboard-Passwort oder die Sitzung nie sendet; dieses Konto wird daher abgewiesen. Stellen Sie 9router über HTTPS mit einem angehefteten Zertifikat bereit, oder erreichen Sie es über eine Loopback-Adresse, zum Beispiel einen SSH-Tunnel."
 }
