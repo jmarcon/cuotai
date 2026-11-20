@@ -485,6 +485,7 @@
   "settings.doctor.help": "Vérifie l'installation de cet ordinateur hors ligne, sans rien modifier : le fichier des comptes, la variable de chaque compte (définie ou non, jamais sa valeur), les bases de données, les hooks, les réglages et le serveur local. Chaque problème indique quoi faire. Comme cuotai --doctor.",
   "settings.doctor.copy": "Copier le diagnostic",
   "settings.doctor.copyHelp": "Copier le diagnostic copie exactement le texte ci-dessous : aucun nom de compte, valeur de clé ni contenu de fichier. Rien n'est envoyé ; lisez-le, puis collez-le où vous voulez.",
+  "settings.files.doctor_report_hint": "Ce rapport nomme vos variables d'environnement, jamais leurs valeurs.",
   "settings.doctor.preview": "Diagnostic à copier",
   "settings.doctor.copied": "Copié.",
   "settings.doctor.copyFailed": "Copie impossible. Sélectionnez le texte ci-dessus et copiez-le.",

@@ -59,6 +59,9 @@ regex = { version = "1", default-features = false, features = ["std", "perf", "u
 # PRD 0043 re-validation (V-04): the text Rhythm chart pads its heads by
 # display width (the same version the TUI uses).
 unicode-width = "0.2"
+# PRD 0052 re-validation V-03: the erase confirmation word is compared in
+# NFC, so a keyboard that composes accents differently still matches.
+unicode-normalization = "0.1"
 
 # PRD 0017 RF3.3: the extension's process tree killed on timeout (a
 # process group on Unix, a kill-on-close Job Object on Windows) and the

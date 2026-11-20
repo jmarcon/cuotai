@@ -132,7 +132,7 @@ fn selected(artifact: &Artifact, options: &EraseOptions) -> bool {
 }
 
 /// The word a person types to confirm erasing everything (the CLI prompt
-/// and the desktop dialog), compared exactly after trimming.
+/// and the desktop dialog), compared exactly after trimming, in Unicode NFC.
 pub fn confirmation_word() -> Localized {
     Localized::fixed("privacy.erase.word", "ERASE")
 }
@@ -179,9 +179,14 @@ pub fn app_only(items: &str) -> Localized {
 }
 
 /// Whether `typed` is exactly the confirmation word of `locale` (spaces
-/// around it ignored).
+/// around it ignored). Both sides are compared in Unicode NFC, so a
+/// keyboard or input method that sends an accented letter as a base letter
+/// plus a combining mark still matches; the English word is never accepted
+/// in place of another language's.
 pub fn word_matches(typed: &str, locale: &str) -> bool {
-    typed.trim() == confirmation_word().resolve(locale)
+    use unicode_normalization::UnicodeNormalization;
+    let word = confirmation_word().resolve(locale);
+    typed.trim().nfc().eq(word.nfc())
 }
 
 /// The typed word was not the confirmation word: nothing was erased.
@@ -889,6 +894,39 @@ mod tests {
         let label = item_label("vault.oauth").unwrap();
         assert_ne!(label.resolve("pt-BR"), label.resolve("en-US"));
         assert!(!label.resolve("en-US").contains("cuotai.oauth"));
+    }
+
+    /// PRD 0052 re-validation V-03: a word typed as a base letter plus a
+    /// combining mark (an input method's decomposed form) matches the
+    /// catalog's composed word in every language; the English word still
+    /// does not stand in for another language's.
+    #[test]
+    fn the_confirmation_word_matches_in_any_unicode_form() {
+        use unicode_normalization::UnicodeNormalization;
+        assert!(word_matches("XO\u{0301}A", "vi"));
+        assert!(word_matches("SI\u{0307}L", "tr"));
+        assert!(word_matches("LO\u{0308}SCHEN", "de"));
+        // Hangul typed as conjoining jamo.
+        assert!(word_matches(
+            "\u{1109}\u{1161}\u{11A8}\u{110C}\u{1166}",
+            "ko"
+        ));
+        for locale in [
+            "en-US", "pt-BR", "es", "it", "de", "fr", "ru", "ko", "ja", "zh-CN", "hi-IN", "id-ID",
+            "tr", "vi",
+        ] {
+            let word = confirmation_word().resolve(locale);
+            let decomposed: String = word.nfd().collect();
+            assert!(word_matches(&decomposed, locale), "{locale}: {word}");
+            assert!(word_matches(&format!(" {decomposed} "), locale), "{locale}");
+            if locale != "en-US" {
+                assert!(!word_matches("ERASE", locale), "{locale} accepts ERASE");
+            }
+        }
+        assert!(
+            !word_matches("XOA", "vi"),
+            "a missing accent must not match"
+        );
     }
 
     #[test]

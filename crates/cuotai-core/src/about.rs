@@ -414,6 +414,13 @@ static LIBRARIES: &[Library] = &[
         &[Core],
     ),
     lib(
+        "unicode-normalization",
+        "(MIT OR Apache-2.0) AND Unicode-3.0",
+        "https://github.com/unicode-rs/unicode-normalization",
+        Role::Runtime,
+        &[Core],
+    ),
+    lib(
         "unicode-segmentation",
         "MIT OR Apache-2.0",
         "https://github.com/unicode-rs/unicode-segmentation",

@@ -43,8 +43,12 @@ export function erasePanelHtml(plan, includeConfig = false) {
       <button class="btn" data-erase-all-cancel>${te("confirm.cancel")}</button></div>`;
 }
 
-/** The confirm button stays off until the typed text is exactly the word (spaces around it ignored, as in Rust). */
-export const wordMatches = (typed, word) => typeof typed === "string" && !!word && typed.trim() === word;
+/** The typed word as Rust compares it: spaces around it dropped, in Unicode NFC (an input method may send an accented
+ *  letter as a base letter plus a combining mark). */
+export const typedWord = (typed) => (typeof typed === "string" ? typed.trim().normalize("NFC") : "");
+/** The confirm button stays off until the typed text is exactly the word (spaces around it ignored and both sides in
+ *  NFC, as in Rust). The English word never stands in for another language's. */
+export const wordMatches = (typed, word) => typeof typed === "string" && !!word && typedWord(typed) === word.normalize("NFC");
 
 /** A partial erase: the ids that failed (never a path), with Try again and Quit; the background work stays stopped. */
 export function partialHtml(result) {
@@ -71,7 +75,7 @@ export function bindErase(root) {
       msg.textContent = "";
       confirm.disabled = true;
       try {
-        const result = await eraseAllData(includeConfig, word.value);
+        const result = await eraseAllData(includeConfig, typedWord(word.value));
         if (result.complete) { box.innerHTML = `<p class="hint" role="status" data-erase-done>${te("settings.erase.done")}</p>`; return; }
         box.innerHTML = partialHtml(result);
         box.querySelector("[data-erase-retry]").onclick = () => { draw(); };

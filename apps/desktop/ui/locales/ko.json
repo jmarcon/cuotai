@@ -216,6 +216,7 @@
   "settings.doctor.help": "이 컴퓨터의 설정을 오프라인으로, 아무것도 바꾸지 않고 점검합니다: 계정 파일, 각 계정의 변수(설정 여부만, 값은 절대 표시 안 함), 데이터베이스, 훅, 설정, 로컬 서버. 문제마다 해야 할 일을 알려 줍니다. cuotai --doctor와 같습니다.",
   "settings.doctor.copy": "진단 복사",
   "settings.doctor.copyHelp": "진단 복사는 아래 텍스트를 그대로 복사합니다. 계정 이름, 키 값, 파일 내용은 들어 있지 않습니다. 아무것도 전송되지 않으니 읽어 본 뒤 원하는 곳에 붙여 넣으세요.",
+  "settings.files.doctor_report_hint": "이 보고서에는 환경 변수의 이름이 나오지만 그 값은 절대 나오지 않습니다.",
   "settings.doctor.preview": "복사할 진단",
   "settings.doctor.copied": "복사했습니다.",
   "settings.doctor.copyFailed": "복사하지 못했습니다. 위 텍스트를 선택해 복사하세요.",

@@ -196,6 +196,7 @@
   "settings.doctor.help": "Kiểm tra cài đặt của máy này ở chế độ ngoại tuyến và không thay đổi gì: tệp tài khoản, biến của từng tài khoản (đã đặt hay chưa, không bao giờ hiện giá trị), cơ sở dữ liệu, hook, cài đặt và máy chủ cục bộ. Mỗi vấn đề kèm cách xử lý. Giống cuotai --doctor.",
   "settings.doctor.copy": "Sao chép chẩn đoán",
   "settings.doctor.copyHelp": "Sao chép chẩn đoán sao chép đúng đoạn văn bản bên dưới: không có tên tài khoản, giá trị khoá hay nội dung tệp. Không gửi gì đi; hãy đọc rồi dán vào nơi bạn muốn.",
+  "settings.files.doctor_report_hint": "Báo cáo này nêu tên các biến môi trường của bạn, không bao giờ nêu giá trị của chúng.",
   "settings.doctor.preview": "Chẩn đoán sẽ sao chép",
   "settings.doctor.copied": "Đã sao chép.",
   "settings.doctor.copyFailed": "Không sao chép được. Hãy chọn văn bản phía trên và sao chép.",
