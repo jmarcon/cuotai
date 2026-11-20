@@ -101,12 +101,46 @@ for (const locale of ["pt-BR", "en-US", "es", "it"]) {
 }
 console.log("other-config banner smoke: ok");
 
-// PRD 0051 RF5.4: the moved-file banner shows the core's question with one action and a dismiss; none without an offer.
+// PRD 0051 RF5.4: the moved-file banner shows the core's question with two answers ("Use this history", "Keep apart")
+// and a dismiss that only hides it for this run; none without an offer.
 const offer = { history_relocation: { id: "history.relocation.prompt", params: {}, fallback: "The configuration file moved: ~/old.toml no longer exists." } };
 assert.equal(lib.relocationBannerHtml({}), "", "no offer, no banner");
 const relocation = lib.relocationBannerHtml(offer);
 assert.match(relocation, /old\.toml/);
-assert.match(relocation, /data-relocation-adopt/);
-assert.match(relocation, /data-relocation-decline/);
+assert.match(relocation, /data-relocation-adopt>Use this history</);
+assert.match(relocation, /data-relocation-keep>Keep apart</, "Keep apart is the explicit decline");
+assert.match(relocation, /data-relocation-hide title="Dismiss" aria-label="Dismiss"/);
+assert.doesNotMatch(relocation, /data-relocation-decline/, "the close button must not decline the offer");
 assert.match(relocation, /role="status"/);
+// Dismiss hides only this question in this run; another offer shows, and a relaunch shows it again.
+lib.hideRelocation(offer);
+assert.equal(lib.relocationBannerHtml(offer), "", "dismiss hides the banner");
+const other = { history_relocation: { ...offer.history_relocation, fallback: "The configuration file moved: ~/older.toml no longer exists." } };
+assert.match(lib.relocationBannerHtml(other), /older\.toml/, "dismissing one offer hid another");
+lib = await relaunch();
+assert.match(lib.relocationBannerHtml(offer), /old\.toml/, "a dismissed offer must come back at the next start");
+// The main window wires Keep apart to the decline and the close button to the session hide, never the reverse.
+assert.match(main, /closest\("\[data-relocation-keep\]"\)\) return answerRelocation\(false\)/);
+assert.match(main, /closest\("\[data-relocation-hide\]"\)\) \{ hideRelocation\(store\.view\); return render\(\); \}/);
+assert.doesNotMatch(main, /data-relocation-hide[^\n]*answerRelocation/, "the close button answers the offer");
+for (const locale of ["de", "en-US", "es", "fr", "hi-IN", "id-ID", "it", "ja", "ko", "pt-BR", "ru", "tr", "vi", "zh-CN"]) {
+  const catalog = JSON.parse(await readFile(ui(`locales/${locale}.json`), "utf8"));
+  assert.ok(catalog["relocation.use"] && catalog["relocation.keep"], `${locale}: missing relocation answers`);
+  if (locale !== "en-US") assert.notEqual(catalog["relocation.keep"], "Keep apart", `${locale}: Keep apart left in English`);
+}
 console.log("relocation banner smoke: ok");
+
+// PRD 0051 RF1.2/RF1.3: an account set aside is an error banner; an unknown key kept and ignored is information.
+const notes = {
+  config_notices: [
+    { kind: "issue", text: { id: "config.account.requires_newer", params: {}, fallback: "Account 2 needs a newer Cuotai." } },
+    { kind: "warning", text: { id: "config.warning.unknown_key", params: {}, fallback: "surprise is not known to this version of Cuotai." } },
+  ],
+};
+assert.equal(lib.configNoticesHtml({}), "", "no notices, no banner");
+const html = lib.configNoticesHtml(notes);
+assert.match(html, /<div class="banner bad" role="status" data-config-notice="issue"><svg[^]*?Account 2 needs a newer Cuotai\.<\/div>/);
+assert.match(html, /<div class="banner info" role="status" data-config-notice="warning"><svg[^]*?surprise is not known/);
+assert.doesNotMatch(html, /banner bad[^>]*data-config-notice="warning"/, "a harmless warning must not use the error tone");
+assert.match(main, /\$\{configNoticesHtml\(view\)\}/, "main window no longer renders the config notices");
+console.log("config notices smoke: ok");

@@ -110,6 +110,7 @@
   "quota.resetsIn": "dalam {time}",
   "quota.na": "T/A",
   "relocation.use": "Gunakan riwayat ini",
+  "relocation.keep": "Biarkan terpisah",
   "settings.agg.all": "Koneksi agregator di Semua",
   "settings.agg.all.grouped": "Dikelompokkan (bawaan)",
   "settings.agg.all.hidden": "Disembunyikan",

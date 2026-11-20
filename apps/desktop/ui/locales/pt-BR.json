@@ -99,6 +99,7 @@
   "dialog.aggregator.testingSave": "Testando a conexão antes de salvar…",
   "dialog.aggregator.title": "Testar conexão",
   "relocation.use": "Usar este histórico",
+  "relocation.keep": "Manter separado",
   "settings.agg.all": "Conexões de agregadores em Todas",
   "settings.agg.all.grouped": "Agrupadas (padrão)",
   "settings.agg.all.hidden": "Ocultas",

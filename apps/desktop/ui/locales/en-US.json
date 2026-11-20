@@ -110,6 +110,7 @@
   "quota.resetsIn": "in {time}",
   "quota.na": "N/A",
   "relocation.use": "Use this history",
+  "relocation.keep": "Keep apart",
   "settings.agg.all": "Aggregator connections in All",
   "settings.agg.all.grouped": "Grouped (default)",
   "settings.agg.all.hidden": "Hidden",

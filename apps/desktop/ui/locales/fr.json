@@ -458,6 +458,7 @@
   "quota.resetsIn": "dans {time}",
   "quota.na": "N/D",
   "relocation.use": "Utiliser cet historique",
+  "relocation.keep": "Garder séparé",
   "settings.agg.all": "Connexions des agrégateurs dans Tous",
   "settings.agg.all.grouped": "Groupées (par défaut)",
   "settings.agg.all.hidden": "Masquées",

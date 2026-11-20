@@ -110,6 +110,7 @@
   "quota.resetsIn": "en {time}",
   "quota.na": "N/D",
   "relocation.use": "Usar este historial",
+  "relocation.keep": "Mantener aparte",
   "settings.agg.all": "Conexiones de agregadores en Todas",
   "settings.agg.all.grouped": "Agrupadas",
   "settings.agg.all.hidden": "Ocultas",

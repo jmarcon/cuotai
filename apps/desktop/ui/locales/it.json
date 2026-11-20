@@ -110,6 +110,7 @@
   "quota.resetsIn": "tra {time}",
   "quota.na": "N/D",
   "relocation.use": "Usa questa cronologia",
+  "relocation.keep": "Tieni separata",
   "settings.agg.all": "Connessioni degli aggregatori in Tutti",
   "settings.agg.all.grouped": "Raggruppate (predefinito)",
   "settings.agg.all.hidden": "Nascoste",

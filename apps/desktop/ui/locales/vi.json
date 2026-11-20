@@ -169,6 +169,7 @@
   "quota.resetsIn": "sau {time}",
   "quota.na": "Không có",
   "relocation.use": "Dùng lịch sử này",
+  "relocation.keep": "Giữ riêng",
   "settings.agg.all": "Kết nối bộ tổng hợp trong Tất cả",
   "settings.agg.all.grouped": "Gộp nhóm (mặc định)",
   "settings.agg.all.hidden": "Đã ẩn",

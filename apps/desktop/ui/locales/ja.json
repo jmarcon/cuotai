@@ -187,6 +187,7 @@
   "quota.resetsIn": "{time}後",
   "quota.na": "該当なし",
   "relocation.use": "この履歴を使う",
+  "relocation.keep": "別々にしておく",
   "settings.agg.all": "「すべて」でのアグリゲーター接続",
   "settings.agg.all.grouped": "グループ化（既定）",
   "settings.agg.all.hidden": "非表示",
