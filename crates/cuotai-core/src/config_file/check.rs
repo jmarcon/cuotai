@@ -117,13 +117,22 @@ fn check_bytes_at(bytes: &[u8], identity: Option<&super::ConfigIdentity>) -> Con
                 &String::from_utf8_lossy(&bytes[..error.valid_up_to()]),
                 usize::MAX,
             );
-            let mut found = diagnostic(&ConfigError::Parse {
-                line,
-                column,
+            // PRD 0051 re-validation V-06: say what is wrong, not "not
+            // valid TOML", so the user saves the file as UTF-8.
+            return failed(ConfigDiagnostic {
+                kind: "not_utf8",
+                line: Some(line),
+                column: Some(column),
                 path: None,
+                note: Localized::with_params(
+                    "config.error.not_utf8",
+                    crate::text::params([
+                        ("line", crate::text::ParamValue::from(line)),
+                        ("column", crate::text::ParamValue::from(column)),
+                    ]),
+                    "The configuration is not UTF-8 text at line {line}, column {column}; save it as UTF-8.",
+                ),
             });
-            found.kind = "not_utf8";
-            return failed(found);
         }
     };
     let result = parse(text, ConfigParseMode::Strict).and_then(|parsed| {
@@ -324,6 +333,22 @@ mod tests {
             );
             assert!(!found.note.resolve("en-US").contains("sk-live"));
         }
+    }
+
+    /// PRD 0051 re-validation V-06: a file that is not UTF-8 says so.
+    #[test]
+    fn a_file_that_is_not_utf8_says_so_with_its_position() {
+        let check = check_bytes(b"refresh_seconds = 60\nname = \"caf\xe9\"\n");
+        assert!(!check.valid);
+        let found = &check.diagnostics[0];
+        assert_eq!(found.kind, "not_utf8");
+        assert_eq!((found.line, found.column), (Some(2), Some(12)));
+        assert_eq!(found.note.id, "config.error.not_utf8");
+        let text = found.note.resolve("en-US");
+        assert!(text.contains("UTF-8") && text.contains("line 2"), "{text}");
+        assert!(!text.contains("TOML"), "{text}");
+        let german = found.note.resolve("de");
+        assert!(german.contains("UTF-8") && german.contains('2'), "{german}");
     }
 
     #[test]

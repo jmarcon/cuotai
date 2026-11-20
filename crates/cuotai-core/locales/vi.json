@@ -523,6 +523,7 @@
   "config.account.requires_newer": "Tài khoản {number} dùng {path} mà phiên bản Cuotai này không biết; tài khoản bị bỏ qua và các tài khoản khác vẫn hoạt động. Hãy cập nhật Cuotai, hoặc chạy cuotai --check-config để tìm lỗi gõ.",
   "config.error.not_found": "Không có tệp cấu hình tại {path}.",
   "config.error.parse": "Cấu hình không phải TOML hợp lệ tại dòng {line}, cột {column}.",
+  "config.error.not_utf8": "Cấu hình không phải văn bản UTF-8 tại dòng {line}, cột {column}; hãy lưu ở dạng UTF-8.",
   "config.error.parse_account_id": "Cấu hình có {path} không hợp lệ tại dòng {line}, cột {column}: id gồm 4 đến 40 chữ thường, chữ số, _ hoặc - (Cuotai ghi acc_ theo sau là 12 ký tự).",
   "config.error.parse_key": "Cấu hình có {path} không xác định hoặc không hợp lệ tại dòng {line}, cột {column}.",
   "config.error.unreadable": "Không đọc được tệp cấu hình tại {path}.",

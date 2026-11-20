@@ -521,6 +521,7 @@
   "config.account.requires_newer": "Akun {number} memakai {path}, yang tidak dikenal versi Cuotai ini; akun dilewati dan akun lain tetap berfungsi. Perbarui Cuotai, atau jalankan cuotai --check-config untuk menemukan salah ketik.",
   "config.error.not_found": "Tidak ada file konfigurasi di {path}.",
   "config.error.parse": "Konfigurasi bukan TOML yang valid di baris {line}, kolom {column}.",
+  "config.error.not_utf8": "Konfigurasi bukan teks UTF-8 di baris {line}, kolom {column}; simpan sebagai UTF-8.",
   "config.error.parse_account_id": "Konfigurasi memiliki {path} yang tidak valid di baris {line}, kolom {column}: id terdiri dari 4 sampai 40 huruf kecil, angka, _ atau - (Cuotai menulis acc_ diikuti 12 karakter).",
   "config.error.parse_key": "Konfigurasi memiliki {path} yang tidak dikenal atau tidak valid di baris {line}, kolom {column}.",
   "config.error.unreadable": "File konfigurasi di {path} tidak dapat dibaca.",
