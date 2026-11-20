@@ -204,6 +204,17 @@ assert.ok(budgets.every((m) => m.kind === "quota" && m.budget_badge?.id === "bud
 assert.ok(budgets.some((m) => m.state === "exhausted" && !m.allowance), "a budget over its limit has no allowance");
 assert.ok(budgets.some((m) => m.partial === true && m.derived_from.partial === true && m.used != null), "a partial budget keeps a lower-bound used");
 assert.ok(budgets.some((m) => m.unit === "EUR" && m.used == null), "a budget in another currency is not counted");
+// Owner decision 2026-11-20 (DS-CMP-HON-5): a partial budget's meter and share-left figure are dimmed, never combined
+// with the stale treatment.
+const partialBudget = budgets.find((m) => m.partial);
+const { metricCardHtml } = await import("../apps/desktop/ui/js/detail.js");
+const partialCard = metricCardHtml(spendAcc, partialBudget);
+assert.match(partialCard, /class="mtr [a-z]+ partial"/, "the partial budget's meter is dimmed");
+assert.match(partialCard, /class="pct partial"/, "its share left is dimmed");
+assert.doesNotMatch(metricCardHtml(spendAcc, budgets.find((m) => !m.partial && m.used != null)), /partial/, "a complete budget is not");
+assert.doesNotMatch(c.meterHtml(40, { state: "stale", partial: true }), /partial/, "stale wins over partial");
+assert.doesNotMatch(c.meterHtml(null, { partial: true }), /partial/, "an unknown meter keeps the hatch alone");
+assert.match(c.figureHtml("40%", "left", { partial: true }), /class="fig partial"/);
 assert.deepEqual(spendAcc.notes_l10n.map((n) => n.id), ["note.budget.partial", "note.budget.unit_mismatch_named"]);
 assert.deepEqual(spendAcc.notes_l10n[1].params, { budget: "Euro cap", metric_unit: "USD", budget_unit: "EUR" });
 assert.ok(spendAcc.metrics.some((m) => !m.derived && m.budget_draft), "a metric offers Set a budget…");

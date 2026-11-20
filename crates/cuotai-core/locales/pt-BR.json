@@ -2,6 +2,7 @@
   "_meta": {
     "name": "Português",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2666,6 +2667,7 @@
   "metric.label.budget_monthly": "Orçamento mensal · {label}",
   "metric.label.budget_monthly_from": "Orçamento mensal desde o dia {day} · {label}",
   "metric.label.budget_cycle": "Orçamento do ciclo · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "a conta de serviço lê apenas o AI analytics, e a JetBrains não oferece lista de modelos para ela.",
   "models.unsupported.reason.admin_key": "a conta guarda uma chave de administração, gerenciamento ou analytics, que o provedor não documenta para listar modelos; deixe essa chave no parâmetro próprio dela e uma chave de inferência como credencial da conta.",

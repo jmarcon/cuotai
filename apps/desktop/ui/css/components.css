@@ -60,6 +60,12 @@
   outline: var(--border-w) dotted var(--fg-muted);
   outline-offset: var(--space-0);
 }
+/* DS-CMP-HON-5: a partial budget (its use a lower bound, so the share left an upper bound) = 50 %, no dotted outline */
+.mtr.partial,
+.fig.partial,
+.pct.partial {
+  opacity: 0.5;
+}
 /* DS-CMP-MTR-6: a borderless translucent band, at most 2 px taller than the bar, never interactive */
 .mtr .pm {
   position: absolute;

@@ -925,6 +925,18 @@ pub(crate) const ENGLISH_LABELS: &[(&str, &str, &str)] = &[
 
 /// The display text of a metric label, unit or period.
 pub fn metric_text(raw: &str) -> Localized {
+    // PRD 0041 (owner decision 2026-11-20): a repeated default budget
+    // label carries " (2)", " (3)"…; the label itself is still translated.
+    if let Some((base, number)) = crate::budget::numbered_default_label(raw) {
+        return Localized::with_params(
+            "metric.label.budget_numbered",
+            BTreeMap::from([
+                ("label".to_owned(), ParamValue::l10n(metric_text(base))),
+                ("index".to_owned(), ParamValue::Text(number.to_owned())),
+            ]),
+            "{label} ({index})",
+        );
+    }
     for (template, id, english) in TABLE {
         if let Some(captures) = capture(template, raw) {
             return localized(id, english, captures);

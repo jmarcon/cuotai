@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2735,6 +2736,7 @@
   "metric.label.budget_monthly": "Ngân sách tháng · {label}",
   "metric.label.budget_monthly_from": "Ngân sách tháng từ ngày {day} · {label}",
   "metric.label.budget_cycle": "Ngân sách chu kỳ · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "tài khoản dịch vụ chỉ đọc AI analytics, và JetBrains không cung cấp danh sách mô hình cho nó.",
   "models.unsupported.reason.admin_key": "tài khoản lưu khóa quản trị, quản lý hoặc phân tích, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình; hãy để khóa đó trong tham số riêng và một khóa suy luận làm thông tin xác thực của tài khoản.",

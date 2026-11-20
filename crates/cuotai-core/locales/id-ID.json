@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2733,6 +2734,7 @@
   "metric.label.budget_monthly": "Anggaran bulanan · {label}",
   "metric.label.budget_monthly_from": "Anggaran bulanan mulai tanggal {day} · {label}",
   "metric.label.budget_cycle": "Anggaran siklus · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "akun layanan hanya membaca AI analytics, dan JetBrains tidak menyediakan daftar model untuknya.",
   "models.unsupported.reason.admin_key": "akun menyimpan kunci admin, manajemen, atau analitik, yang tidak didokumentasikan penyedia untuk mencantumkan model; simpan kunci itu di parameternya sendiri dan kunci inferensi sebagai kredensial akun.",

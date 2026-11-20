@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2806,6 +2807,7 @@
   "metric.label.budget_monthly": "मासिक बजट · {label}",
   "metric.label.budget_monthly_from": "दिन {day} से मासिक बजट · {label}",
   "metric.label.budget_cycle": "चक्र बजट · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "सेवा खाता केवल AI analytics पढ़ता है, और JetBrains इसके लिए मॉडल सूची नहीं देता।",
   "models.unsupported.reason.admin_key": "खाता एडमिन, मैनेजमेंट या एनालिटिक्स कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है; उस कुंजी को उसके अपने पैरामीटर में और इन्फ़रेंस कुंजी को खाते के क्रेडेंशियल के रूप में रखें।",

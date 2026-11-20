@@ -48,7 +48,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     ? `<p class="sub" data-renewed-waiting>${icon("clock")} ${esc(renewedText(m))}</p>`
     : text != null
     ? `<div class="balance ${m.state === "exhausted" && !extra ? "bad" : ""}">${esc(text)}</div>`
-    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), role: full ? "warn" : null, text: valueText, name: limitLabel(r, m) })}</div>`;
+    : `<div class="gauge" title="${pace ? te("card.pace.estimate") : ""}">${meterHtml(pct, { state, expected: expectedLeft(m), role: full ? "warn" : null, text: valueText, name: limitLabel(r, m), partial: !!m.partial })}</div>`;
   // PRD 0009 RF2.2: the core's binding metric gets the "Binding" tag; every other metric stays listed.
   const binding = isBindingMetric(r, m);
   // DS-CMP-SUB-1 (mockup 03): label + tag, the figure with its unit inline; the meter; the pace stage on the left and
@@ -68,7 +68,7 @@ export function metricCardHtml(r, m, { eye = false, stale = false } = {}) {
     <div class="metric-top">
       <h3>${esc(limitLabel(r, m))}${period ? ` <span class="period" data-period>· ${esc(period)}</span>` : ""}${budget ? ` <span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${m.alert?.active ? ` <span class="btag warn" data-usage-alert-chip>${icon("bell")}${te("alerts.activeTitle")}</span>` : ""}${binding ? ` <span class="btag" data-binding-chip title="${esc(`${t("card.binding.title")}: ${bindingChipText(r)}`)}">${te("binding.tag")}</span>` : ""}</h3>
       <div class="metric-right">
-        ${text == null && pct != null ? `<span class="pct" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${fmtShare(pct)}<small>${te("card.available")}</small></span>` : ""}
+        ${text == null && pct != null ? `<span class="pct${m.partial && !stale ? " partial" : ""}" title="${te(`metric.level.${lv}`, { pct: Math.round(pct) })}">${fmtShare(pct)}<small>${te("card.available")}</small></span>` : ""}
         ${eye ? metricAlertHtml(r, m) : ""}
         ${eye ? `<button class="icon" data-hide="${esc(metricKey(r, m))}" title="${te(hid ? "common.show" : "common.hide")}" aria-label="${te(hid ? "detail.metric.show" : "detail.metric.hide", { name: limitLabel(r, m) })}">${icon(hid ? "eye" : "eyeOff")}</button>` : ""}
       </div>

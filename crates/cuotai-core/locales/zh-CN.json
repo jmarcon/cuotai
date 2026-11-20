@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2771,6 +2772,7 @@
   "metric.label.budget_monthly": "每月预算 · {label}",
   "metric.label.budget_monthly_from": "每月预算（自 {day} 日起） · {label}",
   "metric.label.budget_cycle": "周期预算 · {label}",
+  "metric.label.budget_numbered": "{label}（{index}）",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "服务账号只读取 AI analytics，JetBrains 未为其提供模型列表。",
   "models.unsupported.reason.admin_key": "该账户保存的是管理、管理平台或分析密钥，提供商未公开用它列出模型的方式；请把该密钥放在其专用参数中，把推理密钥作为账户凭据。",

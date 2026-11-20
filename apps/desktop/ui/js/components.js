@@ -28,9 +28,10 @@ export function corridor(expectedLeft) {
  * the core's pace (only drawn on fresh meters); `thin`: the 4 px form with a tick instead of the corridor;
  * `mark`: the pace mark's form, "band" (corridor) or "tick" by default, "tri" (the triangle above the tray's thick
  * bar) or "dot" (on the tray's thin bar), DS-CMP-MTR-6c; `text`: the accessible value text (DS-CMP-MTR-9), built by
- * the caller from core texts.
+ * the caller from core texts; `partial`: a budget whose period was not fully recorded (its use is a lower bound,
+ * so the remaining share is an upper bound): dimmed, DS-CMP-HON-5.
  */
-export function meterHtml(pct, { state = "fresh", expected = null, thin = false, role = null, text = "", name = "", mark = null } = {}) {
+export function meterHtml(pct, { state = "fresh", expected = null, thin = false, role = null, text = "", name = "", mark = null, partial = false } = {}) {
   const unknown = state === "unknown" || (pct == null && state !== "exhausted");
   const value = state === "exhausted" ? 0 : unknown ? null : clamp(pct);
   const lv = role ?? (state === "exhausted" ? "bad" : level(value));
@@ -43,7 +44,7 @@ export function meterHtml(pct, { state = "fresh", expected = null, thin = false,
   const pm = !band ? "" : form === "band"
     ? `<span class="pm" style="left:${band.left}%;width:${band.width}%"></span>`
     : `<span class="pm ${form}" style="left:${band.center}%" aria-hidden="true"></span>`;
-  const cls = ["mtr", unknown ? "none" : lv, state === "stale" ? "stale" : "", thin ? "thin" : ""].filter(Boolean).join(" ");
+  const cls = ["mtr", unknown ? "none" : lv, state === "stale" ? "stale" : "", partial && !unknown && state !== "stale" ? "partial" : "", thin ? "thin" : ""].filter(Boolean).join(" ");
   const label = text || (value == null ? t("meter.noData") : t("meter.left", { pct: Math.round(value) }));
   // PRD 0020 RNF (axe aria-required-attr): a meter without a value is not a meter; it is an image named "No data".
   if (value == null) return `<div class="${cls}" role="img" aria-label="${esc(name || label)}">${fill}${pm}</div>`;
@@ -58,8 +59,8 @@ export const expectedLeft = (m) => {
 };
 
 /** DS-CMP-ROW-1b: figure on line 1, the unit word below it at --text-2xs; a word figure has no unit line. */
-export const figureHtml = (figure, unit = "", { role = "", dim = false, cls = "" } = {}) =>
-  `<span class="fig${dim ? " stale" : ""}${cls ? ` ${cls}` : ""}"><b class="${role}">${esc(figure)}</b>${unit ? `<small>${esc(unit)}</small>` : ""}</span>`;
+export const figureHtml = (figure, unit = "", { role = "", dim = false, partial = false, cls = "" } = {}) =>
+  `<span class="fig${dim ? " stale" : ""}${partial && !dim ? " partial" : ""}${cls ? ` ${cls}` : ""}"><b class="${role}">${esc(figure)}</b>${unit ? `<small>${esc(unit)}</small>` : ""}</span>`;
 
 /** PRD 0023 (mockup 10): paid extra usage as a column beside the exhausted limit: the amount, a meter of the extra
  *  budget left only when the cap is known (never a pace mark), and the cap under it. Re-validation: the number is the

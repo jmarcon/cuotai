@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2780,6 +2781,7 @@
   "metric.label.budget_monthly": "月次予算 · {label}",
   "metric.label.budget_monthly_from": "月次予算（{day} 日から） · {label}",
   "metric.label.budget_cycle": "サイクル予算 · {label}",
+  "metric.label.budget_numbered": "{label}（{index}）",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "サービスアカウントは AI analytics のみを読み取り、JetBrains はこれに対するモデル一覧を提供していません。",
   "models.unsupported.reason.admin_key": "このアカウントには管理・マネジメント・分析用のキーが保存されていますが、プロバイダーはそのキーでのモデル一覧取得を公開していません。そのキーは専用のパラメーターに、推論キーはアカウントの認証情報に設定してください。",
