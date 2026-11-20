@@ -97,6 +97,13 @@ static LIBRARIES: &[Library] = &[
         &[Core, Desktop],
     ),
     lib(
+        "block2",
+        "MIT",
+        "https://github.com/madsmtm/objc2",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
         "chrono",
         "MIT OR Apache-2.0",
         "https://github.com/chronotope/chrono",
@@ -200,6 +207,13 @@ static LIBRARIES: &[Library] = &[
     lib(
         "objc2-foundation",
         "MIT",
+        "https://github.com/madsmtm/objc2",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
+        "objc2-web-kit",
+        "Zlib OR Apache-2.0 OR MIT",
         "https://github.com/madsmtm/objc2",
         Role::Runtime,
         &[Desktop],
@@ -433,6 +447,27 @@ static LIBRARIES: &[Library] = &[
         "https://github.com/unicode-rs/unicode-width",
         Role::Runtime,
         &[Core, Tui],
+    ),
+    lib(
+        "webkit2gtk",
+        "MIT",
+        "https://github.com/tauri-apps/webkit2gtk-rs",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
+        "webview2-com",
+        "MIT",
+        "https://github.com/wravery/webview2-rs",
+        Role::Runtime,
+        &[Desktop],
+    ),
+    lib(
+        "windows-core",
+        "MIT OR Apache-2.0",
+        "https://github.com/microsoft/windows-rs",
+        Role::Runtime,
+        &[Desktop],
     ),
     lib(
         "windows-sys",

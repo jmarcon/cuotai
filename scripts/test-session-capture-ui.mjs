@@ -81,6 +81,12 @@ assert.match(privateHint, /dialog\.session\.captureHint\b/);
 // The English texts say what the user sees: the passkey limit and the way out.
 assert.match(en["dialog.session.capturePasskeyHint"], /Passkeys do not work in this window[\s\S]*Try another way/);
 assert.match(en["dialog.session.captureSharedHint"], /30 minutes/);
+// PRD 0056 RF6 (S-01): parking keeps only Google's cookies and erases every site's stored data, and the hint says so.
+assert.match(en["dialog.session.captureSharedHint"], /keeps only your Google sign-in cookies[\s\S]*cookies and stored data are erased/);
+for (const file of locales) {
+  const hint = JSON.parse(await readFile(ui(`locales/${file}`), "utf8"))["dialog.session.captureSharedHint"];
+  assert.doesNotMatch(hint, /keeps only your Google sign-in,|own cookies are erased/, `${file}: the old shared-window hint`);
+}
 assert.equal(lib.sessionCaptureHintHtml({ slot: "x", capture: false }), "");
 // PRD 0048 re-validation V-01: the hint is a block `div`, which no `.f > span` title rule can make bold.
 for (const html of [sharedHint, privateHint]) assert.ok(html.startsWith('<div class="session-capture-hint"') && html.endsWith("</div>"), html);

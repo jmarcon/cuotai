@@ -79,7 +79,37 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
   "NSStatusItem",
   "NSView",
 ] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSString",
+  # PRD 0056 RF3: the website data types the parked capture window erases.
+  "NSSet",
+  "NSDate",
+  "NSEnumerator",
+] }
+# PRD 0056 RF3 (`session_site_data`): erase every website data type but
+# cookies from the parked capture window's store. Already in the graph
+# through wry; the versions follow its.
+objc2-web-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "block2",
+  "objc2-app-kit",
+  "objc2-core-foundation",
+  "WKWebView",
+  "WKWebViewConfiguration",
+  "WKWebsiteDataStore",
+  "WKWebsiteDataRecord",
+] }
+block2 = "0.6"
+
+# PRD 0056 RF3 (`session_site_data`): the same erase on WebKitGTK and
+# WebView2, through the crates and features wry already uses.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0", features = ["v2_38"] }
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"
 
 [dev-dependencies]
 tempfile = "3"
