@@ -23,8 +23,8 @@ Written on 2026-10-27 as PRD 0043 by the 2026-10-25 PRD audit against `origin/ma
 | RF2 | 0.87.5 (partial) | RF2.4: rule 8 of the commit gate resolves a `Refs:` id to a definition in its plan (a heading, a bold item, a list item or a table row; `plan_links::defines_requirement`), scoped by the `RULES_SINCE` marker "refs-definition" because four older commits cite ids their plan only mentions; the gate and the `commit-msg` hook fail closed when `docs/plans` cannot be read. RF2.2 and the class half of RF2.3: `changelog-check` (and so `release prepare`) compares the header "Plans" counts, each plan's `\| Status \|`, its §2 row and its §4 node class (`plan_links::plan_status_problems`). Open: no separate `plans-check` command, no template check (RF1), and the weak edges of §4 (105 of the §2 weak dependencies have no dashed edge, re-validation V-05). |
 | RF3 | 0.87.5 (partial) | RF3.3 ordering half: `release prepare` writes each plan's ids in numeric order, and §3's column says "Requirements cited"; §1 and §3 state that a row is a citation, not proof of delivery. Open: RF3.1/RF3.2, §3 is still generated from every `Refs:` trailer (the 0.80.0 row still credits 0018 RF1.1/RF3.1 and 0039 RF5/RF7). |
 | RF4 | 0.87.5 (partial) | RF4.3 partial: the control header field that `release prepare` writes before publication is labelled "Last release prepared" (the old label is still read). RF4.2/RF4.3 partial by hand: `40da9f4e` and `33f37d3c` made `README.md`, `docs/installing.md` and the plan statuses match the published 0.80.0; no typed `ReleaseState` or `release reconcile`. |
-| RF5 | — | Proposed. RF5.3 partial: `2d16fd09` adds two `release` approval gates; no distinct-reviewer requirement. RF5.1 and RF5.4 partial by hand in `b8348a16`: `docs/releasing.md` states the admin bypass with the PR #11 evidence, and PRD 0039 Appendix A no longer says "Do not tag". D1 and D3 stay open. |
-| RF6 | — | Proposed. RF6.2 partial: `2d16fd09` adds the weekly `advisories.yml`, which does not open an issue. RF6.7 partial: the release refusal of the dev store and the `.gitignore` entries exist, without a release-profile regression test. No Dependabot, MSRV job, secret scanning, bundled third-party licences or OS/EOL policy. |
+| RF5 | — | Proposed. RF5.3 partial: `2d16fd09` adds two `release` approval gates; no distinct-reviewer requirement. RF5.1 and RF5.4 partial by hand in `b8348a16`: `docs/releasing.md` states the admin bypass with the PR #11 evidence, and PRD 0039 Appendix A no longer says "Do not tag". D1 and D3 decided on 2026-11-20: D1 removes the bypass (a repository setting, applied after the decisions pull request); D3 keeps the self-approved publish, so RF5.3's distinct reviewer is declined. |
+| RF6 | vNEXT (partial) | RF6.3 by owner decision D2 (2026-11-20): `rust-version` removed, "pinned toolchain only" documented; D4 OS floors and D5 support window documented. RF6.2 partial: `2d16fd09` adds the weekly `advisories.yml`, which does not open an issue. RF6.7 partial: the release refusal of the dev store and the `.gitignore` entries exist, without a release-profile regression test. No Dependabot, MSRV job, secret scanning, bundled third-party licences or OS/EOL policy. |
 | RF7 | 0.87.5 (partial) | RF7.3 partial: `85f852e6` adds `release-check --since-version` (the published-release window, not yet the installed-version window). RF7.4 partial: the desktop What's new (`b2d8cbdd`, `0a931fa8`) renders the core's structured sections, and from 0.87.5 it and the TUI's `--changelog` show each entry through the core's `Entry::display_text`, without plan references and hashes, as the update notes do. Open: RF7.1/RF7.2, `latest.json.notes` and the release body still carry raw Markdown with references; RF7.5. |
 
 ## 1. Context
@@ -198,6 +198,14 @@ At each step run repository and desktop fmt, Clippy and tests; `workflow-check` 
 
 ## 13. Decisions needed from the owner
 
+**Taken on 2026-11-20** (the owner's answers; the table below keeps the original options):
+
+- **D1:** remove the `main` admin bypass (`bypass_actors: []`, PRD 0039 B-1). Applied by the orchestrator right after the decisions pull request merged.
+- **D2:** remove `rust-version = "1.89"` and promise only the pinned toolchain. Delivered in vNEXT: the workspace `Cargo.toml` and both crates no longer declare it; `docs/release-policy.md` and `docs/building.md` say "pinned toolchain only". RF6.3's default (an MSRV CI job) is therefore not built.
+- **D3:** keep the release approvals as they are (PRD 0039 B-2): the orchestrator approves with the owner's login, no second reviewer, and releases go out without asking. Recorded in `docs/releasing.md`; RF5.3's distinct-reviewer requirement is declined.
+- **D4:** published floors are macOS 12, Ubuntu 22.04 (glibc) and Windows 11; Windows 10 "should work, untested". Delivered in vNEXT in `README.md`, `docs/installing.md`, `docs/platforms.md`, `docs/gui-windows.md` and `docs/gui-linux.md`.
+- **D5:** only the latest release is supported. Delivered in vNEXT in `docs/release-policy.md` and `SECURITY.md`.
+
 | Decision | Options | Recommendation |
 |---|---|---|
 | D1 — `main` admin bypass | Remove it; or move agents to a non-bypass App/ruleset identity | Remove status-check bypass; retain no route that can merge red CI. |
@@ -240,7 +248,7 @@ Visual, Security and Review on `1d4711be`; Delivery on the PRD 0053+0054 pair br
 
 **Open items:**
 
-- The owner decisions D1 to D5 of §13 (D1 = PRD 0039 B-1, D3 = B-2, plus B-4).
+- ~~The owner decisions D1 to D5 of §13~~: taken on 2026-11-20 (see §13). D1 (bypass removal) and PRD 0039 B-3/B-4 are repository settings the orchestrator applies after the decisions pull request merges; D2, D4 and D5 are documented in vNEXT; D3 keeps the approvals as they are.
 - S-07/RF6.4 secret scanning, and the rest of RF6.
 - V-05/RF2.3: 105 weak dependencies of §2 have no dashed §4 edge.
 - RF3.1/RF3.2: the delivery-aware §3 renderer.

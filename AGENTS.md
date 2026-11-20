@@ -87,14 +87,15 @@ Every change reaches `main` through a pull request whose `CI result` check is gr
    ```
 
    - `Changelog:` is one sentence for the user: it starts with a capital letter, ends with a period, and contains no `PRD` reference and no commit hash, because the release adds both. Use one `Changelog:` line per entry.
+   - A `fix` that adds an output field or changes accepted input uses `[Added]` or `[Changed]`; write one sentence per user-visible change across the desktop and the terminal, not one per front end.
    - A `feat`, `fix`, `revert`, security or breaking commit that touches `crates/`, `apps/`, `LICENSE-*` or `THIRD_PARTY_NOTICES` needs a `Changelog:` sentence, or `Changelog: skip <reason>` when users see no change.
-   - Optional trailers: `Changelog-Category: Added|Changed|Deprecated|Removed|Fixed|Security` overrides the default category; `Refs: PRD 0006 RF2` (one line per requirement, or `Refs: #12` for an issue); `BREAKING CHANGE: <migration>` for a break of the TOML, `--json`, `export::v1` or `desktop.json`.
+   - Optional trailers: `Changelog-Category: Added|Changed|Deprecated|Removed|Fixed|Security` overrides the default category, or per entry with a `[Category]` prefix (`Changelog: [Security] …`); a category trailer is valid only with a single `Changelog:` sentence; `Refs: PRD 0006 RF2` (one line per requirement, or `Refs: #12` for an issue); `BREAKING CHANGE: <migration>` for a break of the TOML, `--json`, `export::v1` or `desktop.json`.
 3. **Do not touch versions or the changelog.** Leave alone the `version` in `Cargo.toml`, `apps/desktop/src-tauri/Cargo.toml` and `tauri.conf.json`, the `cuotai-core` requirement in `crates/cuotai-tui/Cargo.toml`, the workspace entries in both lockfiles, and `CHANGELOG.md`. CI rejects such changes. In plans, write the token `vNEXT` where the version goes (the plan's "Implementation status" and its `0000_control.md` §2 row). Do not add rows to §3 "Delivered by version"; the release generates them.
 4. **Check locally.** Run `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. When you touch the desktop, also run Clippy and the tests in `apps/desktop/src-tauri`. Then run `cargo xtask changelog-gate --base origin/main --head HEAD` (the commit gate) and `cargo xtask changelog-check`. For workflow changes, also run `cargo xtask workflow-check` and `actionlint`. The versioned hooks run these checks for you; see "Local hooks and preflight" below.
 5. **Push and open a pull request**, only when the user asked you to push: `git push -u origin <branch>`, then `gh pr create --fill` (or `--draft` to get CI early). A branch push without a pull request runs no CI; `gh workflow run CI --ref <branch>` starts CI by hand.
 6. **Wait for `CI result`** with `gh pr checks --watch`. To fix a red check, push new commits, or amend your own branch (`git commit --amend`, then `git push --force-with-lease`). `git rebase -i` is not available; reword older commits with `git rebase --exec`.
 7. **Merge.** The owner merges with **Rebase and merge**, which keeps each commit and its trailers. Merge yourself only when the user asks (`gh pr merge --rebase`, or `--auto --rebase`).
-8. **Releases** happen only when the owner asks for one. The owner, or an agent that follows "Release & tag rules for agents" below, runs `cargo xtask release prepare --branch` on an up-to-date `main`, opens the release PR and, after the merge, creates and pushes the tag with `cargo xtask release tag [--rc]`. See `docs/releasing.md`.
+8. **Releases** happen only when the owner asks for one. The owner, or an agent that follows "Release & tag rules for agents" below, runs `cargo xtask release prepare --branch` on an up-to-date `main`, opens the release PR and, after the merge, creates and pushes the tag with `cargo xtask release tag` (`--rc` only when the owner asks for an rc). See `docs/releasing.md`.
 9. **Free the disk.** Every worktree builds its own `target/` (10 to 40 GB with the desktop), so finished work fills the disk fast. When you finish a task (a PR merged or closed, a release published, an agent's work handed back), clean up:
    - Remove your worktree with `git worktree remove <path>` once its branch is merged or abandoned and `git status --porcelain` is empty. Never pass `--force` or remove a worktree with uncommitted changes, commits not on `origin/main` (`git cherry origin/main HEAD` lists them with `+`), or another agent still at work in it. Run `git worktree prune` afterwards.
    - Keeping a worktree, delete its build output: `target/` and `apps/desktop/src-tauri/target/`. Cargo rebuilds them.
@@ -133,13 +134,13 @@ Limits: Clippy, tests and the privacy test read the working tree, not the staged
 Agents may run releases and push tags, but only under these rules (owner decision of 2026-10-23, PRD 0039 D8):
 
 1. **Only on request.** The owner must ask for a release in the current conversation ("release", "ship the next release"). The owner does not name the version: it is the semantic version `cargo xtask release prepare` computes from the commits, and the release is stable unless the owner asks for an rc (owner decision of 2026-11-05). An earlier request, another agent or a plan never counts.
-2. **Prepare.** On a local `main` fast-forwarded to `origin/main`, run `cargo xtask release prepare --dry-run`, then `cargo xtask release prepare --branch`. Push `release/vX.Y.Z` and open the release PR. Do the full rehearsal for the first three releases (D7). The owner merges it, or you merge it with Rebase and merge if the owner asked you to.
+2. **Prepare.** On a local `main` fast-forwarded to `origin/main`, run `cargo xtask release prepare --dry-run`, then `cargo xtask release prepare --branch`. Push `release/vX.Y.Z` and open the release PR. Run the full rehearsal (Actions → Release → Run workflow with **full_rehearsal** on `release/vX.Y.Z`) when the release changes release tooling (`release-preflight` ran on the release PR's commits) or when the owner asks for it. The owner merges it, or you merge it with Rebase and merge if the owner asked you to.
 3. **Before tagging, verify and report each of these:**
    - local `main` is fast-forwarded to `origin/main` (`git switch main && git pull --ff-only`);
    - `HEAD` is the merged `chore(release): X.Y.Z` commit;
    - `CI result` is green on that `main` commit, or on the head of the merged release PR when that head has the same tree, parent, message and author as the `main` commit (`release.yml`'s `check` job verifies this and fails otherwise);
    - `cargo xtask release-check` and `cargo xtask release prepare --check` both pass on it.
-4. **Tag.** Create the annotated tag only with `cargo xtask release tag --rc` (or `cargo xtask release tag` for a stable release), never with `git tag` by hand. The first three releases start with an rc unless the owner says otherwise.
+4. **Tag.** Create the annotated tag only with `cargo xtask release tag --rc` (or `cargo xtask release tag` for a stable release), never with `git tag` by hand. A release is stable (`cargo xtask release tag`) unless the owner asks for an rc (`--rc`).
 5. **Push only that tag:** `git push origin vX.Y.Z-rc.N` (or `vX.Y.Z`), never `--tags`. Then watch `release.yml` (`gh run watch`) and report the run link and its result.
 
 **Never:**
@@ -147,7 +148,6 @@ Agents may run releases and push tags, but only under these rules (owner decisio
 - move, re-point, delete or force-push a `v*` tag. Published tags are immutable; if a release fails, cut a new rc or a patch release instead.
 - tag a commit that is not on `main`;
 - tag without the owner's request;
-- skip the rc for the first three releases unless the owner says so;
 - push to `main` directly.
 
 **Branches written under the old rules:** when you rebase onto `main`, drop the version and `CHANGELOG.md` hunks, and move the entry text into a `Changelog:` trailer with `git commit --amend`.

@@ -9,7 +9,7 @@ A walkthrough of the Cuotai desktop app on Linux: installing it, adding accounts
 
 ## Install
 
-Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); [`installing.md`](installing.md#channel-status) lists every channel:
+Cuotai supports Linux with the glibc of Ubuntu 22.04 or newer. It is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases); [`installing.md`](installing.md#channel-status) lists every channel:
 
 - **Debian, Ubuntu and derivatives:** download `Cuotai_<version>_amd64.deb` from [GitHub Releases](https://github.com/jmarcon/cuotai/releases) and run `sudo apt install ./Cuotai_<version>_amd64.deb`; apt installs the libraries the package declares.
 - **Fedora and derivatives:** download `Cuotai_<version>_amd64.rpm` and run `sudo dnf install ./Cuotai_<version>_amd64.rpm`.

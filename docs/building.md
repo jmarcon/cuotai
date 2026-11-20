@@ -4,7 +4,7 @@ Most people install a release (see [`installing.md`](installing.md#channel-statu
 
 ## Prerequisites
 
-- **Rust / Cargo**, 2021 edition. The repository pins the toolchain in `rust-toolchain.toml` (currently 1.99.1) and rustup picks it up automatically. There is no JavaScript package manager: the desktop interface is plain HTML, CSS and JS in `apps/desktop/ui/`, and dependencies come only through Cargo.
+- **Rust / Cargo**, 2021 edition. The repository pins the toolchain in `rust-toolchain.toml` (currently 1.99.1) and rustup picks it up automatically; it is the only toolchain Cuotai promises to build with (no `rust-version` floor is declared). There is no JavaScript package manager: the desktop interface is plain HTML, CSS and JS in `apps/desktop/ui/`, and dependencies come only through Cargo.
 - *(Optional)* **AWS CLI v2** on your `PATH` for `aws_bedrock` accounts.
 - *(Optional)* **Bailian CLI (`bl`)** for the console login of `alibaba_token_plan`.
 - **Linux, desktop app only:** the Tauri build libraries. The release workflow installs, on Ubuntu, `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf` (plus `rpm` to build the `.rpm`); other distributions have equivalent packages.

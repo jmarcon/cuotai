@@ -48,8 +48,10 @@ rc:
    a noreply one. `--branch` also writes the release PR body to
    `$(git rev-parse --git-path cuotai-release-pr-body.md)`: the bump
    rationale, the wording edits, the commits skipped with their reasons, the
-   section, and the [manual desktop checklist](#manual-desktop-checklist-per-release)
-   under "After publication, by a person (not a merge condition)".
+   section, and, when a commit since the base changed `apps/desktop/` or
+   `packaging/`, the [manual desktop checklist](#manual-desktop-checklist-per-release)
+   under "After publication, by a person (not a merge condition)"; otherwise
+   that heading says no checklist is due (owner decision B-9).
 3. **Release PR.** `git push -u origin release/vX.Y.Z`, then
    `gh pr create --base main --head release/vX.Y.Z --title "chore(release): X.Y.Z" --body-file "$(git rev-parse --git-path cuotai-release-pr-body.md)"`
    (`release prepare` prints this command with the path).
@@ -88,10 +90,12 @@ rc:
    only commit is a release commit verified line by line runs only the
    release checks (`commit-policy`, `changelog-gate`, `changelog-check`,
    `release-check` and `release prepare --check`), not Clippy and the tests;
-   anything else (a second commit, a hand edit) gets the full selection. D7
-   asks for a run of **Actions → Release → Run workflow** on
-   `release/vX.Y.Z` with **full_rehearsal** for the first three releases,
-   and recommends it afterwards when release tooling changed.
+   anything else (a second commit, a hand edit) gets the full selection. Run
+   **Actions → Release → Run workflow** on `release/vX.Y.Z` with
+   **full_rehearsal** when the release changes release tooling
+   (`release-preflight` ran on the release PR's commits) or when the owner
+   asks for it (owner decision B-8 of 2026-11-20; D7's "first three
+   releases" are long past).
 4. **Merge** with **Rebase and merge**.
 5. **Tag** (the owner, or an agent under the rules below, right after the
    release PR merged; there is no need to wait for the `main` CI run of the
@@ -159,15 +163,18 @@ Homebrew). Credential validation now runs first inside every signing build.
 In practice the approvals are given through the API by the agent session
 that runs the release, with the owner's login and under the owner's
 standing instruction (run 44047156067 of v0.86.7), so the reviewer is not a
-party independent of the agent's token; an independent reviewer is an open
-owner decision (PRD 0039 re-validation B-2, PRD 0053 D3).
+party independent of the agent's token. The owner decided on 2026-11-20 to
+keep this (PRD 0039 re-validation B-2, PRD 0053 D3): no second reviewer, the
+orchestrating agent approves with the owner's login, and releases go out
+without asking the owner each time.
 
-The reviewer-free `channels` environment is meant to accept only the
-immutable, admin-created `v*` tags, but it has **no deployment rule yet**:
-today a run from any branch or same-repository pull request that declares
-`environment: channels` would receive its tokens (fork pull requests receive
-no secrets). Setting the tag rule `v*` on `channels` is an open owner step
-(re-validation B-4; see [Owner prerequisites](#owner-prerequisites-one-time-rf91)).
+The reviewer-free `channels` environment accepts only the immutable,
+admin-created `v*` tags: the owner decided on 2026-11-20 (re-validation B-4)
+to give it the deployment rule `v*` (tags only), applied right after the pull
+request that recorded the decision merged. Before that, a run from any
+branch or same-repository pull request that declared `environment: channels`
+would have received its tokens (fork pull requests receive no secrets). See
+[Owner prerequisites](#owner-prerequisites-one-time-rf91).
 
 An interrupted or failing run leaves at most a **draft** release — never a
 public partial one. The channel jobs run last, are independent of each
@@ -774,8 +781,9 @@ Before the first real release:
    Dispatch rehearsals instead enter the separate, secretless `rehearsal`
    environment and cannot read production secrets. See
    [`docs/updater-security.md`](updater-security.md) for the updater key's own
-   requirements. **Open (checked on 2026-11-17):** `release` has its `v*`
-   restriction, but `channels` has no deployment rule at all. To set it:
+   requirements. `release` has its `v*` restriction; `channels` got its
+   `v*` tag rule after the pull request that recorded owner decision B-4
+   (2026-11-20) merged, with:
 
    ```sh
    gh api -X PUT repos/jmarcon/cuotai/environments/channels \
@@ -813,7 +821,9 @@ Before the first real release:
    `AUR_SSH_PRIVATE_KEY` (only the AUR account's SSH key) and
    `CARGO_REGISTRY_TOKEN` (only the crates.io scopes needed to publish
    `cuotai-core` and `cuotai-tui`). Set them, verify the new environment, then
-   remove any old copies from `release`:
+   remove any old copies from `release` (the unused tap and bucket tokens
+   still held by `release` were removed after the 2026-11-20 decisions PR
+   merged):
 
    ```sh
    gh secret set HOMEBREW_TAP_TOKEN --env channels
@@ -921,8 +931,9 @@ agents" of [`AGENTS.md`](../AGENTS.md). In short:
   `release.yml` and reports the result.
 - No `v*` tag is ever moved, re-pointed, deleted or force-pushed. A failed
   release is followed by a new rc or a patch release, never a moved tag.
-- The first three releases start with an rc unless the owner says otherwise
-  (D7).
+- A release is stable unless the owner asks for an rc (owner decision of
+  2026-11-05; the "first three releases start with an rc" rule of D7 is
+  retired).
 
 ## Branch and tag protection (PRD 0039 RF7, owner)
 
@@ -1012,21 +1023,26 @@ red or still pending: a non-admin cannot, an admin (the owner, or an agent
 with the owner's token) can. It has been used: PR #11 merged on 2026-10-23
 while `CI result` was still running (it later concluded green). The
 [CI result proof](#ci-result-proof-rf54) of `release.yml` stops a tag on a
-commit without a green `CI result`, but not such a merge. Removing the
-bypass, or giving agents a non-admin identity, is an open owner decision
-(re-validation B-1, PRD 0053 D1).
+commit without a green `CI result`, but not such a merge. The owner decided
+on 2026-11-20 to remove the bypass (re-validation B-1, PRD 0053 D1): the
+`main` ruleset's `bypass_actors` is set to `[]` right after the pull request
+that recorded the decision merged, so from then on nobody, admins included,
+can merge a pull request whose `CI result` is red or pending. The ruleset
+above is the original one; apply it with `"bypass_actors": []`. An
+emergency merge needs a logged ruleset edit first.
 Agents can create `v*` tags. The release rules of `AGENTS.md` decide when
 they may; the immutability ruleset makes sure no one, the owner included,
 can move or delete a published tag. Code
 scanning does not block merges yet (D13); enable code-scanning merge
 protection for high and critical alerts once the flow has run for a few
 weeks. Check the result once: a direct push to `main` is refused, and a
-pull request with a red `CI result` cannot be merged by a non-admin.
+pull request with a red `CI result` cannot be merged (by anyone once the bypass is removed).
 
-GitHub's **immutable releases** (RF7.4: "where available") are **off**
-(checked on 2026-11-17), so a token with `contents: write` can still replace
-the assets of a published release. Turning them on is an open owner step
-(re-validation B-3):
+GitHub's **immutable releases** (RF7.4: "where available") are **on**: the
+owner decided on 2026-11-20 (re-validation B-3) to enable them, applied
+right after the pull request that recorded the decision merged. Before that,
+a token with `contents: write` could replace the assets of a published
+release. The setting:
 
 ```sh
 gh api -X PUT repos/jmarcon/cuotai/immutable-releases
@@ -1122,8 +1138,11 @@ GitHub Actions**. It creates the `github-pages` environment. Until then the
 
 ## Manual desktop checklist per release
 
-The pipeline verifies checksums and provenance automatically. Before announcing
-a release, a person completes every item:
+The pipeline verifies checksums and provenance automatically. After a release
+that changed `apps/desktop/` or packaging (`packaging/`), a person completes
+every item (owner decision B-9 of 2026-11-20, PRD 0039 RF4.5); a release
+without such a change needs none of them. `release prepare --branch` copies
+this list into the release PR body only when it is due:
 
 - [ ] Open the DMG/app on macOS and record the Gatekeeper verdict when it is
   notarized.

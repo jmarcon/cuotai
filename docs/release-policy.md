@@ -59,9 +59,10 @@ did not change.
 
 Where to ask and the response targets are in [`SUPPORT.md`](../SUPPORT.md).
 
-Only the **latest stable** release is supported. Fixes and security
-patches ship as the next release from `main`; there are no backport
-branches for older minors. Release candidates (`vX.Y.Z-rc.N`) are
+Only the **latest stable** release is supported (owner decision of
+2026-11-20, PRD 0053 D5: no overlap window for the previous release).
+Fixes and security patches ship as the next release from `main`; there are
+no backport branches for older minors. Release candidates (`vX.Y.Z-rc.N`) are
 preview builds and are not covered.
 
 ## Reproducibility (RF6.2)
@@ -69,8 +70,11 @@ preview builds and are not covered.
 - **Committed lockfiles:** both `Cargo.lock` and
   `apps/desktop/src-tauri/Cargo.lock` are versioned, and CI and the release
   pipeline build with `--locked`.
-- **Pinned toolchain:** CI and the release workflow pin Rust **1.99.1**
-  (also recorded in `rust-toolchain.toml`).
+- **Pinned toolchain only:** CI and the release workflow pin Rust
+  **1.99.1** (also recorded in `rust-toolchain.toml`), and that is the only
+  toolchain Cuotai promises to build with. The crates declare no
+  `rust-version` (owner decision of 2026-11-20, PRD 0053 D2): an older
+  compiler may work, but no floor is tested, so none is claimed.
 - **Per-release SBOM:** the release pipeline generates a CycloneDX 1.5 SBOM
   per release — one BOM per workspace merged into the single
   `sbom.cdx.json` release asset (`xtask/src/sbom.rs`, `sbom` job of
