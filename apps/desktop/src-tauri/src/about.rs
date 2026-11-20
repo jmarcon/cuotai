@@ -2,7 +2,7 @@
 //! repositories in the default browser.
 
 use cuotai_core::about::{self, Library};
-use cuotai_core::changelog::{self, Changelog, Release, Section};
+use cuotai_core::changelog::{self, Changelog, Entry, Release, Section};
 use cuotai_core::text::{
     changelog_category_l10n, changelog_entries_language_l10n, changelog_title_l10n, Localized,
 };
@@ -78,11 +78,7 @@ fn notes(section: &Section) -> NotesView {
             .iter()
             .map(|block| CategoryView {
                 label: changelog_category_l10n(block.category),
-                entries: block
-                    .entries
-                    .iter()
-                    .map(|entry| entry.text.clone())
-                    .collect(),
+                entries: block.entries.iter().map(Entry::display_text).collect(),
             })
             .collect(),
     }
@@ -342,7 +338,7 @@ mod tests {
     fn whats_new_shows_only_the_running_version() {
         let core = changelog::parse(
             "# Changelog\n\n## [Unreleased]\n\n## [0.3.0] - 2026-11-03\n\n### Added\n\n- Third.\n- Third again.\n\n\
-             ## [0.2.0] - 2026-11-02\n\n### Fixed\n\n- Second.\n\n## [0.1.0] - 2026-11-01\n\n### Added\n\n- First.\n",
+             ## [0.2.0] - 2026-11-02\n\n### Fixed\n\n- Second (PRD 0019 RF7.7; abc1234).\n\n## [0.1.0] - 2026-11-01\n\n### Added\n\n- First.\n",
         )
         .unwrap();
         let view = whats_new_for(&core, "0.2.0");
@@ -389,6 +385,17 @@ mod tests {
             .map(|b| b.entries.len())
             .sum();
         assert_eq!(shown, expected);
+        // PRD 0053 RF7.4: no plan reference or commit hash reaches the screen.
+        for entry in release.notes.categories.iter().flat_map(|c| &c.entries) {
+            assert!(!entry.contains("PRD "), "{entry}");
+            let hash_tail = entry.rfind("; ").is_some_and(|at| {
+                let tail = &entry[at + 2..];
+                tail.len() >= 9
+                    && tail[..7].bytes().all(|b| b.is_ascii_hexdigit())
+                    && tail[7..].starts_with(')')
+            });
+            assert!(!hash_tail, "{entry}");
+        }
         assert!(changelog::Category::ALL
             .iter()
             .all(|c| c.l10n_id().starts_with("changelog.category.")));

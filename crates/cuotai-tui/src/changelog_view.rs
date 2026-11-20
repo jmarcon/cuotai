@@ -109,7 +109,7 @@ fn section_lines(section: &Section, locale: &str) -> Vec<Line<'static>> {
         ));
         for entry in &block.entries {
             lines.push(Line::styled(
-                format!("- {}", entry.text),
+                format!("- {}", entry.display_text()),
                 Style::default().fg(FG),
             ));
         }
@@ -303,7 +303,7 @@ fn section_text(section: &Section, locale: &str, out: &mut String) {
             resolve(&changelog_category_l10n(block.category), locale)
         ));
         for entry in &block.entries {
-            out.push_str(&format!("- {}\n", entry.text));
+            out.push_str(&format!("- {}\n", entry.display_text()));
         }
     }
 }
@@ -477,7 +477,7 @@ mod tests {
             .flat_map(|block| block.entries.iter())
             .next()
             .expect("an entry")
-            .text
+            .display_text()
             .chars()
             .take(40)
             .collect();
@@ -672,5 +672,28 @@ mod tests {
         let mut buffer = Vec::new();
         write_quietly(&mut buffer, "text").unwrap();
         assert_eq!(buffer, b"text");
+    }
+
+    #[test]
+    fn entries_show_without_their_plan_references_and_hashes() {
+        // PRD 0053 RF7.4: the text and the screen print what the update notes print.
+        let changelog = changelog::parse(
+            "# C\n\n## [Unreleased]\n\n## [0.2.0] - 2026-11-02\n\n### Fixed\n\n- A fix (PRD 0019 RF7.7; abc1234).\n",
+        )
+        .unwrap();
+        let section = &changelog.releases[0].section;
+        let mut text = String::new();
+        section_text(section, "en", &mut text);
+        assert!(text.contains("- A fix.\n"), "{text}");
+        assert!(!text.contains("PRD") && !text.contains("abc1234"), "{text}");
+        let lines: Vec<String> = section_lines(section, "en")
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert!(lines.iter().any(|line| line == "- A fix."), "{lines:?}");
+        assert!(
+            !lines.iter().any(|line| line.contains("abc1234")),
+            "{lines:?}"
+        );
     }
 }
