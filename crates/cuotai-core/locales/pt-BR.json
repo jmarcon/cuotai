@@ -594,6 +594,7 @@
   "credential_help.windsurf": "Requer Enterprise com permissões Billing Read e Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Saldo/Token Plan: cole a sessão web de platform.xiaomimimo.com no assistente da conta (cofre do sistema) ou nomeie a variável em platform_session_env. O código nativo entrega chave de inferência, não cookie. A sessão da conta Xiaomi (session_env) é separada: quota semanal do MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (cloud access token do fluxo de login nativo zed.dev). Informe também o user_id numérico — é enviado como `Authorization: <user_id> <token>`.",
+  "data_dir.error.occupied": "A pasta de dados escolhida já tem uma pasta chamada Cuotai que o Cuotai não criou; escolha outra pasta. O Cuotai não guarda dados até que isso seja corrigido.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR precisa ser um caminho absoluto; o Cuotai não guarda dados até ele ser corrigido ou removido.",
   "data_dir.error.setting": "A pasta de dados escolhida em Ajustes deve ser um caminho absoluto para uma pasta sua que não seja um link; o Cuotai não guarda dados até que ela seja corrigida ou redefinida.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR precisa ser uma pasta sua que não seja um link; o Cuotai não guarda dados até ele ser corrigido ou removido.",
@@ -1904,6 +1905,10 @@
   "privacy.erase.confirm.body": "O Cuotai vai parar o trabalho em segundo plano e apagar {erased} itens: histórico, preferências, logs, dados de custo local e os logins que salvou no cofre de credenciais do sistema. {kept} itens são mantidos. Isso não pode ser desfeito.",
   "privacy.erase.confirm.accept": "Apagar tudo",
   "privacy.erase.done": "Todos os dados do Cuotai foram apagados. O Cuotai vai fechar agora.",
+  "privacy.erase.foreign": {
+    "one": "{count} item ficou onde estava porque está numa pasta, ou contém arquivos, que o Cuotai não criou.",
+    "other": "{count} itens ficaram onde estavam porque estão numa pasta, ou contêm arquivos, que o Cuotai não criou."
+  },
   "privacy.erase.label.vault_oauth": "Logins, chaves e endereços de canais salvos",
   "privacy.erase.label.vault_serve": "Token de acesso do servidor local",
   "provider.alibaba_cloud": "Alibaba Cloud — faturamento",

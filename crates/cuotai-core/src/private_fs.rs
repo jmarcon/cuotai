@@ -10,7 +10,8 @@ use std::path::Path;
 /// Create `dir` (and its missing parents) as a private directory, or check
 /// an existing one: it must be a real directory (not a symbolic link), owned
 /// by the current user on Unix, and is narrowed to `0700` there when it was
-/// wider. Parents are created with the default permissions.
+/// wider (unless it is an adopted data folder, [`crate::data_dir::adopted`]).
+/// Parents are created with the default permissions.
 pub(crate) fn ensure_dir(dir: &Path) -> io::Result<()> {
     if let Some(parent) = dir.parent().filter(|parent| !parent.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
@@ -34,10 +35,12 @@ pub(crate) fn ensure_dir(dir: &Path) -> io::Result<()> {
             "owned by another user",
         ));
     }
+    // PRD 0051 re-validation S-02: a data folder Cuotai adopted from an
+    // older build (it did not create it) is never narrowed again.
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if meta.permissions().mode() & 0o777 != 0o700 {
+        if meta.permissions().mode() & 0o777 != 0o700 && !crate::data_dir::adopted(dir) {
             std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
         }
     }
@@ -46,11 +49,29 @@ pub(crate) fn ensure_dir(dir: &Path) -> io::Result<()> {
     // volume without ACLs (FAT, exFAT) stays usable; the checks that guard
     // execution and the server token still refuse an exposed path.
     #[cfg(windows)]
-    if created || open_to_others(dir, &meta) {
+    if created || (open_to_others(dir, &meta) && !crate::data_dir::adopted(dir)) {
         let _ = make_private(dir, true);
     }
     #[cfg(not(windows))]
     let _ = created;
+    Ok(())
+}
+
+/// Check an existing directory Cuotai did not create (an adopted data
+/// folder, PRD 0051 re-validation S-02) without changing it: it must be a
+/// real directory (not a symbolic link) owned by the current user on Unix.
+/// Unlike [`ensure_dir`], no mode or ACL is narrowed and nothing is created.
+pub(crate) fn check_dir(dir: &Path) -> io::Result<()> {
+    let meta = std::fs::symlink_metadata(dir)?;
+    if !meta.is_dir() {
+        return Err(io::Error::other("not a directory"));
+    }
+    if foreign_owner(&meta) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "owned by another user",
+        ));
+    }
     Ok(())
 }
 

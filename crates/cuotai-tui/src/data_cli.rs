@@ -285,6 +285,8 @@ pub(crate) fn erase_with(
             return Ok(1);
         }
     };
+    // PRD 0051 re-validation S-01: what Cuotai did not create stays.
+    let foreign = report.count(Outcome::Foreign);
     if report.complete() {
         eprintln!(
             "{}",
@@ -297,6 +299,12 @@ pub(crate) fn erase_with(
                 ],
             )
         );
+        if foreign > 0 {
+            eprintln!(
+                "{}",
+                erase::foreign(foreign).resolve(crate::ui::tui_locale())
+            );
+        }
         Ok(0)
     } else {
         eprintln!(
@@ -341,6 +349,7 @@ mod tests {
             feed: None,
         };
         std::fs::create_dir_all(dir.join("local/cuotai/logs")).unwrap();
+        cuotai_core::data_dir::mark_for_tests(&dir.join("local/cuotai")).unwrap();
         std::fs::write(dir.join("local/cuotai/logs/cuotai.log"), b"x").unwrap();
         std::fs::write(dir.join("cuotai.toml"), b"").unwrap();
         EraseOptions {
@@ -429,6 +438,31 @@ mod tests {
         )
         .unwrap();
         assert_eq!(code, 0);
+    }
+
+    /// PRD 0051 re-validation S-01: a data root Cuotai did not create (no
+    /// marker) is left as it is, and the erase still succeeds.
+    #[test]
+    fn a_data_folder_cuotai_did_not_create_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let options = options(dir.path());
+        std::fs::remove_file(
+            dir.path()
+                .join("local/cuotai")
+                .join(cuotai_core::data_dir::MARKER),
+        )
+        .unwrap();
+        let code = erase_with(
+            &options,
+            &vault(),
+            true,
+            &mut &b""[..],
+            false,
+            &mut Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(code, 0);
+        assert!(dir.path().join("local/cuotai/logs/cuotai.log").exists());
     }
 
     /// PRD 0050 `SEC-DEV-VAULT` (S-04): `--erase-all-data` with

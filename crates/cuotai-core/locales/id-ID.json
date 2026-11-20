@@ -704,6 +704,7 @@
   "credential_help.windsurf": "Memerlukan Enterprise dengan izin Billing Read dan Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Saldo/Token Plan: tempel sesi web platform.xiaomimimo.com di wizard akun (brankas sistem) atau sebutkan variabel di platform_session_env. Kode bawaan menghasilkan kunci inferensi, bukan cookie. Sesi akun Xiaomi (session_env) terpisah: kuota mingguan MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (token akses cloud dari alur login bawaan zed.dev). Masukkan juga user_id numerik — dikirim sebagai `Authorization: <user_id> <token>`.",
+  "data_dir.error.occupied": "Folder data yang dipilih sudah berisi folder bernama Cuotai yang tidak dibuat oleh Cuotai; pilih folder lain. Cuotai tidak menyimpan data sampai hal ini diperbaiki.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR harus berupa path absolut; Cuotai tidak menyimpan data sampai nilainya diperbaiki atau dihapus.",
   "data_dir.error.setting": "Folder data yang dipilih di Pengaturan harus berupa jalur absolut ke direktori milik Anda yang bukan tautan; Cuotai tidak menyimpan data sampai diperbaiki atau diatur ulang.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR harus berupa folder milik Anda yang bukan tautan; Cuotai tidak menyimpan data sampai nilainya diperbaiki atau dihapus.",
@@ -1999,6 +2000,9 @@
   "privacy.erase.confirm.body": "Cuotai akan menghentikan pekerjaan latar belakangnya dan menghapus {erased} item: riwayat, pengaturan, log, data biaya lokal, dan info masuk yang disimpannya di brankas kredensial sistem. {kept} item dipertahankan. Tindakan ini tidak dapat dibatalkan.",
   "privacy.erase.confirm.accept": "Hapus semuanya",
   "privacy.erase.done": "Semua data Cuotai telah dihapus. Cuotai akan ditutup sekarang.",
+  "privacy.erase.foreign": {
+    "other": "{count} item dibiarkan di tempatnya karena berada di folder, atau berisi file, yang tidak dibuat oleh Cuotai."
+  },
   "privacy.erase.label.vault_oauth": "Info masuk, kunci, dan alamat saluran yang tersimpan",
   "privacy.erase.label.vault_serve": "Token akses server lokal",
   "provider.alibaba_cloud": "Alibaba Cloud — penagihan",

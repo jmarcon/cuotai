@@ -1397,13 +1397,21 @@ fn set_user_dir(app: AppHandle, window: WebviewWindow, path: Option<String>) -> 
 
 /// PRD 0051 RF5.2: save the data folder (`None`: the OS default); it
 /// applies at the next start. Refused while `CUOTAI_DATA_DIR` is set.
+/// PRD 0051 re-validation S-01: the folder saved is the one the core plans
+/// for the pick (`<picked>/Cuotai` unless the pick already is Cuotai's), so
+/// the saved and effective folders agree after the restart. Errors:
+/// `env_locked`, `invalid_path`, `data_dir_occupied`, `data_dir_unusable`,
+/// `unwritable`.
 #[tauri::command]
 fn set_data_dir(window: WebviewWindow, path: Option<String>) -> Result<(), String> {
     window_scope::require(&window, window_scope::SETTINGS_ONLY)?;
     if std::env::var_os(cuotai_core::data_dir::ENV).is_some_and(|value| !value.is_empty()) {
         return Err("env_locked".into());
     }
-    let dir = path.map(std::path::PathBuf::from);
+    let dir = path
+        .map(|picked| settings::planned_data_dir(std::path::Path::new(&picked)))
+        .transpose()
+        .map_err(str::to_owned)?;
     settings::save_data_dir(dir.as_deref()).map_err(str::to_owned)
 }
 
@@ -1907,7 +1915,7 @@ async fn erase_all_data(
     .await
     .map_err(|e| backend::l10n_to_json(&e))?;
     if result.complete {
-        erase_data::quit(&app, &locale);
+        erase_data::quit(&app, &locale, result.foreign);
     }
     Ok(result)
 }
@@ -3363,7 +3371,7 @@ fn single_instance_applies(debug_build: bool, dev_store: bool) -> bool {
 pub fn run() -> std::process::ExitCode {
     // PRD 0051 RF5.2: the data folder chosen in Settings, before any store
     // (the app log included) resolves its directory; `CUOTAI_DATA_DIR` wins.
-    cuotai_core::data_dir::set_app_override(settings::custom_data_dir());
+    cuotai_core::data_dir::set_app_override(settings::effective_data_dir());
     // PRD 0052 RF1/RF2: the redacted app log and the panic record start
     // before `Backend` or Tauri exist, so their failures are recorded too.
     cuotai_core::diagnostics::logging::init_default(

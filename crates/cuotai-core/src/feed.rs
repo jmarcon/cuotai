@@ -380,21 +380,19 @@ impl FeedStore {
 
     /// V-08: delete the feed folder builds before the fixed place kept in
     /// the data folder (`<data root>/feed`), best effort and once per
-    /// process. Its readings are at most a day old, so nothing is moved. A
-    /// link is never followed, and the fixed folder itself is never taken
-    /// for it.
+    /// process. Its readings are at most a day old, so nothing is moved.
+    /// PRD 0051 re-validation S-01: only in the OS default data folder; a
+    /// chosen folder's `feed` may be someone else's (any 0.86+ build has
+    /// already removed Cuotai's), and the erase lists it instead.
     pub fn remove_legacy_dir() {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
-            let (Some(root), fixed) = (crate::data_dir::root(), Self::default_dir()) else {
+            let (Some(root), Some(default)) =
+                (crate::data_dir::root(), crate::data_dir::default_root())
+            else {
                 return;
             };
-            let legacy = root.join("feed");
-            if Some(&legacy) != fixed.as_ref()
-                && std::fs::symlink_metadata(&legacy).is_ok_and(|meta| meta.is_dir())
-            {
-                let _ = std::fs::remove_dir_all(&legacy);
-            }
+            remove_legacy_in(&root, Self::default_dir().as_deref(), &default);
         });
     }
 
@@ -715,6 +713,22 @@ impl AccountReading {
     pub fn newest_window_at(&self) -> Option<DateTime<Utc>> {
         self.window_times.iter().map(|(_, at)| *at).max()
     }
+}
+
+/// [`FeedStore::remove_legacy_dir`]'s rule: remove `<root>/feed` only when
+/// `root` is the OS default data folder and that folder is not the fixed
+/// one; a link is never followed. Whether something was removed.
+pub(crate) fn remove_legacy_in(root: &Path, fixed: Option<&Path>, default_root: &Path) -> bool {
+    if root != default_root {
+        return false;
+    }
+    let legacy = root.join("feed");
+    if Some(legacy.as_path()) == fixed
+        || !std::fs::symlink_metadata(&legacy).is_ok_and(|meta| meta.is_dir())
+    {
+        return false;
+    }
+    std::fs::remove_dir_all(&legacy).is_ok()
 }
 
 /// [`FeedStore::default_dir`] from the debug override (`None` in release

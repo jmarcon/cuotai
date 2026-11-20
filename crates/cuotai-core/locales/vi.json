@@ -706,6 +706,7 @@
   "credential_help.windsurf": "Cần Enterprise với quyền Billing Read và Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Số dư/Token Plan: dán phiên web platform.xiaomimimo.com vào trình hướng dẫn tài khoản (kho của hệ thống) hoặc nêu biến trong platform_session_env. Mã gốc cấp khóa suy luận, không phải cookie. Phiên tài khoản Xiaomi (session_env) là riêng: hạn mức tuần của MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (token truy cập đám mây từ luồng đăng nhập gốc của zed.dev). Cũng hãy nhập user_id dạng số — nó được gửi dưới dạng `Authorization: <user_id> <token>`.",
+  "data_dir.error.occupied": "Thư mục dữ liệu đã chọn đã có một thư mục tên Cuotai không do Cuotai tạo; hãy chọn thư mục khác. Cuotai không lưu dữ liệu cho đến khi sửa xong.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR phải là đường dẫn tuyệt đối; Cuotai không lưu dữ liệu cho đến khi nó được sửa hoặc bỏ đi.",
   "data_dir.error.setting": "Thư mục dữ liệu chọn trong Cài đặt phải là đường dẫn tuyệt đối đến một thư mục của bạn và không phải liên kết; Cuotai không lưu dữ liệu cho đến khi sửa hoặc đặt lại.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR phải là thư mục của chính bạn và không phải liên kết; Cuotai không lưu dữ liệu cho đến khi nó được sửa hoặc bỏ đi.",
@@ -2001,6 +2002,9 @@
   "privacy.erase.confirm.body": "Cuotai sẽ dừng công việc nền và xóa {erased} mục: lịch sử, cài đặt, nhật ký, dữ liệu chi phí cục bộ và các phiên đăng nhập đã lưu trong kho thông tin xác thực của hệ thống. Giữ lại {kept} mục. Không thể hoàn tác.",
   "privacy.erase.confirm.accept": "Xóa tất cả",
   "privacy.erase.done": "Đã xóa toàn bộ dữ liệu Cuotai. Cuotai sẽ thoát ngay bây giờ.",
+  "privacy.erase.foreign": {
+    "other": "Đã giữ nguyên {count} mục vì chúng nằm trong thư mục, hoặc chứa tệp, không do Cuotai tạo."
+  },
   "privacy.erase.label.vault_oauth": "Thông tin đăng nhập, khóa và địa chỉ kênh đã lưu",
   "privacy.erase.label.vault_serve": "Mã truy cập của máy chủ cục bộ",
   "provider.alibaba_cloud": "Alibaba Cloud — thanh toán",

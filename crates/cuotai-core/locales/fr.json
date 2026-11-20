@@ -1630,6 +1630,7 @@
   "credential_help.windsurf": "Nécessite Enterprise avec les droits Billing Read et Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Solde/Token Plan : collez la session web de platform.xiaomimimo.com dans l’assistant du compte (coffre du système) ou indiquez la variable dans platform_session_env. Le code natif fournit une clé d’inférence, pas un cookie. La session du compte Xiaomi (session_env) est distincte : quota hebdomadaire de MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (token d’accès cloud du flux de connexion native de zed.dev). Indiquez aussi le user_id numérique — il est envoyé comme `Authorization: <user_id> <token>`.",
+  "data_dir.error.occupied": "Le dossier de données choisi contient déjà un dossier nommé Cuotai que Cuotai n’a pas créé ; choisissez un autre dossier. Cuotai ne garde aucune donnée tant que ce n’est pas corrigé.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR doit être un chemin absolu ; Cuotai ne conserve aucune donnée tant qu'il n'est pas corrigé ou supprimé.",
   "data_dir.error.setting": "Le dossier de données choisi dans Réglages doit être un chemin absolu vers un dossier à vous qui n’est pas un lien ; Cuotai ne garde aucune donnée tant qu’il n’est pas corrigé ou réinitialisé.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR doit être un dossier qui vous appartient et qui n'est pas un lien ; Cuotai ne conserve aucune donnée tant qu'il n'est pas corrigé ou supprimé.",
@@ -2940,6 +2941,10 @@
   "privacy.erase.confirm.body": "Cuotai va arrêter son travail en arrière-plan et effacer {erased} éléments : historique, préférences, journaux, données de coût local et les connexions enregistrées dans le coffre d’identifiants du système. {kept} éléments sont conservés. Cette action est irréversible.",
   "privacy.erase.confirm.accept": "Tout effacer",
   "privacy.erase.done": "Toutes les données de Cuotai ont été effacées. Cuotai va maintenant se fermer.",
+  "privacy.erase.foreign": {
+    "one": "{count} élément a été laissé en place, car il se trouve dans un dossier, ou contient des fichiers, que Cuotai n’a pas créés.",
+    "other": "{count} éléments ont été laissés en place, car ils se trouvent dans un dossier, ou contiennent des fichiers, que Cuotai n’a pas créés."
+  },
   "privacy.erase.label.vault_oauth": "Connexions, clés et adresses de canaux enregistrées",
   "privacy.erase.label.vault_serve": "Jeton d'accès du serveur local",
   "provider.alibaba_cloud": "Alibaba Cloud — facturation",

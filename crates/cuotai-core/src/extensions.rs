@@ -357,6 +357,22 @@ pub fn discover(root: &Path) -> Discovery {
     discovery
 }
 
+/// PRD 0051 re-validation S-01: whether `dir` has the shape of an
+/// extension folder Cuotai's erase may remove: a real directory (not a
+/// link) whose `manifest.toml` is a regular file that parses with a string
+/// `id` and an integer `schema`. Nothing is run or validated further.
+pub(crate) fn looks_like_extension(dir: &Path) -> bool {
+    std::fs::symlink_metadata(dir).is_ok_and(|meta| meta.is_dir())
+        && std::fs::symlink_metadata(dir.join(MANIFEST_FILE)).is_ok_and(|meta| meta.is_file())
+        && read_manifest(&dir.join(MANIFEST_FILE))
+            .ok()
+            .and_then(|text| text.parse::<toml::Table>().ok())
+            .is_some_and(|table| {
+                table.get("id").is_some_and(toml::Value::is_str)
+                    && table.get("schema").is_some_and(toml::Value::is_integer)
+            })
+}
+
 /// The manifest of the folder `dir`; an error carries the `id` when it was
 /// read.
 fn load(dir: &Path, root: &Path) -> Result<Manifest, (Option<String>, Localized)> {

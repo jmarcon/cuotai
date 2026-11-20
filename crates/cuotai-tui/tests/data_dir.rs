@@ -1,5 +1,8 @@
 //! PRD 0051 RF5.2/RF5.3: `CUOTAI_DATA_DIR` moves every local store, and an
 //! invalid value is a local error rather than a fallback to the OS folder.
+//! PRD 0051 re-validation S-01/S-02: an existing folder that is not Cuotai's
+//! gets a `Cuotai` subfolder, and an older Cuotai folder is used as is;
+//! neither is narrowed nor loses a file.
 
 #![cfg(unix)]
 
@@ -79,6 +82,71 @@ fn the_history_lands_in_the_override_and_not_in_the_os_folder() {
     }
     let history = run(&dir, data.to_str().unwrap(), &["--history", "--json"]);
     assert_eq!(history.status.code(), Some(0));
+    let _ = fs::remove_dir_all(dir);
+}
+
+/// S-01/S-02: someone else's folder keeps its files and its mode; Cuotai's
+/// stores go into `<folder>/Cuotai`, marked and private.
+#[test]
+fn an_existing_foreign_folder_gets_a_cuotai_subfolder_and_loses_nothing() {
+    let dir = sandbox("foreign");
+    let data = dir.join("MyProjects");
+    fs::create_dir_all(data.join("feed")).unwrap();
+    fs::write(data.join("feed").join("notes.txt"), b"mine").unwrap();
+    fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
+    let out = run(&dir, data.to_str().unwrap(), &["--once"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        fs::read(data.join("feed").join("notes.txt")).unwrap(),
+        b"mine"
+    );
+    assert_eq!(
+        fs::metadata(&data).unwrap().permissions().mode() & 0o777,
+        0o755
+    );
+    let used = data.join("Cuotai");
+    assert!(used.join("history").join("history.sqlite3").is_file());
+    let marker = used.join(".cuotai-data");
+    assert!(marker.is_file());
+    assert_eq!(
+        fs::metadata(&marker).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert_eq!(
+        fs::metadata(&used).unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    assert!(!data.join("logs").exists() && !data.join("history").exists());
+    let _ = fs::remove_dir_all(dir);
+}
+
+/// S-02: a folder an older Cuotai used (only its log is there) is used as
+/// is and never narrowed again.
+#[test]
+fn an_older_cuotai_folder_is_used_as_is() {
+    let dir = sandbox("older");
+    let data = dir.join("old-profile");
+    fs::create_dir_all(data.join("logs")).unwrap();
+    fs::write(data.join("logs").join("cuotai.log"), b"").unwrap();
+    fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
+    let out = run(&dir, data.to_str().unwrap(), &["--once"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(data.join("history").join("history.sqlite3").is_file());
+    assert!(!data.join("Cuotai").exists());
+    assert_eq!(
+        fs::metadata(&data).unwrap().permissions().mode() & 0o777,
+        0o755
+    );
     let _ = fs::remove_dir_all(dir);
 }
 

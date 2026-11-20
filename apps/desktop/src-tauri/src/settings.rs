@@ -1389,6 +1389,44 @@ pub fn custom_data_dir() -> Option<PathBuf> {
     load().data_dir.map(PathBuf::from)
 }
 
+/// PRD 0051 re-validation S-01: the folder the core plans for a picked data
+/// folder (`<picked>/Cuotai`, or the pick itself when it already is
+/// Cuotai's), as the code the Settings row translates on failure.
+pub fn planned_data_dir(picked: &Path) -> Result<PathBuf, &'static str> {
+    use cuotai_core::data_dir::{plan, DataDirError};
+    plan(picked)
+        .map(|planned| planned.dir)
+        .map_err(|error| match error {
+            DataDirError::Relative => "invalid_path",
+            DataDirError::Occupied => "data_dir_occupied",
+            DataDirError::Unusable | DataDirError::Setting => "data_dir_unusable",
+        })
+}
+
+/// The data folder for this process, read once at start: the saved one, as
+/// [`planned_data_dir`] resolves it. A value saved by an older build (the
+/// picked folder itself, never used since) that now plans to another folder
+/// is rewritten once in `desktop.json`, so Settings shows the folder in use.
+pub fn effective_data_dir() -> Option<PathBuf> {
+    migrate_data_dir(custom_data_dir(), |dir| save_data_dir(Some(dir)))
+}
+
+/// [`effective_data_dir`] over any saved value and writer (tests). A value
+/// that cannot be planned is kept as it is: the core then reports why.
+fn migrate_data_dir(
+    saved: Option<PathBuf>,
+    save: impl FnOnce(&Path) -> Result<(), &'static str>,
+) -> Option<PathBuf> {
+    let saved = saved?;
+    match planned_data_dir(&saved) {
+        Ok(planned) if planned != saved => {
+            let _ = save(&planned);
+            Some(planned)
+        }
+        _ => Some(saved),
+    }
+}
+
 /// Save (or, with `None`, remove) the data folder; it applies at the next
 /// start. Only an absolute path is accepted; the core checks the rest then.
 pub fn save_data_dir(dir: Option<&Path>) -> Result<(), &'static str> {
@@ -2162,6 +2200,54 @@ mod tests {
             .collect();
         names.sort();
         names
+    }
+
+    /// PRD 0051 re-validation S-01: a pick with someone else's files is
+    /// saved as its `Cuotai` subfolder; an older Cuotai folder or a path
+    /// that does not exist is saved as it is; a relative or occupied pick
+    /// is refused with the code the row translates.
+    #[test]
+    fn the_saved_data_folder_is_the_planned_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let busy = dir.path().join("Documents");
+        fs::create_dir_all(&busy).unwrap();
+        fs::write(busy.join("taxes.pdf"), b"x").unwrap();
+        assert_eq!(planned_data_dir(&busy).unwrap(), busy.join("Cuotai"));
+        let old = dir.path().join("old");
+        fs::create_dir_all(old.join("logs")).unwrap();
+        fs::write(old.join("logs").join("cuotai.log"), b"x").unwrap();
+        assert_eq!(planned_data_dir(&old).unwrap(), old);
+        let fresh = dir.path().join("fresh");
+        assert_eq!(planned_data_dir(&fresh).unwrap(), fresh);
+        assert!(!fresh.exists(), "planning creates nothing");
+        assert_eq!(planned_data_dir(Path::new("rel")), Err("invalid_path"));
+        let occupied = dir.path().join("occupied");
+        fs::create_dir_all(occupied.join("Cuotai")).unwrap();
+        fs::write(occupied.join("Cuotai").join("theirs.txt"), b"x").unwrap();
+        assert_eq!(planned_data_dir(&occupied), Err("data_dir_occupied"));
+    }
+
+    /// A value an older build saved (the picked folder itself) is rewritten
+    /// once with the planned folder; a planned value is left alone.
+    #[test]
+    fn an_older_saved_data_folder_is_rewritten_once_at_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let busy = dir.path().join("Documents");
+        fs::create_dir_all(&busy).unwrap();
+        fs::write(busy.join("taxes.pdf"), b"x").unwrap();
+        let mut saved = Vec::new();
+        let effective = migrate_data_dir(Some(busy.clone()), |path| {
+            saved.push(path.to_path_buf());
+            Ok(())
+        });
+        assert_eq!(effective, Some(busy.join("Cuotai")));
+        assert_eq!(saved, vec![busy.join("Cuotai")]);
+        let again = migrate_data_dir(effective.clone(), |_| panic!("no second rewrite"));
+        assert_eq!(again, effective);
+        assert_eq!(
+            migrate_data_dir(None, |_| panic!("nothing saved, nothing written")),
+            None
+        );
     }
 
     #[test]

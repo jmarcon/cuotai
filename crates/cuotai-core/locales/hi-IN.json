@@ -734,6 +734,7 @@
   "credential_help.windsurf": "Billing Read और Teams Read-Only अनुमतियों वाला Enterprise चाहिए।",
   "credential_help.xiaomi_mimo": "बैलेंस/Token Plan: platform.xiaomimimo.com का वेब सत्र खाता विज़ार्ड में पेस्ट करें (सिस्टम वॉल्ट) या platform_session_env में वेरिएबल का नाम दें। नेटिव कोड इन्फ़रेंस कुंजी देता है, कुकी नहीं। Xiaomi खाते का सत्र (session_env) अलग है: MiMo Desktop का साप्ताहिक कोटा।",
   "credential_help.zed": "ZED_ACCESS_TOKEN (zed.dev के नेटिव लॉगिन प्रवाह का क्लाउड एक्सेस टोकन)। संख्यात्मक user_id भी लिखें — वह `Authorization: <user_id> <token>` के रूप में भेजा जाता है।",
+  "data_dir.error.occupied": "चुने गए डेटा फ़ोल्डर में पहले से Cuotai नाम का एक फ़ोल्डर है जिसे Cuotai ने नहीं बनाया; कोई दूसरा फ़ोल्डर चुनें। इसे ठीक करने तक Cuotai कोई डेटा नहीं रखता।",
   "data_dir.error.relative": "CUOTAI_DATA_DIR एक पूर्ण (absolute) पथ होना चाहिए; इसे ठीक करने या हटाने तक Cuotai कोई डेटा नहीं रखता।",
   "data_dir.error.setting": "सेटिंग्स में चुना गया डेटा फ़ोल्डर आपकी अपनी किसी निर्देशिका का पूर्ण पथ होना चाहिए जो लिंक न हो; उसे ठीक या रीसेट करने तक Cuotai कोई डेटा नहीं रखता।",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR आपका अपना फ़ोल्डर होना चाहिए जो लिंक न हो; इसे ठीक करने या हटाने तक Cuotai कोई डेटा नहीं रखता।",
@@ -2044,6 +2045,10 @@
   "privacy.erase.confirm.body": "Cuotai अपना बैकग्राउंड काम रोककर {erased} आइटम मिटाएगा: इतिहास, सेटिंग्स, लॉग, स्थानीय लागत डेटा और सिस्टम क्रेडेंशियल वॉल्ट में सहेजे गए साइन-इन। {kept} आइटम रखे जाएँगे। इसे पूर्ववत नहीं किया जा सकता।",
   "privacy.erase.confirm.accept": "सब मिटाएँ",
   "privacy.erase.done": "Cuotai का सारा डेटा मिटा दिया गया। Cuotai अब बंद होगा।",
+  "privacy.erase.foreign": {
+    "one": "{count} आइटम जस का तस छोड़ा गया, क्योंकि वह ऐसे फ़ोल्डर में है, या उसमें ऐसी फ़ाइलें हैं, जिन्हें Cuotai ने नहीं बनाया।",
+    "other": "{count} आइटम जस के तस छोड़े गए, क्योंकि वे ऐसे फ़ोल्डर में हैं, या उनमें ऐसी फ़ाइलें हैं, जिन्हें Cuotai ने नहीं बनाया।"
+  },
   "privacy.erase.label.vault_oauth": "सहेजे गए साइन-इन, कुंजियाँ और चैनल पते",
   "privacy.erase.label.vault_serve": "लोकल सर्वर का एक्सेस टोकन",
   "provider.alibaba_cloud": "Alibaba Cloud — बिलिंग",
