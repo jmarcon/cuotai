@@ -280,6 +280,69 @@ fn a_cli_backed_account_reports_its_program() {
     assert_eq!(tools["aws"]["source"], "path");
 }
 
+/// PRD 0054 re-validation V-04: the found line names its source in the
+/// reader's language, one id per source, never the internal slug (the JSON
+/// keeps the slug).
+#[cfg(unix)]
+#[test]
+fn the_found_line_names_its_source_in_words() {
+    use std::os::unix::fs::PermissionsExt;
+    let program = |dir: &std::path::Path| {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join("aws"), b"").unwrap();
+        std::fs::set_permissions(dir.join("aws"), std::fs::Permissions::from_mode(0o755)).unwrap();
+        dir.join("aws")
+    };
+    let detail = |report: &Report| {
+        report
+            .checks
+            .iter()
+            .find(|check| check.id == "account.1.tool")
+            .and_then(|check| check.detail.clone())
+            .expect("a found line")
+    };
+    let slugless = |detail: &Localized, locale: &str| {
+        let text = detail.resolve(locale);
+        // No slug, neither bare nor in the old `Found ({source})` form (the English
+        // sentence for `cli_path` says "the path" as a word, which is fine).
+        for slug in ["configured", "well_known", "(path)", "（path）"] {
+            assert!(!text.contains(slug), "{locale}: {slug} in {text:?}");
+        }
+        text
+    };
+    let bedrock = "[[accounts]]\nname = \"Bedrock\"\nprovider = \"aws_bedrock\"\n[accounts.params]\nprofile = \"prod\"\n";
+
+    // Well-known: `~/.local/bin/aws`, nothing on PATH.
+    let fixture = Fixture::new(Some(bedrock));
+    program(&fixture.dir.path().join("home").join(".local").join("bin"));
+    let report = run(&fixture.inputs(&[], free_port()));
+    let found = detail(&report);
+    assert_eq!(found.id, "doctor.tool.found.well_known");
+    assert!(slugless(&found, "en-US").starts_with("Found in a standard install folder: "));
+    slugless(&found, "pt-BR");
+    assert_eq!(
+        serde_json::to_value(&report.tools).unwrap()["aws"]["source"],
+        "well_known"
+    );
+
+    // PATH wins over the well-known folder.
+    program(&fixture.dir.path().join("path-dir"));
+    let found = detail(&run(&fixture.inputs(&[], free_port())));
+    assert_eq!(found.id, "doctor.tool.found.path");
+    assert!(slugless(&found, "en-US").starts_with("Found on PATH: "));
+    slugless(&found, "pt-BR");
+
+    // The account's own `cli_path` wins over both.
+    let fixture = Fixture::new(None);
+    let configured = program(&fixture.dir.path().join("tools"));
+    let text = format!("{bedrock}cli_path = {:?}\n", configured.to_str().unwrap());
+    std::fs::write(fixture.dir.path().join("cuotai.toml"), text).unwrap();
+    let found = detail(&run(&fixture.inputs(&[], free_port())));
+    assert_eq!(found.id, "doctor.tool.found.configured");
+    assert!(slugless(&found, "en-US").starts_with("Found at the path set in the account: "));
+    slugless(&found, "pt-BR");
+}
+
 /// PRD 0003 COMP-02: a set-aside ledger is reported until it is deleted.
 #[test]
 fn a_set_aside_ledger_is_reported() {
