@@ -126,6 +126,155 @@ fn embeds_extension() -> bool {
     }
 }
 
+/// The extension's executable inside a bundle's `Contents` folder.
+#[cfg(target_os = "macos")]
+fn extension_executable(contents: &std::path::Path) -> PathBuf {
+    contents
+        .join("PlugIns")
+        .join(EXTENSION)
+        .join("Contents")
+        .join("MacOS")
+        .join("CuotaiWidgets")
+}
+
+/// When the extension's executable reached the disk: the later of its
+/// modification and status-change times. An update keeps the build's
+/// modification time, but writing the file at install sets its change time,
+/// which nothing can set back.
+// Only macOS embeds the extension; the tests run everywhere.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn installed_at(meta: &std::fs::Metadata) -> Option<std::time::SystemTime> {
+    let modified = meta.modified().ok()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let changed = std::time::UNIX_EPOCH
+            .checked_add(Duration::from_secs(u64::try_from(meta.ctime()).ok()?))?;
+        Some(modified.max(changed))
+    }
+    #[cfg(not(unix))]
+    {
+        Some(modified)
+    }
+}
+
+/// PRD 0014 RF3.1: whether a running extension process is older than the
+/// extension on disk. Its start time has a one-second resolution, so a
+/// process started in the second of the install counts as current.
+// Only macOS embeds the extension; the tests run everywhere.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn predates(started_secs: u64, installed: std::time::SystemTime) -> bool {
+    installed
+        .duration_since(std::time::UNIX_EPOCH)
+        .is_ok_and(|installed| started_secs < installed.as_secs())
+}
+
+/// PRD 0014 RF3.1: stop the widget extension processes an update left
+/// running, and return how many were stopped.
+///
+/// WidgetKit keeps an extension process alive for days. When an update
+/// replaces the app, that process still runs the previous build, and chronod
+/// refuses everything it draws ("Bundle version did not match"): every
+/// widget stays on the grey placeholder until the process ends (shipped from
+/// 0.87.1 to 0.87.6). A stopped process costs nothing: the system keeps
+/// showing the last timeline and starts the installed build for the next
+/// one. Only processes of this user, started from this bundle's extension
+/// and before that extension was installed, are stopped.
+#[cfg(target_os = "macos")]
+pub fn retire_stale_extension() -> usize {
+    let Some(executable) = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent()?.parent().map(extension_executable))
+    else {
+        return 0;
+    };
+    let Some(installed) = std::fs::metadata(&executable)
+        .ok()
+        .as_ref()
+        .and_then(installed_at)
+    else {
+        return 0;
+    };
+    let mut stopped = 0;
+    for pid in process::all() {
+        if process::path(pid).as_deref() != Some(executable.as_path()) {
+            continue;
+        }
+        let Some(started) = process::started_by_this_user(pid) else {
+            continue;
+        };
+        if predates(started, installed) && process::terminate(pid) {
+            stopped += 1;
+        }
+    }
+    stopped
+}
+
+/// The few process calls [`retire_stale_extension`] needs (libproc).
+#[cfg(target_os = "macos")]
+mod process {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::PathBuf;
+
+    /// Every process id of the system.
+    pub fn all() -> Vec<libc::pid_t> {
+        // SAFETY: a null buffer asks for the count only.
+        let count = unsafe { libc::proc_listallpids(std::ptr::null_mut(), 0) };
+        let Ok(count) = usize::try_from(count) else {
+            return Vec::new();
+        };
+        // Room for processes started between the two calls.
+        let mut pids = vec![0 as libc::pid_t; count + 64];
+        let bytes = i32::try_from(std::mem::size_of_val(pids.as_slice())).unwrap_or(i32::MAX);
+        // SAFETY: the buffer holds `bytes` bytes of pid_t.
+        let filled = unsafe { libc::proc_listallpids(pids.as_mut_ptr().cast(), bytes) };
+        pids.truncate(usize::try_from(filled).unwrap_or(0).min(pids.len()));
+        pids.retain(|&pid| pid > 0);
+        pids
+    }
+
+    /// The executable a process was started from.
+    pub fn path(pid: libc::pid_t) -> Option<PathBuf> {
+        let mut buf = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
+        let size = u32::try_from(buf.len()).ok()?;
+        // SAFETY: the buffer holds `size` bytes.
+        let len = unsafe { libc::proc_pidpath(pid, buf.as_mut_ptr().cast(), size) };
+        let len = usize::try_from(len).ok().filter(|&len| len > 0)?;
+        Some(PathBuf::from(OsStr::from_bytes(&buf[..len.min(buf.len())])))
+    }
+
+    /// When a process of this user started, in seconds since the epoch;
+    /// `None` for another user's process or one that already ended.
+    pub fn started_by_this_user(pid: libc::pid_t) -> Option<u64> {
+        let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+        let size = i32::try_from(std::mem::size_of::<libc::proc_bsdinfo>()).ok()?;
+        // SAFETY: the buffer is one `proc_bsdinfo`, the flavour asked for.
+        let filled = unsafe {
+            libc::proc_pidinfo(
+                pid,
+                libc::PROC_PIDTBSDINFO,
+                0,
+                info.as_mut_ptr().cast(),
+                size,
+            )
+        };
+        if filled != size {
+            return None;
+        }
+        // SAFETY: the call filled the whole structure.
+        let info = unsafe { info.assume_init() };
+        // SAFETY: getuid cannot fail.
+        (info.pbi_uid == unsafe { libc::getuid() }).then_some(info.pbi_start_tvsec)
+    }
+
+    /// Ask a process to end.
+    pub fn terminate(pid: libc::pid_t) -> bool {
+        // SAFETY: a plain signal to a process id.
+        unsafe { libc::kill(pid, libc::SIGTERM) == 0 }
+    }
+}
+
 /// The snapshot path as Settings shows it, and whether a WidgetKit extension
 /// reads it.
 #[derive(Debug, Clone, Serialize)]
@@ -354,6 +503,72 @@ mod tests {
         publisher.mark_dirty();
         publisher.reset();
         assert!(!publisher.is_dirty(), "off: nothing stays pending");
+    }
+
+    #[test]
+    fn an_extension_process_is_stale_only_when_it_started_before_the_install() {
+        let installed = std::time::UNIX_EPOCH + Duration::from_millis(1_000_500);
+        assert!(predates(999, installed), "started before the install");
+        assert!(!predates(1_000, installed), "the second of the install");
+        assert!(!predates(1_001, installed), "started from the new build");
+        assert!(!predates(0, std::time::UNIX_EPOCH), "no install time");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_install_time_is_when_the_file_was_written_not_its_build_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("CuotaiWidgets");
+        std::fs::write(&file, b"x").unwrap();
+        // An update unpacks the build with its old modification time.
+        let old = std::time::UNIX_EPOCH + Duration::from_secs(1_000);
+        std::fs::File::options()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+        let meta = std::fs::metadata(&file).unwrap();
+        assert_eq!(meta.modified().unwrap(), old);
+        let installed = installed_at(&meta).unwrap();
+        let now = std::time::SystemTime::now();
+        assert!(installed > old + Duration::from_secs(60));
+        assert!(installed <= now + Duration::from_secs(1));
+        // A process from before the unpack is stale even though the build
+        // is older than it.
+        assert!(predates(2_000, installed));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_extension_executable_is_the_one_the_bundle_embeds() {
+        assert_eq!(
+            extension_executable(std::path::Path::new("/A/Cuotai.app/Contents")),
+            std::path::Path::new(
+                "/A/Cuotai.app/Contents/PlugIns/CuotaiWidgets.appex/Contents/MacOS/CuotaiWidgets"
+            )
+        );
+        // The test binary embeds no extension: nothing is stopped.
+        assert_eq!(retire_stale_extension(), 0);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn this_process_is_listed_with_its_path_and_start_time() {
+        let me = libc::pid_t::try_from(std::process::id()).unwrap();
+        assert!(process::all().contains(&me));
+        assert_eq!(
+            process::path(me).unwrap().canonicalize().unwrap(),
+            std::env::current_exe().unwrap().canonicalize().unwrap()
+        );
+        let started = process::started_by_this_user(me).unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert!(started <= now && started + 3_600 > now);
+        // launchd (pid 1) belongs to root.
+        assert_eq!(process::started_by_this_user(1), None);
     }
 
     fn temp_locations(dir: &std::path::Path, macos: bool, moved: bool) -> Locations {
