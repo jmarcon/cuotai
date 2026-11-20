@@ -1516,6 +1516,32 @@ fn the_status_line_level_follows_claude_tightest_window() {
     assert_eq!(line(NO_RATE_LIMITS, &[], None).level, None);
 }
 
+/// PRD 0040 L-8 (owner decision 2026-11-20): a colour paints Claude's part
+/// only, at every width; a line without Claude's part stays plain.
+#[test]
+fn the_status_line_paints_only_claudes_part() {
+    let others = [other("Codex", 0.64)];
+    let input = format!(
+        r#"{{"session_id":"t","context_window":{{"used_percentage":8}},"rate_limits":{{"five_hour":{{"used_percentage":23,"resets_at":{}}}}}}}"#,
+        now().timestamp() + 3_600
+    );
+    let full = line(&input, &others, None);
+    assert_eq!(&full.text[..full.claude_len], "5h 23% ↺ 15:00");
+    assert_eq!(
+        full.painted("<", ">"),
+        "<5h 23% ↺ 15:00> · Codex 64% left · ctx 8%"
+    );
+    assert_eq!(line(&input, &others, Some(8)).painted("<", ">"), "<5h 23%>");
+    let empty = line(&input, &others, Some(5));
+    assert_eq!(
+        (empty.claude_len, empty.painted("<", ">")),
+        (0, String::new())
+    );
+    let none = line(NO_RATE_LIMITS, &others, None);
+    assert_eq!(none.claude_len, 0);
+    assert_eq!(none.painted("<", ">"), none.text);
+}
+
 // ------------------------------------------------------------- RF7
 
 fn live_reading(session: &str, minutes_ago: i64, ctx: f64) -> FeedReading {
