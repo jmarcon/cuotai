@@ -2398,7 +2398,7 @@ pub fn validate_name(
         .accounts
         .iter()
         .enumerate()
-        .any(|(i, a)| Some(i) != editing && a.name.trim().eq_ignore_ascii_case(trimmed));
+        .any(|(i, a)| Some(i) != editing && crate::account_names_match(&a.name, trimmed));
     if collision {
         return Err(crate::text::Localized::fixed(
             "edit_error.duplicate_name",
@@ -4575,6 +4575,33 @@ mod tests {
         let updated = config.upsert_account(own, Some(1)).unwrap();
         assert_eq!(updated.accounts[1].name, "Anthropic");
         assert_eq!(updated.accounts[0].name, "OpenAI");
+    }
+
+    /// PRD 0029 RF3.1: the duplicate check folds Unicode case, and the
+    /// saved name keeps the text as typed.
+    #[test]
+    fn upsert_rejects_unicode_case_collision_and_keeps_typed_name() {
+        let config = config_with(vec![
+            env_account("Équipe", Provider::OpenAiApi, "OPENAI_ADMIN_KEY"),
+            env_account("Straße", Provider::AnthropicApi, "ANTHROPIC_ADMIN_KEY"),
+        ]);
+        for name in ["équipe", "ÉQUIPE", "STRASSE", "strasse"] {
+            let mut edited = config.accounts[1].clone();
+            edited.name = name.into();
+            if crate::account_names_match(name, "Straße") {
+                // Its own name in another case is no collision.
+                let updated = config.upsert_account(edited, Some(1)).unwrap();
+                assert_eq!(updated.accounts[1].name, name);
+                continue;
+            }
+            let err = config.upsert_account(edited, Some(1)).unwrap_err();
+            assert_eq!(err.l10n().id, "edit_error.duplicate_name", "{name}");
+        }
+        let err = config.rename_account(1, "équipe").unwrap_err();
+        assert!(err.is_validation(), "{err:?}");
+        let mut other = config.accounts[1].clone();
+        other.name = "Ìquipe".into();
+        assert!(config.upsert_account(other, Some(1)).is_ok());
     }
 
     #[test]

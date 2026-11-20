@@ -297,6 +297,43 @@ impl Provider {
     }
 }
 
+/// PRD 0029 RF3.1: the form of an account name used to compare names
+/// (uniqueness and lookups). The stored name keeps the text as typed.
+///
+/// This is full, language-independent Unicode case folding built on the
+/// standard library, with no extra crate: each character goes through
+/// lowercase, then uppercase, then lowercase again. The uppercase step
+/// applies the full (one-to-many) mappings, so "ß" and "ẞ" fold to "ss" and
+/// "ﬀ" to "ff"; per-character lowercasing folds the final sigma "ς" to "σ".
+/// Turkish rules are not applied: "İ" folds to "i̇" (i + U+0307) and does
+/// not equal "I", and the dotless "ı" stays "ı" (as in Unicode
+/// `CaseFolding.txt`), so it equals neither "i" nor "I".
+///
+/// The text is not normalized: a precomposed "É" (NFC) and "E" + U+0301
+/// (NFD) are different names, as they were before. Keyboards and the
+/// desktop and terminal inputs produce the precomposed form.
+pub fn fold_account_name(name: &str) -> String {
+    let mut folded = String::with_capacity(name.len());
+    for c in name.trim().chars() {
+        if c == '\u{131}' {
+            folded.push(c);
+            continue;
+        }
+        for lower in c.to_lowercase() {
+            for upper in lower.to_uppercase() {
+                folded.extend(upper.to_lowercase());
+            }
+        }
+    }
+    folded
+}
+
+/// Whether two account names are the same name under
+/// [`fold_account_name`] (trimmed, Unicode case folding).
+pub fn account_names_match(a: &str, b: &str) -> bool {
+    fold_account_name(a) == fold_account_name(b)
+}
+
 /// Configuration holds credential references, never credential values.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Account {
@@ -1548,6 +1585,31 @@ pub struct Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PRD 0029 RF3.1: names compare with full Unicode case folding.
+    #[test]
+    fn account_names_fold_unicode_case() {
+        assert!(account_names_match("Équipe", "équipe"));
+        assert!(account_names_match("ÉQUIPE", "équipe"));
+        assert!(account_names_match(" Work ", "WORK"));
+        // Full folding: the sharp s matches "ss" and "SS".
+        assert!(account_names_match("Straße", "STRASSE"));
+        assert!(account_names_match("straße", "strasse"));
+        assert!(account_names_match("STRAẞE", "strasse"));
+        assert!(account_names_match("ﬀ", "FF"));
+        assert!(account_names_match("ΟΔΟΣ", "οδος"));
+        // Language-independent: no Turkish rules.
+        assert_eq!(fold_account_name("İ"), "i\u{307}");
+        assert!(account_names_match("İ", "i\u{307}"));
+        assert!(!account_names_match("İ", "I"));
+        assert!(!account_names_match("İ", "i"));
+        assert!(!account_names_match("ı", "i"));
+        assert!(!account_names_match("ı", "I"));
+        assert!(account_names_match("I", "i"));
+        // No normalization: NFC and NFD differ.
+        assert!(!account_names_match("\u{c9}quipe", "E\u{301}quipe"));
+        assert!(!account_names_match("Team A", "Team B"));
+    }
 
     /// PRD 0037 RF5: `unlimited` is additive: written only when the provider
     /// stated it, read back as `false` when absent.

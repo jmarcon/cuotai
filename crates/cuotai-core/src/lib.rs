@@ -467,7 +467,7 @@ impl Config {
                 }
             } else if let Some(other_index) = self.accounts[..index].iter().position(|other| {
                 let other_name = other.name.trim();
-                !other_name.is_empty() && other_name.eq_ignore_ascii_case(name)
+                !other_name.is_empty() && model::account_names_match(other_name, name)
             }) {
                 return Err(ConfigError::AccountNameRepeated {
                     field: format!("accounts[{index}].name"),
@@ -2253,6 +2253,31 @@ mod tests {
         let mut config = Config::default();
         config.accounts[0].name = "Trabalho é ação".into();
         assert!(config.validate().is_ok());
+    }
+
+    /// PRD 0029 RF3.1: `Config::validate` folds Unicode case too.
+    #[test]
+    fn repeated_names_compare_with_unicode_case_folding() {
+        let mut config = Config::default();
+        let mut second = config.accounts[0].clone();
+        second.provider = Provider::AnthropicApi;
+        config.accounts[0].name = "Équipe".into();
+        second.name = "ÉQUIPE".into();
+        config.accounts.push(second);
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigError::AccountNameRepeated { .. })
+        ));
+        config.accounts[1].name = "STRASSE".into();
+        config.accounts[0].name = "Straße".into();
+        assert!(matches!(
+            config.validate(),
+            Err(ConfigError::AccountNameRepeated { .. })
+        ));
+        config.accounts[1].name = "I".into();
+        config.accounts[0].name = "İ".into();
+        assert!(config.validate().is_ok());
+        assert_eq!(config.accounts[0].name, "İ");
     }
 
     #[test]
