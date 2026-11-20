@@ -90,6 +90,8 @@ fieldset.auth {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  /* A fieldset is at least as wide as its longest word; a long sign-in help must wrap inside the dialog instead. */
+  min-width: 0;
 }
 fieldset.auth legend {
   padding: 0 calc(var(--space-1) + var(--space-0));
@@ -128,8 +130,10 @@ label.mode {
   cursor: pointer;
 }
 label.mode small {
+  min-width: 0;
   color: var(--fg-muted);
   font-weight: 400;
+  overflow-wrap: anywhere;
 }
 label.mode-off {
   opacity: 0.55;

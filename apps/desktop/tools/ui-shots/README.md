@@ -34,6 +34,15 @@ the `*.fixture` captures compare with `assets/0022/after/` (01, 03, 10, 11); `&b
 (the "Billed per query" chip); `?mono=XY` gives the first account a monogram override (DS-CMP-MONO-4); `?aggwarn` gives
 the 9router instance both standing warnings (PRD 0036 RF2.3/RF2.4); `?paste-session` makes the core offer the Xiaomi MiMo
 account a new paste, so its card and details show Paste session (not with `?fixture=six`, which has no MiMo account).; `?strip` gives the tray the 24-hour strip of the account the menu bar follows (PRD 0043 RF4.2).
+PRD 0037 re-validation (V-09): `?every-provider` adds a card for each provider the default set lacks, so every provider of
+the core has one (`main-every-provider`, `main-every-provider-narrow`, `tray-every-provider`). Every account form in the
+demo is the backend's own `form_schema`, read from `ui/js/demo-forms.json`, which the desktop test `demo_forms_fixture`
+generates (regenerate with `CUOTAI_REGENERATE_DOCS=1 cargo test demo_forms_fixture` in `apps/desktop/src-tauri`). From the
+same file, [`provider-pages.mjs`](provider-pages.mjs) gives `check.mjs` a `dialog-form-<provider>` page for each provider
+without a form page of its own (Add account from the picker, or Edit on the `?every-provider` card for a provider the
+picker does not offer), run in en-US, de, ja and en-XA; the page fails when the form did not open.
+`scripts/test-demo-fixture-ui.mjs` fails when a provider has no card, no form page, or a demo form that differs from the
+generated one.
 PRD 0033 (they combine with each other and with the default set, and come first in the list): `?renewed` adds a preserved
 Claude reading whose 5-hour window renewed beside a current week, a restored Kimi reading whose only quota renewed, and
 an exhausted binding week beside a paced 5-hour window (the card's labelled pace line); `?lagging` adds a fresh and an
