@@ -84,7 +84,9 @@ pub(super) async fn acquire(
 }
 
 fn open(dir: &Path, key: &str) -> Option<File> {
-    std::fs::create_dir_all(dir).ok()?;
+    // PRD 0052 re-validation S-05: a private folder (`0700`, no link), as
+    // the privacy inventory lists it.
+    crate::private_fs::ensure_dir(dir).ok()?;
     let mut options = OpenOptions::new();
     options.read(true).write(true).create(true).truncate(false);
     #[cfg(unix)]

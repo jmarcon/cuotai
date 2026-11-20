@@ -466,13 +466,20 @@ static ARTIFACTS: &[Artifact] = &[
         "until the entry is deleted",
         "0029",
     ),
+    dir(
+        "oauth.locks",
+        "oauth-locks",
+        "empty lock files named by the vault's opaque keys, held during a token refresh",
+        UNTIL_ERASED,
+        "0029",
+    ),
     file(
         "update.check",
         LocalData,
         "update-check.json",
         "the latest version seen by the terminal update notice and when",
         Unversioned,
-        "24 hours",
+        "replaced at most once a day; kept until erased",
         "0028",
     ),
     Artifact {
@@ -712,8 +719,11 @@ pub fn companions(artifact: &Artifact, path: &Path) -> Vec<PathBuf> {
     // the file (`<file>.bak`, the numbered `desktop.json.bak.N`, the
     // `notified.json.corrupt-<time>` set-asides) hold the same data, and
     // so does a `notified.lock.stale-<pid>-<n>` a crash left while breaking
-    // a stale lock (PRD 0032 RF4.2).
+    // a stale lock (PRD 0032 RF4.2). PRD 0052 re-validation S-05: so do
+    // its writer's lock (`.<file>.lock`) and the temporaries a crashed
+    // writer left (`.<file>.<random>.tmp`).
     out.push(with(".bak"));
+    out.push(crate::private_fs::lock_path(path));
     if let (Some(dir), Some(name)) = (path.parent(), path.file_name()) {
         let name = name.to_string_lossy();
         let (bak, corrupt, stale) = (
@@ -721,6 +731,7 @@ pub fn companions(artifact: &Artifact, path: &Path) -> Vec<PathBuf> {
             format!("{name}.corrupt"),
             format!("{name}.stale-"),
         );
+        let (temp_prefix, temp_suffix) = crate::private_fs::temp_affixes(path);
         if let Ok(entries) = std::fs::read_dir(dir) {
             let mut copies: Vec<PathBuf> = entries
                 .filter_map(Result::ok)
@@ -730,6 +741,7 @@ pub fn companions(artifact: &Artifact, path: &Path) -> Vec<PathBuf> {
                     entry.starts_with(&bak)
                         || entry.starts_with(&corrupt)
                         || entry.starts_with(&stale)
+                        || (entry.starts_with(&temp_prefix) && entry.ends_with(temp_suffix))
                 })
                 .map(|entry| entry.path())
                 .collect();
@@ -842,7 +854,7 @@ fn inspect_one(artifact: &'static Artifact, roots: &Roots) -> ArtifactState {
     };
     ArtifactState {
         id: artifact.id,
-        path: home_abbreviated(&path),
+        path: crate::text::strip_disguising(&home_abbreviated(&path)).into_owned(),
         kind: artifact.kind,
         exists: Some(meta.is_some()),
         found,

@@ -229,6 +229,31 @@ fn an_invalid_data_folder_fails() {
     assert_eq!(report.exit_code(), 2);
 }
 
+/// PRD 0052 re-validation S-07: a path with an escape sequence or a
+/// text-direction override (here the data folder, and every file of the
+/// inventory below it) is shown without them, in the text and the JSON.
+#[test]
+fn a_path_with_escapes_and_bidi_is_shown_without_them() {
+    let fixture = Fixture::new(Some(TWO_ACCOUNTS));
+    let mut inputs = fixture.inputs(&[], free_port());
+    let hostile = fixture
+        .dir
+        .path()
+        .join("da\u{1b}]0;title\u{7}ta\u{202e}gpj.exe\u{2066}");
+    inputs.data_root = Some(hostile);
+    let report = run(&inputs);
+    let check = report.checks.iter().find(|c| c.id == "data_dir").unwrap();
+    for locale in ["en-US", "pt-BR"] {
+        let title = check.title.resolve(locale);
+        assert!(!title.chars().any(crate::text::is_disguising), "{title:?}");
+        assert!(title.contains("da]0;titletagpj.exe"), "{title:?}");
+    }
+    let json = serde_json::to_string(&report).unwrap();
+    for bad in ["\\u001b", "\\u0007", "\u{202e}", "\u{2066}"] {
+        assert!(!json.contains(bad), "{bad:?} in {json}");
+    }
+}
+
 /// PRD 0054 RF6.3: a CLI-backed account reports where its program is, or
 /// that it is missing, with the home shown as `~` and no PATH value.
 #[cfg(unix)]

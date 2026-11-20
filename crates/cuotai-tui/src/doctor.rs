@@ -5,6 +5,7 @@
 
 use cuotai_core::doctor::{self, CheckStatus, Inputs, Report};
 use cuotai_core::network::{self, ClientPurpose};
+use cuotai_core::text::strip_disguising;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
@@ -105,18 +106,21 @@ pub(crate) fn render(report: &Report, json: bool, locale: &str) -> String {
         }
         out.push_str(heading(status, locale));
         out.push('\n');
+        // PRD 0052 re-validation S-07: defence in depth; no resolved text
+        // reaches the terminal with a control or text-direction character.
+        let clean = |text: String| strip_disguising(&text).into_owned();
         for check in checks {
             out.push_str(&format!(
                 "  {} {}",
                 mark(status),
-                check.title.resolve(locale)
+                clean(check.title.resolve(locale))
             ));
             if let Some(detail) = &check.detail {
-                out.push_str(&format!(": {}", detail.resolve(locale)));
+                out.push_str(&format!(": {}", clean(detail.resolve(locale))));
             }
             out.push('\n');
             if let Some(fix) = &check.fix {
-                out.push_str(&format!("    → {}\n", fix.resolve(locale)));
+                out.push_str(&format!("    → {}\n", clean(fix.resolve(locale))));
             }
         }
     }
@@ -124,7 +128,7 @@ pub(crate) fn render(report: &Report, json: bool, locale: &str) -> String {
     if !report.tools.is_empty() {
         out.push('\n');
         for tool in report.tools.values() {
-            out.push_str(&tool.line());
+            out.push_str(&strip_disguising(&tool.line()));
             out.push('\n');
         }
     }

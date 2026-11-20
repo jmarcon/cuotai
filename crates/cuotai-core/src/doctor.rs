@@ -219,8 +219,11 @@ fn vault_available() -> bool {
     false
 }
 
+/// A path as a message parameter: home-relative, without control or
+/// text-direction characters (PRD 0052 re-validation S-07), so a configured
+/// path cannot reach the terminal as an escape sequence.
 fn path_param(path: &Path) -> ParamValue {
-    ParamValue::from(home_relative(path))
+    ParamValue::from(crate::text::strip_disguising(&home_relative(path)).into_owned())
 }
 
 fn source_slug(source: PathSource) -> &'static str {
