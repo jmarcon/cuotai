@@ -64,7 +64,7 @@ The re-validation (Visual, Security, Review) found 1 high, 12 medium and 26 low 
 - The per-day session count after hiding is approximate when one session mixes hidden and shown projects on the same day and model (only the session count; never tokens or cost).
 - The cross-check with PRD 0040's fed session cost (RF7, optional) is still not done.
 - Native review of the new catalog strings (listed in each catalog's `pending_review`).
-- **Owner decision:** confirm the bracketed-code wording ("Cuotai's own code … not the tool's session id").
+- ~~**Owner decision:** confirm the bracketed-code wording~~: **confirmed by the owner on 2026-11-20**, together with the keyed fingerprint, the hint-off deletion of `cost.sqlite3.bak` and the KPI's shorter-figure step (all three deviations above stand).
 
 **Awaiting owner verification (2026-11-17 checklist):**
 1. **Blocks on the real logs.** With Claude Code on, `cuotai --cost --by block` lists today's blocks with the active one first; its window contains now.

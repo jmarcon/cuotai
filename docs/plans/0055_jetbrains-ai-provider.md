@@ -33,7 +33,7 @@
 - The `…_total_missing` notes ("A tool came without its … consumption") also cover a total that overflowed. That only happens with a misbehaving answer, so the 14 catalogs were not reworded.
 - RF8 (real service account).
 
-**2026-11-20 re-validation:** Visual, Security and Review on `7c41013f`; Delivery on the PRD 0055+0056 pair branch. V-01 (a repeated tool id gave two rows with one label), S-01 (non-finite sums), V-02 (generic missing client-ID note), R-01 (RF4 did not say metrics 400/422 are schema errors), R-02 (untested RF4 cases) and R-03 (status table and RF2 text) fixed (0.87.6). The individual mode stays an owner decision (§5).
+**2026-11-20 re-validation:** Visual, Security and Review on `7c41013f`; Delivery on the PRD 0055+0056 pair branch. V-01 (a repeated tool id gave two rows with one label), S-01 (non-finite sums), V-02 (generic missing client-ID note), R-01 (RF4 did not say metrics 400/422 are schema errors), R-02 (untested RF4 cases) and R-03 (status table and RF2 text) fixed (0.87.6). The individual mode was declined for now by the owner on 2026-11-20 (§5).
 
 ## 1. Research (checked on 2026-11-04)
 
@@ -96,6 +96,6 @@ The agent signed in nowhere and used no credential: every fact below comes from 
 
 - 2026-11-04 (agent): the organization Analytics API is the only documented, read-only and non-billing interface; it is delivered. The month window is the calendar month in UTC, because the API's dates are UTC and individual 30-day resets do not apply to an organization total.
 - 2026-11-04 (agent): `credits-usage/group-by/tool` is used instead of `quota-consumption/group-by/date` because one request gives both the totals and the per-tool split (Junie versus AI Assistant was the issue's ask).
-- Open (owner): whether to add an individual mode reading the IDE's local `AIAssistantQuotaManager2.xml` (Level `Undocumented`, credential `LocalCli`-like, no network). It needs a filesystem reader per OS and accepts that the value may be weeks old; CodexBar (MIT) documents the format.
+- **Declined for now (owner, 2026-11-20):** Cuotai supports only the organization (service-account) mode; no individual mode. The proposal, kept for a later decision: an individual mode reading the IDE's local `AIAssistantQuotaManager2.xml` (Level `Undocumented`, credential `LocalCli`-like, no network). It needs a filesystem reader per OS and accepts that the value may be weeks old; CodexBar (MIT) documents the format.
   - Preconditions recorded by the 2026-11-20 security re-validation, for the day it is approved: fixed per-OS roots only; the path canonicalized under its root, symlinks refused, regular files only; a size cap and a bounded `idea.log` tail; XML entity decoding with no external entities; finite, non-negative numbers; shown strings checked for bidi and control characters; level `Undocumented`, credential `LocalCli`, and a note on the data's age.
 - 2026-11-20: re-validated (Visual, Security, Review); fixes 0.87.6. A repeated tool id merges into one row rather than a disambiguated label ("Junie (2)"), because a label that depends on the answer's order would not be a stable history or budget key.
