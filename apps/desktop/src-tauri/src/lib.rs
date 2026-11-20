@@ -3689,6 +3689,12 @@ pub fn run() -> std::process::ExitCode {
                         if notify::take_digest_open() {
                             let _ = handle.emit_to("main", "open-view", "stats");
                         }
+                        // PRD 0056 RF2.3: back from sleep, a parked Google
+                        // sign-in window past its idle limit goes now.
+                        let app = handle.app_handle().clone();
+                        tauri::async_runtime::spawn(async move {
+                            session_capture::expire_if_due(&app);
+                        });
                     }
                     if let WindowEvent::CloseRequested { api, .. } = e {
                         api.prevent_close();
