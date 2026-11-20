@@ -464,6 +464,20 @@ pub fn next_lines(text: &str) -> Vec<usize> {
         .collect()
 }
 
+/// The control header field `release prepare` writes (PRD 0053 RF4.3).
+pub const CONTROL_LABEL: &str = "Last release prepared";
+/// Its label before PRD 0053; a control file that has it gets the rows in
+/// first-appearance order, as the releases prepared before the rename.
+pub const LEGACY_CONTROL_LABEL: &str = "Cuotai version at that date";
+
+/// Whether `control` takes the numeric row order of PRD 0053 RF3.3: every
+/// control file that carries the new header label.
+pub fn numeric_rows(control: &str) -> bool {
+    control
+        .lines()
+        .any(|line| line.starts_with(&format!("| {CONTROL_LABEL} |")))
+}
+
 /// RF6.2: the `0000_control.md` header and the generated §3 rows.
 pub fn update_control(text: &str, version: &str, date: &str, rows: &[String]) -> String {
     let lines: Vec<&str> = text.lines().collect();
@@ -479,8 +493,15 @@ pub fn update_control(text: &str, version: &str, date: &str, rows: &[String]) ->
             out.push(format!("| Last updated | {date} |"));
             continue;
         }
-        if line.starts_with("| Cuotai version at that date |") {
-            out.push(format!("| Cuotai version at that date | {version} |"));
+        // PRD 0053 RF4.3: prepare writes this before publication, so the
+        // label says "prepared". A control file that still has the older
+        // label keeps it, so a release prepared before the rename re-renders
+        // byte for byte (`release prepare --check`, rule 5 of the gate).
+        if let Some(label) = [CONTROL_LABEL, LEGACY_CONTROL_LABEL]
+            .into_iter()
+            .find(|label| line.starts_with(&format!("| {label} |")))
+        {
+            out.push(format!("| {label} | {version} |"));
             continue;
         }
         if in_delivered && line.starts_with(&row_prefix) {
@@ -499,9 +520,23 @@ pub fn update_control(text: &str, version: &str, date: &str, rows: &[String]) ->
     out.join("\n") + "\n"
 }
 
+/// PRD 0053 RF3.3: the order of requirement ids, by letter prefix and then
+/// by each number as a number (`RF2` before `RF3.4` before `RF10`).
+fn requirement_key(rf: &str) -> (String, Vec<u64>, String) {
+    let letters: String = rf.chars().take_while(char::is_ascii_uppercase).collect();
+    let numbers = rf[letters.len()..]
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|part| !part.is_empty())
+        .map(|part| part.parse().unwrap_or(u64::MAX))
+        .collect();
+    (letters, numbers, rf.to_string())
+}
+
 /// RF6.2: one `| X.Y.Z | NNNN | RF0, RF1 (abc1234, def5678). |` row per
-/// plan cited by a `Refs:` trailer of the released commits, by plan number.
-pub fn control_rows(version: &str, commits: &[(&Commit, String)]) -> Vec<String> {
+/// plan cited by a `Refs:` trailer of the released commits, by plan number;
+/// the hashes in commit order, and the ids in numeric order (PRD 0053
+/// RF3.3) when `numeric`, else in first-appearance order ([`numeric_rows`]).
+pub fn control_rows(version: &str, commits: &[(&Commit, String)], numeric: bool) -> Vec<String> {
     let mut plans: BTreeMap<String, (Vec<String>, Vec<String>)> = BTreeMap::new();
     for (commit, short) in commits {
         for reference in &commit.trailers.refs {
@@ -519,7 +554,10 @@ pub fn control_rows(version: &str, commits: &[(&Commit, String)]) -> Vec<String>
     }
     plans
         .into_iter()
-        .map(|(prd, (rfs, hashes))| {
+        .map(|(prd, (mut rfs, hashes))| {
+            if numeric {
+                rfs.sort_by_cached_key(|rf| requirement_key(rf));
+            }
             format!(
                 "| {version} | {prd} | {} ({}). |",
                 rfs.join(", "),
@@ -774,26 +812,43 @@ mod tests {
     #[test]
     fn control_rows_and_header() {
         let a = commit("feat: a", "Refs: PRD 0029 RF1, RF0");
-        let b = commit("fix: b", "Refs: PRD 0029 RF1\nRefs: PRD 0003 RF2");
-        let rows = control_rows(
-            "0.80.0",
-            &[(&a, "abc1234".to_string()), (&b, "def5678".to_string())],
+        let b = commit(
+            "fix: b",
+            "Refs: PRD 0029 RF1\nRefs: PRD 0003 RF2\nRefs: PRD 0003 RF10, RF3.4, RF3, M1, C2",
         );
+        let commits = [(&a, "abc1234".to_string()), (&b, "def5678".to_string())];
+        // PRD 0053 RF3.3: numeric order with the new header label.
         assert_eq!(
-            rows,
+            control_rows("0.80.0", &commits, true),
             [
-                "| 0.80.0 | 0003 | RF2 (def5678). |",
+                "| 0.80.0 | 0003 | C2, M1, RF2, RF3, RF3.4, RF10 (def5678). |",
+                "| 0.80.0 | 0029 | RF0, RF1 (abc1234, def5678). |"
+            ]
+        );
+        // First-appearance order under the older label, as releases before it.
+        let legacy = control_rows("0.80.0", &commits, false);
+        assert_eq!(
+            legacy,
+            [
+                "| 0.80.0 | 0003 | RF2, RF10, RF3.4, RF3, M1, C2 (def5678). |",
                 "| 0.80.0 | 0029 | RF1, RF0 (abc1234, def5678). |"
             ]
         );
         let control = "# C\n\n| Field | Value |\n|---|---|\n| Last updated | 2026-10-01 |\n| Cuotai version at that date | 0.79.0 |\n\n## 3. Delivered by version\n\n| Version | Plan | Requirements delivered |\n|---|---|---|\n| 0.79.0 | 0001 | RF1. |\n| 0.80.0 | 0009 | stale. |\n\n## 4. Next\n\n| a | b |\n";
-        let out = update_control(control, "0.80.0", "2026-10-24", &rows);
+        assert!(!numeric_rows(control));
+        let out = update_control(control, "0.80.0", "2026-10-24", &legacy);
         assert!(out.contains("| Last updated | 2026-10-24 |"));
         assert!(out.contains("| Cuotai version at that date | 0.80.0 |"));
         assert!(!out.contains("stale"));
         assert!(out.contains(
-            "| 0.79.0 | 0001 | RF1. |\n| 0.80.0 | 0003 | RF2 (def5678). |\n| 0.80.0 | 0029 | RF1, RF0 (abc1234, def5678). |\n\n## 4. Next"
+            "| 0.79.0 | 0001 | RF1. |\n| 0.80.0 | 0003 | RF2, RF10, RF3.4, RF3, M1, C2 (def5678). |\n| 0.80.0 | 0029 | RF1, RF0 (abc1234, def5678). |\n\n## 4. Next"
         ));
+        let renamed = control.replace("Cuotai version at that date", "Last release prepared");
+        assert!(numeric_rows(&renamed));
+        let rows = control_rows("0.80.1", &commits, numeric_rows(&renamed));
+        let again = update_control(&renamed, "0.80.1", "2026-10-25", &rows);
+        assert!(again.contains("| Last release prepared | 0.80.1 |"));
+        assert!(again.contains("| 0.80.1 | 0003 | C2, M1, RF2, RF3, RF3.4, RF10 (def5678). |"));
     }
 
     #[test]

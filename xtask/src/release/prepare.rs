@@ -597,12 +597,12 @@ pub(crate) fn compute(
     // Plans (RF6.2).
     let all: Vec<(&commits::Commit, String)> =
         commits.iter().map(|(c, s)| (c, s.clone())).collect();
-    let rows = render::control_rows(&v, &all);
     let plan_paths = tree.plan_files()?;
     for (path, text) in plan_paths.iter().zip(tree.read_many(&plan_paths)?) {
         let text = text.ok_or_else(|| Error::Msg(format!("cannot read {path}")))?;
         let (mut new, _) = render::replace_next(&text, &v);
         if path.starts_with("docs/plans/0000_") {
+            let rows = render::control_rows(&v, &all, render::numeric_rows(&text));
             new = render::update_control(&new, &v, &opts.date, &rows);
         }
         push(path, text, new);

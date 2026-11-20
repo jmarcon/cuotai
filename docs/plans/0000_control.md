@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-11-20 |
-| Cuotai version at that date | 0.87.4 |
+| Last release prepared | 0.87.4 |
 | Plans | 56 (21 implemented, 34 awaiting owner verification, 0 in progress, 0 planned for the next version, 1 proposed) |
 
 ## 1. How to maintain it
@@ -13,7 +13,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 - **Possible statuses:** `Proposed` (written, no code), `In progress` (part of the RFs delivered), `Awaiting owner verification` (every RF delivered and covered by automated tests; only a manual owner smoke or a live account check remains, listed in §2.1), `Implemented` (all RFs delivered and verified), `Superseded` or `Cancelled` (with the reason in the Notes column). A reserved number appears as `Reserved` until its PRD is written. A plan placed in the backlog keeps its status and is marked "deferred" in §5.
 - **Terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. The acronym is kept so references in code, commits and plans stay stable.
 - **When delivering an RF:** write the token `vNEXT` where the version goes, in the plan's "Implementation status" and in this file's §2 row, and carry `Refs:` trailers in the commit (PRD 0039 RF6). `cargo xtask release prepare` replaces `vNEXT` with the released version and appends the "Delivered by version" rows (section 3); do not edit section 3 by hand.
-- **Commit traceability:** the commit that delivers an RF carries the trailer `Refs: PRD 0006 RF2` (one line per requirement, PRD 0039 RF1). `CHANGELOG.md` is the source of the deliveries (PRD 0019 RF7) and section 3 is generated from the `Refs:` trailers at release time.
+- **Commit traceability:** the commit that delivers an RF carries the trailer `Refs: PRD 0006 RF2` (one line per requirement, PRD 0039 RF1). `CHANGELOG.md` is the source of the deliveries (PRD 0019 RF7) and section 3 is generated from the `Refs:` trailers at release time. A section 3 row lists the requirements the released commits *cite*, which is not proof that they were delivered: each plan's "Implementation status" stays the delivery record until PRD 0053 RF3.
 - **Requirement ids:** an RF (`RF2`, `RF7.4`) or a review id made of capital letters, a dash and digits (`FIX-08`, `INT-04`, `SES-01`); the commit gate of PRD 0039 rejects any other shape in `Refs:`. The id must also be *defined* by its plan: a `### RF2 —` heading, a `**RF2.4**` item, a `- RF3.3:` list item or a `| FIX-01 |` table row. A mention inside a range ("RF4–RF8") or in prose does not count (PRD 0053 RF2.4).
 - **Fix requirements of delivered plans** (decision J) do not change the plan's status; while one is open, the plan's Notes cell names it and wave 5a lists it.
 - **Strong dependency** means the plan cannot be delivered without the other (the cited RF must exist). **Weak dependency** means it works without the other, but is better with it.
@@ -125,9 +125,9 @@ Every item below waits only for the owner: the code is delivered and covered by 
 
 ## 3. Delivered by version
 
-[`CHANGELOG.md`](../../CHANGELOG.md) is the full record of every version (PRD 0019, RF7). Since 0.69.0 the RF7.8 CI check (`cargo xtask changelog-check`) compares the two sources on every pull request and `main` push. Rows up to 0.79.0 (internal versions, never published) were written by hand. `CHANGELOG.md` summarizes those versions in one "Pre-release history" section, so these rows, the plans and `git log` are their per-version detail; the check resolves them through that section's range. **From the first release on, do not edit this table by hand:** `cargo xtask release prepare` (`release::render::update_control`) appends one row per plan cited by the `Refs:` trailers of the released commits, shaped `| X.Y.Z | NNNN | RF1, RF2 (abc1234, def5678). |` (requirements in first-appearance order, short hashes of the citing commits), replaces the rows of the same version on a refresh, and rewrites only the "Last updated" and "Cuotai version at that date" header cells; the "Plans" count, section 2 and the history stay curated by the delivering commits.
+[`CHANGELOG.md`](../../CHANGELOG.md) is the full record of every version (PRD 0019, RF7). Since 0.69.0 the RF7.8 CI check (`cargo xtask changelog-check`) compares the two sources on every pull request and `main` push. Rows up to 0.79.0 (internal versions, never published) were written by hand. `CHANGELOG.md` summarizes those versions in one "Pre-release history" section, so these rows, the plans and `git log` are their per-version detail; the check resolves them through that section's range. **From the first release on, do not edit this table by hand:** `cargo xtask release prepare` (`release::render::update_control`) appends one row per plan cited by the `Refs:` trailers of the released commits, shaped `| X.Y.Z | NNNN | RF1, RF2 (abc1234, def5678). |` (requirements in numeric order, short hashes of the citing commits in commit order), replaces the rows of the same version on a refresh, and rewrites only the "Last updated" and "Last release prepared" header cells (prepare writes them before the release is published; the label was "Cuotai version at that date" until PRD 0053 RF4.3, and a control file that still has the old label keeps it and the first-appearance order, so the releases prepared before the rename re-render byte for byte); the "Plans" count, section 2 and the history stay curated by the delivering commits. The rows list the requirements the released commits cite in `Refs:`, not proof of delivery; each plan's "Implementation status" is the delivery record until PRD 0053 RF3.
 
-| Version | Plan | Requirements delivered |
+| Version | Plan | Requirements cited |
 |---|---|---|
 | 0.7.x | 0001 | All RFs (core support for graphical front ends). |
 | 0.8.0 | 0002 | RF1 (shareable configuration path), first part. |
