@@ -1123,7 +1123,11 @@ export function sessionCaptureHintHtml(slot, region = null) {
     + (shared
       ? `<small class="hint">${te("dialog.session.captureSharedHint")}</small> `
         + `<small class="hint">${te("dialog.session.capturePasskeyHint")}</small>`
-        + `<button type="button" class="link" data-capture-forget>${te("dialog.session.captureForget")}</button>`
+        // PRD 0056 re-validation V-01/V-02: the design-system link button (icon + label) on its own row, not one more
+        // line of the hints, with its own status line for the answer.
+        + `<div class="session-capture-forget"><button type="button" class="link" data-capture-forget>${icon("trash")}`
+        + `<span>${te("dialog.session.captureForget")}</span></button>`
+        + `<small class="hint" data-capture-forget-status role="status" aria-live="polite"></small></div>`
       : `<small class="hint">${te("dialog.session.captureHint")}</small>`)
     + "</div>";
 }

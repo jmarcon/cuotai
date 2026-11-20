@@ -10325,6 +10325,51 @@ mod tests {
         assert!(groq["interval"]["default_seconds"].is_null());
     }
 
+    /// PRD 0056 RF1.3 (re-validation R-03): the dialog learns each
+    /// capture's shared sign-in from `form_schema`, per region too.
+    #[test]
+    fn form_schema_carries_the_shared_capture_sign_in() {
+        let coding = serde_json::to_value(form_schema(Provider::AlibabaCodingPlan)).unwrap();
+        let slot = &coding["sessions"][0];
+        assert_eq!(slot["capture"], true);
+        assert_eq!(slot["capture_shared"], "google");
+        let regions = slot["region_open_urls"].as_array().unwrap();
+        let cn = regions
+            .iter()
+            .find(|r| r["value"] == "cn")
+            .expect("cn region");
+        assert!(
+            cn["capture_shared"].is_null(),
+            "the mainland console has no Google sign-in"
+        );
+
+        let xiaomi = serde_json::to_value(form_schema(Provider::XiaomiMimo)).unwrap();
+        let platform = xiaomi["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["slot"] == "platform_session_env")
+            .expect("platform slot");
+        assert_eq!(platform["capture_shared"], "google");
+
+        // A slot without a capture serialises `null`, not a missing key.
+        let uncaptured = Provider::ALL
+            .iter()
+            .flat_map(|p| {
+                serde_json::to_value(form_schema(*p)).unwrap()["sessions"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default()
+            })
+            .find(|s| s["capture"] == false)
+            .expect("a session slot without a capture");
+        assert!(uncaptured
+            .as_object()
+            .unwrap()
+            .contains_key("capture_shared"));
+        assert!(uncaptured["capture_shared"].is_null());
+    }
+
     const TYPED_KEY: &str = "gsk_DESKTOP-TYPED-SECRET";
 
     /// PRD 0047 G2: a new Groq account whose key the dialog typed.
