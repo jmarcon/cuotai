@@ -214,7 +214,7 @@ Neither can see what only a signed, installed app shows: the Developer ID signat
 
 ### After an update
 
-WidgetKit keeps the extension's process alive for days. When an update replaces the app, that process still runs the previous build, and chronod refuses everything it draws ("Bundle version did not match"), so every widget stays on the grey placeholder until the process ends (0.87.1 to 0.87.6). From vNEXT the app stops, when it starts, every extension process of this user that started from its own bundle before that extension was installed (`widgets::retire_stale_extension`); the system keeps the last timeline on screen and starts the installed build for the next one. A History widget placed before 0.87.0 saved the Account intent, which the History kind no longer uses, and draws an empty card: remove it and place it again.
+WidgetKit keeps the extension's process alive for days. When an update replaces the app, that process still runs the previous build, and chronod refuses everything it draws ("Bundle version did not match"), so every widget stays on the grey placeholder until the process ends (0.87.1 to 0.87.6). From 0.87.7 the app stops, when it starts, every extension process of this user that started from its own bundle before that extension was installed (`widgets::retire_stale_extension`); the system keeps the last timeline on screen and starts the installed build for the next one. A History widget placed before 0.87.0 saved the Account intent, which the History kind no longer uses, and draws an empty card: remove it and place it again.
 
 ### Building and packaging
 
