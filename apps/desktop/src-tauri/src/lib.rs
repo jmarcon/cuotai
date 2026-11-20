@@ -15,6 +15,7 @@ mod native_confirm;
 mod nav_guard;
 mod notify;
 mod session_capture;
+mod session_site_data;
 mod settings;
 mod settings_window;
 mod startup_error;

@@ -886,6 +886,7 @@ name = "cuotai-desktop"
 version = "0.87.5"
 dependencies = [
  "base64 0.22.1",
+ "block2",
  "chrono",
  "cuotai-core",
  "dirs 6.0.0",
@@ -893,6 +894,7 @@ dependencies = [
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
+ "objc2-web-kit",
  "parking_lot",
  "rcgen",
  "rfd",
@@ -908,6 +910,9 @@ dependencies = [
  "tauri-plugin-updater",
  "tempfile",
  "tokio",
+ "webkit2gtk",
+ "webview2-com",
+ "windows-core",
 ]
 
 [[package]]

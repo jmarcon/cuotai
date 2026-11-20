@@ -29,10 +29,15 @@
 //!   on the capture's own allow-list goes to the browser, at most one a
 //!   second; every other popup, and every popup of the parked window, is
 //!   dropped), downloads are refused;
-//! - the store is non-persistent (`incognito`, plus a fresh data directory
-//!   on Windows and Linux) and is cleared and removed when the window ends;
+//! - the store is non-persistent (`incognito`; on Windows also a fresh
+//!   data directory; on Linux one is created too, but wry's ephemeral
+//!   context for `incognito` leaves it unused) and is cleared and removed
+//!   when the window ends; a parked shared window keeps only Google's
+//!   cookies, every other website data type being erased store-wide
+//!   ([`crate::session_site_data`]);
 //! - cookie values are never logged nor kept outside the returned paste.
 
+use crate::session_site_data::{erase_all_but_cookies, SiteData};
 use cuotai_core::user_session::{self, SessionDescriptor, SharedSignIn};
 use cuotai_core::Provider;
 use parking_lot::Mutex;
@@ -66,7 +71,8 @@ pub const SHARED_IDLE_TICK: Duration = Duration::from_secs(30);
 /// provider's page before it deletes the cookies (a page being unloaded may
 /// still set one).
 const PARK_SETTLE: Duration = Duration::from_millis(500);
-/// Prefix of the throw-away data directories (Windows and Linux).
+/// Prefix of the throw-away data directories (Windows and Linux; on Linux
+/// wry's ephemeral context for `incognito` leaves them unused).
 const DIR_PREFIX: &str = "cuotai-session-capture-";
 
 /// How a capture ended, as the account dialog reads it.
@@ -449,7 +455,8 @@ struct SharedSlot {
     target: Arc<Mutex<Option<Capture>>>,
     /// Set by the window's close or destroy event.
     closed: Arc<AtomicBool>,
-    /// The window's data directory (Windows and Linux).
+    /// The window's data directory (Windows and Linux; unused on Linux
+    /// under wry's ephemeral context, but swept the same way).
     dir: Option<PathBuf>,
 }
 
@@ -542,7 +549,7 @@ pub(crate) fn sweep_dirs_in(base: &Path, keep: Option<&Path>) -> Result<usize, (
 
 /// RF1–RF6: open the capture window for `slot` of `provider` and wait for
 /// its outcome. Errors: `not_capturable`, `busy`, `unavailable`.
-pub async fn run<R: Runtime>(
+pub async fn run<R: SiteData>(
     app: &AppHandle<R>,
     provider: Provider,
     slot: &str,
@@ -675,9 +682,11 @@ async fn private_capture<R: Runtime>(
             NewWindowResponse::Deny
         })
         .on_download(|_, _| false);
-    // RF2.2: WebKitGTK and WebView2 keep their store under a data
-    // directory; a fresh one per capture keeps it apart from the main
-    // window's even where `incognito` is unsupported (old WebView2).
+    // RF2.2: WebView2 keeps its store under a data directory; a fresh one
+    // per capture keeps it apart from the main window's even where
+    // `incognito` is unsupported (old WebView2). On Linux the directory is
+    // passed too but stays unused: under `incognito` wry gives the web
+    // view an ephemeral context that keeps everything in memory.
     if cfg!(not(target_os = "macos")) {
         builder = builder.data_directory(dir.clone());
     }
@@ -791,7 +800,7 @@ fn reuse_shared<R: Runtime>(
 }
 
 /// PRD 0056: a capture in the shared window.
-async fn shared_capture<R: Runtime>(
+async fn shared_capture<R: SiteData>(
     app: &AppHandle<R>,
     target: Capture,
     sign_in: SharedSignIn,
@@ -875,10 +884,13 @@ async fn shared_capture<R: Runtime>(
     Ok(outcome)
 }
 
-/// PRD 0056 RF3: hide the window on `about:blank` and delete every cookie
-/// but the sign-in's own; `false` when the store cannot be read or still
-/// holds another cookie afterwards (the caller then destroys the window).
-async fn park<R: Runtime>(window: &WebviewWindow<R>, sign_in: SharedSignIn) -> bool {
+/// PRD 0056 RF3: hide the window on `about:blank`, erase every website
+/// data type but cookies (every site's local storage, IndexedDB, caches …,
+/// Google's included) and delete every cookie but the sign-in's own;
+/// `false` when the erase fails or times out, or the store cannot be read
+/// or still holds another cookie afterwards (the caller then destroys the
+/// window: fail closed).
+async fn park<R: SiteData>(window: &WebviewWindow<R>, sign_in: SharedSignIn) -> bool {
     let Ok(blank) = tauri::Url::parse("about:blank") else {
         return false;
     };
@@ -887,6 +899,9 @@ async fn park<R: Runtime>(window: &WebviewWindow<R>, sign_in: SharedSignIn) -> b
     }
     let _ = window.hide();
     tokio::time::sleep(PARK_SETTLE).await;
+    if !erase_all_but_cookies(window).await {
+        return false;
+    }
     for _ in 0..2 {
         let Ok(cookies) = window.cookies() else {
             return false;
@@ -1571,6 +1586,34 @@ mod tests {
         assert_eq!(forget_shared(&handle), Ok(false));
         on_exit(&handle);
         assert_eq!(state.shared_phase(), Phase::Absent);
+    }
+
+    /// PRD 0056 RF3 with the mock runtime: parking succeeds only when the
+    /// erase of every website data type but cookies succeeds; a failure, or
+    /// a completion that never comes, destroys the window (fail closed).
+    #[test]
+    fn parking_needs_the_site_data_erase_with_a_mock_runtime() {
+        use crate::session_site_data::MockErase;
+        let app = mock_app();
+        let handle = app.handle().clone();
+        let state = handle.state::<State>();
+        handle.manage(MockErase(Mutex::new(Some(true))));
+        assert_eq!(run_cancelled(&handle), Ok(Outcome::Cancelled));
+        assert!(matches!(
+            state.shared_phase(),
+            Phase::Parked { generation: 1 }
+        ));
+        assert!(forget_shared(&handle).is_ok());
+        for result in [Some(false), None] {
+            let app = mock_app();
+            let handle = app.handle().clone();
+            let state = handle.state::<State>();
+            handle.manage(MockErase(Mutex::new(result)));
+            assert_eq!(run_cancelled(&handle), Ok(Outcome::Cancelled));
+            assert_eq!(state.shared_phase(), Phase::Absent, "{result:?}");
+            assert!(state.shared.lock().target.lock().is_none());
+            assert_eq!(forget_shared(&handle), Ok(false));
+        }
     }
 
     /// PRD 0056 RF2.3 (R-01) with the mock runtime: a parked window whose
