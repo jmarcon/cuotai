@@ -730,9 +730,9 @@ pub(crate) fn acl_summary(path: &Path) -> Option<&'static str> {
 
 /// On Windows, give `path` a protected DACL with only the current user,
 /// SYSTEM and Administrators (inherited by a folder's new children), the
-/// counterpart of `0700`/`0600`. A no-op elsewhere.
-#[cfg_attr(not(any(windows, feature = "serve")), allow(dead_code))]
-pub(crate) fn make_private(path: &Path, is_dir: bool) -> io::Result<()> {
+/// counterpart of `0700`/`0600`. A no-op elsewhere. Public so the desktop
+/// can protect the files it creates itself (the `desktop.json` backups).
+pub fn make_private(path: &Path, is_dir: bool) -> io::Result<()> {
     #[cfg(windows)]
     {
         windows_acl::make_private(path, is_dir)

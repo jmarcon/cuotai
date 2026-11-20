@@ -1241,16 +1241,27 @@ fn backup_path(file: &Path, number: u32) -> PathBuf {
 /// Keeps `bytes`, the damaged contents of `file`, in the first free backup,
 /// on disk before this returns. No backup is ever overwritten; one that
 /// already holds these bytes is the backup (a crash may have come between
-/// taking it and replacing the file).
+/// taking it and replacing the file). A backup is created readable only by
+/// this user (`0600` on Unix, a private ACL on Windows), like the file.
 fn back_up(file: &Path, bytes: &[u8]) -> io::Result<PathBuf> {
     for number in 0..=MAX_BACKUPS {
         let path = backup_path(file, number);
-        match fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
         {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        match options.open(&path) {
             Ok(mut backup) => {
+                // Private before the damaged bytes land in it; an empty
+                // copy that could not be made private is not left behind.
+                if let Err(error) = cuotai_core::private_fs::make_private(&path, false) {
+                    drop(backup);
+                    let _ = fs::remove_file(&path);
+                    return Err(error);
+                }
                 backup.write_all(bytes)?;
                 backup.sync_all()?;
                 return Ok(path);
@@ -2272,6 +2283,23 @@ mod tests {
         assert_eq!(read_locale(&file).as_deref(), Some("fr"));
         let recovered = RECOVERED.lock().unwrap_or_else(PoisonError::into_inner);
         assert!(recovered.contains(&dir.path().join("desktop.json.bak")));
+    }
+
+    /// PRD 0051 RF4.3 (S-03): a copy of a damaged `desktop.json` is readable
+    /// only by this user, whatever the umask, and so is every numbered one.
+    #[cfg(unix)]
+    #[test]
+    fn backups_of_a_damaged_file_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("desktop.json");
+        let first = back_up(&file, b"{broken").unwrap();
+        let second = back_up(&file, b"{broken again").unwrap();
+        assert_eq!(second, dir.path().join("desktop.json.bak.1"));
+        for path in [first, second] {
+            let mode = fs::metadata(&path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600, "{}", path.display());
+        }
     }
 
     #[test]
