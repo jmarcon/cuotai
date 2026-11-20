@@ -242,6 +242,8 @@ impl Vault for SystemVault {
 pub struct DevelopmentVault {
     store: crate::oauth::SqliteDevStore,
     index: PathBuf,
+    /// `<database>.oauth-locks` (PRD 0052 re-validation S-05).
+    locks: PathBuf,
 }
 
 #[cfg(debug_assertions)]
@@ -253,7 +255,37 @@ impl DevelopmentVault {
         Ok(Self {
             store,
             index: crate::oauth::vault_index::development_path(path),
+            locks: crate::oauth::development_locks_dir(path),
         })
+    }
+
+    /// Remove the store's refresh-lock folder: its `<key>.lock` files, then
+    /// the folder once empty; a link is removed, never followed, and a
+    /// folder that keeps other entries stays. Whether something went.
+    fn remove_locks(&self) -> Result<bool, VaultFailure> {
+        let meta = match std::fs::symlink_metadata(&self.locks) {
+            Ok(meta) => meta,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(_) => return Err(VaultFailure),
+        };
+        if !meta.is_dir() {
+            return if meta.file_type().is_symlink() {
+                std::fs::remove_file(&self.locks).map_err(|_| VaultFailure)?;
+                Ok(true)
+            } else {
+                Ok(false)
+            };
+        }
+        let entries = std::fs::read_dir(&self.locks).map_err(|_| VaultFailure)?;
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let is_lock = std::fs::symlink_metadata(entry.path()).is_ok_and(|m| m.is_file())
+                && lock_name(&name.to_string_lossy());
+            if is_lock {
+                std::fs::remove_file(entry.path()).map_err(|_| VaultFailure)?;
+            }
+        }
+        Ok(std::fs::remove_dir(&self.locks).is_ok())
     }
 
     /// Remove the store's vault index; a symbolic link is removed, never
@@ -285,7 +317,7 @@ impl Vault for DevelopmentVault {
         match service {
             "cuotai.oauth" => {
                 let rows = self.store.delete_all_tokens().map_err(|_| VaultFailure)?;
-                Ok(rows + usize::from(self.remove_index()?))
+                Ok(rows + usize::from(self.remove_index()?) + usize::from(self.remove_locks()?))
             }
             "cuotai.serve" => self.store.serve_delete().map_err(|_| VaultFailure),
             _ => Err(VaultFailure),
@@ -568,8 +600,20 @@ fn shape(artifact: &Artifact, path: &Path, scope: &Scope) -> Shape {
         "metered.records" | "metered.records_legacy" => {
             Shape::Entries(|_, name, meta| meta.is_file() && metered_name(name))
         }
+        "oauth.locks" => Shape::Entries(|_, name, meta| meta.is_file() && lock_name(name)),
         _ => Shape::EmptyOnly,
     }
+}
+
+/// An OAuth refresh lock (`<key>.lock`, a key of letters, digits, `-`, `_`
+/// and `.` as the vault keys are).
+fn lock_name(name: &str) -> bool {
+    name.strip_suffix(".lock").is_some_and(|key| {
+        !key.is_empty()
+            && key
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+    })
 }
 
 /// A metered record (`<64 hex>.json`), its lock (`.<record>.lock`) or a
@@ -855,6 +899,7 @@ mod tests {
                 write(crate::canary::MARKER, b"");
                 write("run-1.json", b"{}");
             }
+            "oauth.locks" => write("0f8e5a3c-1b2d-4c6e-8a9b-112233445566.lock", b""),
             _ => write("sub/f", b"x"),
         }
     }
@@ -925,8 +970,8 @@ mod tests {
         let left = files_left(dir.path());
         let accounts = options.roots.accounts.clone().unwrap();
         let hooks = accounts.with_file_name("hooks.toml");
-        // The kept files keep their own copies (`.bak`) too.
-        assert_eq!(left.len(), 4, "{left:?}");
+        // The kept files keep their own copies (`.bak`) and locks too.
+        assert_eq!(left.len(), 6, "{left:?}");
         assert!(left.contains(&accounts) && left.contains(&hooks));
         assert!(left
             .iter()
@@ -1245,6 +1290,40 @@ mod tests {
         assert!(!default.exists());
     }
 
+    /// PRD 0052 re-validation S-05: writers' dot-locks, crashed writers'
+    /// temporaries and the OAuth refresh locks go with their files, so the
+    /// configuration folder and the data root are removed too.
+    #[test]
+    fn dot_locks_temporaries_and_oauth_locks_go_and_the_roots_are_removed() {
+        let (dir, mut options) = tree();
+        options.include_config = true;
+        let config = dir.path().join("config").join("cuotai");
+        let local = options.roots.local_data.clone().unwrap();
+        for path in [
+            config.join(".desktop.json.lock"),
+            config.join(".desktop.json.Ab12Cd.tmp"),
+            local.join(".notified.json.lock"),
+            local.join(".widget.json.x9Yz.tmp"),
+            local.join("cost").join(".settings.json.lock"),
+        ] {
+            std::fs::write(&path, b"").unwrap();
+        }
+        assert!(local.join("oauth-locks").is_dir());
+        let report = erase_all(&options, &vault()).unwrap();
+        assert!(report.complete(), "{report:?}");
+        assert_eq!(report.count(Outcome::Foreign), 0, "{report:?}");
+        assert!(!config.exists(), "{:?}", files_left(&config));
+        assert!(!local.exists(), "{:?}", files_left(&local));
+    }
+
+    #[test]
+    fn lock_names_are_vault_keys_only() {
+        assert!(lock_name("0f8e5a3c-1b2d-4c6e-8a9b-112233445566.lock"));
+        assert!(!lock_name(".lock"));
+        assert!(!lock_name("notes.txt"));
+        assert!(!lock_name("a b.lock"));
+    }
+
     #[test]
     fn metered_names_are_records_locks_and_temporaries_only() {
         assert!(metered_name(&format!("{DIGEST}.json")));
@@ -1361,6 +1440,10 @@ mod tests {
         drop(store);
         let index = crate::oauth::vault_index::development_path(&database);
         std::fs::write(&index, b"{}").unwrap();
+        // PRD 0052 re-validation S-05: the store's refresh locks go too.
+        let locks = crate::oauth::development_locks_dir(&database);
+        std::fs::create_dir_all(&locks).unwrap();
+        std::fs::write(locks.join("first.lock"), b"").unwrap();
 
         let choice = StoreChoice::Development(database.clone());
         let vault = choice.erase_vault_with(os_vault_reached).unwrap();
@@ -1370,6 +1453,7 @@ mod tests {
         #[cfg(feature = "serve")]
         assert_eq!(outcome_of(&report, "vault.serve"), Outcome::Removed);
         assert!(!index.exists(), "the store's index goes");
+        assert!(!locks.exists(), "the store's lock folder goes");
         assert!(database.exists(), "the database file is kept");
         let store = SqliteDevStore::open(&database).unwrap();
         assert!(store.load("first").unwrap().is_none());

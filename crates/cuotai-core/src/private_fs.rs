@@ -109,14 +109,14 @@ pub const UPDATE_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs
 const ORPHAN_AGE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
 
 /// `<dir>/.<name>.lock`, the advisory lock beside `path`.
-fn lock_path(path: &Path) -> std::path::PathBuf {
+pub(crate) fn lock_path(path: &Path) -> std::path::PathBuf {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     path.with_file_name(format!(".{name}.lock"))
 }
 
 /// The prefix and suffix of this writer's temporary files: `.<name>.` and
 /// `.tmp`, so cleanup removes only those.
-fn temp_affixes(path: &Path) -> (String, &'static str) {
+pub(crate) fn temp_affixes(path: &Path) -> (String, &'static str) {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     (format!(".{name}."), ".tmp")
 }
@@ -876,8 +876,10 @@ impl RotatingFile {
             .lock
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // PRD 0052 re-validation S-06: a folder recreated mid-run (after
+        // someone removed it) is private again, never the default mode.
         if let Some(dir) = self.path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
-            std::fs::create_dir_all(dir)?;
+            ensure_dir(dir)?;
         }
         let len = std::fs::metadata(&self.path).map_or(0, |meta| meta.len());
         if len > 0 && len + line.len() as u64 > self.limit {
@@ -909,6 +911,20 @@ mod tests {
 
     fn mode(path: &Path) -> u32 {
         std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    /// PRD 0052 re-validation S-06: the log's folder, removed while the app
+    /// runs, comes back private on the next line.
+    #[test]
+    fn a_log_folder_recreated_mid_run_is_private() {
+        let dir = tempfile::tempdir().unwrap();
+        let logs = dir.path().join("logs");
+        let log = RotatingFile::new(logs.join("cuotai.log"), 1024);
+        log.append(b"one\n").unwrap();
+        std::fs::remove_dir_all(&logs).unwrap();
+        log.append(b"two\n").unwrap();
+        assert_eq!(mode(&logs), 0o700);
+        assert_eq!(mode(&logs.join("cuotai.log")), 0o600);
     }
 
     #[test]

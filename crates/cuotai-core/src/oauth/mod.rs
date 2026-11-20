@@ -29,6 +29,13 @@ use std::collections::BTreeMap;
 pub(crate) use store::sqlite_dev::SqliteDevStore;
 pub use store::{SystemTokenStore, TokenStore};
 
+/// The refresh-lock folder of the debug-only SQLite store at `database`
+/// (`<database>.oauth-locks`), which erasing that store removes.
+#[cfg(debug_assertions)]
+pub(crate) fn development_locks_dir(database: &std::path::Path) -> std::path::PathBuf {
+    process_lock::development_dir(database)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OAuthConfig {

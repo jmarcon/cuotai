@@ -68,9 +68,18 @@ pub fn text(value: &str) -> String {
     if p.body.is_match(value) {
         return BODY.to_string();
     }
+    // PRD 0052 re-validation S-09: controls, bidi overrides and isolates
+    // and the direction marks become spaces, so a logged value cannot
+    // reorder or disguise the line.
     let value: String = value
         .chars()
-        .map(|c| if c.is_control() { ' ' } else { c })
+        .map(|c| {
+            if crate::text::is_disguising(c) || matches!(c, '\u{200E}' | '\u{200F}' | '\u{061C}') {
+                ' '
+            } else {
+                c
+            }
+        })
         .collect();
     let value = p.header.replace_all(&value, |caps: &regex::Captures| {
         format!("{}: {SECRET}", &caps[1])
@@ -237,6 +246,19 @@ mod tests {
         }
         assert!(!text.contains("seedpass"), "{text:?}");
         assert!(!text.chars().any(char::is_control) || text.ends_with('\n'));
+    }
+
+    /// PRD 0052 re-validation S-09: bidi overrides, isolates and direction
+    /// marks become spaces like controls, and redaction stays idempotent.
+    #[test]
+    fn disguising_characters_become_spaces() {
+        for c in [
+            '\u{202E}', '\u{2066}', '\u{2069}', '\u{200F}', '\u{061C}', '\u{1b}',
+        ] {
+            let once = text(&format!("file{c}name"));
+            assert_eq!(once, "file name", "{c:?}");
+            assert_eq!(text(&once), once);
+        }
     }
 
     #[test]
