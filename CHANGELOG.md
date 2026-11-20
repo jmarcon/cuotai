@@ -13,6 +13,34 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.4] - 2026-11-20
+
+### Changed
+
+- The `--once`, `--json` and `--json-v1` commands now exit with 2 when an account is skipped because this version does not know its provider or one of its keys (PRD 0051 RF1.2; 73f008b).
+
+### Fixed
+
+- A setting this version does not know inside [updates] or [[groups]] is now ignored with a notice instead of stopping every account (PRD 0051 RF1.3, RF1.6; 1c1bb50).
+- The terminal dashboard shows how many accounts it skipped and how to check the file, even in a narrow window (PRD 0051 RF2.5; f61b66e).
+- Closing the desktop's offer to reuse a moved file's history now only hides it until the next start; Keep apart declines it (PRD 0051 RF5.4, RF2.5; aad57aa).
+- An unknown setting in the accounts file now shows as information in the desktop app instead of as an error (PRD 0051 RF5.4, RF2.5; aad57aa).
+- The configuration check now says when a file is not UTF-8 text, and German texts about newer versions use the formal address (PRD 0051 RF2.1; 8305098).
+- Erasing all data also removes Cuotai's lock and temporary files, so no empty Cuotai folder is left behind (PRD 0052 RF1.3, RF3.2, RF3.3, RF4.1, RF5.2; d7add92).
+- Erasing all data in the desktop app now also clears the app's own window storage, turns off Open at login and removes leftover web-session capture profiles, so nothing comes back at the next login or start (PRD 0052 RF3.3, RF4.1, RF5.2; PRD 0054 RF4; 917411a).
+- The privacy inventory now lists the app's window storage, the Open at login entry and the web-session capture profiles, and `cuotai --erase-all-data` names them as erased only in the desktop app (PRD 0052 RF3.3, RF4.1, RF5.2; PRD 0054 RF4; 917411a).
+- The erase confirmation word is accepted however the keyboard composes its accented letters, and the German erase prompt uses the formal form (PRD 0052 RF3.2, RF3.4, RF5.3; 0fd4f67).
+- Check setup says that its copied report names your environment variables, never their values (PRD 0052 RF3.2, RF3.4, RF5.3; 0fd4f67).
+
+### Security
+
+- Cuotai never deletes or narrows files in a data folder it did not create: a newly chosen data folder (in Settings or with CUOTAI_DATA_DIR) now holds Cuotai's files in a Cuotai folder inside it (PRD 0051 RF5.2, RF5.3; 882d9c8).
+- If you set CUOTAI_DATA_DIR to an existing folder that does not hold Cuotai's data yet, Cuotai now keeps its files in a Cuotai folder inside it, so point backups and scripts at that subfolder; a folder Cuotai already uses, or a path that does not exist yet, is still used as it is (PRD 0051 RF5.2, RF5.3; 882d9c8).
+- Copies of a damaged desktop settings file are now readable only by you (PRD 0051 RF4.3; 5b71caa).
+- Erasing all data from the terminal now also erases the data folder chosen in the desktop app and any data left in the default folder, and removes the desktop settings last so a failed erase can be retried (PRD 0052 RF5.2, RF5.3; PRD 0051 RF5.2; 648f890).
+- The setup check (`cuotai --doctor`) and the app log no longer pass control or text-direction characters from a configured path or an error to the terminal or the log (PRD 0052 RF1.3, RF3.2, RF3.3, RF4.1, RF5.2; d7add92).
+- Erasing all data now refuses while the Cuotai app, `cuotai --serve`, `cuotai --watch` or the terminal dashboard is running, and names what to quit first (PRD 0052 RF5.2, RF5.3; d06d7e0).
+
 ## [0.87.3] - 2026-11-20
 
 ### Fixed
@@ -1218,7 +1246,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.3...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.4...HEAD
+[0.87.4]: https://github.com/jmarcon/cuotai/compare/v0.87.3...v0.87.4
 [0.87.3]: https://github.com/jmarcon/cuotai/compare/v0.87.2...v0.87.3
 [0.87.2]: https://github.com/jmarcon/cuotai/compare/v0.87.1...v0.87.2
 [0.87.1]: https://github.com/jmarcon/cuotai/compare/v0.87.0...v0.87.1
