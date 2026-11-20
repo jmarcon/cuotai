@@ -53,6 +53,19 @@ rc:
 3. **Release PR.** `git push -u origin release/vX.Y.Z`, then
    `gh pr create --base main --head release/vX.Y.Z --title "chore(release): X.Y.Z" --body-file "$(git rev-parse --git-path cuotai-release-pr-body.md)"`
    (`release prepare` prints this command with the path).
+   **The release PR's CI is release-scoped** (PRD 0039 B-7, owner decision
+   2026-11-20): when the PR comes from `release/v*`, has exactly one commit
+   and changes only the files `release prepare` writes (the version files,
+   both lockfiles, `CHANGELOG.md`, `README.md` and `docs/**/*.md`), the
+   `changes` job sets `heavy=false`, and the test matrix, the UI checks,
+   the widgets, `deny`, the canary dry run and the release-profile job are
+   skipped, because `main` just tested the same code. `changelog-check`
+   (the commit gate and the privacy guard), `version-check`,
+   `release-preflight` and `release-smoke` (the embedded `CHANGELOG.md`
+   parses and the CLI builds and prints it, on Linux) still run, and
+   `CI result` stays the one required check. Any other file, or a second
+   commit, gives the full run. The `main` run of the merged release commit
+   always runs everything.
    CI runs `release-preflight` with `release prepare --check`. From the
    release after 0.86.7, that check is **line by line**: it re-runs
    `release prepare` against the parent commit (with the version of the
@@ -80,7 +93,9 @@ rc:
    `release/vX.Y.Z` with **full_rehearsal** for the first three releases,
    and recommends it afterwards when release tooling changed.
 4. **Merge** with **Rebase and merge**.
-5. **Tag** (the owner, or an agent under the rules below, after the release PR merged):
+5. **Tag** (the owner, or an agent under the rules below, right after the
+   release PR merged; there is no need to wait for the `main` CI run of the
+   release commit, PRD 0039 B-6, owner decision 2026-11-20):
 
    ```sh
    git switch main && git pull --ff-only
@@ -104,7 +119,10 @@ rc:
    → assemble → artifact smoke → publish → verify-public → package-manifests
    → channel jobs**.
    Its `check` job also runs `release prepare --check` on the tagged commit
-   and the [CI result proof](#ci-result-proof-rf54).
+   and the [CI result proof](#ci-result-proof-rf54), which accepts the green
+   `CI result` of the merged release PR's head when that head has the same
+   tree, parents, message and author as the tagged commit, and fails
+   otherwise.
 
 The first release after the cutover was a release candidate of the next
 computed version (`v0.80.0-rc.1`, D9). Versions 0.1.0 to 0.79.0 are internal
@@ -188,14 +206,22 @@ them. After a change to this step lands, run **Actions → Release → Run
 workflow** once on `main` (with **full_rehearsal** off) and read that
 summary.
 
-A second form, the **identical pull request head**, is written and tested
-but **available, not enabled**: it would accept a green `pull_request` run
-of `ci.yml` on the merged release PR's head when that head has the same
-tree, parents, message and author as the tagged commit, so a release could
-be tagged without waiting for the `main` run of the release commit. It sits
-behind the constant `ACCEPT_IDENTICAL_PR_HEAD` (`false`) in
-`xtask/src/release/ci_proof.rs`; enabling it is an owner decision
-(re-validation B-6).
+A second form, the **identical pull request head**, is **enabled** (owner
+decision B-6 of 2026-11-20; the constant `ACCEPT_IDENTICAL_PR_HEAD` is
+`true` in `xtask/src/release/ci_proof.rs`): when the tagged commit has no
+green `CI result` of its own yet, the proof accepts a green `pull_request`
+run of `ci.yml` on the head of the one pull request merged into `main` as
+that commit, if that head has the same tree, the same parents, the same
+message and the same author. A rebase merge of an up-to-date release PR
+changes only the committer, so a release is tagged as soon as its PR
+merges, without waiting about 22 minutes for the `main` run of the release
+commit. Any difference (another tree, a moved parent, a reworded message, a
+different author) fails `check` with the difference named. No check is
+lost: the `main` run still happens (it warms the caches), the committer
+identity that only `main` sees is checked by this step, and `release.yml`
+builds every platform from the tag. The release PR's CI being
+release-scoped (B-7), that head's `CI result` covers the release checks,
+and the code it carries is the code the previous `main` run tested.
 
 By hand: `cargo xtask release ci-proof --commit <sha> --evidence <dir>
 [--tag vX.Y.Z] [--report-only]`, with the API responses saved in `<dir>`
@@ -884,8 +910,10 @@ agents" of [`AGENTS.md`](../AGENTS.md). In short:
   the release is stable unless the owner asks for an rc.
 - Before tagging, the agent verifies and reports all of these: local `main`
   is fast-forwarded to `origin/main`; `HEAD` is the merged
-  `chore(release): X.Y.Z` commit; `CI result` is green on it; and
-  `release-check` and `release prepare --check` pass.
+  `chore(release): X.Y.Z` commit; `CI result` is green on it, or on the
+  head of the merged release PR when that head has the same tree, parent,
+  message and author (the CI result proof of `release.yml` verifies this and
+  fails otherwise); and `release-check` and `release prepare --check` pass.
 - The annotated tag comes only from `cargo xtask release tag` (with `--rc`
   for a release candidate), never from `git tag` by hand. `release.yml`
   checks it again in the [CI result proof](#ci-result-proof-rf54).

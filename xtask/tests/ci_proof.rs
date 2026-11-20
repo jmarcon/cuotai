@@ -109,7 +109,10 @@ fn the_red_main_run_fails_in_both_forms() {
     let error = evaluate(&commit, &evidence("red-main-push"), false).unwrap_err();
     assert!(error.contains("concluded failure"), "{error}");
     assert!(error.contains("run 43866033873"), "{error}");
-    assert!(error.contains("not enabled: owner decision B-6"), "{error}");
+    assert!(
+        error.contains("identical PR head form is turned off"),
+        "{error}"
+    );
     // PR #254's head was green, but it is not identical to the merge.
     let error = evaluate(&commit, &evidence("red-main-push"), true).unwrap_err();
     assert!(error.contains("concluded failure"), "{error}");
@@ -203,7 +206,12 @@ fn pending_wrong_app_other_workflow_and_missing_runs_fail() {
 /// PR #264's head, which is identical: accepted with the switch on only.
 #[test]
 fn identical_pr_head_is_accepted_only_with_the_switch_on() {
-    const { assert!(!ci_proof::ACCEPT_IDENTICAL_PR_HEAD, "owner decision B-6") };
+    const {
+        assert!(
+            ci_proof::ACCEPT_IDENTICAL_PR_HEAD,
+            "owner decision B-6 (2026-11-20)"
+        )
+    };
     let commit = facts("green-v0.86.7");
     let (_d, evidence) = variant("green-v0.86.7", |f, v| {
         set_check_run(f, v, "conclusion", Value::Null)
@@ -211,7 +219,7 @@ fn identical_pr_head_is_accepted_only_with_the_switch_on() {
     });
     let error = evaluate(&commit, &evidence, false).unwrap_err();
     assert!(error.contains("is still queued"), "{error}");
-    assert!(error.contains("not enabled"), "{error}");
+    assert!(error.contains("turned off"), "{error}");
     let proof = evaluate(&commit, &evidence, true).unwrap();
     assert_eq!(
         proof,

@@ -16,7 +16,7 @@
 //!   so a commit status or another app cannot stand in for it), whose check
 //!   suite belongs to a run of [`CI_WORKFLOW`] whose `head_sha` is the
 //!   tagged commit;
-//! - **identical PR head** (written and tested, not enabled, see
+//! - **identical PR head** (enabled by owner decision B-6 of 2026-11-20, see
 //!   [`ACCEPT_IDENTICAL_PR_HEAD`]): the same proof on the head `H` of the
 //!   pull request merged into `main` as the tagged commit `T`, from a
 //!   `pull_request` run, when `H` and `T` have the same tree, the same
@@ -28,12 +28,14 @@ use serde::Deserialize;
 
 use crate::{err, git, parse_tag, Error, Res};
 
-/// Whether the identical-tree form may prove a release. Available, not
-/// enabled: turning it on is owner decision B-6 of the PRD 0039
-/// re-validation (it lets a release be tagged without waiting for the
-/// `main` CI run of the release commit). The CLI always passes this
-/// constant; tests pass both values.
-pub const ACCEPT_IDENTICAL_PR_HEAD: bool = false;
+/// Whether the identical-tree form may prove a release. Enabled by owner
+/// decision B-6 of the PRD 0039 re-validation (2026-11-20): a release is
+/// tagged as soon as its release PR merges, without waiting for the `main`
+/// CI run of the release commit, when the merged PR's head has the same
+/// tree, parents, message and author as the tagged commit and its own
+/// `CI result` passed. The CLI always passes this constant; tests pass both
+/// values.
+pub const ACCEPT_IDENTICAL_PR_HEAD: bool = true;
 
 /// The GitHub Actions app: only its check runs prove a workflow result.
 pub const GITHUB_ACTIONS_APP_ID: u64 = 15368;
@@ -497,7 +499,7 @@ pub fn evaluate(
     };
     if !accept_identical_pr_head {
         return Err(format!(
-            "{strict_error} (the identical PR head form is available but not enabled: owner decision B-6)"
+            "{strict_error} (the identical PR head form is turned off)"
         ));
     }
     identical_pr_head(commit, evidence)
