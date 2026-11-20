@@ -134,6 +134,11 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["settings-integrations-open", "settings.html?page=integrations", 640, 460, { "cuotai.settings.disc.serve-connection": "open", "cuotai.settings.disc.widgets-path": "open" }],
   ["settings-extensions", "settings.html?page=extensions", 640, 460, {}],
   ["settings-files", "settings.html?page=files", 640, 460, {}],
+  // PRD 0051 re-validation V-04: the data-folder row locked by CUOTAI_DATA_DIR, with an unusable chosen folder, and with
+  // a change pending until the next start (its path disclosure open, with the terminal hint).
+  ["settings-files-datadir-env", "settings.html?page=files&datadir=env", 640, 460, { "cuotai.settings.disc.data-dir-path": "open" }],
+  ["settings-files-datadir-error", "settings.html?page=files&datadir=error", 640, 460, { "cuotai.settings.disc.data-dir-path": "open" }],
+  ["settings-files-datadir-pending", "settings.html?page=files&datadir=pending", 640, 460, { "cuotai.settings.disc.data-dir-path": "open" }],
   // PRD 0015 V-02: the Local cost page with its sources on, and the worker paused (the status line inside its group).
   ["settings-cost", "settings.html?page=cost&cost", 640, 460, {}],
   ["settings-cost-paused", "settings.html?page=cost&cost&cost-paused", 640, 460, {}],
@@ -281,6 +286,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-live-5", "index.html?feed=fresh&live=5", 1200, 820, {}],
   ["main-live-7", "index.html?feed=fresh&live=7", 520, 820, {}],
   ["main-feed-banner", "index.html?feed-banner", 1200, 820, {}],
+  // PRD 0051 re-validation V-04: an account set aside (error) beside an unknown key (information), and the moved-file
+  // question with its two answers, at both main-window widths.
+  ["main-config-notices", "index.html?confignotes&relocation", 1200, 820, {}],
+  ["main-config-notices-narrow", "index.html?confignotes&relocation", 520, 820, {}],
   ["dialog-add-claude-feed", "index.html?feed-banner", 1200, 820, {}, "[data-feed-add]"],
   ["settings-dashboard-snippet", "settings.html?page=dashboard", 640, 460, { "cuotai.settings.disc.display-more": "open" }],
 ];

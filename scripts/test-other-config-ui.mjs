@@ -144,3 +144,15 @@ assert.match(html, /<div class="banner info" role="status" data-config-notice="w
 assert.doesNotMatch(html, /banner bad[^>]*data-config-notice="warning"/, "a harmless warning must not use the error tone");
 assert.match(main, /\$\{configNoticesHtml\(view\)\}/, "main window no longer renders the config notices");
 console.log("config notices smoke: ok");
+
+// PRD 0051 re-validation V-04: the browser demo's `?confignotes` and `?relocation` switches feed the same helpers, so
+// the UI checks can render both banners; answering the demo's question ends it.
+globalThis.location = { search: "?confignotes&relocation" };
+const demo = await import("../apps/desktop/ui/js/lib.js?demo-notes");
+const demoView = await demo.getView();
+assert.match(demo.configNoticesHtml(demoView), /banner bad[^>]*data-config-notice="issue"[^]*banner info[^>]*data-config-notice="warning"/);
+assert.match(demo.relocationBannerHtml(demoView), /data-relocation-keep/);
+await demo.historyRelocation(false);
+assert.equal(demo.relocationBannerHtml(await demo.getView()), "", "the demo's offer survived an answer");
+globalThis.location = { search: "" };
+console.log("config notices demo smoke: ok");

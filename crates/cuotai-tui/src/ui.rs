@@ -1738,31 +1738,7 @@ pub async fn run(
             } else if let Some((_, offer)) = &relocation {
                 terminal.draw(|frame| {
                     frame_area = frame.area();
-                    frame.render_widget(
-                        Block::default().style(Style::default().bg(DRACULA_BG).fg(DRACULA_FG)),
-                        frame.area(),
-                    );
-                    let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(3)])
-                        .split(frame.area());
-                    frame.render_widget(
-                        Paragraph::new(resolve_l10n(&offer.prompt()))
-                            .wrap(Wrap { trim: true })
-                            .block(
-                                Block::default()
-                                    .borders(Borders::ALL)
-                                    .title(tr("ui.relocation.title", "History of a moved file")),
-                            ),
-                        areas[0],
-                    );
-                    frame.render_widget(
-                        Paragraph::new(tr(
-                            "ui.relocation.footer",
-                            "y uses that history here • n/Esc keeps it apart • Ctrl-C quits",
-                        ))
-                        .wrap(Wrap { trim: true })
-                        .style(Style::default().fg(DRACULA_YELLOW)),
-                        areas[1],
-                    );
+                    relocation_dialog(frame, &offer.prompt());
                     palette::finish(frame.buffer_mut());
                 })?;
             } else if let Some(state_) = &deletion {
@@ -2391,6 +2367,35 @@ pub async fn run(
 /// Header line: effective path plus the rule that selected it, and the
 /// RF1.2 notice when the desktop app last opened another file. Recording
 /// happens here, i.e. on every load/reload.
+/// PRD 0051 RF5.4: the moved-file question (the core's `prompt` of the
+/// offer) and its keys, over the whole screen.
+fn relocation_dialog(frame: &mut ratatui::Frame, prompt: &cuotai_core::text::Localized) {
+    frame.render_widget(
+        Block::default().style(Style::default().bg(DRACULA_BG).fg(DRACULA_FG)),
+        frame.area(),
+    );
+    let areas = Layout::vertical([Constraint::Min(3), Constraint::Length(3)]).split(frame.area());
+    frame.render_widget(
+        Paragraph::new(resolve_l10n(prompt))
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(tr("ui.relocation.title", "History of a moved file")),
+            ),
+        areas[0],
+    );
+    frame.render_widget(
+        Paragraph::new(tr(
+            "ui.relocation.footer",
+            "y uses that history here • n/Esc keeps it apart • Ctrl-C quits",
+        ))
+        .wrap(Wrap { trim: true })
+        .style(Style::default().fg(DRACULA_YELLOW)),
+        areas[1],
+    );
+}
+
 fn location(file: &ConfigFile) -> String {
     use cuotai_core::config_file::PathSource;
     let source = match file.source {
@@ -4200,6 +4205,50 @@ mod tests {
     use super::*;
     use crate::Provider;
     use std::collections::BTreeMap;
+
+    /// PRD 0051 RF5.4 (re-validation V-04): the moved-file dialog shows the
+    /// core's question, wrapped, under its title, and the keys that answer it,
+    /// in an 80×24 terminal.
+    #[test]
+    fn the_relocation_dialog_shows_the_question_and_its_keys() {
+        use ratatui::{backend::TestBackend, Terminal};
+        let prompt = cuotai_core::text::Localized::with_params(
+            "history.relocation.prompt",
+            cuotai_core::text::params([
+                ("path", cuotai_core::text::ParamValue::from("~/old/cuotai.toml")),
+                ("count", cuotai_core::text::ParamValue::from(1240_u64)),
+                ("accounts", cuotai_core::text::ParamValue::from(3_usize)),
+            ]),
+            "The configuration file moved: {path} no longer exists and its history (readings: {count}; accounts: {accounts}) has exactly the accounts of this file. Use that history here?",
+        );
+        let (width, height) = (80_u16, 24_u16);
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal
+            .draw(|frame| relocation_dialog(frame, &prompt))
+            .unwrap();
+        let screen = terminal
+            .backend()
+            .buffer()
+            .content()
+            .chunks(usize::from(width))
+            .map(|row| row.iter().map(|c| c.symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n");
+        // Every word, in order, once the borders and the wrapping are gone.
+        let words = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let flat = words(&screen.replace('│', " "));
+        assert!(
+            screen.contains(tr("ui.relocation.title", "History of a moved file")),
+            "{screen}"
+        );
+        assert!(flat.contains(&words(&resolve_l10n(&prompt))), "{screen}");
+        assert!(flat.contains("~/old/cuotai.toml"), "{screen}");
+        let footer = tr(
+            "ui.relocation.footer",
+            "y uses that history here • n/Esc keeps it apart • Ctrl-C quits",
+        );
+        assert!(flat.contains(&words(footer)), "{screen}");
+    }
 
     /// S-01 (PRD 0009 re-validation): under a positive UTC offset, the
     /// local clock of an instant near chrono's limit is out of range and
