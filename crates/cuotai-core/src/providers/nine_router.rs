@@ -30,8 +30,10 @@
 //!   `GET /api/version` a plausible version, both without a credential.
 //!   On loopback over plain HTTP, the program listening on the port must
 //!   also belong to the current user or the superuser
-//!   ([`crate::local_listener`]) before each login and before the first
-//!   request of a refresh that carries the session cookie.
+//!   ([`crate::local_listener`]): the socket table is read again right
+//!   before every request that carries the password or the session cookie
+//!   (each login, each connection-list page and each usage request), so a
+//!   verdict is never reused, not even within one refresh.
 //! - Plain HTTP is accepted for loopback hosts, and for private-network
 //!   hosts only with `allow_private_http`; everything else needs HTTPS.
 
@@ -663,9 +665,6 @@ pub(crate) struct Instance<'a> {
     pin_mismatch: Option<Arc<AtomicBool>>,
     /// Re-validation S-01: who owns a loopback listening socket.
     listener: &'a dyn ListenerCheck,
-    /// The listener check passed during this refresh (cleared by a
-    /// transport failure; a login always checks again).
-    listener_ok: AtomicBool,
     /// The version the health-first exchange read, reused by the reading.
     version_seen: std::sync::Mutex<Option<String>>,
 }
@@ -679,7 +678,6 @@ impl<'a> Instance<'a> {
             timeout,
             pin_mismatch: None,
             listener: &local_listener::System,
-            listener_ok: AtomicBool::new(false),
             version_seen: std::sync::Mutex::new(None),
         }
     }
@@ -693,9 +691,12 @@ impl<'a> Instance<'a> {
     /// or a session to a loopback address over plain HTTP, every program
     /// listening on that port must belong to the current user or the
     /// superuser. HTTPS is authenticated by its certificate, and a
-    /// private-network host is not on this machine. `fresh` (a login)
-    /// ignores an earlier pass of this refresh.
-    fn check_listener(&self, fresh: bool) -> Result<(), QueryError> {
+    /// private-network host is not on this machine. To-do 48: the verdict
+    /// is read again for every such request and never cached, so a port
+    /// that changes hands during a refresh stops the next secret. One read
+    /// of the table costs a few milliseconds (about 2 ms on macOS in a debug
+    /// build, 2026-11-20), against a network request per check.
+    fn check_listener(&self) -> Result<(), QueryError> {
         if self.base.scheme() != "http" {
             return Ok(());
         }
@@ -706,15 +707,9 @@ impl<'a> Instance<'a> {
         else {
             return Ok(());
         };
-        if !fresh && self.listener_ok.load(Ordering::Relaxed) {
-            return Ok(());
-        }
         let port = self.base.port_or_known_default().unwrap_or(80);
         match self.listener.verdict(&targets, port) {
-            Verdict::Trusted => {
-                self.listener_ok.store(true, Ordering::Relaxed);
-                Ok(())
-            }
+            Verdict::Trusted => Ok(()),
             Verdict::Foreign | Verdict::Unconfirmed => Err(listener_foreign(port)),
         }
     }
@@ -724,9 +719,9 @@ impl<'a> Instance<'a> {
     }
 
     /// A transport failure (a restart, a port that changed hands): the next
-    /// secret waits for the health-first exchange and the listener check.
+    /// secret waits for the health-first exchange (the listener check runs
+    /// before every secret anyway).
     fn forget_verification(&self) {
-        self.listener_ok.store(false, Ordering::Relaxed);
         verified().remove(&self.key());
     }
 
@@ -795,7 +790,7 @@ impl<'a> Instance<'a> {
     /// other host or path can result.
     fn request(&self, route: &Route, token: Option<&str>) -> Result<RequestBuilder, QueryError> {
         if token.is_some() || *route == Route::Login {
-            self.check_listener(*route == Route::Login)?;
+            self.check_listener()?;
         }
         let url = self
             .base
@@ -3792,6 +3787,174 @@ mod tests {
         )
         .await
         .unwrap();
+    }
+
+    /// A listener check that answers `Trusted` for its first `trusted`
+    /// calls and `Foreign` after them, counting every call.
+    struct TurnsForeign {
+        trusted: usize,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+    impl TurnsForeign {
+        fn after(trusted: usize) -> Self {
+            Self {
+                trusted,
+                calls: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+    impl ListenerCheck for TurnsForeign {
+        fn verdict(&self, _: &[std::net::IpAddr], _: u16) -> Verdict {
+            if self.calls.fetch_add(1, Ordering::SeqCst) < self.trusted {
+                Verdict::Trusted
+            } else {
+                Verdict::Foreign
+            }
+        }
+    }
+
+    /// To-do 48: the listener verdict is read again before every request
+    /// that carries the password or the session, never reused within a
+    /// refresh: a port that turns foreign mid-refresh gets no further
+    /// secret.
+    #[tokio::test]
+    async fn a_listener_that_turns_foreign_mid_refresh_gets_no_further_secret() {
+        let token = jwt(Utc::now().timestamp() + 86_400);
+        let http = client();
+        let connections = json!([
+            connection("a", "claude", "A"),
+            connection("b", "claude", "B")
+        ]);
+        let usage_requests = |requests: &[Request]| {
+            requests
+                .iter()
+                .filter(|request| request.url.path().starts_with("/api/usage/"))
+                .count()
+        };
+        let list_requests = |requests: &[Request]| {
+            requests
+                .iter()
+                .filter(|request| request.url.path() == "/api/providers/client")
+                .count()
+        };
+
+        // Every request trusted: one verdict per secret-bearing request
+        // (login, one list page, two usage reads).
+        let server = MockServer::start().await;
+        mount_login(
+            &server,
+            ResponseTemplate::new(200).insert_header("set-cookie", format!("auth_token={token}")),
+            1,
+        )
+        .await;
+        mount_json(
+            &server,
+            "/api/providers/client",
+            page(connections.clone(), 1),
+        )
+        .await;
+        mount_json(&server, "/api/usage/a", claude_usage()).await;
+        mount_json(&server, "/api/usage/b", claude_usage()).await;
+        let check = TurnsForeign::after(usize::MAX);
+        let data = fetch_with(
+            &account(&server, true, &[]),
+            &context(&http),
+            Limits::DEFAULT,
+            Utc::now(),
+            &check,
+        )
+        .await
+        .unwrap();
+        assert!(data
+            .sub_reports
+            .iter()
+            .all(|sub| sub.status == Status::Ready));
+        assert_eq!(check.calls(), 4);
+
+        // Foreign right after the login: the connection list (cookie) is
+        // never requested.
+        let server = MockServer::start().await;
+        mount_login(
+            &server,
+            ResponseTemplate::new(200).insert_header("set-cookie", format!("auth_token={token}")),
+            1,
+        )
+        .await;
+        mount_json(
+            &server,
+            "/api/providers/client",
+            page(connections.clone(), 1),
+        )
+        .await;
+        let check = TurnsForeign::after(1);
+        let error = fetch_with(
+            &account(&server, true, &[]),
+            &context(&http),
+            Limits::DEFAULT,
+            Utc::now(),
+            &check,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.note.id, "query.nine_router.listener_foreign");
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(list_requests(&requests), 0);
+        assert_eq!(usage_requests(&requests), 0);
+
+        // Foreign after the login and the list: no usage request carries
+        // the cookie, with the password or with a pasted SSO session.
+        for sso in [false, true] {
+            let server = MockServer::start().await;
+            mount_login(
+                &server,
+                ResponseTemplate::new(200)
+                    .insert_header("set-cookie", format!("auth_token={token}")),
+                u64::from(!sso),
+            )
+            .await;
+            mount_json(
+                &server,
+                "/api/providers/client",
+                page(connections.clone(), 1),
+            )
+            .await;
+            mount_json(&server, "/api/usage/a", claude_usage()).await;
+            mount_json(&server, "/api/usage/b", claude_usage()).await;
+            let credentials = SsoOnly(format!("auth_token={token}"));
+            let (acct, ctx, check) = if sso {
+                (
+                    sso_account(&server),
+                    Context {
+                        http: &http,
+                        direct: &http,
+                        credentials: &credentials,
+                        timeout: Duration::from_secs(5),
+                    },
+                    TurnsForeign::after(1),
+                )
+            } else {
+                (
+                    account(&server, true, &[]),
+                    context(&http),
+                    TurnsForeign::after(2),
+                )
+            };
+            let data = fetch_with(&acct, &ctx, Limits::DEFAULT, Utc::now(), &check)
+                .await
+                .unwrap();
+            let requests = server.received_requests().await.unwrap();
+            assert_eq!(list_requests(&requests), 1, "sso={sso}");
+            assert_eq!(usage_requests(&requests), 0, "sso={sso}");
+            assert!(
+                data.sub_reports
+                    .iter()
+                    .all(|sub| sub.status != Status::Ready),
+                "sso={sso}"
+            );
+        }
     }
 
     /// S-07 (R-01 item 2): a redirect at login is authentication, is not
