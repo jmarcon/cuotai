@@ -243,7 +243,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} खाता सहेजा जाएगा, पर संख्याओं की जगह यह कारण दिखाएगा।",
@@ -1240,7 +1243,7 @@
   "field.litellm.show_both.label": "दोनों जगह दिखाएँ (वैकल्पिक)",
   "field.mistral.admin_key_env.help": "वैकल्पिक: Admin API Key वाले वेरिएबल का नाम। खाली होने पर क्रेडेंशियल चरण का वेरिएबल इस्तेमाल होता है, जिसमें एडमिन कुंजी होनी चाहिए।",
   "field.mistral.admin_key_env.label": "वैकल्पिक एडमिन वेरिएबल",
-  "field.nine_router.allow_private_http.help": "केवल निजी नेटवर्क के पतों (192.168.x.x, 10.x.x.x, Tailscale, .local) पर लागू। हाँ = पासवर्ड या कुंजी उस नेटवर्क पर बिना एन्क्रिप्शन के जाती है और जो भी उसे देख सकता है वह पढ़ सकता है; पिन किए प्रमाणपत्र के साथ HTTPS बेहतर है। नहीं = इस मशीन के बाहर HTTPS ज़रूरी।",
+  "field.nine_router.allow_private_http.help": "केवल निजी नेटवर्क पतों (192.168.x.x, 10.x.x.x, Tailscale, .local) पर लागू होता है, और केवल ऐसे इंस्टेंस पर जिसके डैशबोर्ड का साइन इन बंद है: Cuotai पासवर्ड या सत्र कभी भी सादे HTTP पर इस कंप्यूटर से बाहर नहीं भेजता, इसलिए पासवर्ड वाले इंस्टेंस को HTTPS (पिन किया प्रमाणपत्र चलेगा) या SSH टनल जैसा लूपबैक पता चाहिए। हाँ = उस नेटवर्क पर बिना पासवर्ड वाले 9router को सादे HTTP से पढ़ें। नहीं = इस मशीन के बाहर HTTPS ज़रूरी है।",
   "field.nine_router.allow_private_http.label": "निजी नेटवर्क पर बिना एन्क्रिप्शन का कनेक्शन",
   "field.nine_router.allow_private_http.option.false": "नहीं (डिफ़ॉल्ट)",
   "field.nine_router.allow_private_http.option.true": "हाँ, मेरे निजी नेटवर्क पर",
@@ -3049,5 +3052,7 @@
   "note.metered.record_unavailable_shared": "बिल की गई क्वेरी का साझा रिकॉर्ड उपलब्ध नहीं है, इसलिए दूसरे Cuotai प्रोग्राम भी इस खाते से क्वेरी कर सकते हैं।",
   "note.metered.refused": "क्वेरी नहीं की गई: पिछली बिल की गई AWS Cost Explorer क्वेरी {queried} पर हुई थी; अगली {next} पर संभव है।",
   "note.metered.shared_reading": "{time} की साझा रीडिंग से; कोई नई बिल की गई क्वेरी नहीं की गई।",
-  "number.percent": "{p}%"
+  "number.percent": "{p}%",
+  "query.nine_router.secret_plain_http": "{host} पर 9router सादा HTTP इस्तेमाल करता है, और Cuotai डैशबोर्ड का पासवर्ड या सत्र सादे HTTP पर केवल इसी कंप्यूटर को भेजता है; कुछ नहीं भेजा गया। 9router को HTTPS पर चलाएँ (कनेक्शन जाँचें उसका प्रमाणपत्र पिन कर सकता है), या किसी लूपबैक पते, जैसे SSH टनल, से उस तक पहुँचें।",
+  "config.warning.nine_router_secret_plain_http": "चेतावनी: {path} आपके निजी नेटवर्क पर सादे HTTP से 9router तक पहुँचता है, जहाँ Cuotai डैशबोर्ड का पासवर्ड या सत्र कभी नहीं भेजता, इसलिए यह खाता अस्वीकार किया जाएगा। 9router को पिन किए प्रमाणपत्र के साथ HTTPS पर चलाएँ, या किसी लूपबैक पते, जैसे SSH टनल, से उस तक पहुँचें।"
 }

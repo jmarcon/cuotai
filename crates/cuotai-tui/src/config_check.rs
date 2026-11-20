@@ -70,7 +70,7 @@ mod tests {
             })
         );
         let warned = config_file::check_bytes(
-            b"[[accounts]]\nname = \"Home\"\nprovider = \"nine_router\"\n[accounts.params]\nbase_url = \"http://192.168.1.10:20128\"\nallow_private_http = \"true\"\n",
+            b"[[accounts]]\nname = \"Home\"\nprovider = \"nine_router\"\ncredential_env = \"NINE_ROUTER_PASSWORD\"\n[accounts.params]\nbase_url = \"http://192.168.1.10:20128\"\nallow_private_http = \"true\"\n",
         );
         let human = render(&warned, "/x/cuotai.toml", false, "en-US");
         assert!(

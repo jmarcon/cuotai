@@ -225,7 +225,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} Akun akan disimpan, tetapi akan menampilkan alasan ini sebagai ganti angka.",
@@ -1203,7 +1206,7 @@
   "field.litellm.show_both.label": "Tampilkan di kedua tempat (opsional)",
   "field.mistral.admin_key_env.help": "Opsional: nama variabel yang berisi Admin API Key. Kosong memakai variabel dari langkah Kredensial, yang harus berisi kunci administratif.",
   "field.mistral.admin_key_env.label": "Variabel administratif alternatif",
-  "field.nine_router.allow_private_http.help": "Hanya berlaku untuk alamat jaringan privat (192.168.x.x, 10.x.x.x, Tailscale, .local). Ya = kata sandi atau kunci dikirim tanpa enkripsi di jaringan itu dan dapat dibaca siapa pun yang bisa mengamatinya; sebaiknya HTTPS dengan sertifikat yang disematkan. Tidak = memerlukan HTTPS di luar mesin ini.",
+  "field.nine_router.allow_private_http.help": "Hanya berlaku untuk alamat jaringan privat (192.168.x.x, 10.x.x.x, Tailscale, .local), dan hanya untuk instans yang login dasbornya nonaktif: Cuotai tidak pernah mengirim kata sandi atau sesi lewat HTTP biasa ke luar komputer ini, jadi instans dengan kata sandi memerlukan HTTPS (sertifikat yang disematkan juga bisa) atau alamat loopback seperti terowongan SSH. Ya = membaca 9router tanpa kata sandi lewat HTTP biasa di jaringan itu. Tidak = memerlukan HTTPS di luar mesin ini.",
   "field.nine_router.allow_private_http.label": "Koneksi tanpa enkripsi di jaringan privat",
   "field.nine_router.allow_private_http.option.false": "Tidak (bawaan)",
   "field.nine_router.allow_private_http.option.true": "Ya, di jaringan privat saya",
@@ -2965,5 +2968,7 @@
   "note.metered.record_unavailable_shared": "Catatan bersama kueri berbayar tidak tersedia, jadi program Cuotai lain mungkin juga mengkueri akun ini.",
   "note.metered.refused": "Tidak dikueri: kueri AWS Cost Explorer berbayar terakhir pada {queried}; kueri berikutnya dapat dilakukan pada {next}.",
   "note.metered.shared_reading": "Dari hasil bacaan bersama pukul {time}; tidak ada kueri berbayar baru.",
-  "number.percent": "{p}%"
+  "number.percent": "{p}%",
+  "query.nine_router.secret_plain_http": "9router di {host} memakai HTTP biasa, dan Cuotai mengirim kata sandi atau sesi dasbor lewat HTTP biasa hanya ke komputer ini; tidak ada yang dikirim. Sajikan 9router lewat HTTPS (Uji koneksi dapat menyematkan sertifikatnya), atau akses lewat alamat loopback seperti terowongan SSH.",
+  "config.warning.nine_router_secret_plain_http": "Peringatan: {path} menjangkau 9router lewat HTTP biasa di jaringan privat Anda, tempat Cuotai tidak pernah mengirim kata sandi atau sesi dasbor, sehingga akun ini akan ditolak. Sajikan 9router lewat HTTPS dengan sertifikat yang disematkan, atau akses lewat alamat loopback seperti terowongan SSH."
 }

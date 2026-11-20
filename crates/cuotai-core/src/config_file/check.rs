@@ -150,31 +150,59 @@ fn check_bytes_at(bytes: &[u8], identity: Option<&super::ConfigIdentity>) -> Con
     }
 }
 
-/// The advisories of a valid configuration: every aggregator account whose
-/// password or key would travel over plain HTTP on the private network
-/// (`allow_private_http`), with HTTPS and a pinned certificate offered;
-/// then (re-validation V-04) every aggregator whose interval is raised to
-/// the 120 s floor.
+/// The advisories of a valid configuration: every LiteLLM account whose
+/// key would travel over plain HTTP on the private network
+/// (`allow_private_http`), with HTTPS and a pinned certificate offered, and
+/// every 9router account there with a password or session, which is
+/// refused (owner decision of 2026-11-20: such a secret goes over plain
+/// HTTP only to loopback); then (re-validation V-04) every aggregator
+/// whose interval is raised to the 120 s floor.
+/// A 9router account that names a dashboard password (variable or vault)
+/// or a pasted SSO session.
+fn nine_router_has_secret(account: &crate::Account) -> bool {
+    let named = |value: Option<&str>| value.is_some_and(|value| !value.trim().is_empty());
+    named(account.credential_env.as_deref())
+        || named(
+            account
+                .params
+                .get(crate::user_session::NINE_ROUTER_SSO_SLOT)
+                .map(String::as_str),
+        )
+}
+
 fn warnings(config: &crate::Config) -> Vec<ConfigDiagnostic> {
     config
         .accounts
         .iter()
         .enumerate()
         .filter(|(_, account)| crate::providers::private_http_in_effect(account))
-        .map(|(index, _)| {
+        .filter_map(|(index, account)| {
             let path = format!("accounts[{index}].params.allow_private_http");
-            ConfigDiagnostic {
-                kind: "private_http",
-                line: None,
-                column: None,
-                note: Localized::with_param(
+            let note = if account.provider == crate::Provider::NineRouter {
+                if !nine_router_has_secret(account) {
+                    return None;
+                }
+                Localized::with_param(
+                    "config.warning.nine_router_secret_plain_http",
+                    "path",
+                    path.clone(),
+                    "Warning: {path} reaches 9router over plain HTTP on your private network, where Cuotai never sends the dashboard password or session, so this account will be refused. Serve 9router over HTTPS with a pinned certificate, or reach it through a loopback address such as an SSH tunnel.",
+                )
+            } else {
+                Localized::with_param(
                     "config.warning.private_http",
                     "path",
                     path.clone(),
                     "Warning: {path} sends the account's password or key unencrypted over plain HTTP on your private network. Prefer HTTPS with a pinned certificate.",
-                ),
+                )
+            };
+            Some(ConfigDiagnostic {
+                kind: "private_http",
+                line: None,
+                column: None,
+                note,
                 path: Some(path),
-            }
+            })
         })
         .chain(
             config
@@ -253,7 +281,7 @@ mod tests {
     #[test]
     fn a_secret_over_private_http_is_a_warning_of_a_valid_file() {
         let check = check_bytes(
-            b"[[accounts]]\nname = \"Home\"\nprovider = \"nine_router\"\n[accounts.params]\nbase_url = \"http://192.168.1.10:20128\"\nallow_private_http = \"1\"\n\n[[accounts]]\nname = \"Proxy\"\nprovider = \"litellm\"\ncredential_env = \"LITELLM_API_KEY\"\n[accounts.params]\nbase_url = \"http://10.0.0.7:4000\"\nallow_private_http = \"true\"\n\n[[accounts]]\nname = \"Local\"\nprovider = \"nine_router\"\n",
+            b"[[accounts]]\nname = \"Home\"\nprovider = \"nine_router\"\ncredential_env = \"NINE_ROUTER_PASSWORD\"\n[accounts.params]\nbase_url = \"http://192.168.1.10:20128\"\nallow_private_http = \"1\"\n\n[[accounts]]\nname = \"Proxy\"\nprovider = \"litellm\"\ncredential_env = \"LITELLM_API_KEY\"\n[accounts.params]\nbase_url = \"http://10.0.0.7:4000\"\nallow_private_http = \"true\"\n\n[[accounts]]\nname = \"Local\"\nprovider = \"nine_router\"\n\n[[accounts]]\nname = \"Open\"\nprovider = \"nine_router\"\n[accounts.params]\nbase_url = \"http://192.168.1.11:20128\"\nallow_private_http = \"true\"\n",
         );
         assert!(check.valid, "{:?}", check.diagnostics);
         let paths: Vec<_> = check
@@ -268,12 +296,22 @@ mod tests {
                 ("private_http", "accounts[1].params.allow_private_http"),
             ]
         );
+        // 9router with a password: refused, never sent unencrypted; the
+        // password-less 9router (accounts[3]) sends no secret and is not
+        // warned about.
+        assert_eq!(
+            check.warnings[0].note.id,
+            "config.warning.nine_router_secret_plain_http"
+        );
         let text = check.warnings[0].note.resolve("en-US");
+        assert!(text.contains("refused") && text.contains("HTTPS"), "{text}");
+        assert!(!text.contains("192.168"), "{text}");
+        let text = check.warnings[1].note.resolve("en-US");
         assert!(
             text.contains("unencrypted") && text.contains("HTTPS"),
             "{text}"
         );
-        assert!(!text.contains("192.168"), "{text}");
+        assert!(!text.contains("10.0.0.7"), "{text}");
         let json = serde_json::to_value(&check).unwrap();
         assert_eq!(json["warnings"][0]["kind"], "private_http");
     }

@@ -263,7 +263,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason}账户会被保存，但会显示此原因而不是数字。",
@@ -1241,7 +1244,7 @@
   "field.litellm.show_both.label": "在两处显示（可选）",
   "field.mistral.admin_key_env.help": "可选：保存 Admin API Key 的变量名称。留空则使用“凭据”步骤中的变量，该变量必须包含管理密钥。",
   "field.mistral.admin_key_env.label": "备用管理变量",
-  "field.nine_router.allow_private_http.help": "仅适用于私有网络地址（192.168.x.x、10.x.x.x、Tailscale、.local）。是 = 密码或密钥会在该网络上以未加密方式传输，任何能观察该网络的人都能读取；建议使用带固定证书的 HTTPS。否 = 在本机之外要求 HTTPS。",
+  "field.nine_router.allow_private_http.help": "仅适用于私有网络地址（192.168.x.x、10.x.x.x、Tailscale、.local），并且仅适用于已关闭仪表板登录的实例：Cuotai 从不通过未加密的 HTTP 将密码或会话发送到本机之外，因此设有密码的实例需要 HTTPS（固定证书即可）或 SSH 隧道等环回地址。是 = 在该网络上通过未加密的 HTTP 读取无密码的 9router。否 = 在本机之外需要 HTTPS。",
   "field.nine_router.allow_private_http.label": "在私有网络中使用未加密连接",
   "field.nine_router.allow_private_http.option.false": "否（默认）",
   "field.nine_router.allow_private_http.option.true": "是，在我的私有网络中",
@@ -3003,5 +3006,7 @@
   "note.metered.record_unavailable_shared": "计费查询的共享记录不可用，因此其他 Cuotai 程序也可能查询此账户。",
   "note.metered.refused": "未查询：上一次计费的 AWS Cost Explorer 查询在 {queried}；下一次最早可在 {next} 进行。",
   "note.metered.shared_reading": "来自 {time} 的共享读数；未进行新的计费查询。",
-  "number.percent": "{p}%"
+  "number.percent": "{p}%",
+  "query.nine_router.secret_plain_http": "{host} 上的 9router 使用未加密的 HTTP，而 Cuotai 只会通过未加密的 HTTP 将仪表板密码或会话发送到本机；未发送任何内容。请通过 HTTPS 提供 9router（“测试连接”可以固定其证书），或通过 SSH 隧道等环回地址访问它。",
+  "config.warning.nine_router_secret_plain_http": "警告：{path} 在私有网络上通过未加密的 HTTP 访问 9router，而 Cuotai 从不向那里发送仪表板密码或会话，因此该账户将被拒绝。请通过使用固定证书的 HTTPS 提供 9router，或通过 SSH 隧道等环回地址访问它。"
 }

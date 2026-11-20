@@ -277,7 +277,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} Учётная запись будет сохранена, но вместо чисел покажет эту причину.",
@@ -1312,7 +1315,7 @@
   "field.litellm.show_both.label": "Показывать в обоих местах (необязательно)",
   "field.mistral.admin_key_env.help": "Необязательно: имя переменной с Admin API Key. Если пусто, используется переменная шага «Учётные данные», в которой должен быть административный ключ.",
   "field.mistral.admin_key_env.label": "Альтернативная административная переменная",
-  "field.nine_router.allow_private_http.help": "Действует только для адресов частной сети (192.168.x.x, 10.x.x.x, Tailscale, .local). Да = пароль или ключ передаётся в этой сети без шифрования, и его может прочитать любой, кто видит этот трафик; лучше HTTPS с закреплённым сертификатом. Нет = вне этого компьютера требуется HTTPS.",
+  "field.nine_router.allow_private_http.help": "Действует только для адресов частной сети (192.168.x.x, 10.x.x.x, Tailscale, .local) и только для экземпляра с выключенным входом в панель: Cuotai никогда не отправляет пароль или сеанс по обычному HTTP за пределы этого компьютера, поэтому экземпляру с паролем нужен HTTPS (подойдёт закреплённый сертификат) или loopback-адрес, например SSH-туннель. Да = читать 9router без пароля по обычному HTTP в этой сети. Нет = вне этого компьютера требуется HTTPS.",
   "field.nine_router.allow_private_http.label": "Незашифрованное подключение в частной сети",
   "field.nine_router.allow_private_http.option.false": "Нет (по умолчанию)",
   "field.nine_router.allow_private_http.option.true": "Да, в моей частной сети",
@@ -3215,5 +3218,7 @@
   "note.metered.record_unavailable_shared": "Общая запись платных запросов недоступна, поэтому другие программы Cuotai тоже могут запрашивать эту учётную запись.",
   "note.metered.refused": "Не запрошено: последний платный запрос к AWS Cost Explorer был в {queried}; следующий возможен в {next}.",
   "note.metered.shared_reading": "Из общих показаний на {time}; нового платного запроса не было.",
-  "number.percent": "{p} %"
+  "number.percent": "{p} %",
+  "query.nine_router.secret_plain_http": "9router на {host} работает по обычному HTTP, а Cuotai отправляет пароль или сеанс панели по обычному HTTP только на этот компьютер; ничего не отправлено. Откройте 9router по HTTPS («Проверить подключение» может закрепить его сертификат) или подключайтесь через loopback-адрес, например SSH-туннель.",
+  "config.warning.nine_router_secret_plain_http": "Предупреждение: {path} подключается к 9router по обычному HTTP в вашей частной сети, куда Cuotai никогда не отправляет пароль или сеанс панели, поэтому эта учётная запись будет отклонена. Откройте 9router по HTTPS с закреплённым сертификатом или подключайтесь через loopback-адрес, например SSH-туннель."
 }

@@ -23,8 +23,9 @@ pub struct ConnectionWarnings {
     /// a password.
     pub exposed: bool,
     /// RF2.3: unencrypted `http` on the private network, by the user's
-    /// choice (`allow_private_http`): the password or key travels
-    /// unencrypted on that network.
+    /// choice (`allow_private_http`): the LiteLLM key travels unencrypted
+    /// on that network. A 9router never sends its password or session
+    /// there (owner decision of 2026-11-20), so it never raises this.
     pub private_http: bool,
 }
 
@@ -783,7 +784,8 @@ impl TestOutcome {
             TestOutcome::Connected { .. } | TestOutcome::LockedOut { .. } => return None,
             TestOutcome::NotNineRouter
             | TestOutcome::Unreachable
-            | TestOutcome::ListenerForeign { .. } => "params.base_url",
+            | TestOutcome::ListenerForeign { .. }
+            | TestOutcome::SecretOverPlainHttp { .. } => "params.base_url",
             TestOutcome::PasswordWrong
             | TestOutcome::PasswordRequired
             | TestOutcome::VariableUnset { .. }
@@ -977,13 +979,11 @@ mod tests {
             assert!(
                 !test.message.id.contains("nine_router")
                     || test.message.id == "test.nine_router.unreachable",
-                "{}",
-                test.message.id
+                "a LiteLLM outcome uses a 9router-only text"
             );
             assert!(
                 !test.message.fallback.contains("9router"),
-                "{}",
-                test.message.fallback
+                "a LiteLLM outcome's text names 9router"
             );
         }
     }

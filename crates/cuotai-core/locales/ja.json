@@ -272,7 +272,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason}アカウントは保存されますが、数値の代わりにこの理由が表示されます。",
@@ -1250,7 +1253,7 @@
   "field.litellm.show_both.label": "両方の場所に表示（任意）",
   "field.mistral.admin_key_env.help": "任意：Admin API Key を保持する変数の名前。空欄の場合は認証情報のステップの変数を使用します。その変数には管理キーが必要です。",
   "field.mistral.admin_key_env.label": "管理用の代替変数",
-  "field.nine_router.allow_private_http.help": "プライベートネットワークのアドレス（192.168.x.x、10.x.x.x、Tailscale、.local）でのみ有効です。はい = パスワードまたはキーがそのネットワーク上を暗号化されずに流れ、通信を見られる人なら誰でも読み取れます。固定した証明書を使う HTTPS をおすすめします。いいえ = このマシンの外では HTTPS が必要です。",
+  "field.nine_router.allow_private_http.help": "プライベートネットワークのアドレス（192.168.x.x、10.x.x.x、Tailscale、.local）で、かつダッシュボードのログインがオフのインスタンスにのみ有効です。Cuotai はパスワードやセッションを暗号化なしの HTTP でこのコンピューターの外へ送信しないため、パスワードのあるインスタンスには HTTPS（固定した証明書でも可）か、SSH トンネルなどのループバックアドレスが必要です。はい = そのネットワーク上のパスワードなしの 9router を暗号化なしの HTTP で読み取ります。いいえ = このマシンの外では HTTPS が必要です。",
   "field.nine_router.allow_private_http.label": "プライベートネットワークで暗号化なしの接続",
   "field.nine_router.allow_private_http.option.false": "いいえ（既定）",
   "field.nine_router.allow_private_http.option.true": "はい、自分のプライベートネットワークで",
@@ -3012,5 +3015,7 @@
   "note.metered.record_unavailable_shared": "課金されるクエリの共有記録を使用できないため、他の Cuotai プログラムもこのアカウントを照会する可能性があります。",
   "note.metered.refused": "照会していません：最後の課金 AWS Cost Explorer クエリは {queried} でした。次は {next} から可能です。",
   "note.metered.shared_reading": "{time} の共有された結果です。新しい課金クエリは行っていません。",
-  "number.percent": "{p}%"
+  "number.percent": "{p}%",
+  "query.nine_router.secret_plain_http": "{host} の 9router は暗号化なしの HTTP を使っています。Cuotai はダッシュボードのパスワードやセッションを、暗号化なしの HTTP ではこのコンピューターにしか送信しません。何も送信していません。9router を HTTPS で提供するか（接続テストで証明書を固定できます）、SSH トンネルなどのループバックアドレス経由で接続してください。",
+  "config.warning.nine_router_secret_plain_http": "警告：{path} はプライベートネットワーク上で暗号化なしの HTTP により 9router に接続します。Cuotai はそこへダッシュボードのパスワードやセッションを送信しないため、このアカウントは拒否されます。固定した証明書を使って 9router を HTTPS で提供するか、SSH トンネルなどのループバックアドレス経由で接続してください。"
 }

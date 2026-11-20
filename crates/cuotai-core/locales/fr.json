@@ -1142,7 +1142,10 @@
       "doctor.fix.env_invalid",
       "user_session.key_not_found",
       "query.meta.console_http",
-      "note.meta.project_ignored"
+      "note.meta.project_ignored",
+      "query.nine_router.secret_plain_http",
+      "config.warning.nine_router_secret_plain_http",
+      "field.nine_router.allow_private_http.help"
     ]
   },
   "access.confirm_unavailable": "{reason} Le compte sera enregistré, mais affichera ce motif au lieu de chiffres.",
@@ -2139,7 +2142,7 @@
   "field.litellm.show_both.label": "Afficher aux deux endroits (facultatif)",
   "field.mistral.admin_key_env.help": "Facultatif : nom de la variable contenant l’Admin API Key. Vide utilise la variable de l’étape Identifiant, qui doit contenir la clé d’administration.",
   "field.mistral.admin_key_env.label": "Variable d’administration alternative",
-  "field.nine_router.allow_private_http.help": "Valable uniquement pour les adresses de réseau privé (192.168.x.x, 10.x.x.x, Tailscale, .local). Oui = le mot de passe ou la clé circule sans chiffrement sur ce réseau, lisible par quiconque peut l’observer. Préférez HTTPS avec un certificat épinglé. Non = HTTPS exigé hors de cette machine.",
+  "field.nine_router.allow_private_http.help": "S’applique uniquement aux adresses du réseau privé (192.168.x.x, 10.x.x.x, Tailscale, .local), et seulement à une instance dont la connexion au tableau de bord est désactivée : Cuotai n’envoie jamais le mot de passe ni une session en HTTP non chiffré hors de cet ordinateur, donc une instance avec mot de passe exige HTTPS (un certificat épinglé convient) ou une adresse de bouclage, par exemple un tunnel SSH. Oui = lire un 9router sans mot de passe en HTTP non chiffré sur ce réseau. Non = HTTPS est exigé hors de cette machine.",
   "field.nine_router.allow_private_http.label": "Connexion non chiffrée sur le réseau privé",
   "field.nine_router.allow_private_http.option.false": "Non (par défaut)",
   "field.nine_router.allow_private_http.option.true": "Oui, sur mon réseau privé",
@@ -3948,5 +3951,7 @@
   "note.metered.record_unavailable_shared": "Le registre partagé des requêtes facturées est indisponible : d'autres programmes Cuotai peuvent aussi interroger ce compte.",
   "note.metered.refused": "Non interrogé : la dernière requête AWS Cost Explorer facturée date de {queried} ; la suivante est possible à {next}.",
   "note.metered.shared_reading": "D'après la lecture partagée de {time} ; aucune nouvelle requête facturée n'a été faite.",
-  "number.percent": "{p} %"
+  "number.percent": "{p} %",
+  "query.nine_router.secret_plain_http": "9router sur {host} utilise le HTTP non chiffré, et Cuotai n’envoie le mot de passe ou la session du tableau de bord en HTTP non chiffré qu’à cet ordinateur ; rien n’a été envoyé. Servez 9router en HTTPS (Tester la connexion peut épingler son certificat), ou joignez-le par une adresse de bouclage, par exemple un tunnel SSH.",
+  "config.warning.nine_router_secret_plain_http": "Avertissement : {path} joint 9router en HTTP non chiffré sur votre réseau privé, où Cuotai n’envoie jamais le mot de passe ni la session du tableau de bord ; ce compte sera donc refusé. Servez 9router en HTTPS avec un certificat épinglé, ou joignez-le par une adresse de bouclage, par exemple un tunnel SSH."
 }
