@@ -13,6 +13,21 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.3] - 2026-11-20
+
+### Fixed
+
+- A Meta Model API account that uses only the dev.meta.ai session now shows an error, and waits as the console asks after a rate limit, when the console returns no usage, instead of showing up to date with nothing read (PRD 0049 RF9, RF8; f0662cf).
+- The Meta Model API account no longer offers a Project ID, because the dev.meta.ai console reports usage per team; an existing Project ID is ignored and the card says so (PRD 0049 RF8; 9a931fe).
+- Meta Model API spend is read only from the console's amount field, so an unexpected answer leaves the spend unknown instead of showing it 100 times too small (PRD 0049 RF9; 2db19f0).
+- Without a local-server token, the web browsers switch now asks you to generate one instead of opening its warning, and Erase log explains why it is unavailable when nothing was recorded (PRD 0050 RF4.1, RF4.4, RF6.3; ff4ed6b).
+
+### Security
+
+- The terminal's `--erase-all-data` now honours `--dev-credentials-sqlite`, clearing only that development store, and a release build refuses the flag instead of erasing the system credential vault (PRD 0052 RF5.3, RF5.4; PRD 0050 RF7.3; PRD 0012 RF5; 38c46f4).
+- Settings that erase data, change a consent or privacy choice, or start a sign-in now act only when asked from the window that shows them, and every new desktop command must declare the windows that may call it (PRD 0050 RF7.1; PRD 0020 RF2.5; PRD 0001 C1; b085485).
+- The desktop windows can no longer call the menu, tray, image and other Tauri functions they never use (PRD 0050 RF1.3; PRD 0003 S-06; 219618f).
+
 ## [0.87.2] - 2026-11-18
 
 ### Fixed
@@ -1203,7 +1218,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.2...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.3...HEAD
+[0.87.3]: https://github.com/jmarcon/cuotai/compare/v0.87.2...v0.87.3
 [0.87.2]: https://github.com/jmarcon/cuotai/compare/v0.87.1...v0.87.2
 [0.87.1]: https://github.com/jmarcon/cuotai/compare/v0.87.0...v0.87.1
 [0.87.0]: https://github.com/jmarcon/cuotai/compare/v0.86.10...v0.87.0
