@@ -18,6 +18,7 @@
 // DS-COL-5/7).
 import { launch } from "./driver.mjs";
 import { THEMES } from "../../ui/js/themes.js";
+import { FORM_LOCALES, providerFormPages } from "./provider-pages.mjs";
 
 const args = process.argv.slice(2);
 const json = args.includes("--json");
@@ -298,6 +299,13 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-skew-narrow", "index.html?skew", 520, 820, {}],
   ["dialog-add-claude-feed", "index.html?feed-banner", 1200, 820, {}, "[data-feed-add]"],
   ["settings-dashboard-snippet", "settings.html?page=dashboard", 640, 460, { "cuotai.settings.disc.display-more": "open" }],
+  // PRD 0037 re-validation (V-09): one card for every provider of the core (`?every-provider`), on the main window at
+  // both widths and in the popover.
+  ["main-every-provider", "index.html?every-provider", 1200, 820, {}],
+  ["main-every-provider-narrow", "index.html?every-provider", 520, 820, {}],
+  ["tray-every-provider", "tray.html?every-provider", 380, 600, {}],
+  // The backend's account form of every provider without a page above (`provider-pages.mjs`), in FORM_LOCALES.
+  ...providerFormPages(),
 ];
 // V-09: the reference themes (dark, light, a retro theme with a picture background, and a monochrome one), in en-US.
 const THEME_PAGES = [["dracula", "dark"], ["github", "light"], ["win98", "light"], ["crt", "dark"]].flatMap(([theme, mode]) => [
@@ -625,6 +633,12 @@ const RESTORE_JS = `(() => {
   return out;
 })()`;
 
+const FORM_JS = `(() => {
+  // The form's fields stay hidden until a provider is chosen (Add) and show at once in Edit.
+  const rest = document.querySelector("dialog[open] #form-rest");
+  return rest && !rest.hidden ? [] : [{ kind: "form-not-open", ok: false, sel: "dialog #form-rest", text: "" }];
+})()`;
+
 // Every unit of work of this run, in a fixed order: each page in each locale, then (full run) the themed pages and
 // the danger button of every built-in theme and mode. `--shard i/n` keeps every n-th item from the i-th, so the n
 // shards of CI cover the whole list exactly once whatever is added to it; `--shard-selftest` proves that.
@@ -635,6 +649,7 @@ function tasks() {
       // The selftest forces its string into the plain tray views only.
       if (selftest && (!page.startsWith("tray") || storage["cuotai.trayView"])) continue;
       if (only && !only.some((p) => (p.endsWith("$") ? name === p.slice(0, -1) : name.startsWith(p)))) continue;
+      if (name.startsWith("dialog-form-") && !FORM_LOCALES.includes(locale)) continue;
       list.push({ id: `${name}.${locale}`, run: () => checkPage(name, page, w, h, storage, click, openModels, locale) });
     }
   }
@@ -669,6 +684,8 @@ async function checkPage(name, page, w, h, storage, click, openModels, locale) {
   if (selftest) await ui.evaluate(`(() => { const f = document.querySelector(".fig b"); if (f) f.textContent = "W".repeat(60); })()`);
   const found = (await ui.evaluate(PAGE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "evaluation failed" }];
   if (name.includes("stats")) found.push(...((await ui.evaluate(STATS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "stats probe failed" }]));
+  // A provider form page must show that provider's form: a click on a missing selector does nothing.
+  if (name.startsWith("dialog-form-")) found.push(...((await ui.evaluate(FORM_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "form probe failed" }]));
   if (name === "dialog-restore") found.push(...((await ui.evaluate(RESTORE_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "restore probe failed" }]));
   if (name.includes("stats") || name.startsWith("tray-strip")) found.push(...((await ui.evaluate(BARS_JS)) ?? [{ kind: "error", ok: false, sel: "page", text: "bars probe failed" }]));
   // PRD 0034 re-validation V-11: the pseudo-locale pads every text by design, so its placeholder ends in the field's

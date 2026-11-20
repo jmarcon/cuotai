@@ -2300,6 +2300,66 @@ if (DEMO_QUERY.has("breakdown")) {
   const openrouter = { ...dr("org@example.com", "open_router", [balanceM]), breakdown: view(orRows, null) };
   demoReports.splice(0, demoReports.length, litellm, openrouter);
 }
+// PRD 0037 re-validation (V-09): `?every-provider` adds one card for each provider the demo set lacks, so every
+// provider of the core (`Provider::ALL`, the keys of `demo-forms.json`) renders a card; `scripts/test-demo-fixture-ui.mjs`
+// fails when a new provider has none. Shapes follow each adapter (its kind, window and unit); a provider without a
+// usage query shows its core reason; usage a provider does not report stays absent (null), never zero. example.com
+// identities only.
+if (DEMO_QUERY.has("every-provider")) {
+  const metric = (label, unit, fields) => {
+    const { used = null, limit = null, remaining = limit != null && used != null ? Math.max(0, limit - used) : null } = fields;
+    const cap = limit > 0 ? limit : null;
+    const state = used == null && remaining == null ? { state: "unmeasured", ratio: null, uncapped: false }
+      : cap != null && used >= cap ? { state: "exhausted", ratio: 0, uncapped: false }
+        : cap != null ? { state: "available", ratio: (cap - used) / cap, uncapped: false }
+          : { state: "available", ratio: null, uncapped: true };
+    return { ...demoTexts(label, unit), used, limit, remaining, window: null, period: null, resets_at: null, no_cap: false, ...fields, ...state };
+  };
+  const unsupported = (account, provider, reason) =>
+    ({ ...dr(account, provider, [], [reason], "unsupported"), notes_l10n: [coreNote(`access.reason.${provider}`, reason)], class: "unmeasured" });
+  const perMinute = (label, used, limit) => metric(label, "units", { used, limit, kind: "quota", window: "other" });
+  const pct = (label, used, window, resetH) => metric(label, "%", { used, limit: 100, kind: "quota", window, resets_at: h(resetH) });
+  const balance = (label, value, unit = "USD") => metric(label, unit, { remaining: value, kind: "balance" });
+  const spend = (label, used, extra = {}) => metric(label, "USD", { used, kind: "spend", window: "monthly", resets_at: h(300), ...extra });
+  const cards = [
+    [dr("api@example.com", "open_ai_api", [spend("Costs (current month)", 23.8),
+      metric("Input tokens", "tokens", { used: 1250000, kind: "usage", window: "monthly", resets_at: h(300) })]), null],
+    [demoBedrock(), null],
+    [dr("voice@example.com", "eleven_labs", [metric("Plan credits", "credits", { used: 41200, limit: 100000, kind: "quota", window: "monthly", resets_at: h(300) }),
+      metric("Custom voices", "voices", { used: 3, limit: 10, kind: "usage" })]), 0],
+    [dr("project@example.com", "gemini_api", [perMinute("Gemini API: online_prediction_requests / per_minute (us-central1)", 12, 60),
+      metric("Gemini API: recent online_prediction_requests (us-central1)", "units", { used: 9, kind: "usage", window: "other" })]), 0],
+    [dr("project@example.com", "vertex_ai", [perMinute("Vertex AI: online_prediction_requests / per_minute (us-central1)", 40, 300)]), 0],
+    [dr("deploy@example.com", "azure_open_ai", [perMinute("Tokens per minute (gpt-4o)", 12000, 150000)]), 0],
+    [unsupported("key@example.com", "qwen", "The DashScope key only authenticates inference; there is no public quota query for it."), null],
+    [unsupported("sonar@example.com", "perplexity", "The Sonar API has no public balance or usage query per key; Perplexity Computer uses the Analytics API (product = computer)."), null],
+    [unsupported("worker@example.com", "cloudflare_ai", "Workers AI Neuron usage is only shown in the dashboard; there is no public query per key."), null],
+    [dr("go@example.com", "open_code_go", [pct("Rolling (5h)", 18, "window_5h", 3.2), pct("Weekly", 42, "weekly", 90), pct("Monthly", 61, "monthly", 410)]), 2],
+    [dr("dev@example.com", "qoder", [metric("Credits", "credits", { used: 320, limit: 2000, kind: "quota", window: "monthly", resets_at: h(520) })]), 0],
+    [unsupported("nim@example.com", "nvidia_nim", "Billing lives in the NVIDIA Cloud account; there is no public balance query per inference key."), null],
+    [dr("team@example.com", "cline", [balance("Credit balance", 18.4)]), null],
+    [unsupported("studio@example.com", "alibaba_model_studio", "The Model Studio inference key gives no access to a public balance or quota query."), null],
+    [dr("token@example.com", "alibaba_token_plan", [pct("Token Plan: 5h", 25, "window_5h", 2.1), pct("Token Plan: weekly", 48, "weekly", 120)]), 1],
+    [dr("billing@example.com", "alibaba_cloud", [balance("Account balance", 120.5), spend("Spending this month", 34.2)]), null],
+    [dr("team@example.com", "kimchi", [spend("Budget — shared team", 42.5, { limit: 100, window: "other", resets_at: null })]), 0],
+    [dr("api@example.com", "meta", [spend("Spending", 12.3), metric("Requests", "requests", { used: 1840, kind: "usage", window: "monthly", resets_at: h(300) })]), null],
+    [dr("org@example.com", "jetbrains_ai", [metric("Organization AI credits (included quota)", "credits", { used: 1200, limit: 5000, kind: "usage", window: "monthly", resets_at: h(300) })]), 0],
+    [dr("key@example.com", "open_router", [metric("Key limit", "USD", { used: 12.4, limit: 50, kind: "quota", window: "monthly", resets_at: h(300) }), spend("Spending in the month", 12.4)]), 0],
+  ];
+  let rank = 40;
+  for (const [r, binding] of cards) {
+    if (demoReports.some((x) => x.provider === r.provider)) continue;
+    demoReports.push(r);
+    if (binding != null) DEMO_BINDINGS.set(r, [binding, rank++]);
+  }
+  if (!demoReports.some((r) => r.provider === "litellm")) {
+    const budget = (used, limit) => [dm("budget (30d)", used, limit, 240, "spend", "monthly", "USD")];
+    const conns = [["openai", "open_ai_api", 42.5, 100], ["anthropic", "anthropic_api", 180, 200]]
+      .map(([upstream, mapped, used, limit], n) => demoConnection(`lit${n}`, upstream, upstream, mapped, budget(used, limit), {}, "gateway", "litellm"));
+    demoReports.push(demoInstance("litellm", "gateway", conns, { host: "127.0.0.1:4000",
+      notes: [coreNote("note.litellm.summary", `${conns.length} providers with a budget in LiteLLM.`, { count: String(conns.length) })] }));
+  }
+}
 if (DEMO_QUERY.get("mono") && demoReports[0]) demoReports[0].monogram = DEMO_QUERY.get("mono");
 // `?paste-session`: the core offers the MiMo account a new paste, so the card and the details show Paste session.
 if (DEMO_QUERY.has("paste-session")) for (const r of demoReports) if (r.provider === "xiaomi_mimo") r.paste_session = true;
@@ -3644,62 +3704,9 @@ const demoBackup = (withHistory) => ({
   default_name: "cuotai-backup-2026-11-07.cuotai-backup.zip",
 });
 
-// PRD 0033 re-validation (V-15): the AWS Bedrock form as the backend's `form_schema` builds it: an AWS profile (no
-// typed key), the optional CLI path, the AWS SSO login of `oauth::login` and the metered interval bounds.
-const demoBedrockSchema = () => {
-  const sso = "login.aws_bedrock.aws_sso";
-  return { credential_kind: "profile", default_env: "", credential_help: dl("credential_help.aws_bedrock", ""), aggregator: false,
-    interval: { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 }, secret_inputs: [], terminal_only_fields: [], preselect: [], sessions: [], session_notice: null,
-    login: { modes: [{ id: "aws_sso", label: dl(`${sso}.label`, "AWS SSO (AWS CLI)"),
-      help: dl(`${sso}.help`, "Runs \"aws sso login --use-device-code\" using the supplied profile; the token is cached by the AWS CLI itself, outside the Cuotai vault. Configure the profile beforehand with \"aws configure sso\"; Cost Explorer charges per query."),
-      completion_notice: dl(`${sso}.completion_notice`, "AWS CLI SSO login completed."), credential_store: "external", account_binding: { type: "credential", option: "profile" },
-      registration: [], unavailable_reason: null, install: null,
-      options: [{ id: "native.aws_bedrock.profile", key: "profile", label: dl(`${sso}.option.profile.label`, "AWS profile"),
-        help: dl(`${sso}.option.profile.help`, "Profile configured previously via \"aws configure sso\"."), choices: null, required: true, validation: null }] }],
-    unsupported_reason: null },
-    fields: [{ id: "field.aws_bedrock.cli_path", key: "cli_path", label: dl("field.aws_bedrock.cli_path.label", "AWS CLI path (optional)"),
-      help: dl("field.aws_bedrock.cli_path.help", "Empty = Cuotai looks for aws in PATH and in the usual install folders. Set the full path of the aws program only when it is installed elsewhere."),
-      required: false, options: null }] };
-};
-// PRD 0037 re-validation (V-09): the ElevenLabs form as the backend's `form_schema` builds it: the typed API key (its
-// variable, its key page) and the data region choice with the core's ids (`account_edit::field_descriptors`).
+// PRD 0037 re-validation (V-09): the ElevenLabs region values (the demo's EU and US accounts edit with theirs).
 const DEMO_ELEVEN_REGIONS = [["default", "Default (api.elevenlabs.io)"], ["us", "United States (api.us.elevenlabs.io)"], ["eu", "European Union (data residency)"],
   ["in", "India (data residency)"], ["sg", "Singapore (data residency)"]];
-const demoElevenSchema = () => ({ credential_kind: "env", default_env: "ELEVENLABS_API_KEY", aggregator: false,
-  credential_help: dl("credential_help.eleven_labs", "Use an ElevenLabs API key. Restrict it to the permission that reads the account's subscription (it does not need text-to-speech access) and, if you use several workspaces, pick the key of the workspace you want to watch. Cuotai stores only the variable name."),
-  interval: { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
-  secret_inputs: [{ ...DEMO_KEY_INPUT, default_env: "ELEVENLABS_API_KEY", key_page: "https://elevenlabs.io/app/api/api-keys" }],
-  terminal_only_fields: [], preselect: [], login: { modes: [], unsupported_reason: null }, sessions: [], session_notice: null,
-  fields: [{ id: "field.eleven_labs.region", key: "region", label: dl("field.eleven_labs.region.label", "Data region"),
-    help: dl("field.eleven_labs.region.help", "default (default): api.elevenlabs.io. us, eu, in and sg: data-residency endpoints; use the one of the account's region."),
-    required: false, options: DEMO_ELEVEN_REGIONS.map(([value, text], index) => ({ id: `field.eleven_labs.region.option.${value}`, index, value,
-      label: dl(`field.eleven_labs.region.option.${value}`, text) })) }] });
-// PRD 0040 re-validation (V-10): Claude's fields as `account_edit` describes them; Live session shows only in the query
-// mode (`visible_fields`).
-const demoClaudeChoice = (key, options) => options.map(([value, text], index) => ({ id: `field.claude.${key}.option.${value}`, index, value,
-  label: dl(`field.claude.${key}.option.${value}`, text) }));
-// PRD 0040 re-validation (V-06, G10): the source decides the credential; Fed by Claude Code needs none
-// (`credential_for().needed`), the query and the hybrid need the key or the sign-in.
-const demoClaudeVariants = () => [["api", true], ["claude_code", false], ["claude_code_or_api", true]].map(([value, needed]) => ({ key: "query_mode", value,
-  credential: { default_env: "CLAUDE_OAUTH_TOKEN", key_page_slot: "credential_env", key_page: null, label: DEMO_KEY_INPUT.label, help: DEMO_KEY_INPUT.help, needed } }));
-const demoClaudeFields = () => [
-  { id: "field.claude.query_mode", key: "query_mode", label: dl("field.claude.query_mode.label", "Source"), decides_credential: true, required: false,
-    help: dl("field.claude.query_mode.help", "Query (default): the internal interface with your Claude token. Fed by Claude Code: Claude Code's documented status line, no network request and no token reuse (needs the status line, see docs). Claude Code, else the query: the status line while it is recent, otherwise the query."),
-    options: demoClaudeChoice("query_mode", [["api", "Query (default)"], ["claude_code", "Fed by Claude Code"], ["claude_code_or_api", "Claude Code, else the query"]]) },
-  { id: "field.claude.feed", key: "feed", label: dl("field.claude.feed.label", "Live session"), decides_credential: false, required: false,
-    help: dl("field.claude.feed.help", "Show Claude Code's live session on this account. Only one account can read it."),
-    options: demoClaudeChoice("feed", [["none", "Off (default)"], ["claude_code", "From Claude Code"]]) },
-];
-// PRD 0038 review F-07/F-08: the OpenRouter form as the backend's `form_schema` builds it: the product decides the key
-// (`decides_credential`), and `credential_variants` names each product's key and its page (`account_edit::credential_for`).
-const demoOpenRouterKeys = () => ({
-  key: { default_env: "OPENROUTER_API_KEY", key_page_slot: "credential_env", key_page: "https://openrouter.ai/settings/keys",
-    label: dl("secret_input.credential.open_router.inference.label", "Inference key"),
-    help: dl("secret_input.credential.open_router.inference.help", "An OpenRouter API key, the kind that makes inference calls: Cuotai reads only this key's limit, spend and free requests. It keeps the key in the system vault and sends it only to OpenRouter.") },
-  account: { default_env: "OPENROUTER_MANAGEMENT_KEY", key_page_slot: "management", key_page: "https://openrouter.ai/settings/management-keys",
-    label: dl("secret_input.credential.open_router.management.label", "Management key"),
-    help: dl("secret_input.credential.open_router.management.help", "An OpenRouter management key: it reads the account balance and cannot make inference calls. Cuotai keeps it in the system vault and sends it only to OpenRouter.") },
-});
 // PRD 0045 RF6.3 (re-validation V-07): the demo mirror of `account_edit::breakdown_options` for the Breakdown field:
 // LiteLLM's keys and teams, OpenRouter's keys with the account product (management key), the metered reason for AWS
 // Bedrock, and the "nothing to break down" reason (field hidden) for every other draft.
@@ -3713,53 +3720,6 @@ const demoBreakdownOptions = (provider, fields = []) => {
     ? dl("access.breakdown_metered", "This provider bills every query, so Cuotai offers no breakdown for it.")
     : dl("access.breakdown_none", "This account's interface reports no keys, projects, workspaces or teams to break down; per-user data is never read.");
   return { modes, reason };
-};
-const demoOpenRouterChoice = (key, options) => options.map(([value, text], index) => ({ id: `field.open_router.${key}.option.${value}`, index, value,
-  label: dl(`field.open_router.${key}.option.${value}`, text) }));
-const demoOpenRouterSchema = (keys = demoOpenRouterKeys()) => ({ credential_kind: "env", default_env: "OPENROUTER_API_KEY", aggregator: false,
-  credential_help: dl("credential_help.open_router", ""), interval: { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
-  secret_inputs: [{ ...DEMO_KEY_INPUT, label: keys.key.label, help: keys.key.help, default_env: "OPENROUTER_API_KEY", key_page: keys.key.key_page }],
-  credential_variants: Object.entries(keys).map(([value, credential]) => ({ key: "product", value, credential })),
-  terminal_only_fields: [], preselect: [], login: { modes: [], unsupported_reason: null }, sessions: [], session_notice: null,
-  fields: [
-    { id: "field.open_router.product", key: "product", label: dl("field.open_router.product.label", "Product"), decides_credential: true,
-      help: dl("field.open_router.product.help", "key (default): limit, spend and free requests of the inference key. account: credit balance of the account with a management key."),
-      required: false, options: demoOpenRouterChoice("product", [["key", "Key limits (default)"], ["account", "Account balance (management key)"]]) },
-    { id: "field.open_router.breakdown", key: "breakdown", label: dl("field.open_router.breakdown.label", "Spend by origin (optional)"), decides_credential: false,
-      help: dl("field.open_router.breakdown.help", "Account balance only: sums the last 30 completed days of spend by upstream provider or by model, with one extra query per day."),
-      required: false, options: demoOpenRouterChoice("breakdown", [["off", "Off (default)"], ["provider", "By upstream provider"], ["model", "By model"]]) },
-  ] });
-// PRD 0036 re-validation (V-12): the 9router and LiteLLM forms as the backend's `form_schema` builds them (captured from
-// `form_schema(Provider::NineRouter | LiteLlm)`): `aggregator: true` (Test connection before the first save), the
-// address, filter and TLS fields with the core's ids, and the vault password / pasted session or the proxy key.
-const DEMO_AGG_FIELDS = {
-  nine_router: [["base_url", "9router address", "Default http://127.0.0.1:20128. Use http(s)://host[:port][/prefix], without user, query or fragment. Outside this machine HTTPS is required."], ["allow_private_http", "Unencrypted connection on the private network", "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). No = HTTPS is required outside this machine.", [["false", "No (default)"], ["true", "Yes, on my private network"]]], ["include", "Only these providers (optional)", "Comma-separated 9router providers (for example claude,codex,github). Empty shows all."], ["exclude", "Hide providers (optional)", "Comma-separated 9router providers to hide."], ["hidden", "Hidden connections (optional)", "Comma-separated ids of the connections to hide (the id is in the connection details). A hidden connection is not queried."], ["dedup", "Connections that repeat a direct account", "A connection with the same provider and e-mail as a direct account is the same account: the direct account wins and the connection stays only in the 9router section.", [["auto", "Show only the direct account (default)"], ["off", "Show both"]]], ["show_both", "Show in both places (optional)", "Comma-separated ids of the repeated connections that still appear outside the 9router section."], ["tls_ca_file", "CA file (optional, HTTPS)", "Path to a PEM with the CA that signed the instance's certificate. The system's certificates still apply."], ["tls_pin_sha256", "Pinned certificate (optional, HTTPS)", "SHA-256 fingerprint of the instance's certificate, for a self-signed certificate. The connection test shows it for you to confirm; do not use it with a CA file."]],
-  litellm: [["base_url", "LiteLLM address", "Default http://127.0.0.1:4000. Use http(s)://host[:port][/prefix], without user, query or fragment. Outside this machine HTTPS is required."], ["allow_private_http", "Unencrypted connection on the private network", "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). No = HTTPS is required outside this machine.", [["false", "No (default)"], ["true", "Yes, on my private network"]]], ["hidden", "Hidden providers (optional)", "Comma-separated ids of the providers to hide (the id is in the details)."], ["dedup", "Providers that repeat a direct account", "LiteLLM reports no e-mails, so no provider is taken for a direct account; the option keeps the same rule as the other gateways.", [["auto", "Show only the direct account (default)"], ["off", "Show both"]]], ["show_both", "Show in both places (optional)", "Comma-separated ids that still appear outside the LiteLLM section."]],
-};
-const demoAggregatorSchema = (provider) => {
-  const slug = provider, site = provider === "litellm" ? "LiteLLM" : "9router";
-  const field = ([key, label, help, options]) => ({ id: `field.${slug}.${key}`, key, label: dl(`field.${slug}.${key}.label`, label), help: dl(`field.${slug}.${key}.help`, help),
-    required: false, options: options ? options.map(([value, text], index) => ({ id: `field.${slug}.${key}.option.${value}`, index, value, label: dl(`field.${slug}.${key}.option.${value}`, text) })) : null });
-  const password = provider === "litellm"
-    ? { slot: "credential_env", label: dl("user_session.slot.litellm.credential_env", "LiteLLM master or virtual key (kept in the system vault)"), secret: true }
-    : { slot: "credential_env", label: dl("user_session.slot.nine_router.credential_env", "9router dashboard password (kept in the system vault)"), secret: true };
-  const sso = { slot: "auth_session_env", label: dl("user_session.slot.nine_router.auth_session_env", "9router dashboard session (auth_token cookie, for SSO-only instances)"), secret: false };
-  const slots = provider === "litellm" ? [password] : [password, sso];
-  const instructions = (s) => s.secret
-    ? { id: "user_session.instructions.secret", params: { site }, fallback: `Paste the ${site} value. It stays only in the system vault and is sent only to this account's address; the TOML keeps just the reference.` }
-    : { id: "user_session.instructions", params: { site }, fallback: `Sign in to ${site} in your browser. In the developer tools (F12), Network tab, reload the page, pick a request to ${site} and copy its Cookie header or use "Copy as cURL"; the cookie table of the Application tab works too. Only this session's cookies are kept; the rest of the pasted text is discarded.` };
-  return { credential_kind: "env", default_env: provider === "litellm" ? "LITELLM_API_KEY" : "NINEROUTER_PASSWORD", aggregator: true,
-    credential_help: dl(`credential_help.${slug}`, ""),
-    login: { modes: [], unsupported_reason: null },
-    sessions: slots.map((s) => ({ slot: s.slot, label: s.label, instructions: instructions(s), hosts: [], open_url: null, region_open_urls: [], secret: s.secret, capture: false, capture_shared: null })),
-    session_notice: { level: dl("access.credential.user_session", "User session"), warning: dl("user_session.warning", "This is a full login session. Cuotai stores it in the system vault and uses it only to query this service.") },
-    secret_inputs: slots.map((s) => ({ slot: s.slot, label: s.label,
-      help: s.secret ? dl("secret_input.help", "Paste the value. Cuotai keeps it in the system vault and sends it only to this provider; the configuration file keeps just a reference.") : instructions(s),
-      required: provider === "litellm", cookie: !s.secret, field: null, default_env: s.secret ? (provider === "litellm" ? "LITELLM_API_KEY" : "NINEROUTER_PASSWORD") : "", key_page: null })),
-    terminal_only_fields: [], preselect: [], interval: { min: 120, max: 86400, default_seconds: null, effective_min: 120 },
-    // Re-validation V-04: the core's sentence about the aggregator floor (`account_edit::interval_hint`).
-    interval_hint: coreNote("account_edit.interval_aggregator_hint", "An aggregator is read at most every 120 s, so the interval cannot be shorter; empty uses the global one, raised to 120 s if it is shorter.", { min: 120 }),
-    fields: DEMO_AGG_FIELDS[provider].map(field) };
 };
 const DEMO_CERT_NEW = "3F:A1:9C:07:D2:5E:88:41:B6:0D:E3:72:1A:C9:54:F0:2B:7D:96:E8:13:4C:A5:6F:D0:39:82:BE:57:0A:C4:1E";
 const DEMO_CERT_OLD = "8B:22:E7:4D:01:9A:C3:F6:5D:70:B8:2E:94:1F:A6:3C:D9:05:6B:E1:48:7A:C2:93:0F:5E:B4:27:D8:61:3A:9C";
@@ -3854,7 +3814,9 @@ const demo = {
     };
   },
   // PRD 0047: the desktop types the key (`secret_inputs`); the variable-name fields are terminal-only.
-  form_schema: async ({ provider }) => provider === "kiro" ? demoKiroSchema() : provider === "aws_bedrock" ? demoBedrockSchema() : provider === "eleven_labs" ? demoElevenSchema() : provider === "open_router" ? demoOpenRouterSchema() : DEMO_AGG_FIELDS[provider] ? demoAggregatorSchema(provider) : ({ credential_kind: "env",
+  // PRD 0037 re-validation (V-09): every provider's form is the backend's own `form_schema`, generated into
+  // `demo-forms.json` by the desktop test `demo_forms_fixture`; a provider the file lacks gets the generic demo form.
+  form_schema: async ({ provider }) => (await demoForms())[provider]?.schema ?? ({ credential_kind: "env",
     interval: provider === "aws_bedrock" ? { min: 300, max: 86400, default_seconds: 3600, effective_min: 900 } : { min: 30, max: 86400, default_seconds: null, effective_min: 30 },
     secret_inputs: [DEMO_KEY_INPUT, ...(provider === "xiaomi_mimo" ? [{ slot: DEMO_SESSION_SLOT.slot, label: DEMO_SESSION_SLOT.label,
       help: DEMO_SESSION_SLOT.instructions, required: false, cookie: true, field: null }] : [])],
@@ -3862,18 +3824,11 @@ const demo = {
     login: { modes: [{ id: "oauth", label: { id: "demo.login.oauth.label", params: {}, fallback: "OAuth sign-in (demo)" }, help: { id: "demo.login.oauth.help", params: {}, fallback: "The browser demo does not run the sign-in." }, completion_notice: { id: "demo.login.oauth.completion", params: {}, fallback: "Sign-in authorized (demo)." }, credential_store: "cuotai_vault", account_binding: { type: "none" }, registration: [], options: [], unavailable_reason: { id: "demo.login.oauth.unavailable", params: {}, fallback: "Sign-in is not available in the demo." } }], unsupported_reason: null },
     sessions: provider === "xiaomi_mimo" ? [DEMO_SESSION_SLOT] : [],
     session_notice: provider === "xiaomi_mimo" ? demoSessionNotice("vault") : null,
-    // PRD 0040 re-validation (V-10): Claude's Source and Live session fields as `form_schema(Provider::Claude)` builds
-    // them, and the feed-only mode in which the form asks for no credential (`feed_only`).
-    ...(provider === "claude" ? { feed_only: { key: "query_mode", choice: 1 }, preselect: [], credential_variants: demoClaudeVariants() } : {}),
-    fields: provider === "claude" ? demoClaudeFields() : [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
+    fields: [{ id: "demo.field.project_id", key: "project_id", label: { id: "demo.field.project_id.label", params: {}, fallback: "Project ID" }, help: { id: "demo.field.project_id.help", params: {}, fallback: "Opcional." }, required: false, options: null },
              { id: "demo.field.mode", key: "mode", label: { id: "demo.field.mode.label", params: {}, fallback: "Mode" }, help: { id: "demo.field.mode.help", params: {}, fallback: "" }, required: false, options: [{ id: "demo.field.mode.option.personal", index: 0, value: "personal", label: { id: "demo.field.mode.option.personal", params: {}, fallback: "Personal" } }, { id: "demo.field.mode.option.org", index: 1, value: "org", label: { id: "demo.field.mode.option.org", params: {}, fallback: "Organization" } }] }] }),
-  visible_fields: async ({ provider, choices, authMode }) => provider === "kiro"
-    ? ["auth_method", "profile_arn"].filter((k) => !(authMode === "oauth" && k === "auth_method"))
-    : provider === "aws_bedrock" ? ["cli_path"] : provider === "eleven_labs" ? ["region"]
-    : provider === "open_router" ? ["product", ...(choices?.product === 1 ? ["breakdown"] : [])]
-    : provider === "claude" ? ["query_mode", ...(choices?.query_mode ? [] : ["feed"])] : DEMO_AGG_FIELDS[provider] ? DEMO_AGG_FIELDS[provider].map(([key]) => key) : ["project_id", "mode"],
+  visible_fields: async ({ provider, choices, authMode }) => demoVisible((await demoForms())[provider], choices, authMode) ?? ["project_id", "mode"],
   field_choices: async ({ provider, choices, authMode }) => {
-    const schema = provider === "kiro" ? demoKiroSchema() : await demo.form_schema({ provider });
+    const schema = await demo.form_schema({ provider });
     return schema.fields.filter((field) => field.options).map((field) => {
       const options = field.options.filter((option) => !option.auth_modes || option.auth_modes.includes(authMode));
       const current = field.options.find((option) => option.index === choices[field.key]);
@@ -3901,7 +3856,8 @@ const demo = {
     return { name: r.account, provider: r.provider, credential: "",
       interval: "", group: "", account_id: demoAccountId(index), monogram: demoSettings.monograms[demoAccountId(index)] ?? "", uses_oauth: false, native_login: false, auth_mode: "credential", auth_options: {}, auth_registration: {},
       fields: r.provider === "eleven_labs" ? [{ key: "region", text: null, choice: Math.max(0, DEMO_ELEVEN_REGIONS.findIndex(([value]) => value === r.demo_region)) }]
-        : [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
+        : (await demoForms())[r.provider]?.schema.fields.map((f) => ({ key: f.key, text: f.options ? null : "", choice: f.options ? 0 : null }))
+          ?? [{ key: "project_id", text: "", choice: null }, { key: "mode", text: null, choice: 0 }],
       session_slots: state === "vault" ? ["platform_session_env"] : [],
       // PRD 0041: the account's budgets and floors as the TOML holds them (`?budget`).
       budgets: r.demo_budgets ?? [], floors: r.demo_floors ?? [],
@@ -4881,6 +4837,22 @@ const DEMO_LEVELS = {
   official: ["open_ai_api", "anthropic_api", "aws_bedrock", "azure_open_ai", "cursor", "copilot", "windsurf", "kimi", "mistral", "grok", "cline", "alibaba_cloud", "open_router", "jetbrains_ai"],
 };
 // PRD 0027 re-validation C-07: the core catalog of the picker, generated by the core test `catalog_demo_fixture`.
+// PRD 0037 re-validation (V-09): the backend's `form_schema` and `visible_fields` answers of every provider, generated by
+// the desktop test `demo_forms_fixture` (`demo-forms.json`, keyed by provider slug).
+let demoFormsData = null;
+const demoForms = () => (demoFormsData ??= fetch(uiPath("js/demo-forms.json")).then((r) => r.json()).then((d) => d.providers));
+/** The generated provider list (`Provider::ALL`), for the demo-coverage test. */
+export const demoFormProviders = async () => Object.keys(await demoForms());
+/** The backend's visible field keys of `entry` for `authMode` and the choice indices `choices`: the first recorded
+ *  combination that agrees with every given choice, else the answer for the default choices. */
+function demoVisible(entry, choices, authMode) {
+  if (!entry) return null;
+  const byMode = entry.visible[authMode] ?? entry.visible.credential;
+  const given = Object.entries(choices ?? {}).filter(([k, v]) => v != null && entry.schema.fields.some((f) => f.options && f.key === k));
+  if (!given.length) return byMode[""];
+  const combo = Object.keys(byMode).find((c) => c && given.every(([k, v]) => c.split("&").includes(`${k}=${v}`)));
+  return byMode[combo ?? ""];
+}
 let demoCatalogData = null;
 const demoCatalog = () => (demoCatalogData ??= fetch(uiPath("js/demo-catalog.json")).then((r) => r.json()));
 // A core text in a language: the current one through the UI's catalogs (core ones included), en-US as the core does.
@@ -4905,26 +4877,3 @@ const DEMO_CORE_LABELS = {
 };
 const demoLevelOf = (provider) => Object.keys(DEMO_LEVELS).find((level) => DEMO_LEVELS[level].includes(provider)) ?? "undocumented";
 const demoLevel = (level) => dl(`access.level.${level}`, { official: "Official", undocumented: "Undocumented", derived: "Derived", unavailable: "Unavailable" }[level]);
-function demoKiroSchema() {
-  const opts = (key, items) => items.map(([value, label], index) => ({ id: `${key}.${value}`, index, value, label: dl(`${key}.${value}`, label) }));
-  return {
-    credential_kind: "env", secret_inputs: [DEMO_KEY_INPUT], terminal_only_fields: [],
-    login: { unsupported_reason: null, modes: [{ id: "oauth", label: dl("demo.kiro.login.oauth.label", "Login no navegador"), help: dl("demo.kiro.login.oauth.help", "Login nativo no navegador do sistema."),
-      completion_notice: dl("demo.kiro.login.oauth.completion", "Sign-in authorized (demo)."),
-      credential_store: "cuotai_vault", account_binding: { type: "none" },
-      registration: [], unavailable_reason: null,
-      options: [
-        { key: "auth_method", label: dl("demo.kiro.o.auth_method", "Authentication method"), help: dl("demo.kiro.o.auth_method.h", "builder-id or idc."), required: false, validation: "none", choices: opts("demo.kiro.o.auth_method", [["builder-id", "AWS Builder ID"], ["idc", "IAM Identity Center"]]) },
-        { key: "region", label: dl("demo.kiro.o.region", "Region (optional)"), help: dl("demo.kiro.o.region.h", ""), required: false, validation: "no_whitespace", choices: null },
-        { key: "start_url", label: dl("demo.kiro.o.start_url", "IDC start URL (optional)"), help: dl("demo.kiro.o.start_url.h", ""), required: false, validation: "no_whitespace", choices: null },
-      ] }] },
-    fields: [
-      { key: "auth_method", label: dl("demo.kiro.f.auth_method", "Authentication method"), help: dl("demo.kiro.f.auth_method.h", "Source of the access token."), required: false,
-        options: [
-          ...opts("demo.kiro.f.auth_method", [["builder-id", "AWS Builder ID (default)"], ["idc", "IAM Identity Center"]]).map((option) => ({ ...option, auth_modes: ["oauth"], unavailable_reason: dl("demo.kiro.f.auth_method.login_only", "Available only with the native sign-in.") })),
-          ...opts("demo.kiro.f.auth_method", [["google", "Google"], ["github", "GitHub"], ["import", "Imported"], ["api_key", "API key"], ["external_idp", "External IdP"]]).map((option, offset) => ({ ...option, index: offset + 2, auth_modes: ["credential"], unavailable_reason: dl("demo.kiro.f.auth_method.env_only", "Available only with a typed access token.") })),
-        ] },
-      { key: "profile_arn", label: dl("demo.kiro.f.profile_arn", "ARN do perfil CodeWhisperer (opcional)"), help: dl("demo.kiro.f.profile_arn.h", ""), required: false, options: null },
-    ],
-  };
-}

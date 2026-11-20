@@ -296,5 +296,31 @@ await costLib.costSetHidden(hiddenProject.project, false);
 const shown = await costLib.costBreakdown("project");
 assert.deepEqual([shown.hidden_note, shown.hidden, shown.total.requests], [null, 0, shownRequests + hiddenProject.estimate.requests]);
 assert.ok(!("hidden_projects" in (await costLib.costUsage())), "no hidden_projects when none is hidden");
-console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set; the agent-fed accounts, live sessions, banner and Claude form; the budget, floor and allowance set and the budget check; the local cost sessions, blocks and projects (`?cost`)");
+// PRD 0037 re-validation (V-09): every provider of the core (`Provider::ALL`, the keys of the generated
+// `demo-forms.json`) has a card in `?every-provider`, the demo's form is the backend's own, and the UI check has a page
+// for its form (`provider-pages.mjs`, or a page of its own in `check.mjs`).
+globalThis.location = { search: "?every-provider" };
+const allLib = await import("../apps/desktop/ui/js/lib.js?every-provider");
+const { coreProviders, providerFormPages, OWN_FORM_PAGES } = await import("../apps/desktop/tools/ui-shots/provider-pages.mjs");
+const coreList = await allLib.demoFormProviders();
+assert.deepEqual(coreList, coreProviders(), "the page list reads the same provider list");
+assert.equal(coreList.length, 42, "Provider::ALL");
+const allView = await allLib.getView();
+const carded = new Set(allView.reports.map((r) => r.provider));
+assert.deepEqual(coreList.filter((p) => !carded.has(p)), [], "every provider has a demo card in `?every-provider`");
+assert.deepEqual([...carded].filter((p) => !coreList.includes(p)), ["deepseek_demo"], "no card for an unknown provider but the demo's balance fixture");
+for (const r of allView.reports) {
+  assert.ok(!r.account.includes("@") || r.account.endsWith("@example.com"), `${r.provider}: example.com identities only`);
+  for (const m of r.metrics) assert.ok(!(m.used === 0 && m.limit == null && m.remaining == null), `${r.provider}: absent usage is not a zero`);
+}
+const forms = JSON.parse(readFileSync(new URL("../apps/desktop/ui/js/demo-forms.json", import.meta.url), "utf8")).providers;
+const pages = new Set(providerFormPages().map(([name]) => name));
+const checkSource = readFileSync(new URL("../apps/desktop/tools/ui-shots/check.mjs", import.meta.url), "utf8");
+for (const provider of coreList) {
+  assert.deepEqual(await allLib.formSchema(provider), forms[provider].schema, `${provider}: the demo form is the backend's form_schema`);
+  const own = OWN_FORM_PAGES[provider];
+  assert.ok(own ? checkSource.includes(`["${own}", `) : pages.has(`dialog-form-${provider}`), `${provider}: a UI-check page for its form`);
+}
+
+console.log("PASS: six-account demo fixture with the Bedrock and monogram switches; aggregator instances and forms; the ElevenLabs set and form; the OpenRouter set; the agent-fed accounts, live sessions, banner and Claude form; the budget, floor and allowance set and the budget check; the local cost sessions, blocks and projects (`?cost`); a card, the backend's form and a UI-check page for every provider (`?every-provider`)");
 process.exit(0); // the shared modules keep a BroadcastChannel open
