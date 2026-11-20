@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | 0053 |
-| Status | Proposed (manual reconciliation and some supply-chain items done; the gates are open) |
+| Status | In progress (RF2.2, RF2.4, RF3.3, RF4.3 and RF7.4 partly delivered by the 2026-11-20 re-validation; manual reconciliation and some supply-chain items done; the delivery-aware renderer, reconciliation, supply-chain baseline and note renderer are open) |
 | Owner | repository automation (`xtask`, GitHub Actions, release scripts), `cuotai-core::changelog`, desktop and TUI release-note presenters |
 | Consumers | maintainers, agents, release approvers, package users, every PRD author and every release channel |
 | Depends on | PRD 0039 RF1–RF9/RF11 (commit, plan and release automation), PRD 0021 RF1–RF6/RF9 (release pipeline and maintenance), PRD 0019 RF1/RF5–RF7 (licensing, support and changelog), PRD 0018 RF1/RF2 (updater manifest and notes) |
@@ -13,21 +13,23 @@
 
 > **Note on terminology:** “RF” (from the Portuguese *requisito funcional*) means functional requirement; the acronym is kept so references stay stable. A **strong dependency** blocks delivery; a **weak dependency** improves it without blocking it. **Reconciliation** means bringing repository documentation and plan status into agreement with an already-published release. Code references are to `origin/main` at `7a1d93c3`.
 
-## Implementation status (2026-10-28)
+## Implementation status (2026-10-28; re-validation 2026-11-20)
 
-Written on 2026-10-27 as PRD 0043 by the 2026-10-25 PRD audit against `origin/main` (0.80.0) and renumbered 0053 when it moved onto `integration/next`, whose 0040–0049 are other plans. This table was re-evaluated on 2026-10-28 against `integration/next` at `18009a04`; the §1 code references still point at `origin/main` at `7a1d93c3`, and the current location is named here where it moved.
+Written on 2026-10-27 as PRD 0043 by the 2026-10-25 PRD audit against `origin/main` (0.80.0) and renumbered 0053 when it moved onto `integration/next`, whose 0040–0049 are other plans. This table was re-evaluated on 2026-10-28 against `integration/next` at `18009a04`, and again on 2026-11-20 against `origin/main` at `a939218a` (0.87.4) (the re-validation of PRD 0053, validated on `1d4711be`); the §1 code references still point at `origin/main` at `7a1d93c3`, and the current location is named here where it moved.
 
 | RF | Version | Delivery |
 |---|---|---|
 | RF1 | — | Proposed. No `docs/plans/TEMPLATE.md`. |
-| RF2 | — | Proposed. No `plans-check`; `changelog-check` still validates only strong graph edges (RF2.3 partial, already on `origin/main`), and `changelog-gate` still skips reference resolution when plans cannot be read. |
-| RF3 | — | Proposed. §3 is still generated from every `Refs:` trailer; the 0.80.0 row still credits 0018 RF1.1/RF3.1 and 0039 RF5/RF7. |
-| RF4 | — | Proposed. RF4.2/RF4.3 partial by hand: `40da9f4e` and `33f37d3c` made `README.md`, `docs/installing.md` and the plan statuses match the published 0.80.0; no typed `ReleaseState` or `release reconcile`. |
-| RF5 | — | Proposed. RF5.3 partial: `2d16fd09` adds two `release` approval gates; no distinct-reviewer requirement. `docs/releasing.md` still says a red `CI result` cannot merge, and PRD 0039 Appendix A still says "Do not tag". |
+| RF2 | vNEXT (partial) | RF2.4: rule 8 of the commit gate resolves a `Refs:` id to a definition in its plan (a heading, a bold item, a list item or a table row; `plan_links::defines_requirement`), scoped by the `RULES_SINCE` marker "refs-definition" because four older commits cite ids their plan only mentions; the gate and the `commit-msg` hook fail closed when `docs/plans` cannot be read. RF2.2 and the class half of RF2.3: `changelog-check` (and so `release prepare`) compares the header "Plans" counts, each plan's `\| Status \|`, its §2 row and its §4 node class (`plan_links::plan_status_problems`). Open: no separate `plans-check` command, no template check (RF1), and the weak edges of §4 (105 of the §2 weak dependencies have no dashed edge, re-validation V-05). |
+| RF3 | vNEXT (partial) | RF3.3 ordering half: `release prepare` writes each plan's ids in numeric order, and §3's column says "Requirements cited"; §1 and §3 state that a row is a citation, not proof of delivery. Open: RF3.1/RF3.2, §3 is still generated from every `Refs:` trailer (the 0.80.0 row still credits 0018 RF1.1/RF3.1 and 0039 RF5/RF7). |
+| RF4 | vNEXT (partial) | RF4.3 partial: the control header field that `release prepare` writes before publication is labelled "Last release prepared" (the old label is still read). RF4.2/RF4.3 partial by hand: `40da9f4e` and `33f37d3c` made `README.md`, `docs/installing.md` and the plan statuses match the published 0.80.0; no typed `ReleaseState` or `release reconcile`. |
+| RF5 | — | Proposed. RF5.3 partial: `2d16fd09` adds two `release` approval gates; no distinct-reviewer requirement. RF5.1 and RF5.4 partial by hand in `b8348a16`: `docs/releasing.md` states the admin bypass with the PR #11 evidence, and PRD 0039 Appendix A no longer says "Do not tag". D1 and D3 stay open. |
 | RF6 | — | Proposed. RF6.2 partial: `2d16fd09` adds the weekly `advisories.yml`, which does not open an issue. RF6.7 partial: the release refusal of the dev store and the `.gitignore` entries exist, without a release-profile regression test. No Dependabot, MSRV job, secret scanning, bundled third-party licences or OS/EOL policy. |
-| RF7 | — | Proposed. RF7.4 partial: the desktop What's new (`b2d8cbdd`, `0a931fa8`) renders the core's structured sections, but from raw entry text with references and hashes; `latest.json` still copies raw Markdown. |
+| RF7 | vNEXT (partial) | RF7.3 partial: `85f852e6` adds `release-check --since-version` (the published-release window, not yet the installed-version window). RF7.4 partial: the desktop What's new (`b2d8cbdd`, `0a931fa8`) renders the core's structured sections, and from vNEXT it and the TUI's `--changelog` show each entry through the core's `Entry::display_text`, without plan references and hashes, as the update notes do. Open: RF7.1/RF7.2, `latest.json.notes` and the release body still carry raw Markdown with references; RF7.5. |
 
 ## 1. Context
+
+> **Snapshot:** this section describes the repository on 2026-10-27. Some items have moved since: `README.md` and `docs/installing.md` now state the published release and its channels (`README.md:56`, `docs/installing.md:7-17`), and the 2026-11-20 re-validation below records what changed.
 
 The first stable release exposed gaps between the repository’s declared process and its observable state:
 
@@ -227,3 +229,21 @@ At each step run repository and desktop fmt, Clippy and tests; `workflow-check` 
 - **PRD 0039 FIX-PROC-02:** make `Refs:` resolution definitional and fail closed, and regenerate §3 from newly delivered plan rows rather than all references (the v0.80.0 regression cases in RF2/RF3).
 - **PRD 0018 FIX-UPD-02:** correct RF1.4’s falsely delivered raw-Markdown notes and stale first-release/environment status text through RF4/RF7.
 - **PRD 0019 FIX-REL-01:** correct RF7.7’s delivered claim while desktop What’s new is absent, then close it only with RF7’s shared-renderer smoke.
+
+## 2026-11-20 re-validation
+
+Visual, Security and Review on `1d4711be`; Delivery on the PRD 0053+0054 pair branch, cut from `a939218a` (0.87.4).
+
+- **Fixed (vNEXT):** S-01 (a `Refs:` id inside a range such as "RF4–RF8" no longer resolves), S-02 (the gate and the `commit-msg` hook fail closed without `docs/plans`), S-06 in part (header counts, plan statuses and §4 classes are compared), R-01 (P48 and P49 were `:::wip` while awaiting owner verification), R-02 (the desktop What's new showed plan references and hashes), R-04 (§1 states the definition rule and that §3 rows are citations), V-01 (status text above), V-02 in part (numeric order and "Requirements cited"), V-03 in part (desktop What's new and the TUI), V-04 (the header label).
+- **R-03 in part:** PRD 0039 gains the FIX-PROC-02 row, but `FIX-PROC-02` has two letter groups, which the `Refs:` grammar (`RF2`, `FIX-01`) does not accept, so no commit can cite it yet.
+- **Owner-only, docs already true:** S-03 (D3/B-2), S-04 (B-4), S-05 (D1/B-1).
+
+**Open items:**
+
+- The owner decisions D1 to D5 of §13 (D1 = PRD 0039 B-1, D3 = B-2, plus B-4).
+- S-07/RF6.4 secret scanning, and the rest of RF6.
+- V-05/RF2.3: 105 weak dependencies of §2 have no dashed §4 edge.
+- RF3.1/RF3.2: the delivery-aware §3 renderer.
+- RF7.1/RF7.2: `latest.json.notes` and the release body still carry raw Markdown with references.
+- RF1 (template), RF4 (`release reconcile`), RF2.5/RF2.6, RF5.2, RF7.5.
+- The `Refs:` grammar does not accept multi-group ids such as `FIX-PROC-02` (R-03).
