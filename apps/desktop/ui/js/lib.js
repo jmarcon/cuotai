@@ -2580,6 +2580,22 @@ function demoCheckBudgets({ index = null, budgets = [], floors = [], locale = "e
   return { targets: ["spend", "usage", "credits", "account"], floor_targets: ["any", "balance", "credits"], problems, sentences, units };
 }
 
+const DEMO_CONFIG_NOTICES = [
+  { kind: "issue", text: { id: "config.account.requires_newer", params: { number: 3, path: "accounts.quota_mode" }, fallback: "Account 3 uses accounts.quota_mode, which this version of Cuotai does not know; it is skipped and the other accounts still work. Update Cuotai, or run cuotai --check-config to find a typo." } },
+  { kind: "warning", text: { id: "config.warning.unknown_key", params: { path: "surprise" }, fallback: "surprise is not known to this version of Cuotai; it is ignored and kept when the file is saved." } },
+];
+const DEMO_RELOCATION = { id: "history.relocation.prompt", params: { path: "~/Documents/cuotai.toml", count: 1240, accounts: 3 },
+  fallback: "The configuration file moved: ~/Documents/cuotai.toml no longer exists and its history (readings: 1240; accounts: 3) has exactly the accounts of this file. Use that history here?" };
+// PRD 0051 re-validation V-04: `?datadir=env|error|pending` shows the data-folder row locked by CUOTAI_DATA_DIR, with
+// an unusable chosen folder, or with a change that applies at the next start.
+const DEMO_DATA_DIRS = {
+  env: { data_dir: "/Users/demo/cuotai-data", data_dir_source: "environment", data_dir_custom: null, data_dir_env_locked: true, data_dir_error: null },
+  error: { data_dir: null, data_dir_source: "desktop", data_dir_custom: "/Volumes/Gone/Cuotai", data_dir_env_locked: false,
+    data_dir_error: { id: "data_dir.error.setting", params: {}, fallback: "The data folder chosen in Settings must be an absolute path to a directory of your own that is not a link; Cuotai keeps no data until it is fixed or reset." } },
+  pending: { data_dir: "~/Library/Application Support/cuotai", data_dir_source: "default", data_dir_custom: "/Users/demo/Cuotai data", data_dir_env_locked: false, data_dir_error: null },
+};
+// Own keys only, copied, so a crafted `?datadir=__proto__` never reaches Object.prototype.
+const DEMO_DATA_DIR = Object.hasOwn(DEMO_DATA_DIRS, DEMO_QUERY.get("datadir") ?? "") ? { ...DEMO_DATA_DIRS[DEMO_QUERY.get("datadir")] } : { data_dir: "~/Library/Application Support/cuotai", data_dir_source: "default", data_dir_custom: null, data_dir_env_locked: false, data_dir_error: null };
 const demoView = () => {
   const now = new Date().toISOString();
   const reports = demoReports.map((r, index) => {
@@ -2617,6 +2633,10 @@ const demoView = () => {
       ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "The history went over 64 MiB: its 1200 oldest measurements were deleted." }
       : null,
     history_epoch: demoSettings.historyEpoch,
+    // PRD 0051 re-validation V-04: `?confignotes` shows an account set aside and an unknown key kept (the core's notes);
+    // `?relocation` the moved-file question until it is answered.
+    config_notices: DEMO_QUERY.has("confignotes") ? DEMO_CONFIG_NOTICES : [],
+    history_relocation: DEMO_QUERY.has("relocation") && !demoSettings.relocationAnswered ? DEMO_RELOCATION : null,
     feed_banners: demoFeedBanners(),
     notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
     status: { enabled: demoSettings.statusQueries, domains: [...new Set(demoReports.map((r) => DEMO_STATUS_HOSTS[r.provider]).filter(Boolean))],
@@ -4044,14 +4064,14 @@ const demo = {
   // contract so the wizard/reloder don't have to guard the
   // non-desktop path.
   reload_config: async () => { demoSettings.generation++; return demoView(); },
-  history_relocation: async () => null,
-  set_data_dir: async () => {},
+  history_relocation: async () => { demoSettings.relocationAnswered = true; return null; },
+  set_data_dir: async ({ path }) => { if (!DEMO_DATA_DIR.data_dir_env_locked) DEMO_DATA_DIR.data_dir_custom = path ?? null; },
   model_state: demoModels,
   load_models: demoModels,
   sync_models: demoModels,
   model_support: async () => ({ supported: false, text: { id: "models.demo", params: {}, fallback: "Browser demo: the model catalog is only queried in the desktop app." } }),
   config_changed_on_disk: async () => false,
-  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
+  get_settings: async () => ({ user_dir: demoSettings.custom ?? "~/.config/cuotai", default_dir: "~/.config/cuotai", custom_dir: demoSettings.custom, env_locked: false, ...DEMO_DATA_DIR, config_file: demoSettings.config, config_env_locked: false, motion: get("cuotai.motion", "system"), show_pace: get(PACE_KEY, "on") !== "off",
     theme: get("cuotai.theme", "") || null, theme_mode: get("cuotai.themeMode", "system"), sort: get(SORT_KEY, "custom"), aggregators_in_all: get("cuotai.aggregators-in-all", "grouped"), group_recharging: get(GROUP_KEY, "off") === "on", show_in_dock: demoSettings.showInDock !== false, locale: get("cuotai.locale", "") || null, local_storage_migrated: true,
     live_session: get(LIVE_KEY, "on") !== "off", history_days: demoSettings.historyDays ?? 90, history_days_min: 7, history_days_max: 365, history_recording: demoSettings.historyRecording, status_queries: demoSettings.statusQueries,
     notify: { ...demoSettings.notify }, notify_leads: [0, 5, 15, 60], notify_whens: ["used", "exhausted", "always"],
