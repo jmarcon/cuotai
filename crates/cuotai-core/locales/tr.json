@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2788,6 +2789,7 @@
   "metric.label.budget_monthly": "Aylık bütçe · {label}",
   "metric.label.budget_monthly_from": "Ayın {day}. gününden aylık bütçe · {label}",
   "metric.label.budget_cycle": "Döngü bütçesi · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "hizmet hesabı yalnızca AI analytics okur ve JetBrains onun için model listesi sunmaz.",
   "models.unsupported.reason.admin_key": "hesap bir yönetici, yönetim veya analiz anahtarı saklıyor ve sağlayıcı bu anahtarla model listelemeyi belgelemiyor; bu anahtarı kendi parametresine, bir çıkarım anahtarını da hesabın kimlik bilgisi olarak koyun.",

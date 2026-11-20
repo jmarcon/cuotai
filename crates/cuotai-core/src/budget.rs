@@ -837,6 +837,64 @@ pub fn metric_label(budget: &Budget, target_label: &str) -> String {
     }
 }
 
+/// The label of the metric `budget` follows among `metrics` (also one in
+/// another unit, F-07), else its filter, else its kind slug.
+fn target_label(budget: &Budget, metrics: &[Metric]) -> String {
+    target(budget, metrics)
+        .or_else(|| unit_mismatch(budget, metrics))
+        .map_or_else(
+            || {
+                budget
+                    .label_contains
+                    .clone()
+                    .or_else(|| budget.kind.map(|k| k.slug().to_owned()))
+                    .unwrap_or_else(|| "spend".into())
+            },
+            |metric| metric.label.clone(),
+        )
+}
+
+/// Whether `budget` takes a default label (it has none of its own).
+fn has_default_label(budget: &Budget) -> bool {
+    budget
+        .label
+        .as_deref()
+        .is_none_or(|label| label.trim().is_empty())
+}
+
+/// PRD 0041 (owner decision 2026-11-20): `labels` (each with whether it is
+/// a default label) in order, a default label that repeats an earlier
+/// label followed by " (2)", then " (3)"… so two budgets that name the
+/// same metric and period read apart (and mute and group apart). A
+/// person's own labels are never changed (they are unique already).
+pub(crate) fn numbered_labels(labels: impl IntoIterator<Item = (String, bool)>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (label, default) in labels {
+        let label = if default && out.contains(&label) {
+            (2..)
+                .map(|n| format!("{label} ({n})"))
+                .find(|numbered| !out.contains(numbered))
+                .unwrap_or(label)
+        } else {
+            label
+        };
+        out.push(label);
+    }
+    out
+}
+
+/// A default budget label numbered by [`numbered_labels`]: its base and
+/// number, when `label` ends with " (N)" (N ≥ 2) after a default label.
+pub(crate) fn numbered_default_label(label: &str) -> Option<(&str, &str)> {
+    let (base, rest) = label.rsplit_once(" (")?;
+    let number = rest.strip_suffix(')')?;
+    let valid = !number.is_empty()
+        && number.len() <= 3
+        && number.bytes().all(|b| b.is_ascii_digit())
+        && number.parse::<u16>().is_ok_and(|n| n >= 2);
+    (valid && is_default_label(base)).then_some((base, number))
+}
+
 /// The default label of a budget over `period` (starting `starts`) on the
 /// metric labelled `target_label`.
 fn default_label(period: BudgetPeriod, starts: Option<BudgetStart>, target_label: &str) -> String {
@@ -1267,18 +1325,27 @@ pub fn apply<Tz: TimeZone>(
     }
     let mut added = Vec::new();
     let mut notes = Vec::new();
-    for (index, budget) in account.budgets.iter().enumerate() {
-        if budget.row.is_none() && valid.budget(index) {
-            added.push(derive(
-                index,
-                budget,
-                &report.metrics,
-                history,
-                now,
-                tz,
-                &mut notes,
-            ));
-        }
+    let shown: Vec<(usize, &Budget)> = account
+        .budgets
+        .iter()
+        .enumerate()
+        .filter(|(index, budget)| budget.row.is_none() && valid.budget(*index))
+        .collect();
+    let labels = numbered_labels(shown.iter().map(|(_, budget)| {
+        let label = metric_label(budget, &target_label(budget, &report.metrics));
+        (label, has_default_label(budget))
+    }));
+    for ((index, budget), label) in shown.into_iter().zip(labels) {
+        added.push(derive(
+            index,
+            budget,
+            label,
+            &report.metrics,
+            history,
+            now,
+            tz,
+            &mut notes,
+        ));
     }
     report.metrics.extend(added);
     for note in notes {
@@ -1313,11 +1380,34 @@ pub fn apply_rows<Tz: TimeZone>(
     }
     let mut missing = Vec::new();
     let valid = valid_indices(account);
+    // Owner decision 2026-11-20: repeated default labels on one row are
+    // numbered, in the budgets' order.
+    let mut row_labels: Vec<(usize, Vec<(String, bool)>)> = Vec::new();
     for (index, budget) in account.budgets.iter().enumerate() {
         let Some(wanted) = budget.row.as_ref().filter(|_| valid.budget(index)) else {
             continue;
         };
-        let Some(row) = report.breakdown.iter_mut().find(|row| wanted.matches(row)) else {
+        let Some(row) = report.breakdown.iter().position(|row| wanted.matches(row)) else {
+            continue;
+        };
+        let label = metric_label(
+            budget,
+            &target_label(budget, &report.breakdown[row].metrics),
+        );
+        match row_labels.iter_mut().find(|(r, _)| *r == row) {
+            Some((_, labels)) => labels.push((label, has_default_label(budget))),
+            None => row_labels.push((row, vec![(label, has_default_label(budget))])),
+        }
+    }
+    let mut row_labels: Vec<(usize, std::vec::IntoIter<String>)> = row_labels
+        .into_iter()
+        .map(|(row, labels)| (row, numbered_labels(labels).into_iter()))
+        .collect();
+    for (index, budget) in account.budgets.iter().enumerate() {
+        let Some(wanted) = budget.row.as_ref().filter(|_| valid.budget(index)) else {
+            continue;
+        };
+        let Some(position) = report.breakdown.iter().position(|row| wanted.matches(row)) else {
             let label = metric_label(budget, budget.label_contains.as_deref().unwrap_or("spend"));
             missing.push(note(
                 "note.budget.target_missing",
@@ -1326,12 +1416,19 @@ pub fn apply_rows<Tz: TimeZone>(
             ));
             continue;
         };
+        let row = &mut report.breakdown[position];
         let snapshot = row.clone();
+        let label = row_labels
+            .iter_mut()
+            .find(|(r, _)| *r == position)
+            .and_then(|(_, labels)| labels.next())
+            .unwrap_or_else(|| metric_label(budget, &target_label(budget, &snapshot.metrics)));
         let baselines = |metric: &Metric, since: DateTime<Utc>| history(&snapshot, metric, since);
         let mut notes = Vec::new();
         let metric = derive(
             index,
             budget,
+            label,
             &snapshot.metrics,
             &baselines,
             now,
@@ -1352,9 +1449,11 @@ fn push_note_to(notes: &mut Vec<Localized>, note: Localized) {
 
 /// One budget's derived quota over `metrics` (the account's or a row's),
 /// with its notes pushed to `notes`.
+#[allow(clippy::too_many_arguments)]
 fn derive<Tz: TimeZone>(
     index: usize,
     budget: &Budget,
+    label: String,
     metrics: &[Metric],
     history: &dyn Baselines,
     now: DateTime<Utc>,
@@ -1365,17 +1464,7 @@ fn derive<Tz: TimeZone>(
     // F-07: a metric of the budget's kind reported in another unit names
     // the budget and its note, but is never counted.
     let mismatch = unit_mismatch(budget, metrics);
-    let target_label = target.as_ref().or(mismatch).map_or_else(
-        || {
-            budget
-                .label_contains
-                .clone()
-                .or_else(|| budget.kind.map(|k| k.slug().to_owned()))
-                .unwrap_or_else(|| "spend".into())
-        },
-        |metric| metric.label.clone(),
-    );
-    let label = metric_label(budget, &target_label);
+    let target_label = target_label(budget, metrics);
     let display = label.clone();
     let unit = budget
         .unit
@@ -1546,7 +1635,7 @@ pub fn mark_restored<Tz: TimeZone>(
         .filter(|metric| metric.derived_from.is_none() && metric.kind != MetricKind::Quota)
         .cloned()
         .collect();
-    let candidates: Vec<(usize, &Budget, Option<&Metric>, String)> = account
+    let shown: Vec<(usize, &Budget, Option<&Metric>, String)> = account
         .budgets
         .iter()
         .enumerate()
@@ -1559,6 +1648,15 @@ pub fn mark_restored<Tz: TimeZone>(
             );
             (index, budget, target, label)
         })
+        .collect();
+    // The labels `apply` numbered, so a restored reading finds its budget.
+    let numbered = numbered_labels(shown.iter().map(|(_, budget, target, label)| {
+        (label.clone(), target.is_some() && has_default_label(budget))
+    }));
+    let candidates: Vec<(usize, &Budget, Option<&Metric>, String)> = shown
+        .into_iter()
+        .zip(numbered)
+        .map(|((index, budget, target, _), label)| (index, budget, target, label))
         .collect();
     let mut claimed = vec![false; account.budgets.len()];
     report.metrics.retain_mut(|metric| {

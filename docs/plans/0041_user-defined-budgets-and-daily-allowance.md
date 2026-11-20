@@ -63,9 +63,9 @@ The re-validation (Visual, Security, Review) found 1 high, 11 medium and 15 low 
 **Open items:**
 - **F-22 (low, deferred):** the floor notification body omits the amounts; it needs an `AlertEvent` field across about 25 constructors, the channel payloads and the notification-length budget. The title says "below your floor" and the details show both amounts.
 - **F-24 (low, deferred):** the wizard's Budgets step is reachable only through the Credential step; a debug-only `--wizard-step budgets` jump is suggested for PRD 0053-style tooling (the logic is covered by `wizard.rs` tests).
-- **Owner decision:** a partial budget's desktop meter and "% available" still come from `used`/`limit`; only the title and tooltip carry "≥". Should the meter look different (dimmed) when partial?
-- **Owner decision:** `--cost-currency BRL 5.437` (exactly three decimals) is now refused as ambiguous, with "type 5437 or 5.4370". Confirm this is acceptable for rates.
-- **Owner decision:** two budgets with different `label_contains` that resolve to the same target and period get the same default label; their marks stay separate, but muting by label and event grouping treat them as one.
+- **Decided (owner, 2026-11-20), delivered in vNEXT:** a partial budget's desktop meter and its share left (the card figure and the details "% available") are dimmed to 50 % (`docs/design-system.md` DS-CMP-HON-5; the stale treatment alone when the reading is also stale).
+- **Decided (owner, 2026-11-20), confirmed in vNEXT:** `--cost-currency BRL 5.437` (exactly three decimals) stays refused as ambiguous, with "type 5437 or 5.4370"; `tests/cost_amounts.rs` now covers it.
+- **Decided (owner, 2026-11-20), delivered in vNEXT:** two budgets whose default labels are the same (different `label_contains` resolving to the same target and period) get " (2)", " (3)"… in the TOML order (`budget::numbered_labels`, account budgets and each row's budgets apart), so muting by label and event grouping keep them apart; `metric_text` renders the number around the translated label (`metric.label.budget_numbered`), and a restored reading finds its numbered budget again.
 - A budget whose target metric is missing is named by its kind slug ("Monthly budget · usage") in every language.
 - Native review of the new catalog strings (listed in each catalog's `pending_review`).
 - The allowance sentences have no class in the text length budgets (`text/budget_tests.rs`); the new "less than" and money-pace forms are covered by goldens in en, de, ru and ja instead.

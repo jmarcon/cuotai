@@ -10,7 +10,7 @@ import { expectedLeft, extraColumnHtml, figureHtml, meterHtml } from "./componen
 
 /** PRD 0022 RF2: the card's continuous meter; `stale` draws the preserved reading (no pace mark). */
 const cardMeter = (m, pct, stale, name = metricName(m)) =>
-  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m), role: isFullCounter(m) ? "warn" : null, name });
+  meterHtml(pct, { state: stale ? "stale" : m.state === "exhausted" ? "exhausted" : "fresh", expected: expectedLeft(m), role: isFullCounter(m) ? "warn" : null, name, partial: !!m.partial });
 /** One limit of a card (mockup 10): the micro label with the "Binding" tag, the figure with its unit below, the
  *  meter, then "Resets 20:32 · in 2h 11m" once, under the bar. Counts ("15 / 1,000") are in the tooltip. */
 function limitColumn(r, label, m, pct, stale) {
@@ -24,7 +24,7 @@ function limitColumn(r, label, m, pct, stale) {
   return `<div class="win${binding ? " binding" : ""}${budget ? " budget" : ""}" title="${esc(tip)}">
     <div class="win-top"><span class="win-name">${esc(label)}</span>${budget ? `<span class="btag budget" data-budget-chip>${esc(budget)}</span>` : ""}${binding ? `<span class="btag" data-binding-chip>${te("binding.tag")}</span>` : ""}</div>
     ${isFullCounter(m) ? figureHtml(t("metric.full"), "", { role: "warn", cls: "left wordfig", dim: stale })
-      : exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale })}
+      : exhausted ? figureHtml(t("metric.exhausted"), "", { role: "bad", cls: "left wordfig", dim: stale }) : figureHtml(fmtShare(pct), t("card.available"), { cls: "left", dim: stale, partial: !!m.partial })}
     ${cardMeter(m, pct, stale, label)}
     <div class="win-reset">${reset ? esc(reset) : `<em>${te("quota.na")}</em>`}</div></div>`;
 }

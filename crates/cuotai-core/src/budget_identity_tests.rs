@@ -373,3 +373,108 @@ fn a_restored_reading_marks_current_and_legacy_labels_and_drops_removed_budgets(
     assert_eq!(provider.metrics.len(), 2);
     assert!(provider.metrics[1].derived_from.is_none());
 }
+
+/// PRD 0041 (owner decision 2026-11-20): budgets whose default labels are
+/// the same get " (2)", " (3)"…, which every language renders around the
+/// translated label; own labels are left alone; a restored reading finds
+/// its numbered budget again.
+#[test]
+fn repeated_default_labels_are_numbered() {
+    let now = at(21, 12);
+    let filtered = |filter: &str| Budget {
+        label_contains: Some(filter.into()),
+        ..budget(BudgetPeriod::Monthly)
+    };
+    let account = account(vec![
+        filtered("Gasto"),
+        filtered("mês"),
+        Budget {
+            label: Some("Team".into()),
+            ..filtered("Gasto no")
+        },
+        filtered("no mês"),
+    ]);
+    assert_eq!(valid_indices(&account).problems().count(), 0);
+    let mut reading = report(vec![spend(40.0)], now);
+    let history = |_: &Metric, _: DateTime<Utc>| {
+        vec![Point {
+            taken_at: at(1, 1),
+            used: 0.0,
+        }]
+    };
+    apply(&account, &mut reading, &history, now, &Utc);
+    let labels: Vec<&str> = reading
+        .metrics
+        .iter()
+        .filter(|metric| metric.derived_from.is_some())
+        .map(|metric| metric.label.as_str())
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            "Orçamento mensal · Gasto no mês",
+            "Orçamento mensal · Gasto no mês (2)",
+            "Team",
+            "Orçamento mensal · Gasto no mês (3)",
+        ]
+    );
+    let text = crate::metric_text::metric_text(labels[1]);
+    assert_eq!(text.id, "metric.label.budget_numbered");
+    assert_eq!(text.fallback, "Monthly budget · Spending in the month (2)");
+    assert_eq!(
+        text.resolve("en-US"),
+        "Monthly budget · Spending in the month (2)"
+    );
+    assert!(
+        text.resolve("de").starts_with("Monatsbudget · "),
+        "{}",
+        text.resolve("de")
+    );
+    assert!(text.resolve("de").ends_with(" (2)"));
+    // Only a default label followed by a number from 2 is numbered.
+    assert_eq!(
+        crate::metric_text::metric_text("Gasto no mês (2)").id,
+        "metric.verbatim"
+    );
+    assert!(numbered_default_label("Orçamento mensal · Gasto no mês (1)").is_none());
+    assert!(numbered_default_label("Orçamento mensal · Gasto no mês (x)").is_none());
+    assert_eq!(
+        numbered_labels([
+            ("a".to_owned(), true),
+            ("a (2)".to_owned(), true),
+            ("a".to_owned(), true)
+        ]),
+        ["a", "a (2)", "a (3)"]
+    );
+    assert_eq!(
+        numbered_labels([("a".to_owned(), false), ("a".to_owned(), false)]),
+        ["a", "a"]
+    );
+    // A restored reading: the numbered quota is claimed by the second budget.
+    let mut restored = report(
+        reading
+            .metrics
+            .iter()
+            .map(|metric| Metric {
+                derived_from: None,
+                ..metric.clone()
+            })
+            .collect(),
+        now,
+    );
+    mark_restored(&account, &mut restored, now, &Utc);
+    let budgets: Vec<(String, usize)> = restored
+        .metrics
+        .iter()
+        .filter_map(|metric| Some((metric.label.clone(), metric.derived_from.as_ref()?.budget)))
+        .collect();
+    assert_eq!(budgets.len(), 4, "{budgets:?}");
+    assert_eq!(
+        budgets[1],
+        ("Orçamento mensal · Gasto no mês (2)".into(), 1)
+    );
+    assert_eq!(
+        budgets[3],
+        ("Orçamento mensal · Gasto no mês (3)".into(), 3)
+    );
+}

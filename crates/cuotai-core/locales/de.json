@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2811,6 +2812,7 @@
   "metric.label.budget_monthly": "Monatsbudget · {label}",
   "metric.label.budget_monthly_from": "Monatsbudget ab Tag {day} · {label}",
   "metric.label.budget_cycle": "Zyklusbudget · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "das Dienstkonto liest nur AI analytics, und JetBrains bietet dafür keine Modellliste.",
   "models.unsupported.reason.admin_key": "das Konto speichert einen Admin-, Verwaltungs- oder Analyseschlüssel, für den der Anbieter das Auflisten von Modellen nicht dokumentiert; legen Sie diesen Schlüssel in einen eigenen Parameter und einen Inferenzschlüssel als Zugangsdaten des Kontos fest.",

@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -3705,6 +3706,7 @@
   "metric.label.budget_monthly": "Budget mensuel · {label}",
   "metric.label.budget_monthly_from": "Budget mensuel à partir du {day} · {label}",
   "metric.label.budget_cycle": "Budget du cycle · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "le compte de service ne lit que AI analytics, et JetBrains ne propose aucune liste de modèles pour lui.",
   "models.unsupported.reason.admin_key": "le compte stocke une clé d’administration, de gestion ou d’analyse, que le fournisseur ne documente pas pour lister les modèles ; placez cette clé dans son propre paramètre et une clé d’inférence comme identifiant du compte.",

@@ -5,6 +5,7 @@
     "reviewed": false,
     "machine_reviewed": "2026-10-25",
     "pending_review": [
+      "metric.label.budget_numbered",
       "note.nine_router.version_untested",
       "test.nine_router.connected_untested",
       "models.unsupported.reason.admin_key",
@@ -2950,6 +2951,7 @@
   "metric.label.budget_monthly": "Бюджет на месяц · {label}",
   "metric.label.budget_monthly_from": "Бюджет на месяц с {day}-го числа · {label}",
   "metric.label.budget_cycle": "Бюджет на цикл · {label}",
+  "metric.label.budget_numbered": "{label} ({index})",
   "provider.jetbrains_ai": "JetBrains AI",
   "models.unsupported.reason.jetbrains_ai": "сервисная учётная запись читает только AI analytics, и JetBrains не предоставляет для неё список моделей.",
   "models.unsupported.reason.admin_key": "в учётной записи хранится ключ администратора, управления или аналитики, для которого провайдер не документирует перечень моделей; храните этот ключ в отдельном параметре, а ключ инференса — как учётные данные учётной записи.",

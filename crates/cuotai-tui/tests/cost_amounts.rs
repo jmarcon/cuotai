@@ -70,6 +70,14 @@ fn an_ambiguous_rate_is_refused() {
         "{stderr}"
     );
     assert!(!settings(&dir).contains("BRL"));
+    // Owner decision 2026-11-20 (PRD 0041): a point with exactly three
+    // decimals stays ambiguous for a rate too.
+    let refused = run(&dir, &["--cost-currency", "BRL", "5.437"]);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("RATE: 5.437 could be"), "{stderr}");
+    assert!(stderr.contains("5437"), "{stderr}");
+    assert!(!settings(&dir).contains("BRL"));
     let saved = run(&dir, &["--cost-currency", "BRL", "5,25"]);
     assert!(saved.status.success(), "{saved:?}");
     assert!(settings(&dir).contains("5.25"), "{}", settings(&dir));
