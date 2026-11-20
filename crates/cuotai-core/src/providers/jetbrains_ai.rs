@@ -296,6 +296,18 @@ fn credits(value: Option<&Value>) -> Option<f64> {
     }
 }
 
+/// A sum is a reading only when it stays finite (PRD 0055 re-validation
+/// S-01): each part is finite, but two huge parts can overflow to infinity.
+fn finite(v: f64) -> Option<f64> {
+    v.is_finite().then_some(v)
+}
+
+/// Adds a part to a running sum; a missing part or an overflow makes the sum
+/// missing.
+fn sum(acc: Option<f64>, part: Option<f64>) -> Option<f64> {
+    acc.zip(part).and_then(|(a, b)| finite(a + b))
+}
+
 fn metric(label: String, used: f64) -> Metric {
     Metric {
         label,
@@ -334,28 +346,58 @@ fn parse(value: &Value) -> Result<Data, QueryError> {
         return Ok(Data::new(Vec::new(), notes, SOURCE));
     }
 
-    let mut tools = Vec::new();
+    // Items that share a tool id are one row (re-validation V-01): history
+    // and budgets key a series by its label, so two rows with one label would
+    // write into one series. Each part sums only while every repeat has it.
+    struct Tool {
+        name: String,
+        tariff: Option<f64>,
+        topup: Option<f64>,
+    }
+    let mut grouped: Vec<Tool> = Vec::new();
     let (mut tariff_total, mut topup_total) = (Some(0.0), Some(0.0));
     let (mut partial, mut skipped) = (false, false);
     for item in items {
         let tool = item.get("tool").and_then(Value::as_str).and_then(tool_name);
         let tariff = credits(item.get("tariff"));
         let topup = credits(item.get("topup"));
-        tariff_total = tariff_total.zip(tariff).map(|(a, b)| a + b);
-        topup_total = topup_total.zip(topup).map(|(a, b)| a + b);
+        tariff_total = sum(tariff_total, tariff);
+        topup_total = sum(topup_total, topup);
+        let Some(name) = tool else {
+            skipped = true;
+            continue;
+        };
+        match grouped.iter_mut().find(|t| t.name == name) {
+            Some(t) => {
+                t.tariff = sum(t.tariff, tariff);
+                t.topup = sum(t.topup, topup);
+            }
+            None => grouped.push(Tool {
+                name,
+                tariff,
+                topup,
+            }),
+        }
+    }
+
+    let mut tools = Vec::new();
+    for Tool {
+        name,
+        tariff,
+        topup,
+    } in grouped
+    {
         let used = match (tariff, topup) {
-            (Some(a), Some(b)) => Some(a + b),
+            (Some(a), Some(b)) => finite(a + b),
             (Some(v), None) | (None, Some(v)) => {
                 partial = true;
                 Some(v)
             }
             (None, None) => None,
         };
-        match (tool, used) {
-            (Some(tool), Some(used)) => {
-                tools.push(metric(format!("Créditos de IA — {tool}"), used))
-            }
-            _ => skipped = true,
+        match used {
+            Some(used) => tools.push(metric(format!("Créditos de IA — {name}"), used)),
+            None => skipped = true,
         }
     }
 
@@ -670,6 +712,128 @@ mod tests {
             find(&data, "Créditos de IA — Junie").unwrap().used,
             Some(0.0)
         );
+    }
+
+    /// Re-validation V-01: a tool listed twice is one row, so history and
+    /// budgets see one series per label.
+    #[tokio::test]
+    async fn a_repeated_tool_is_one_row() {
+        let data = run(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [
+                {"tool": "junie", "tariff": 1, "topup": 2},
+                {"tool": "junie", "tariff": 3, "topup": 4},
+                {"tool": "aia", "tariff": 1, "topup": 1}
+            ]
+        })))
+        .await
+        .expect("ok");
+        let junie: Vec<_> = data
+            .metrics
+            .iter()
+            .filter(|m| m.label == "Créditos de IA — Junie")
+            .collect();
+        assert_eq!(junie.len(), 1);
+        assert_eq!(junie[0].used, Some(10.0));
+        assert_eq!(data.metrics.len(), 4);
+        assert_eq!(
+            find(&data, "Créditos de IA da organização (cota incluída)")
+                .unwrap()
+                .used,
+            Some(5.0)
+        );
+        assert_eq!(
+            find(&data, "Créditos de IA da organização (top-up)")
+                .unwrap()
+                .used,
+            Some(7.0)
+        );
+        assert!(!has_note(&data, "note.jetbrains_ai.tool_partial"));
+    }
+
+    #[tokio::test]
+    async fn a_repeat_missing_a_part_makes_that_part_partial() {
+        let data = run(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [
+                {"tool": "junie", "tariff": 1, "topup": 2},
+                {"tool": "junie", "tariff": 3}
+            ]
+        })))
+        .await
+        .expect("ok");
+        assert_eq!(
+            find(&data, "Créditos de IA — Junie").unwrap().used,
+            Some(4.0)
+        );
+        assert!(has_note(&data, "note.jetbrains_ai.tool_partial"));
+        assert!(find(&data, "Créditos de IA da organização (top-up)").is_none());
+        assert!(has_note(&data, "note.jetbrains_ai.topup_total_missing"));
+        assert_eq!(
+            find(&data, "Créditos de IA da organização (cota incluída)")
+                .unwrap()
+                .used,
+            Some(4.0)
+        );
+    }
+
+    /// Re-validation S-01: finite parts can overflow; the sum is then
+    /// missing, never infinite (which `--json` would show as `null`).
+    #[tokio::test]
+    async fn a_sum_too_large_is_missing_not_infinite() {
+        let data = run(ResponseTemplate::new(200).set_body_json(json!({
+            "items": [
+                {"tool": "junie", "tariff": 1e308, "topup": 1e308},
+                {"tool": "aia", "tariff": 1e308, "topup": 0}
+            ]
+        })))
+        .await
+        .expect("ok");
+        assert!(find(&data, "Créditos de IA — Junie").is_none());
+        assert!(has_note(&data, "note.jetbrains_ai.tool_skipped"));
+        assert!(find(&data, "Créditos de IA da organização (cota incluída)").is_none());
+        assert!(has_note(&data, "note.jetbrains_ai.tariff_total_missing"));
+        assert!(find(&data, "Créditos de IA — AI Assistant").is_some());
+        for metric in &data.metrics {
+            assert!(metric.used.is_some_and(f64::is_finite), "{}", metric.label);
+        }
+        let json = serde_json::to_value(&data.metrics).unwrap();
+        for metric in json.as_array().unwrap() {
+            assert!(!metric["used"].is_null());
+        }
+    }
+
+    /// RF4 (re-validation R-01, R-02): the documented body was refused, so
+    /// the contract moved.
+    #[tokio::test]
+    async fn usage_400_and_422_are_schema_errors() {
+        for code in [400, 422] {
+            let error = run(ResponseTemplate::new(code)).await.unwrap_err();
+            assert_eq!(error.status, Status::Error, "{code}");
+            assert_eq!(error.note.id, super::super::SCHEMA_NOTE, "{code}");
+        }
+    }
+
+    #[tokio::test]
+    async fn token_rate_limit_is_rate_limited() {
+        let server = MockServer::start().await;
+        mount_token(
+            &server,
+            ResponseTemplate::new(429).insert_header("retry-after", "120"),
+        )
+        .await;
+        let error = call(
+            &server,
+            &TestCredentials {
+                secret: Some(SECRET),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.status, Status::RateLimited);
+        assert_eq!(error.note.id, "note.jetbrains_ai.rate_limited");
+        assert!(error
+            .note
+            .params
+            .contains_key(crate::Report::RETRY_AFTER_PARAM));
     }
 
     #[tokio::test]
