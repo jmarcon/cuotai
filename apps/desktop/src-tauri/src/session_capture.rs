@@ -450,16 +450,34 @@ fn fresh_dir() -> PathBuf {
 /// RF2.3: remove leftover capture directories (a crash, or a file the
 /// webview still held when its window ended), except `keep`, the parked
 /// shared window's own.
-fn sweep_dirs(keep: Option<&Path>) {
-    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
-        return;
+pub(crate) fn sweep_dirs(keep: Option<&Path>) -> Result<usize, ()> {
+    sweep_dirs_in(&std::env::temp_dir(), keep)
+}
+
+/// [`sweep_dirs`] below `base` (PRD 0052 S-05: the erase sweeps them too;
+/// tests inject a temporary folder). How many went; `Err` when one could
+/// not be removed (a missing `base` is nothing to sweep).
+pub(crate) fn sweep_dirs_in(base: &Path, keep: Option<&Path>) -> Result<usize, ()> {
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return Ok(0);
     };
+    let mut removed = 0;
+    let mut failed = false;
     for entry in entries.flatten() {
         if entry.file_name().to_string_lossy().starts_with(DIR_PREFIX)
             && keep != Some(entry.path().as_path())
         {
-            let _ = std::fs::remove_dir_all(entry.path());
+            match std::fs::remove_dir_all(entry.path()) {
+                Ok(()) => removed += 1,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => failed = true,
+            }
         }
+    }
+    if failed {
+        Err(())
+    } else {
+        Ok(removed)
     }
 }
 
@@ -575,7 +593,7 @@ async fn private_capture<R: Runtime>(
 ) -> Result<Outcome, String> {
     let (start, host) = urls(target)?;
     let state = app.state::<State>();
-    sweep_dirs(state.shared_dir().as_deref());
+    let _ = sweep_dirs(state.shared_dir().as_deref());
     let dir = fresh_dir();
     let last_popup = Mutex::new(None);
     let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::External(start))
@@ -746,7 +764,7 @@ async fn shared_capture<R: Runtime>(
                 slot.life.begin();
                 *slot.target.lock() = Some(target);
             }
-            sweep_dirs(None);
+            let _ = sweep_dirs(None);
             let dir = cfg!(not(target_os = "macos")).then(fresh_dir);
             let closed = Arc::new(AtomicBool::new(false));
             {

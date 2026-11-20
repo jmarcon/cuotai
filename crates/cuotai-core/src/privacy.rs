@@ -40,6 +40,9 @@ pub enum Root {
     /// when the data folder moves (the widget extension can read only
     /// those).
     MacHome,
+    /// Kept by the operating system or the webview for the desktop app
+    /// (PRD 0052 S-01/S-03): no path Cuotai's files resolve against.
+    App,
 }
 
 impl Root {
@@ -51,6 +54,7 @@ impl Root {
             Self::AccountsDir => "<accounts dir>/",
             Self::Vault => "vault service ",
             Self::MacHome => "~/",
+            Self::App => "",
         }
     }
 }
@@ -63,6 +67,11 @@ pub enum Kind {
     Directory,
     /// Every entry of one credential-vault service.
     VaultService,
+    /// State the desktop app itself erases (its web storage, the
+    /// start-at-login entry, leftover capture profiles): metadata only.
+    /// [`erase::erase_all`] never touches it; the plan marks it
+    /// [`erase::PlanItem::app_only`].
+    AppManaged,
 }
 
 /// How an artifact's format is versioned.
@@ -173,6 +182,29 @@ const fn vault(
         mode: None,
         schema: Schema::NotApplicable,
         retention: "until the account is removed or signed out",
+        erase: Erase::Always,
+        rotated: false,
+        prd,
+    }
+}
+
+/// A [`Kind::AppManaged`] artifact: `path` describes where it lives.
+const fn app_managed(
+    id: &'static str,
+    path: &'static str,
+    content: &'static str,
+    retention: &'static str,
+    prd: &'static str,
+) -> Artifact {
+    Artifact {
+        id,
+        root: Root::App,
+        path,
+        kind: Kind::AppManaged,
+        content,
+        mode: None,
+        schema: Schema::NotApplicable,
+        retention,
         erase: Erase::Always,
         rotated: false,
         prd,
@@ -525,6 +557,27 @@ static ARTIFACTS: &[Artifact] = &[
         "7 days",
         "0044",
     ),
+    app_managed(
+        "webview.storage",
+        "the app's web storage (WebKit on macOS and Linux, WebView2 on Windows) for `dev.cuotai.desktop`",
+        "display choices mirrored from `desktop.json`, the ids of hidden quotas (provider, account name and metric), the accounts-file paths already announced, language-pack notices, the last Settings page",
+        UNTIL_ERASED,
+        "0020, 0052",
+    ),
+    app_managed(
+        "autostart.entry",
+        "`~/Library/LaunchAgents/<app>.plist` (macOS), a `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` value (Windows), `~/.config/autostart/<app>.desktop` (Linux)",
+        "the path of the Cuotai app, to start it at login",
+        "while **Open at login** is on",
+        "0022, 0054",
+    ),
+    app_managed(
+        "capture.profiles",
+        "`<temp>/cuotai-session-capture-*`",
+        "temporary browser profiles of a web-session capture",
+        "removed when the capture ends, at the next start or by the erase",
+        "0048, 0056",
+    ),
     vault(
         "vault.oauth",
         "cuotai.oauth",
@@ -701,7 +754,7 @@ impl Roots {
                 .as_deref()
                 .and_then(Path::parent)
                 .map(|d| join(d, artifact.path)),
-            Root::Vault => None,
+            Root::Vault | Root::App => None,
             // A home path inside the data root is that root's own artifact
             // (the default macOS data folder), listed once.
             Root::MacHome => self
@@ -821,8 +874,8 @@ fn inspect_one(artifact: &'static Artifact, roots: &Roots) -> ArtifactState {
     let Some(path) = roots.path_of(artifact) else {
         return ArtifactState {
             id: artifact.id,
-            path: if artifact.kind == Kind::VaultService {
-                artifact.path.to_string()
+            path: if matches!(artifact.kind, Kind::VaultService | Kind::AppManaged) {
+                artifact.path.replace('`', "")
             } else {
                 "unavailable".to_string()
             },
@@ -1113,6 +1166,14 @@ fn purpose_id(purpose: Purpose) -> String {
 
 fn erase_text(artifact: &Artifact) -> &'static str {
     match (artifact.erase, artifact.kind) {
+        // PRD 0052 S-01/S-03: only the app can reach these.
+        (_, Kind::AppManaged) => match artifact.id {
+            "autostart.entry" => {
+                "desktop: **Erase all Cuotai data**, or turn off **Open at login**"
+            }
+            "capture.profiles" => "desktop: **Erase all Cuotai data**, or the next start",
+            _ => "desktop: **Erase all Cuotai data**",
+        },
         (Erase::WithConfig, _) => {
             "`--erase-all-data --include-config`; desktop: **Erase all Cuotai data** with the accounts-file box"
         }
@@ -1150,12 +1211,17 @@ pub fn inventory_markdown() -> String {
     out.push_str("\n### Local data\n\n");
     out.push_str("| Id | Location | Holds | Mode | Schema | Kept | Erased by | PRD |\n|---|---|---|---|---|---|---|---|\n");
     for a in ARTIFACTS {
-        let location = format!(
-            "`{}{}`{}",
-            a.root.template(),
-            a.path,
-            if a.rotated { " (and `.1`)" } else { "" }
-        );
+        let location = if a.root == Root::App {
+            // A description that marks its own code spans.
+            a.path.to_string()
+        } else {
+            format!(
+                "`{}{}`{}",
+                a.root.template(),
+                a.path,
+                if a.rotated { " (and `.1`)" } else { "" }
+            )
+        };
         let mode = a
             .mode
             .map_or_else(|| "—".to_string(), |m| format!("`{m:04o}`"));

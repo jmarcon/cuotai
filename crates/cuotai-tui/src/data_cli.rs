@@ -277,12 +277,12 @@ pub(crate) fn erase_with(
     }
     let plan = erase::plan(options);
     writeln!(out, "{}", tr("cli.erase_plan_header", "Cuotai will erase:"))?;
-    for item in plan.iter().filter(|i| i.erase) {
+    for item in plan.iter().filter(|i| i.erase && !i.app_only) {
         writeln!(out, "  {:<22} {}", item.id, item.location)?;
     }
     let kept: Vec<_> = plan
         .iter()
-        .filter(|i| !i.erase && i.reason.is_none())
+        .filter(|i| !i.erase && i.reason.is_none() && !i.app_only)
         .collect();
     if !kept.is_empty() {
         writeln!(
@@ -307,6 +307,21 @@ pub(crate) fn erase_with(
                 reason.resolve(crate::ui::tui_locale())
             )?;
         }
+    }
+    // PRD 0052 S-01/S-03: the app's web storage, the start-at-login entry
+    // and capture profiles are reachable only from the desktop app.
+    let locale = crate::ui::tui_locale();
+    let app_only: Vec<String> = plan
+        .iter()
+        .filter(|i| i.app_only)
+        .map(|i| erase::item_label(i.id).map_or_else(|| i.id.to_string(), |l| l.resolve(locale)))
+        .collect();
+    if !app_only.is_empty() {
+        writeln!(
+            out,
+            "{}",
+            erase::app_only(&app_only.join(", ")).resolve(locale)
+        )?;
     }
     out.flush()?;
     match confirmed(yes, input, interactive) {
@@ -692,5 +707,37 @@ mod tests {
         );
         assert_eq!(vault.deleted.get(), 0);
         assert!(dir.path().join("local/cuotai/logs/cuotai.log").exists());
+    }
+
+    /// PRD 0052 S-01/S-03: the web storage, the start-at-login entry and
+    /// capture profiles are named apart, as erased only in the app.
+    #[test]
+    fn the_plan_lists_web_storage_and_login_start_as_erased_in_the_app() {
+        let dir = tempfile::tempdir().unwrap();
+        let options = options(dir.path());
+        let mut out = Vec::new();
+        erase_with(
+            &options,
+            &vault(),
+            &none,
+            false,
+            &mut &b""[..],
+            false,
+            &mut out,
+        )
+        .unwrap();
+        let shown = String::from_utf8(out).unwrap();
+        let prefix = erase::app_only("").resolve(crate::ui::tui_locale());
+        let line = shown
+            .lines()
+            .find(|line| line.contains(prefix.trim_end()))
+            .expect("the app-only line");
+        for id in ["webview.storage", "autostart.entry", "capture.profiles"] {
+            let label = erase::item_label(id)
+                .unwrap()
+                .resolve(crate::ui::tui_locale());
+            assert!(line.contains(&label), "{id} in {line}");
+            assert!(!shown.contains(id), "{id} is not an erased file line");
+        }
     }
 }

@@ -368,6 +368,8 @@ const HI_IN_LOGIN: &[&str] = &[
     "core:oauth_error.native.no_integrated_flow",
     "core:oauth_error.session.login_not_found",
     "core:oauth_error.store.macos_keychain_unavailable",
+    // The name of the desktop switch it erases ("लॉगिन पर खोलें").
+    "core:privacy.erase.label.autostart",
     "core:query.alibaba_plans.model_studio_cli_auth",
     "core:query.nine_router.locked",
     "core:query.nine_router.login_refused",

@@ -4149,6 +4149,8 @@ const demo = {
     { id: "history.db", location: "~/Library/Application Support/cuotai/history/history.sqlite3", kind: "file", erase: true },
     { id: "desktop.settings", location: "~/Library/Application Support/cuotai/desktop.json", kind: "file", erase: true },
     { id: "vault.oauth", location: "cuotai.oauth", kind: "vault_service", erase: true, label: "Saved sign-ins, keys and channel addresses" },
+    { id: "webview.storage", location: "dev.cuotai.desktop (WebKit / WebView2)", kind: "app_managed", erase: true, app_only: true, label: "The app's window storage" },
+    { id: "autostart.entry", location: "~/Library/LaunchAgents/<app>.plist", kind: "app_managed", erase: true, app_only: true, label: "Open at login" },
     { id: "config.accounts", location: "~/.config/cuotai/config.toml", kind: "file", erase: false },
   ] }),
   // The demo never erases anything: it answers as a partial erase so the page stays usable.

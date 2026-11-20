@@ -48,6 +48,10 @@ pub struct PlanItem {
     /// it (a data folder Cuotai did not create).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<Localized>,
+    /// PRD 0052 S-01/S-03: a [`Kind::AppManaged`] item, which only the
+    /// desktop app erases ([`erase_all`] leaves it alone; the CLI lists it
+    /// apart with [`app_only`]).
+    pub app_only: bool,
 }
 
 /// The id of a plan line for a data folder an erase leaves alone.
@@ -62,6 +66,7 @@ pub fn plan(options: &EraseOptions) -> Vec<PlanItem> {
     let item = |artifact: &'static Artifact, roots: &Roots| {
         let location = match artifact.kind {
             Kind::VaultService => artifact.path.to_string(),
+            Kind::AppManaged => app_location(artifact.id),
             _ => home_abbreviated(&roots.path_of(artifact)?),
         };
         Some(PlanItem {
@@ -70,6 +75,7 @@ pub fn plan(options: &EraseOptions) -> Vec<PlanItem> {
             kind: artifact.kind,
             erase: selected(artifact, options),
             reason: None,
+            app_only: artifact.kind == Kind::AppManaged,
         })
     };
     let mut items: Vec<PlanItem> = artifacts()
@@ -91,6 +97,7 @@ pub fn plan(options: &EraseOptions) -> Vec<PlanItem> {
         kind: Kind::Directory,
         erase: false,
         reason: Some(not_cuotai_folder()),
+        app_only: false,
     }));
     items
 }
@@ -101,6 +108,23 @@ pub fn not_cuotai_folder() -> Localized {
         "privacy.erase.not_cuotai_folder",
         "Kept: this folder was not created by Cuotai.",
     )
+}
+
+/// Where an app-managed item lives on this operating system, in plain text.
+fn app_location(id: &str) -> String {
+    match id {
+        "webview.storage" => "dev.cuotai.desktop (WebKit / WebView2)".to_string(),
+        "autostart.entry" => if cfg!(target_os = "macos") {
+            "~/Library/LaunchAgents/<app>.plist"
+        } else if cfg!(windows) {
+            "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        } else {
+            "~/.config/autostart/<app>.desktop"
+        }
+        .to_string(),
+        "capture.profiles" => "<temp>/cuotai-session-capture-*".to_string(),
+        _ => String::new(),
+    }
 }
 
 fn selected(artifact: &Artifact, options: &EraseOptions) -> bool {
@@ -114,7 +138,8 @@ pub fn confirmation_word() -> Localized {
 }
 
 /// A person-facing name for an inventory item, when its location alone is
-/// a technical name: the credential-vault services. Surfaces show it first
+/// a technical name: the credential-vault services and the items only the
+/// desktop app erases. Surfaces show it first
 /// and the raw service name as secondary text.
 pub fn item_label(id: &str) -> Option<Localized> {
     match id {
@@ -126,8 +151,31 @@ pub fn item_label(id: &str) -> Option<Localized> {
             "privacy.erase.label.vault_serve",
             "Local server access token",
         )),
+        "webview.storage" => Some(Localized::fixed(
+            "privacy.erase.label.webview_storage",
+            "The app's window storage",
+        )),
+        "autostart.entry" => Some(Localized::fixed(
+            "privacy.erase.label.autostart",
+            "Open at login",
+        )),
+        "capture.profiles" => Some(Localized::fixed(
+            "privacy.erase.label.capture_profiles",
+            "Leftover web-session capture profiles",
+        )),
         _ => None,
     }
+}
+
+/// PRD 0052 S-01/S-03: the line the CLI prints for the items only the
+/// desktop app can erase (`items`: their names, already resolved).
+pub fn app_only(items: &str) -> Localized {
+    Localized::with_param(
+        "privacy.erase.app_only",
+        "items",
+        items,
+        "Erase in the desktop app: {items}",
+    )
 }
 
 /// Whether `typed` is exactly the confirmation word of `locale` (spaces
@@ -375,7 +423,8 @@ pub enum Outcome {
     Removed,
     /// Nothing was there (a success).
     Absent,
-    /// Not selected (the accounts TOML without `include_config`).
+    /// Not selected (the accounts TOML without `include_config`), or an
+    /// app-managed item [`erase_all`] leaves to the desktop app.
     Kept,
     /// Removal failed; retry.
     Failed,
@@ -483,7 +532,7 @@ pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseRepor
     let scope = Scope::of(roots);
     let mut items = Vec::new();
     for artifact in artifacts() {
-        let outcome = if !selected(artifact, options) {
+        let outcome = if !selected(artifact, options) || artifact.kind == Kind::AppManaged {
             Outcome::Kept
         } else if artifact.kind == Kind::VaultService {
             match vault.delete_service(artifact.path) {
@@ -832,7 +881,7 @@ mod tests {
             let label = item_label(artifact.id);
             assert_eq!(
                 label.is_some(),
-                artifact.kind == Kind::VaultService,
+                matches!(artifact.kind, Kind::VaultService | Kind::AppManaged),
                 "{}",
                 artifact.id
             );
@@ -1028,8 +1077,8 @@ mod tests {
         assert!(report.complete(), "{report:?}");
         assert_eq!(
             report.count(Outcome::Kept),
-            2,
-            "accounts TOML and hooks.toml"
+            2 + app_managed(),
+            "accounts TOML, hooks.toml and the app-managed items"
         );
         assert!(
             vault.entries.borrow().is_empty(),
@@ -1410,7 +1459,7 @@ mod tests {
         assert!(plan(&options).iter().all(|i| i.erase));
         let report = erase_all(&options, &vault()).unwrap();
         assert!(report.complete());
-        assert_eq!(report.count(Outcome::Kept), 0);
+        assert_eq!(report.count(Outcome::Kept), app_managed());
         assert!(files_left(dir.path()).is_empty());
     }
 
@@ -1583,6 +1632,44 @@ mod tests {
             };
             assert_eq!(text.id, "oauth_error.store.sqlite_dev_unavailable");
         }
+    }
+
+    fn app_managed() -> usize {
+        artifacts()
+            .iter()
+            .filter(|a| a.kind == Kind::AppManaged)
+            .count()
+    }
+
+    /// PRD 0052 S-01/S-03: the web storage, the start-at-login entry and
+    /// capture profiles are listed (to be erased, by the app only) and
+    /// `erase_all` reports them kept without touching anything.
+    #[test]
+    fn app_managed_artifacts_are_never_touched_by_erase_all_and_are_listed_as_app_only() {
+        let (_dir, options) = tree();
+        let plan = plan(&options);
+        let ids: Vec<_> = plan.iter().filter(|i| i.app_only).map(|i| i.id).collect();
+        assert_eq!(
+            ids,
+            vec!["webview.storage", "autostart.entry", "capture.profiles"]
+        );
+        for item in plan.iter().filter(|i| i.app_only) {
+            assert!(item.erase, "{}: the app erases it", item.id);
+            assert_eq!(item.kind, Kind::AppManaged);
+            assert!(!item.location.is_empty() && !item.location.contains('`'));
+            assert!(item_label(item.id).is_some());
+        }
+        assert!(plan
+            .iter()
+            .filter(|i| !i.app_only)
+            .all(|i| i.kind != Kind::AppManaged));
+        let report = erase_all(&options, &vault()).unwrap();
+        for id in ids {
+            let item = report.items.iter().find(|i| i.id == id).unwrap();
+            assert_eq!(item.outcome, Outcome::Kept, "{id}");
+        }
+        let text = app_only("Open at login").resolve("pt-BR");
+        assert!(text.contains("Open at login") && !text.starts_with("Erase"));
     }
 
     #[test]
