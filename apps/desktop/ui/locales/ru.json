@@ -435,7 +435,7 @@
   "settings.appearance": "Оформление",
   "settings.startup": "Запуск",
   "settings.autostart.label": "Открывать при входе",
-  "settings.autostart.desc": "Запускается в трее без окна.",
+  "settings.autostart.desc": "Открывает Cuotai при входе в систему: в трее, если он есть, иначе в окне.",
   "settings.autostart.stale": "Элемент входа запускает копию Cuotai, которая перемещена или больше не существует.",
   "settings.autostart.repair": "Исправить",
   "settings.kw.autostart": "запуск вход автозапуск загрузка стартовать автоматически открывать",

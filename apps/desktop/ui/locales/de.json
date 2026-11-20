@@ -419,7 +419,7 @@
   "settings.appearance": "Darstellung",
   "settings.startup": "Start",
   "settings.autostart.label": "Bei Anmeldung öffnen",
-  "settings.autostart.desc": "Startet im Tray, ohne Fenster.",
+  "settings.autostart.desc": "Öffnet Cuotai bei der Anmeldung: im Tray, wenn es einen gibt, sonst in seinem Fenster.",
   "settings.autostart.stale": "Der Anmeldeeintrag startet eine Cuotai-Kopie, die verschoben wurde oder nicht mehr existiert.",
   "settings.autostart.repair": "Reparieren",
   "settings.kw.autostart": "start anmeldung autostart hochfahren starten automatisch öffnen",

@@ -78,6 +78,7 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-one-row-topbar", "index.html", 905, 600, {}],
   ["main-one-row-topbar-wide", "index.html", 1105, 600, {}],
   ["main", "index.html", 1200, 820, {}],
+  ["main-no-tray", "index.html?no-tray", 520, 820, {}],
   // PRD 0023 re-validation (V-01, V-03, V-05, V-09): every extra-usage state on the card and the tray.
   ["main-overage", "index.html?overage", 1200, 820, {}],
   ["main-overage-narrow", "index.html?overage", 520, 820, {}],
@@ -94,6 +95,7 @@ const PAGES = zoom ? ZOOM_PAGES : [
   ["main-winxp-light", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "light" }],
   ["main-winxp-dark", "index.html?fixture=six", 1200, 820, { "cuotai.theme": "winxp", "cuotai.themeMode": "dark" }],
   ["settings-general", "settings.html?page=general", 640, 460, {}],
+  ["settings-general-autostart-stale", "settings.html?page=general&autostart-stale", 640, 460, {}],
   // PRD 0035 re-validation V35-15 (DS-CMP-SEL-2): the open language menu stays inside the window, at the minimum and at
   // the default Settings size (`settings_window.rs`).
   ["settings-general-lang-open", "settings.html?page=general", 640, 460, {}, "[data-lang-toggle]"],
