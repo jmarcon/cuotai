@@ -78,5 +78,26 @@ assert.doesNotMatch(topbar, /themeSwitchHtml|langMenuHtml/, "theme and language 
 assert.match(topbar, /wordmark\(/, "the logotype stays in the main topbar (RF7.3)");
 assert.match(topbar, /btn outline tb-add/, "Add account is outlined");
 
+// PRD 0054 RF5.1 (re-validation V-02): the no-tray notice is a status, not dismissable, with a space after its icon,
+// and names the Linux cause on Linux, in every catalog.
+{
+  const i18n = await import("../apps/desktop/ui/js/i18n.js");
+  const { trayUnavailableHtml } = await import("../apps/desktop/ui/js/tray-notice.js");
+  for (const file of catalogs) {
+    const code = file.replace(/\.json$/, "");
+    const catalog = JSON.parse(await readFile(new URL(file, i18nDir), "utf8"));
+    await i18n.setLocale(code);
+    const mac = trayUnavailableHtml({ tray_unavailable: true }, "MacIntel");
+    assert.match(mac, /role="status"/, `${code}: a status notice`);
+    assert.doesNotMatch(mac, /<button/, `${code}: no dismiss button`);
+    assert.ok(mac.includes("</svg> <span>"), `${code}: a space after the icon`);
+    assert.ok(mac.includes(i18n.te("tray.unavailable")) && catalog["tray.unavailable"], `${code}: the tray.unavailable text`);
+    const linux = trayUnavailableHtml({ tray_unavailable: true }, "Linux x86_64");
+    assert.ok(linux.includes(i18n.te("tray.unavailableLinux")) && catalog["tray.unavailableLinux"], `${code}: the Linux text`);
+    assert.equal(trayUnavailableHtml({}, "Linux"), "", `${code}: nothing with a tray`);
+  }
+  await i18n.setLocale("en-US");
+}
+
 console.log("PASS: tray header holds the open-window mark and the tabs, footer and notices follow DS-CMP-FOOT, list is the default view");
 process.exit(0); // the shared modules keep a BroadcastChannel open

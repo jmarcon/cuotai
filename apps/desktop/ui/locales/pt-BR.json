@@ -347,7 +347,7 @@
   "settings.appearance": "Aparência",
   "settings.startup": "Inicialização",
   "settings.autostart.label": "Abrir ao entrar",
-  "settings.autostart.desc": "Inicia na bandeja, sem janela.",
+  "settings.autostart.desc": "Abre o Cuotai ao entrar na sessão: na bandeja, se houver uma, ou senão na janela dele.",
   "settings.autostart.stale": "A entrada de login abre uma cópia do Cuotai que foi movida ou não existe mais.",
   "settings.autostart.repair": "Reparar",
   "settings.kw.autostart": "iniciar entrar login inicialização abrir automaticamente sistema",

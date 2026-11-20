@@ -7,6 +7,7 @@ import { openDetails, refreshDetails } from "./details-dialog.js";
 import { costCardHtml, costSoloCardHtml, costSummary, openCostDetails, refreshCostDetails, sourceFor } from "./cost.js";
 import { syncTrayMenu } from "./tray-menu.js";
 import { mountStats } from "./stats.js";
+import { trayUnavailableHtml } from "./tray-notice.js";
 import { mountTimeline } from "./timeline.js";
 import { bindUpdateBanner, initUpdates, onUpdateState, promptForUpdateConsent, updateBannerHtml, updateState } from "./updater.js";
 import { maybeShowFirstRun } from "./first-run.js";
@@ -274,12 +275,6 @@ async function answerRelocation(adopt) {
   }
   store.reload?.();
 }
-// PRD 0054 RF5.1: no tray icon, so this window is the only way in; not dismissable.
-function trayUnavailableHtml() {
-  if (!store.view?.tray_unavailable) return "";
-  const key = /Linux/.test(navigator.platform ?? "") ? "tray.unavailableLinux" : "tray.unavailable";
-  return `<div class="banner bad" role="status" data-tray-unavailable>${icon("warn")}<span>${te(key)}</span></div>`;
-}
 function onDeleted(result) {
   if (!result) return;
   const retry = result.recovery_handle ? { handle: result.recovery_handle } : null;
@@ -499,7 +494,7 @@ function render() {
     </header>
     ${error ? `<div class="banner bad">${esc(error)}</div>` : ""}
     ${settingsBackupHtml()}
-    ${trayUnavailableHtml()}
+    ${trayUnavailableHtml(store.view, navigator.platform)}
     ${relocationBannerHtml(store.view)}
     ${otherBannerHtml()}
     ${notice ? `<div class="banner ${notice.tone}"${notice.mark ? ' data-protected-texts="delete-result"' : ""}>${esc(notice.text)}${notice.retry ? ` <button class="link" data-retry-delete>${te("delete.retry")}</button>` : ""} <button class="link" data-dismiss-notice>${te(notice.mark ? "confirm.dismiss" : "common.dismiss")}</button></div>` : ""}

@@ -350,7 +350,7 @@
   "settings.appearance": "Görünüm",
   "settings.startup": "Başlangıç",
   "settings.autostart.label": "Oturum açıldığında başlat",
-  "settings.autostart.desc": "Tepside, pencere olmadan başlar.",
+  "settings.autostart.desc": "Oturum açtığınızda Cuotai'yi açar: tepsi varsa tepside, yoksa kendi penceresinde.",
   "settings.autostart.stale": "Oturum açma girdisi, taşınmış veya artık var olmayan bir Cuotai kopyasını başlatıyor.",
   "settings.autostart.repair": "Onar",
   "settings.kw.autostart": "başlat oturum açma başlangıç önyükleme otomatik aç",

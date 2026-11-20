@@ -405,7 +405,7 @@
   "settings.appearance": "Giao diện",
   "settings.startup": "Khởi động",
   "settings.autostart.label": "Mở khi đăng nhập",
-  "settings.autostart.desc": "Khởi động trong khay, không có cửa sổ.",
+  "settings.autostart.desc": "Mở Cuotai khi bạn đăng nhập: trong khay nếu có, nếu không thì trong cửa sổ của ứng dụng.",
   "settings.autostart.stale": "Mục đăng nhập khởi chạy một bản Cuotai đã bị di chuyển hoặc không còn tồn tại.",
   "settings.autostart.repair": "Sửa",
   "settings.kw.autostart": "khởi động đăng nhập khởi chạy tự động mở",

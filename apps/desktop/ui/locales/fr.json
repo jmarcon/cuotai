@@ -695,7 +695,7 @@
   "settings.appearance": "Apparence",
   "settings.startup": "Démarrage",
   "settings.autostart.label": "Ouvrir à la connexion",
-  "settings.autostart.desc": "Démarre en arrière-plan, sans fenêtre.",
+  "settings.autostart.desc": "À la connexion, ouvre Cuotai dans la zone de notification, sinon dans sa fenêtre.",
   "settings.autostart.stale": "L’entrée d’ouverture de session lance une copie de Cuotai qui a été déplacée ou n’existe plus.",
   "settings.autostart.repair": "Réparer",
   "settings.kw.autostart": "démarrage connexion ouverture session lancement automatique ouvrir",

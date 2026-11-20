@@ -2635,6 +2635,8 @@ const demoView = () => {
     history_warning: new URLSearchParams(location.search).has("history-warning")
       ? { id: "history.warning.ceiling", params: { max: "64", removed: "1200" }, fallback: "The history went over 64 MiB: its 1200 oldest measurements were deleted." }
       : null,
+    // `?no-tray` shows the notice for a system without a tray icon (PRD 0054 RF5.1).
+    tray_unavailable: DEMO_QUERY.has("no-tray"),
     history_epoch: demoSettings.historyEpoch,
     // PRD 0051 re-validation V-04: `?confignotes` shows an account set aside and an unknown key kept (the core's notes);
     // `?relocation` the moved-file question until it is answered.
@@ -2906,6 +2908,8 @@ const demoSettings = { monograms: {}, profileExisted: new URLSearchParams(locati
   alerts: { enabled: false, thresholds: [75, 90], exhaustion: true, recovery: true, overage: true, muted: {} }, statusQueries: DEMO_STATUS != null || DEMO_QUERY.has("eleven"), detect: { enabled: new URLSearchParams(location.search).get("detect") === "ask" ? null : true, dismissed: [] },
   serve: { enabled: DEMO_SERVE_TAKEN, port: 6738, allow_browsers: false, secret: DEMO_SERVE_TAKEN ? "cuotai_demo_taken" : null },
   widgets: { enabled: DEMO_WIDGETS, include_identity: false, max_accounts: 6, written: false } };
+// `?autostart-stale` starts with Open at login on and its entry naming a copy of the app that moved (PRD 0054 RF4.3).
+if (DEMO_QUERY.has("autostart-stale")) demoSettings.autostart = demoSettings.autostartStale = true;
 const demoPermission = (on) => (!on ? "off" : new URLSearchParams(location.search).has("notify-denied") ? "denied" : "granted");
 // Models in the demo: same validation (index + generation) and the `unsupported` state with an explicit demonstration reason;
 // no invented catalog is shown as real. `?models=failed` (the ui-shots overflow check) shows a failed sync over a catalog

@@ -347,7 +347,7 @@
   "settings.appearance": "Appearance",
   "settings.startup": "Startup",
   "settings.autostart.label": "Open at login",
-  "settings.autostart.desc": "Starts in the tray, without a window.",
+  "settings.autostart.desc": "Opens Cuotai when you sign in: in the tray when there is one, otherwise in its window.",
   "settings.autostart.stale": "The login entry starts a copy of Cuotai that moved or no longer exists.",
   "settings.autostart.repair": "Repair",
   "settings.kw.autostart": "start login startup boot launch automatically sign in open",
