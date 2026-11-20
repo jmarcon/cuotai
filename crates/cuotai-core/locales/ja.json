@@ -2050,6 +2050,7 @@
   },
   "privacy.erase.label.vault_oauth": "保存したサインイン、キー、チャネルのアドレス",
   "privacy.erase.label.vault_serve": "ローカルサーバーのアクセストークン",
+  "privacy.erase.not_cuotai_folder": "保持：このフォルダーは Cuotai が作成したものではありません。",
   "provider.alibaba_cloud": "Alibaba Cloud — 請求",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

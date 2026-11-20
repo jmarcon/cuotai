@@ -2057,6 +2057,7 @@
   },
   "privacy.erase.label.vault_oauth": "Gespeicherte Anmeldungen, Schlüssel und Kanaladressen",
   "privacy.erase.label.vault_serve": "Zugriffstoken des lokalen Servers",
+  "privacy.erase.not_cuotai_folder": "Behalten: Diesen Ordner hat nicht Cuotai angelegt.",
   "provider.alibaba_cloud": "Alibaba Cloud — Abrechnung",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

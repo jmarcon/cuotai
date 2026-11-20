@@ -2948,6 +2948,7 @@
   },
   "privacy.erase.label.vault_oauth": "Connexions, clés et adresses de canaux enregistrées",
   "privacy.erase.label.vault_serve": "Jeton d'accès du serveur local",
+  "privacy.erase.not_cuotai_folder": "Conservé : ce dossier n’a pas été créé par Cuotai.",
   "provider.alibaba_cloud": "Alibaba Cloud — facturation",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

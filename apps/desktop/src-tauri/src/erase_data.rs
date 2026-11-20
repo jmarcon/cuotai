@@ -70,7 +70,9 @@ pub fn plan_view(roots: Roots, locale: &str) -> PlanView {
         })
         .into_iter()
         .map(|item| PlanItemView {
-            label: erase::item_label(item.id).map(|label| label.resolve(locale)),
+            label: erase::item_label(item.id)
+                .or_else(|| item.reason.clone())
+                .map(|label| label.resolve(locale)),
             item,
         })
         .collect(),
@@ -197,9 +199,11 @@ fn closing_message(locale: &str, foreign: usize) -> String {
     }
 }
 
-/// The accounts TOML for [`Roots`]: the loaded one, or none.
+/// The roots of an erase for the loaded accounts TOML (or none): the data
+/// folder in use plus data left in the OS default one (PRD 0052
+/// re-validation S-02, [`Roots::for_erase`]).
 pub fn roots(accounts: Option<PathBuf>) -> Roots {
-    Roots::system(accounts)
+    Roots::for_erase(accounts)
 }
 
 #[cfg(test)]
@@ -282,6 +286,7 @@ mod tests {
             mac_home: None,
             metered: None,
             feed: None,
+            ..Roots::default()
         };
         (dir, roots, history, accounts)
     }
@@ -543,5 +548,27 @@ mod tests {
         assert_eq!(closing_message("en-US", 0), done);
         let with = closing_message("en-US", 2);
         assert!(with.starts_with(&done) && with.contains('2'), "{with}");
+    }
+
+    /// PRD 0052 re-validation S-02: data left in the default folder before
+    /// a move is listed (and so erased) beside the data folder in use.
+    #[test]
+    fn the_plan_lists_data_left_in_the_default_folder() {
+        let (dir, roots, _history, _accounts) = tree();
+        let default = dir.path().join("os-default");
+        std::fs::create_dir_all(default.join("logs")).unwrap();
+        std::fs::write(default.join("logs").join("cuotai.log"), b"x").unwrap();
+        cuotai_core::data_dir::mark_for_tests(&default).unwrap();
+        let roots = roots.with_erase_roots([default.clone()]);
+        let view = plan_view(roots, "en-US");
+        let log = cuotai_core::diagnostics::redact::home_abbreviated(
+            &default.join("logs").join("cuotai.log"),
+        );
+        assert!(
+            view.items
+                .iter()
+                .any(|i| i.item.id == "app.log" && i.item.location == log && i.item.erase),
+            "{log}"
+        );
     }
 }

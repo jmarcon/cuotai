@@ -1362,6 +1362,7 @@
   },
   "privacy.erase.label.vault_oauth": "Accessi, chiavi e indirizzi dei canali salvati",
   "privacy.erase.label.vault_serve": "Token di accesso del server locale",
+  "privacy.erase.not_cuotai_folder": "Conservata: questa cartella non è stata creata da Cuotai.",
   "provider.alibaba_cloud": "Alibaba Cloud — fatturazione",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

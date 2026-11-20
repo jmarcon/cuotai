@@ -2008,6 +2008,7 @@
   },
   "privacy.erase.label.vault_oauth": "Thông tin đăng nhập, khóa và địa chỉ kênh đã lưu",
   "privacy.erase.label.vault_serve": "Mã truy cập của máy chủ cục bộ",
+  "privacy.erase.not_cuotai_folder": "Giữ lại: thư mục này không do Cuotai tạo.",
   "provider.alibaba_cloud": "Alibaba Cloud — thanh toán",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

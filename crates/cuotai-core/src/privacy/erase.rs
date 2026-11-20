@@ -43,26 +43,63 @@ pub struct PlanItem {
     pub kind: Kind,
     /// Removed by this erase (`false`: listed as kept).
     pub erase: bool,
+    /// Why a kept item is kept, when the accounts-file box does not decide
+    /// it (a data folder Cuotai did not create).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<Localized>,
 }
 
+/// The id of a plan line for a data folder an erase leaves alone.
+pub const FOREIGN_FOLDER_ID: &str = "local_data.not_cuotai";
+
 /// The ordered inventory for `options`: every registry artifact, the ones
-/// kept marked so.
+/// kept marked so; then the data items of every other data root
+/// ([`Roots::other_local_data`]), and one kept line per data folder Cuotai
+/// did not create ([`Roots::kept_local_data`]).
 pub fn plan(options: &EraseOptions) -> Vec<PlanItem> {
-    artifacts()
-        .iter()
-        .filter_map(|artifact| {
-            let location = match artifact.kind {
-                Kind::VaultService => artifact.path.to_string(),
-                _ => home_abbreviated(&options.roots.path_of(artifact)?),
-            };
-            Some(PlanItem {
-                id: artifact.id,
-                location,
-                kind: artifact.kind,
-                erase: selected(artifact, options),
-            })
+    let roots = &options.roots;
+    let item = |artifact: &'static Artifact, roots: &Roots| {
+        let location = match artifact.kind {
+            Kind::VaultService => artifact.path.to_string(),
+            _ => home_abbreviated(&roots.path_of(artifact)?),
+        };
+        Some(PlanItem {
+            id: artifact.id,
+            location,
+            kind: artifact.kind,
+            erase: selected(artifact, options),
+            reason: None,
         })
-        .collect()
+    };
+    let mut items: Vec<PlanItem> = artifacts()
+        .iter()
+        .filter_map(|artifact| item(artifact, roots))
+        .collect();
+    for root in &roots.other_local_data {
+        let view = roots.with_local_data(root);
+        items.extend(
+            artifacts()
+                .iter()
+                .filter(|artifact| artifact.root == Root::LocalData)
+                .filter_map(|artifact| item(artifact, &view)),
+        );
+    }
+    items.extend(roots.kept_local_data.iter().map(|root| PlanItem {
+        id: FOREIGN_FOLDER_ID,
+        location: home_abbreviated(root),
+        kind: Kind::Directory,
+        erase: false,
+        reason: Some(not_cuotai_folder()),
+    }));
+    items
+}
+
+/// Why a data folder an erase found is kept.
+pub fn not_cuotai_folder() -> Localized {
+    Localized::fixed(
+        "privacy.erase.not_cuotai_folder",
+        "Kept: this folder was not created by Cuotai.",
+    )
 }
 
 fn selected(artifact: &Artifact, options: &EraseOptions) -> bool {
@@ -351,7 +388,15 @@ impl Scope {
     }
 }
 
-/// Erase every selected artifact (see the module documentation).
+/// The desktop settings' registry id: removed after every data root, and
+/// kept while any data item failed, so a retry still finds the folder they
+/// name (PRD 0052 re-validation S-02).
+const DESKTOP_ID: &str = "desktop.settings";
+
+/// Erase every selected artifact (see the module documentation), in every
+/// data root ([`Roots::local_data`] and [`Roots::other_local_data`]); an
+/// item's outcomes across roots merge (a failure wins, then something left
+/// in place, then a removal).
 pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseReport, EraseError> {
     let vaults: Vec<&Artifact> = artifacts()
         .iter()
@@ -360,7 +405,8 @@ pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseRepor
     if vaults.iter().any(|a| !vault.can_search(a.path)) {
         return Err(EraseError::VaultUnavailable);
     }
-    let scope = Scope::of(&options.roots);
+    let roots = &options.roots;
+    let scope = Scope::of(roots);
     let mut items = Vec::new();
     for artifact in artifacts() {
         let outcome = if !selected(artifact, options) {
@@ -371,31 +417,95 @@ pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseRepor
                 Ok(_) => Outcome::Removed,
                 Err(VaultFailure) => Outcome::Failed,
             }
+        } else if artifact.id == DESKTOP_ID || artifact.id == MARKER_ID {
+            // Settled below.
+            Outcome::Absent
         } else {
-            match options.roots.path_of(artifact) {
-                Some(path) if artifact.root == Root::LocalData && !scope.local_owned => {
-                    untouched(&path)
-                }
-                // Settled once the folder is otherwise empty.
-                Some(_) if artifact.id == MARKER_ID => Outcome::Absent,
-                Some(path) => remove(artifact, &path, &scope),
-                None => Outcome::Absent,
-            }
+            erase_one(artifact, roots, &scope)
         };
         items.push(ItemReport {
             id: artifact.id,
             outcome,
         });
     }
-    let marker = remove_empty_dirs(&options.roots, scope.local_owned);
-    if let (Some(outcome), Some(item)) =
-        (marker, items.iter_mut().find(|item| item.id == MARKER_ID))
-    {
-        if item.outcome != Outcome::Kept {
-            item.outcome = outcome;
+    let mut markers = vec![(roots.clone(), scope.local_owned)];
+    for root in &roots.other_local_data {
+        let view = roots.with_local_data(root);
+        let scope = Scope::of(&view);
+        for artifact in artifacts()
+            .iter()
+            .filter(|a| a.root == Root::LocalData && a.id != MARKER_ID && selected(a, options))
+        {
+            let outcome = erase_one(artifact, &view, &scope);
+            merge_into(&mut items, artifact.id, outcome);
+        }
+        markers.push((view, scope.local_owned));
+    }
+    if let Some(desktop) = super::artifact(DESKTOP_ID).filter(|a| selected(a, options)) {
+        let data_failed = items.iter().any(|item| {
+            item.outcome == Outcome::Failed
+                && super::artifact(item.id).is_some_and(|a| a.root == Root::LocalData)
+        });
+        let outcome = match roots.path_of(desktop) {
+            None => Outcome::Absent,
+            Some(path) if data_failed => match std::fs::symlink_metadata(&path) {
+                Ok(_) => Outcome::Failed,
+                Err(_) => Outcome::Absent,
+            },
+            Some(path) => remove(desktop, &path, &scope),
+        };
+        set_outcome(&mut items, DESKTOP_ID, outcome);
+    }
+    let selected_marker = super::artifact(MARKER_ID).is_some_and(|a| selected(a, options));
+    let mut marker = None;
+    for (view, owned) in &markers {
+        if let Some(outcome) = remove_empty_local(view, *owned) {
+            marker = Some(marker.map_or(outcome, |m| merge(m, outcome)));
         }
     }
+    remove_empty_config(roots);
+    if let (true, Some(outcome)) = (selected_marker, marker) {
+        set_outcome(&mut items, MARKER_ID, outcome);
+    }
     Ok(EraseReport { items })
+}
+
+/// Erase one file or directory item under `roots`.
+fn erase_one(artifact: &Artifact, roots: &Roots, scope: &Scope) -> Outcome {
+    match roots.path_of(artifact) {
+        Some(path) if artifact.root == Root::LocalData && !scope.local_owned => untouched(&path),
+        Some(path) => remove(artifact, &path, scope),
+        None => Outcome::Absent,
+    }
+}
+
+/// Two outcomes of one item in different roots: a failure wins, then
+/// something left in place, then a removal, then absence.
+fn merge(a: Outcome, b: Outcome) -> Outcome {
+    let rank = |o: Outcome| match o {
+        Outcome::Failed => 4,
+        Outcome::Foreign => 3,
+        Outcome::Removed => 2,
+        Outcome::Kept => 1,
+        Outcome::Absent => 0,
+    };
+    if rank(b) > rank(a) {
+        b
+    } else {
+        a
+    }
+}
+
+fn merge_into(items: &mut [ItemReport], id: &str, outcome: Outcome) {
+    if let Some(item) = items.iter_mut().find(|item| item.id == id) {
+        item.outcome = merge(item.outcome, outcome);
+    }
+}
+
+fn set_outcome(items: &mut [ItemReport], id: &str, outcome: Outcome) {
+    if let Some(item) = items.iter_mut().find(|item| item.id == id) {
+        item.outcome = outcome;
+    }
 }
 
 /// An item in a folder Cuotai does not own: never touched.
@@ -548,43 +658,30 @@ fn remove_tree(artifact: &Artifact, path: &Path, scope: &Scope) -> Outcome {
     }
 }
 
-/// Remove Cuotai's own directories once empty (`remove_dir` refuses a
-/// directory that still holds anything, such as a kept TOML); in a data
-/// root Cuotai does not own, nothing. Before the data root itself goes, its
-/// ownership marker is removed, only when it is the last entry left; the
-/// marker's outcome is returned (`None` without a data root).
-fn remove_empty_dirs(roots: &Roots, local_owned: bool) -> Option<Outcome> {
-    let mut dirs: Vec<PathBuf> = artifacts()
-        .iter()
-        .filter_map(|a| match a.root {
-            Root::LocalData if local_owned => roots.path_of(a),
-            Root::Config => roots.path_of(a),
-            _ => None,
-        })
-        .filter_map(|path| path.parent().map(Path::to_path_buf))
-        .collect();
-    if local_owned {
-        dirs.extend(roots.local_data.clone());
-    }
-    dirs.extend(roots.config.as_ref().map(|d| d.join("cuotai")));
-    // Deepest first, so a parent empties after its children.
-    dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
-    dirs.dedup();
-    let local = roots.local_data.as_deref();
-    let marker = local.map(|root| root.join(crate::data_dir::MARKER));
-    let existed = marker
-        .as_deref()
-        .is_some_and(|m| std::fs::symlink_metadata(m).is_ok());
-    for dir in dirs {
-        if Some(dir.as_path()) == local {
-            remove_marker_if_last(&dir);
-        }
-        let _ = std::fs::remove_dir(dir);
-    }
-    let marker = marker?;
-    if !local_owned {
+/// Remove the data root's own directories once empty (`remove_dir`
+/// refuses a directory that still holds anything); in a data root Cuotai
+/// does not own, nothing. Before the root itself goes, its ownership marker
+/// is removed, only when it is the last entry left. The marker's outcome is
+/// returned (`None` without a data root).
+fn remove_empty_local(roots: &Roots, owned: bool) -> Option<Outcome> {
+    let root = roots.local_data.as_deref()?;
+    let marker = root.join(crate::data_dir::MARKER);
+    if !owned {
         return Some(untouched(&marker));
     }
+    let existed = std::fs::symlink_metadata(&marker).is_ok();
+    let mut dirs: Vec<PathBuf> = artifacts()
+        .iter()
+        .filter(|a| a.root == Root::LocalData)
+        .filter_map(|a| roots.path_of(a))
+        .filter_map(|path| path.parent().map(Path::to_path_buf))
+        .collect();
+    dirs.push(root.to_path_buf());
+    remove_dirs(dirs, |dir| {
+        if dir == root {
+            remove_marker_if_last(dir);
+        }
+    });
     Some(
         match (existed, std::fs::symlink_metadata(&marker).is_ok()) {
             (false, _) => Outcome::Absent,
@@ -592,6 +689,30 @@ fn remove_empty_dirs(roots: &Roots, local_owned: bool) -> Option<Outcome> {
             (true, true) => Outcome::Foreign,
         },
     )
+}
+
+/// Remove the configuration folder's own directories once empty (a kept
+/// TOML keeps its folder).
+fn remove_empty_config(roots: &Roots) {
+    let mut dirs: Vec<PathBuf> = artifacts()
+        .iter()
+        .filter(|a| a.root == Root::Config)
+        .filter_map(|a| roots.path_of(a))
+        .filter_map(|path| path.parent().map(Path::to_path_buf))
+        .collect();
+    dirs.extend(roots.config.as_ref().map(|d| d.join("cuotai")));
+    remove_dirs(dirs, |_| {});
+}
+
+/// `remove_dir` each of `dirs`, deepest first so a parent empties after its
+/// children, calling `before` with each first.
+fn remove_dirs(mut dirs: Vec<PathBuf>, before: impl Fn(&Path)) {
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
+    dirs.dedup();
+    for dir in dirs {
+        before(&dir);
+        let _ = std::fs::remove_dir(dir);
+    }
 }
 
 /// Remove `<root>/.cuotai-data` when it is the root's only entry.
@@ -684,6 +805,7 @@ mod tests {
             metered: Some(dir.path().join("os-local").join("cuotai").join("metered")),
             // PRD 0040 re-validation V-08: the fixed feed folder, likewise.
             feed: Some(dir.path().join("os-local").join("cuotai").join("feed")),
+            ..Roots::default()
         };
         for artifact in artifacts() {
             let Some(path) = roots.path_of(artifact) else {
@@ -984,6 +1106,143 @@ mod tests {
             "the marker stays"
         );
         assert_eq!(outcome(MARKER_ID), Outcome::Foreign);
+    }
+
+    /// Every data item of a root, Cuotai-shaped, and its marker.
+    fn populate_local(view: &Roots) {
+        for artifact in artifacts().iter().filter(|a| a.root == Root::LocalData) {
+            let Some(path) = view.path_of(artifact) else {
+                continue;
+            };
+            match artifact.kind {
+                Kind::Directory => cuotai_entries(artifact.id, &path),
+                _ if artifact.id == MARKER_ID => {
+                    crate::data_dir::mark_for_tests(path.parent().unwrap()).unwrap();
+                }
+                _ => {
+                    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                    std::fs::write(&path, b"data").unwrap();
+                }
+            }
+        }
+    }
+
+    /// A tree whose desktop settings choose `chosen` (populated and marked
+    /// when `marked`), plus a populated stand-in for the OS default folder.
+    fn tree_with_other_roots(marked: bool) -> (tempfile::TempDir, EraseOptions, PathBuf, PathBuf) {
+        let (dir, mut options) = tree();
+        let chosen = dir.path().join("chosen");
+        let default = dir.path().join("os-default");
+        populate_local(&options.roots.with_local_data(&chosen));
+        populate_local(&options.roots.with_local_data(&default));
+        if !marked {
+            std::fs::remove_file(chosen.join(crate::data_dir::MARKER)).unwrap();
+            std::fs::write(chosen.join("taxes.pdf"), b"mine").unwrap();
+        }
+        let desktop = options
+            .roots
+            .path_of(super::super::artifact(DESKTOP_ID).unwrap())
+            .unwrap();
+        std::fs::write(
+            &desktop,
+            serde_json::json!({ "data_dir": chosen }).to_string(),
+        )
+        .unwrap();
+        let config = options.roots.config.clone().unwrap();
+        options.roots = options.roots.with_erase_roots(
+            [
+                crate::data_dir::desktop_choice(&config),
+                Some(default.clone()),
+            ]
+            .into_iter()
+            .flatten(),
+        );
+        (dir, options, chosen, default)
+    }
+
+    /// PRD 0052 re-validation S-02: the desktop's chosen folder and data
+    /// left in the default one are erased with the data root in use, and
+    /// the desktop settings that name the choice go last.
+    #[test]
+    fn the_desktop_choice_and_the_default_folder_are_both_erased_and_desktop_json_goes_last() {
+        let (dir, options, chosen, default) = tree_with_other_roots(true);
+        assert_eq!(
+            options.roots.other_local_data,
+            vec![chosen.clone(), default.clone()]
+        );
+        let shown = plan(&options);
+        for root in [&chosen, &default] {
+            let history = home_abbreviated(&root.join("history").join("history.sqlite3"));
+            assert!(
+                shown
+                    .iter()
+                    .any(|i| i.id == "history.db" && i.location == history && i.erase),
+                "{history}"
+            );
+        }
+        let vault = vault();
+        let report = erase_all(&options, &vault).unwrap();
+        assert!(report.complete(), "{report:?}");
+        assert_eq!(report.count(Outcome::Foreign), 0, "{report:?}");
+        assert!(!chosen.exists() && !default.exists(), "both roots emptied");
+        assert!(!dir
+            .path()
+            .join("config")
+            .join("cuotai")
+            .join("desktop.json")
+            .exists());
+        let again = erase_all(&options, &vault).unwrap();
+        assert!(again.complete());
+        assert_eq!(again.count(Outcome::Removed), 0, "{again:?}");
+    }
+
+    /// A data item that cannot be removed in the chosen folder keeps
+    /// `desktop.json` (so a retry still finds the folder) and is a partial
+    /// erase; once fixed, a retry completes.
+    #[cfg(unix)]
+    #[test]
+    fn a_failure_in_the_chosen_folder_keeps_desktop_json() {
+        use std::os::unix::fs::PermissionsExt;
+        let (dir, options, chosen, _default) = tree_with_other_roots(true);
+        let locked = chosen.join("history");
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let report = erase_all(&options, &vault()).unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(!report.complete());
+        let failed = report.failed();
+        assert!(failed.contains(&"history.db"), "{failed:?}");
+        assert!(failed.contains(&DESKTOP_ID), "{failed:?}");
+        let desktop = dir
+            .path()
+            .join("config")
+            .join("cuotai")
+            .join("desktop.json");
+        assert!(desktop.exists(), "kept for the retry");
+        let retry = erase_all(&options, &vault()).unwrap();
+        assert!(retry.complete(), "{retry:?}");
+        assert!(!desktop.exists() && !chosen.exists());
+    }
+
+    /// A chosen folder without Cuotai's marker is listed as kept, with the
+    /// reason, and never emptied.
+    #[test]
+    fn a_chosen_folder_without_the_cuotai_marker_is_never_emptied() {
+        let (_dir, options, chosen, default) = tree_with_other_roots(false);
+        assert_eq!(options.roots.kept_local_data, vec![chosen.clone()]);
+        assert_eq!(options.roots.other_local_data, vec![default.clone()]);
+        let shown = plan(&options);
+        let kept = shown.iter().find(|i| i.id == FOREIGN_FOLDER_ID).unwrap();
+        assert!(!kept.erase);
+        assert_eq!(kept.location, home_abbreviated(&chosen));
+        assert_eq!(
+            kept.reason.as_ref().map(|r| r.id.as_ref()),
+            Some("privacy.erase.not_cuotai_folder")
+        );
+        let report = erase_all(&options, &vault()).unwrap();
+        assert!(report.complete(), "{report:?}");
+        assert_eq!(std::fs::read(chosen.join("taxes.pdf")).unwrap(), b"mine");
+        assert!(chosen.join("history").join("history.sqlite3").exists());
+        assert!(!default.exists());
     }
 
     #[test]
