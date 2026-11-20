@@ -20,7 +20,13 @@ Cuotai is published on GitHub Releases, the Homebrew tap and the Scoop bucket. E
 
 Debian/Ubuntu (`.deb`), Fedora (`.rpm`), AppImage, macOS `.dmg`, Windows `.exe`/`.msi` and the terminal archives all come from the GitHub release; they are not separate channels.
 
-The desktop app needs **macOS 12 (Monterey) or later**; its widgets need **macOS 14 (Sonoma) or later** (on macOS 12 and 13 the app runs without them).
+Supported systems (the floors the owner set on 2026-11-20, PRD 0053 D4):
+
+- **macOS 12 (Monterey) or later.** The desktop widgets need **macOS 14 (Sonoma) or later** (on macOS 12 and 13 the app runs without them).
+- **Windows 11.** Windows 10 should work but is **untested**: no release is checked on it, and problems found only there may not be fixed.
+- **Linux with the glibc of Ubuntu 22.04 or newer** (the oldest system the build runner uses), x64 and, when a release includes it, ARM64.
+
+The terminal version has the same floors. Older systems may run a build but are not supported.
 
 Shell completions: the Homebrew formula installs the bash, zsh and fish scripts from `cuotai --completions SHELL`; the Scoop manifest prints the PowerShell one-liner in its notes. For the other channels, see [Shell completions](tui.md#shell-completions).
 

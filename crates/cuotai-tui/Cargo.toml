@@ -9,7 +9,6 @@ description = "Terminal dashboard and JSON CLI for AI-provider usage, quotas and
 readme = "../../README.md"
 keywords = ["ai", "llm", "quota", "usage", "monitoring"]
 categories = ["command-line-utilities"]
-rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
 

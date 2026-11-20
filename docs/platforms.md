@@ -12,7 +12,7 @@ so.
 
 | Feature | macOS | Windows | Linux |
 |---|---|---|---|
-| Minimum version (desktop) | macOS 12 (Monterey); the widgets need macOS 14 (Sonoma) | Not pinned by the bundle | The glibc of Ubuntu 22.04 or newer (the oldest supported, used by the build runner) |
+| Minimum version (desktop and terminal; owner floors of 2026-11-20, PRD 0053 D4) | macOS 12 (Monterey); the widgets need macOS 14 (Sonoma) | Windows 11 (not pinned by the bundle); Windows 10 should work, untested | The glibc of Ubuntu 22.04 or newer (the oldest supported, used by the build runner) |
 | Credential vault | Keychain (`keyring` crate; first save may prompt) | Credential Manager | Secret Service (GNOME Keyring or KWallet, with a D-Bus session) |
 | Tray (desktop) | Yes | Yes | Yes; on GNOME it may need an AppIndicator extension (the `appindicator` library is loaded at run time); without a tray the app runs in its window only |
 | Notifications | Desktop: system notification center, with permission prompt and test notification; TUI: header banner + terminal bell, plus OSC 9 only on terminals known to show it | Same as macOS | Same as macOS |

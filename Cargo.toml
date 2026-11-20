@@ -6,10 +6,9 @@ resolver = "2"
 version = "0.87.7"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-# PRD 0021 RF5.4: shared crates.io metadata. `rust-version` is the floor the
-# pinned 1.99.1 toolchain satisfies and the highest `rust-version` any
-# dependency in Cargo.lock requires.
-rust-version = "1.89"
+# PRD 0021 RF5.4: shared crates.io metadata. No `rust-version`: the only
+# promised toolchain is the pinned one in rust-toolchain.toml (PRD 0053 D2,
+# owner decision 2026-11-20); an untested floor is never declared.
 repository = "https://github.com/jmarcon/cuotai"
 homepage = "https://github.com/jmarcon/cuotai"
 

@@ -296,6 +296,15 @@ pub fn pr_body(repo: &Path, outcome: &Outcome) -> String {
         out.push('\n');
     }
     out.push_str("\n## After publication, by a person (not a merge condition)\n\n");
+    if desktop_or_packaging_changed(repo, &outcome.base) == Some(false) {
+        out.push_str(
+            "None for this release: no commit since the base changed `apps/desktop/` or `packaging/` (PRD 0039 RF4.5, owner decision B-9).\n",
+        );
+        return commits::neutralize_skip_markers(&out)
+            .trim_end()
+            .to_string()
+            + "\n";
+    }
     match Tree::Work(repo)
         .read("docs/releasing.md")
         .ok()
@@ -315,6 +324,35 @@ pub fn pr_body(repo: &Path, outcome: &Outcome) -> String {
         .trim_end()
         .to_string()
         + "\n"
+}
+
+/// Owner decision B-9 (2026-11-20, PRD 0039 RF4.5): the manual desktop
+/// checklist is due only after a release that changed `apps/desktop/` or
+/// packaging (`packaging/`). Whether a commit since `base` changed such a
+/// path, the release files themselves left out (the release commit always
+/// writes the desktop version files). `None` when Git cannot tell, and the
+/// checklist is then kept.
+pub fn desktop_or_packaging_changed(repo: &Path, base: &super::Base) -> Option<bool> {
+    let range = format!("{}..HEAD", base.sha);
+    let names = git::run(
+        repo,
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            &range,
+            "--",
+            "apps/desktop",
+            "packaging",
+        ],
+    )
+    .ok()?;
+    Some(
+        names
+            .lines()
+            .map(str::trim)
+            .any(|path| !path.is_empty() && !super::in_release_set(path)),
+    )
 }
 
 /// The `- [ ]` items of the checklist section of `docs/releasing.md`, with

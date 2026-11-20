@@ -888,6 +888,13 @@ fn prepare_takes_trailers_and_writes_the_release_pr_body() {
         "crates/cuotai-core/src/lib.rs",
         "// v5\n",
     );
+    // B-9: the checklist is due because a commit changed apps/desktop/.
+    commit(
+        &repo,
+        "test(desktop): cover the window\n\nChangelog: skip test-only change, nothing ships",
+        "apps/desktop/ui/js/window.test.js",
+        "// window\n",
+    );
 
     // Refused trailers: a personal address, a key the release writes, no key.
     for (trailer, needle) in [
@@ -954,6 +961,29 @@ fn prepare_takes_trailers_and_writes_the_release_pr_body() {
         idle.contains("`cargo xtask release tag` (add `--rc` only when the owner asked for an rc)"),
         "{idle}"
     );
+}
+
+/// Owner decision B-9 (PRD 0039 RF4.5): without a change to apps/desktop/
+/// or packaging/ since the base, the body says no manual checklist is due;
+/// the desktop version files the release commit writes do not count.
+#[test]
+fn the_release_pr_body_has_no_checklist_without_a_desktop_change() {
+    let (_d, repo) = repo();
+    write_file(
+        &repo,
+        "docs/releasing.md",
+        "# Releasing\n\n## Manual desktop checklist per release\n\n- [ ] Open the app on macOS.\n",
+    );
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "docs: releasing"]);
+    feature_and_fix(&repo);
+    let outcome = prepare::run(&repo, &options(false, true)).unwrap().unwrap();
+    let body = std::fs::read_to_string(outcome.pr_body.unwrap()).unwrap();
+    assert!(
+        body.contains("## After publication, by a person (not a merge condition)\n\nNone for this release: no commit since the base changed `apps/desktop/` or `packaging/`"),
+        "{body}"
+    );
+    assert!(!body.contains("Open the app on macOS"), "{body}");
 }
 
 #[test]

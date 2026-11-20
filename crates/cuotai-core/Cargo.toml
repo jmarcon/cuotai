@@ -9,7 +9,6 @@ description = "Read-only monitor core for AI-provider usage, quotas and costs (C
 readme = "../../README.md"
 keywords = ["ai", "llm", "quota", "usage", "monitoring"]
 categories = ["api-bindings", "asynchronous"]
-rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
 

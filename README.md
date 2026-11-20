@@ -61,6 +61,8 @@ Every release is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases
 | **Linux** (x64, optional ARM64) | `.deb`, `.rpm` or `.AppImage` from [Releases](https://github.com/jmarcon/cuotai/releases) | AUR (coming soon) |
 | **Terminal only**, any system | CLI archive from [Releases](https://github.com/jmarcon/cuotai/releases) | Homebrew (macOS): `brew install jmarcon/cuotai/cuotai` (after the tap and trust steps); Scoop (Windows): `scoop bucket add cuotai https://github.com/jmarcon/scoop-cuotai`, then `scoop install cuotai/cuotai`; or `cargo install --git https://github.com/jmarcon/cuotai --tag vX.Y.Z cuotai-tui --locked`, with `vX.Y.Z` the [latest release](https://github.com/jmarcon/cuotai/releases/latest) tag |
 
+**Supported systems:** macOS 12 (Monterey) or later (the widgets need macOS 14 Sonoma), Windows 11, and Linux with the glibc of Ubuntu 22.04 or newer. Windows 10 should work but is untested.
+
 You can also [build from source](docs/building.md). [`docs/installing.md`](docs/installing.md) has the status of every channel, what each download contains and how to uninstall (your accounts file, history and vault entries stay until you delete them).
 
 **Good to know**

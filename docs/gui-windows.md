@@ -9,7 +9,7 @@ A walkthrough of the Cuotai desktop app on Windows: installing it, the first lau
 
 ## Install
 
-Cuotai is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), and its terminal version is also in the Scoop bucket; [`installing.md`](installing.md#channel-status) lists every channel:
+Cuotai supports Windows 11; Windows 10 should work but is untested. It is on [GitHub Releases](https://github.com/jmarcon/cuotai/releases), and its terminal version is also in the Scoop bucket; [`installing.md`](installing.md#channel-status) lists every channel:
 
 - **winget:** `winget install Cuotai.Cuotai` (planned, not live yet; the first submission to the winget repository is a manual step).
 - **Direct download:** from [GitHub Releases](https://github.com/jmarcon/cuotai/releases), either `Cuotai_<version>_x64-setup.exe` (the installer; installs for the current user, no administrator rights needed) or `Cuotai_<version>_x64_en-US.msi`. ARM64 PCs may use `Cuotai_<version>_arm64-setup.exe` when the release includes it. [Verify the download](installing.md#verify-your-download) first if you like (`Get-FileHash` in PowerShell, compared with `SHA256SUMS`).

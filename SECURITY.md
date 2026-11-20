@@ -4,7 +4,7 @@ Cuotai reads quotas and costs from AI providers using the user's credentials. Fo
 
 ## Supported versions
 
-Only the **latest stable version** receives security fixes. If you run an older version, please update before reporting when possible.
+Only the **latest stable version** is supported and receives security fixes (there is no support window for the previous release). If you run an older version, please update before reporting when possible.
 
 ## Reporting a vulnerability
 
