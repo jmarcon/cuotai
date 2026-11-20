@@ -607,3 +607,52 @@ fn refactor_and_chore_on_product_paths_need_changelog_or_a_real_skip() {
     commit(&repo, "chore: tooling", "xtask/src/x.rs", "// x\n");
     gate(&repo, "HEAD~1").unwrap();
 }
+
+#[test]
+fn a_reference_its_plan_only_mentions_fails() {
+    let (_d, repo) = support::repo();
+    let plan = format!("{PLAN}\nRF2–RF5 come later; see also RF4 in the notes.\n");
+    commit(
+        &repo,
+        "docs(plans): a range",
+        "docs/plans/0001_core.md",
+        &plan,
+    );
+    commit(
+        &repo,
+        "fix(core): a\n\nChangelog: A fix.\nRefs: PRD 0001 RF5",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("Refs: PRD 0001 RF5")
+            && error.contains("mentions RF5 but does not define it"),
+        "{error}"
+    );
+
+    commit(
+        &repo,
+        "fix(core): b\n\nChangelog: A fix.\nRefs: PRD 0001 RF2",
+        "crates/cuotai-core/src/lib.rs",
+        "// v3\n",
+    );
+    assert_eq!(gate(&repo, "HEAD~1"), Ok(1));
+}
+
+#[test]
+fn the_gate_fails_closed_without_the_plans() {
+    let (_d, repo) = support::repo();
+    commit(
+        &repo,
+        "fix(core): a\n\nChangelog: A fix.\nRefs: PRD 0001 RF1",
+        "crates/cuotai-core/src/lib.rs",
+        "// v2\n",
+    );
+    std::fs::remove_dir_all(repo.join("docs/plans")).unwrap();
+    let error = gate(&repo, "HEAD~1").unwrap_err();
+    assert!(
+        error.contains("cannot read") && error.contains("docs/plans"),
+        "{error}"
+    );
+}

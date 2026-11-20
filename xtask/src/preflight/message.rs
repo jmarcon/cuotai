@@ -152,7 +152,7 @@ pub fn check_file(repo: &Path, file: &Path) -> Res<()> {
     }
     let commit = Commit::parse(NO_SHA, subject, &message);
     let files = staged_files(repo)?;
-    let plans = plan_links::Plans::read(repo).ok();
+    let plans = Some(plan_links::Plans::read(repo)?);
     let mut problems: Vec<String> = changelog_gate::check_message(
         &commit,
         &files,

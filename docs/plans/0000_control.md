@@ -14,7 +14,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 - **Terminology:** "RF" (from the Portuguese *requisito funcional*) means functional requirement. The acronym is kept so references in code, commits and plans stay stable.
 - **When delivering an RF:** write the token `vNEXT` where the version goes, in the plan's "Implementation status" and in this file's §2 row, and carry `Refs:` trailers in the commit (PRD 0039 RF6). `cargo xtask release prepare` replaces `vNEXT` with the released version and appends the "Delivered by version" rows (section 3); do not edit section 3 by hand.
 - **Commit traceability:** the commit that delivers an RF carries the trailer `Refs: PRD 0006 RF2` (one line per requirement, PRD 0039 RF1). `CHANGELOG.md` is the source of the deliveries (PRD 0019 RF7) and section 3 is generated from the `Refs:` trailers at release time.
-- **Requirement ids:** an RF (`RF2`, `RF7.4`) or a review id made of capital letters, a dash and digits (`FIX-08`, `INT-04`, `SES-01`); the commit gate of PRD 0039 rejects any other shape in `Refs:`.
+- **Requirement ids:** an RF (`RF2`, `RF7.4`) or a review id made of capital letters, a dash and digits (`FIX-08`, `INT-04`, `SES-01`); the commit gate of PRD 0039 rejects any other shape in `Refs:`. The id must also be *defined* by its plan: a `### RF2 —` heading, a `**RF2.4**` item, a `- RF3.3:` list item or a `| FIX-01 |` table row. A mention inside a range ("RF4–RF8") or in prose does not count (PRD 0053 RF2.4).
 - **Fix requirements of delivered plans** (decision J) do not change the plan's status; while one is open, the plan's Notes cell names it and wave 5a lists it.
 - **Strong dependency** means the plan cannot be delivered without the other (the cited RF must exist). **Weak dependency** means it works without the other, but is better with it.
 - New plans get the next free number and enter here in the same change.
@@ -469,8 +469,8 @@ graph LR
   P45["0045 Breakdowns"]:::await
   P46["0046 Portable settings"]:::await
   P47["0047 Typed secrets in the desktop"]:::done
-  P48["0048 Capture web session"]:::wip
-  P49["0049 Meta Model API provider"]:::wip
+  P48["0048 Capture web session"]:::await
+  P49["0049 Meta Model API provider"]:::await
   P50["0050 Security baseline"]:::await
   P51["0051 Compatibility and state"]:::await
   P52["0052 Diagnostics and privacy"]:::await

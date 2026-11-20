@@ -35,6 +35,8 @@ All notable changes to Cuotai are recorded here.
 const PLAN: &str = "\
 # PRD 0019 — Packaging, license, changelog and distribution
 
+| Status | In progress |
+
 ## Implementation status (2026-10-21)
 
 | RF | Version | Delivery |
@@ -49,6 +51,8 @@ const PLAN: &str = "\
 const PLAN_0001: &str = "\
 # PRD 0001 — Core support for graphical front ends
 
+| Status | Implemented |
+
 ## Implementation status (2026-10-20)
 
 | RF | Version | Delivery |
@@ -61,6 +65,15 @@ const PLAN_0001: &str = "\
 const CONTROL: &str = "\
 # Plan control (PRDs)
 
+| Plans | 2 (1 implemented, 1 in progress) |
+
+## 2. Current situation
+
+| ID | Plan | Status |
+|---|---|---|
+| [0001](0001_core.md) | Core | Implemented |
+| [0019](0019_packaging.md) | Packaging | In progress |
+
 ## 3. Delivered by version
 
 | Version | Plan | Requirements delivered |
@@ -69,6 +82,9 @@ const CONTROL: &str = "\
 | 0.1.0 | 0001 | RF1 (license). |
 
 ## 4. Dependency graph
+
+  P1[\"0001 Core\"]:::done
+  P19[\"0019 Packaging\"]:::wip
 ";
 
 fn write_file(root: &Path, rel: &str, content: &str) {

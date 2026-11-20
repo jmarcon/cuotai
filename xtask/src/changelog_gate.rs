@@ -70,6 +70,15 @@ pub const RULES_SINCE: &[(&str, &str)] = &[
     // Rule 2, a skip reason of at least three words, not a generic phrase
     // (51 older commits say "integration fix").
     ("skip-reason", "cdfdb5f084428f20b4d66d2e3e7ae370a8ad89e6"),
+    // Rule 8, a `Refs:` id must be defined by its plan, not only mentioned
+    // in a range or in prose (PRD 0053 RF2.4). a939218a (`chore(release):
+    // 0.87.4`) is the `origin/main` tip the PRD 0053+0054 pair branch was
+    // cut from. Four older commits cite ids their plan only mentions:
+    // 0003 COMP-02, 0006 COMP-03, 0022 MONO-4 and 0029 COMP-04.
+    (
+        "refs-definition",
+        "a939218af92cb66b969163e5b957c42fe9e4518d",
+    ),
 ];
 
 /// A rule of RF2.1, as the gate labels it.
@@ -263,7 +272,7 @@ pub fn run_with(
     rules_since: &[(&'static str, &str)],
 ) -> Res<usize> {
     let commits = commits::load(repo, &format!("{base}..{head}"))?;
-    let plans = crate::plan_links::Plans::read(repo).ok();
+    let plans = Some(crate::plan_links::Plans::read(repo)?);
     let markers = Markers::read(repo, rules_since);
     let mut findings: Vec<Finding> = Vec::new();
     for commit in &commits {
@@ -542,7 +551,12 @@ pub fn check_message(
     if let Some(plans) = plans {
         for reference in &commit.trailers.refs {
             if let Reference::Plan { prd, rf } = reference {
-                if let Some(problem) = plans.missing(prd, rf) {
+                let problem = if scope.applies("refs-definition") {
+                    plans.undefined(prd, rf)
+                } else {
+                    plans.missing(prd, rf)
+                };
+                if let Some(problem) = problem {
                     out.push(Problem::new(
                         Rule::Refs,
                         format!("Refs: PRD {prd} {rf}: {problem}"),

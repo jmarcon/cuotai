@@ -27,6 +27,7 @@ pub fn run(root: &Path, text: &str) -> Res<()> {
     check_pre_release(&changelog, &mut problems);
     if let Some(control) = control_text(root) {
         problems.extend(plan_graph_problems(&control));
+        problems.extend(plan_status_problems(&control, &plans));
     }
     if !problems.is_empty() {
         return err(format!(
@@ -85,6 +86,51 @@ impl Plans {
             Some(_) => None,
         }
     }
+
+    /// Why `PRD prd rf` is not *defined* by its plan (PRD 0053 RF2.4), or
+    /// `None` when it is: a mention in a range or in prose is not enough.
+    pub fn undefined(&self, prd: &str, rf: &str) -> Option<String> {
+        if let Some(problem) = self.missing(prd, rf) {
+            return Some(problem);
+        }
+        let body = self.body(prd)?;
+        (!defines_requirement(body, rf)).then(|| {
+            format!(
+                "docs/plans/{prd}_*.md mentions {rf} but does not define it (a `### {rf} —` \
+                 heading, a `**{rf}**` item, a `- {rf}:` list item or a `| {rf} |` table row)"
+            )
+        })
+    }
+}
+
+/// PRD 0053 RF2.4: `rf` is defined by a line that starts with it, after
+/// heading marks, a list marker, a table pipe and bold marks.
+pub fn defines_requirement(body: &str, rf: &str) -> bool {
+    body.lines().any(|line| {
+        let mut rest = line.trim_start();
+        let heading = rest.starts_with('#');
+        rest = rest.trim_start_matches('#').trim_start();
+        let listed = rest.starts_with("- ") || rest.starts_with("* ");
+        if listed {
+            rest = rest[2..].trim_start();
+        }
+        let cell = rest.starts_with('|');
+        rest = rest.trim_start_matches('|').trim_start();
+        let bold = rest.starts_with("**");
+        rest = rest.trim_start_matches('*');
+        let Some(after) = rest.strip_prefix(rf) else {
+            return false;
+        };
+        let next = after.chars().next();
+        if next.is_some_and(|c| c.is_ascii_digit() || c == '.') {
+            return false;
+        }
+        // A bare list item needs a separator (`- RF2.2: …`, `- RF3.3 (…)`).
+        heading
+            || bold
+            || cell
+            || (listed && next.is_some_and(|c| matches!(c, ':' | '—' | '–' | '-' | '(' | ' ')))
+    })
 }
 
 /// `RF7.4` exists in `body` when it appears as a whole requirement id
@@ -477,6 +523,160 @@ pub fn plan_graph_problems(control: &str) -> Vec<String> {
     problems
 }
 
+/// The statuses of `0000_control.md` §1, with the §4 node class of each.
+const STATUSES: [(&str, &[&str]); 6] = [
+    ("Awaiting owner verification", &["await"]),
+    ("Implemented", &["done"]),
+    ("In progress", &["wip", "deferred"]),
+    ("Proposed", &["todo", "deferred"]),
+    ("Superseded", &["done", "deferred"]),
+    ("Cancelled", &["deferred"]),
+];
+
+/// The §1 status a cell starts with (`Implemented, with owner steps …`).
+fn status_of(cell: &str) -> Option<&'static str> {
+    let cell = cell.trim();
+    STATUSES
+        .iter()
+        .map(|(status, _)| *status)
+        .find(|status| cell.starts_with(status))
+}
+
+/// PRD 0053 RF2.2/RF2.3 (first part): the header's "Plans" counts, each
+/// plan's own `| Status |` and its §4 node class agree with its §2 row.
+pub fn plan_status_problems(control: &str, plans: &Plans) -> Vec<String> {
+    let mut problems = Vec::new();
+    let mut section = "";
+    let mut rows: BTreeMap<String, &'static str> = BTreeMap::new();
+    let mut classes: BTreeMap<String, String> = BTreeMap::new();
+    let mut header: Option<&str> = None;
+    for line in control.lines() {
+        if line.starts_with("## ") {
+            section = line;
+        }
+        if let Some(rest) = line.strip_prefix("| Plans |") {
+            header = Some(rest.trim().trim_end_matches('|').trim());
+        }
+        if section.starts_with("## 2.") && line.starts_with("| [") {
+            let cells: Vec<&str> = line.trim().trim_matches('|').split('|').collect();
+            let plan = cells[0].trim().get(1..5).unwrap_or_default().to_string();
+            match cells.get(2).and_then(|c| status_of(c)) {
+                Some(status) => {
+                    rows.insert(plan, status);
+                }
+                None => problems.push(format!(
+                    "0000_control.md: §2 row {plan} has no known status ({:?})",
+                    cells.get(2).map(|c| c.trim()).unwrap_or_default()
+                )),
+            }
+        }
+        if section.starts_with("## 4.") {
+            let trimmed = line.trim();
+            if let (Some(rest), Some((_, class))) =
+                (trimmed.strip_prefix('P'), trimmed.split_once("]:::"))
+            {
+                let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+                if !digits.is_empty() && rest[digits.len()..].starts_with('[') {
+                    let number = format!("{:04}", digits.parse::<u32>().unwrap_or(0));
+                    classes.insert(number, class.trim().to_string());
+                }
+            }
+        }
+    }
+    // Every numbered plan has a §2 row, and every row a plan.
+    for number in plans.by_number.keys().filter(|n| n.as_str() != "0000") {
+        if !rows.contains_key(number)
+            && !problems
+                .iter()
+                .any(|p| p.contains(&format!("row {number} ")))
+        {
+            problems.push(format!(
+                "0000_control.md: §2 has no row for docs/plans/{number}_*.md"
+            ));
+        }
+    }
+    for (number, status) in &rows {
+        match plans.body(number) {
+            None => problems.push(format!(
+                "0000_control.md: §2 row {number} has no docs/plans/{number}_*.md plan"
+            )),
+            Some(body) => {
+                let own = body
+                    .lines()
+                    .find_map(|l| l.strip_prefix("| Status |"))
+                    .map(|cell| cell.trim().trim_end_matches('|').trim());
+                if own.and_then(status_of) != Some(status) {
+                    problems.push(format!(
+                        "docs/plans/{number}_*.md: its Status ({:?}) does not start with §2's \"{status}\"",
+                        own.unwrap_or("missing")
+                    ));
+                }
+            }
+        }
+        let allowed = STATUSES
+            .iter()
+            .find(|(s, _)| s == status)
+            .map(|(_, c)| *c)
+            .unwrap_or(&[]);
+        match classes.get(number) {
+            Some(class) if allowed.contains(&class.as_str()) => {}
+            Some(class) => {
+                problems.push(format!(
+                "0000_control.md: §4 gives P{} the class :::{class}, but §2 says \"{status}\" ({})",
+                number.trim_start_matches('0'),
+                allowed.iter().map(|c| format!(":::{c}")).collect::<Vec<_>>().join(" or ")
+            ))
+            }
+            None => problems.push(format!(
+                "0000_control.md: §4 has no classed node P{} for plan {number}",
+                number.trim_start_matches('0')
+            )),
+        }
+    }
+    // The header: `56 (21 implemented, 34 awaiting owner verification, …)`.
+    match header {
+        None => problems.push("0000_control.md: the header has no \"Plans\" row".to_string()),
+        Some(cell) => {
+            let (total, rest) = cell.split_once(' ').unwrap_or((cell, ""));
+            if total.parse::<usize>().ok() != Some(rows.len()) {
+                problems.push(format!(
+                    "0000_control.md: the header counts {total} plans, but §2 has {} rows",
+                    rows.len()
+                ));
+            }
+            let mut stated: BTreeMap<&'static str, usize> = BTreeMap::new();
+            let inner = rest.trim().trim_start_matches('(').trim_end_matches(')');
+            for part in inner.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+                let (count, label) = part.split_once(' ').unwrap_or((part, ""));
+                let status = STATUSES
+                    .iter()
+                    .map(|(s, _)| *s)
+                    .find(|s| s.eq_ignore_ascii_case(label.trim()));
+                match (count.parse::<usize>(), status) {
+                    (Ok(n), Some(status)) => {
+                        stated.insert(status, n);
+                    }
+                    (Ok(0), None) => {} // a zero count of a label §1 does not list
+                    _ => problems.push(format!(
+                        "0000_control.md: the header's \"{part}\" is not a count of a §1 status"
+                    )),
+                }
+            }
+            for (status, _) in STATUSES {
+                let actual = rows.values().filter(|s| **s == status).count();
+                let said = stated.get(status).copied().unwrap_or(0);
+                if said != actual {
+                    problems.push(format!(
+                        "0000_control.md: the header says {said} {}, but §2 has {actual}",
+                        status.to_lowercase()
+                    ));
+                }
+            }
+        }
+    }
+    problems
+}
+
 fn control_table(root: &Path) -> Option<(String, String)> {
     let dir = root.join("docs/plans");
     let entry = std::fs::read_dir(&dir)
@@ -506,7 +706,8 @@ fn control_table(root: &Path) -> Option<(String, String)> {
 
 #[cfg(test)]
 mod tests {
-    use super::plan_graph_problems;
+    use super::{defines_requirement, plan_graph_problems, plan_status_problems, Plans};
+    use std::collections::BTreeMap;
 
     const CONTROL: &str = "\
 ## 2. Current situation
@@ -555,5 +756,132 @@ graph LR
         assert!(plan_graph_problems(&extra)[0].contains("strong edge 0024 --> 0010"));
         let stale = CONTROL.replace("| 0021 | 0018 | — |", "| 0021 | — | — |");
         assert!(plan_graph_problems(&stale)[0].contains("unblocks\" for 0021"));
+    }
+
+    #[test]
+    fn each_definition_shape_defines_and_a_mention_does_not() {
+        for (body, rf) in [
+            ("### RF2 — Sorting", "RF2"),
+            ("- **RF2.4** Resolve ids.", "RF2.4"),
+            ("- **RF1 — Base**", "RF1"),
+            ("  - RF3.3 (ordering) sorts ids.", "RF3.3"),
+            ("- RF7: notes.", "RF7"),
+            ("| RF2 | 0.80.0 | Done. |", "RF2"),
+            ("| G-0048-2 | vNEXT | Fixed. |", "G-0048-2"),
+            ("| FIX-01 | 0.86.0 | Fixed. |", "FIX-01"),
+        ] {
+            assert!(defines_requirement(body, rf), "{rf} in {body:?}");
+        }
+        for (body, rf) in [
+            ("| RF4–RF8 | later |", "RF8"),
+            ("See RF4–RF8 for the rest.", "RF8"),
+            ("RF2 is mentioned in prose.", "RF2"),
+            ("### RF1.1 — Part", "RF1"),
+            ("### RF10 — Tenth", "RF1"),
+            ("- RF2", "RF2"),
+        ] {
+            assert!(!defines_requirement(body, rf), "{rf} in {body:?}");
+        }
+    }
+
+    fn plans(entries: &[(&str, &str)]) -> Plans {
+        Plans {
+            by_number: entries
+                .iter()
+                .map(|(n, b)| ((*n).to_string(), (*b).to_string()))
+                .collect::<BTreeMap<_, _>>(),
+        }
+    }
+
+    const STATUS_CONTROL: &str = "\
+| Plans | 2 (1 implemented, 0 planned for the next version, 1 proposed) |
+
+## 2. Current situation
+
+| ID | Plan | Status |
+|---|---|---|
+| [0001](0001_a.md) | A | Implemented |
+| [0002](0002_b.md) | B | Proposed |
+
+## 4. Dependency graph
+
+  P1[\"0001 A\"]:::done
+  P2[\"0002 B\"]:::todo
+
+## 5. Next
+";
+
+    fn status_plans() -> Plans {
+        plans(&[
+            ("0001", "| Status | Implemented |"),
+            ("0002", "| Status | Proposed |"),
+        ])
+    }
+
+    #[test]
+    fn agreeing_statuses_pass() {
+        let problems = plan_status_problems(STATUS_CONTROL, &status_plans());
+        assert!(problems.is_empty(), "{problems:?}");
+    }
+
+    #[test]
+    fn drifted_counts_statuses_and_classes_fail() {
+        let count = STATUS_CONTROL.replace("2 (1 implemented", "3 (1 implemented");
+        let problems = plan_status_problems(&count, &status_plans());
+        assert!(problems[0].contains("counts 3 plans"), "{problems:?}");
+
+        let header = plans(&[
+            ("0001", "| Status | Implemented |"),
+            ("0002", "| Status | In progress |"),
+        ]);
+        let problems = plan_status_problems(STATUS_CONTROL, &header);
+        assert!(
+            problems[0].contains("0002_*.md: its Status"),
+            "{problems:?}"
+        );
+
+        let class = STATUS_CONTROL.replace(":::todo", ":::done");
+        let problems = plan_status_problems(&class, &status_plans());
+        assert!(problems[0].contains("P2 the class :::done"), "{problems:?}");
+
+        let node = STATUS_CONTROL.replace("  P2[\"0002 B\"]:::todo\n", "");
+        let problems = plan_status_problems(&node, &status_plans());
+        assert!(problems[0].contains("no classed node P2"), "{problems:?}");
+
+        let unknown = STATUS_CONTROL.replace("| B | Proposed |", "| B | Maybe |");
+        let problems = plan_status_problems(&unknown, &status_plans());
+        assert!(
+            problems[0].contains("row 0002 has no known status"),
+            "{problems:?}"
+        );
+
+        let label = STATUS_CONTROL.replace("0 planned for", "1 planned for");
+        let problems = plan_status_problems(&label, &status_plans());
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.contains("\"1 planned for the next version\"")),
+            "{problems:?}"
+        );
+
+        let extra = plans(&[
+            ("0001", "| Status | Implemented |"),
+            ("0002", "| Status | Proposed |"),
+            ("0003", "| Status | Proposed |"),
+        ]);
+        let problems = plan_status_problems(STATUS_CONTROL, &extra);
+        assert!(
+            problems[0].contains("no row for docs/plans/0003"),
+            "{problems:?}"
+        );
+    }
+
+    #[test]
+    fn the_real_control_file_agrees_with_the_plans() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let plans = Plans::read(&root).unwrap();
+        let control = std::fs::read_to_string(root.join("docs/plans/0000_control.md")).unwrap();
+        let problems = plan_status_problems(&control, &plans);
+        assert!(problems.is_empty(), "{problems:?}");
     }
 }

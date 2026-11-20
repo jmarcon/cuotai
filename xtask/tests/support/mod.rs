@@ -40,6 +40,10 @@ pub fn git(repo: &Path, args: &[&str]) -> String {
 pub const PLAN: &str = "\
 # PRD 0001 — Core
 
+| Field | Value |
+|---|---|
+| Status | In progress |
+
 ## Implementation status (2026-10-20)
 
 | RF | Version | Delivery |
@@ -59,6 +63,13 @@ pub const CONTROL: &str = "\
 |---|---|
 | Last updated | 2026-10-20 |
 | Cuotai version at that date | 0.79.0 |
+| Plans | 1 (0 implemented, 1 in progress, 0 proposed) |
+
+## 2. Current situation
+
+| ID | Plan | Status | Delivered | Depends on (strong) | Depends on (weak) | Notes |
+|---|---|---|---|---|---|---|
+| [0001](0001_core.md) | Core | In progress | RF1 (0.79.0) | — | — | — |
 
 ## 3. Delivered by version
 
@@ -68,7 +79,10 @@ pub const CONTROL: &str = "\
 
 ## 4. Dependency graph
 
-Nothing.
+```mermaid
+graph LR
+  P1[\"0001 Core\"]:::wip
+```
 ";
 
 pub const CHANGELOG: &str = "\
