@@ -1,0 +1,24 @@
+{
+  "about": "PRD 0014 RF3: what macOS stores for every widget a user placed. A widget kind keeps its configuration intent forever, and intents, their parameters and enum cases are append-only: macOS saves each placed widget as its kind plus the intent's identifier, parameter names and enum case identifiers, and a widget whose saved intent no longer resolves draws an empty card until it is removed and placed again (0.87.0 changed the History intent). To change one, add a new kind or a new parameter. Checked by crates/cuotai-core/tests/widget_contract.rs (sources) and check-appex.sh (the built extension). See AGENTS.md (Testing & QA, macOS widgets) and docs/widgets.md.",
+  "bundle_identifier": "dev.cuotai.desktop.widgets",
+  "executable": "CuotaiWidgets",
+  "minimum_system_version": "14.0",
+  "snapshot_home_relative_path": "Library/Application Support/cuotai/widget.json",
+  "kinds": {
+    "dev.cuotai.desktop.account": "AccountIntent",
+    "dev.cuotai.desktop.history": "HistoryIntent",
+    "dev.cuotai.desktop.summary": "SummaryIntent"
+  },
+  "intents": {
+    "AccountIntent": ["account", "metric", "share", "detail", "showReset", "showAge"],
+    "HistoryIntent": ["account", "period", "share", "detail", "showReset", "showAge"],
+    "SummaryIntent": ["accounts", "order", "share", "detail", "hideUnused", "hideWithoutData", "showReset", "showAge"]
+  },
+  "entities": ["AccountEntity", "MetricEntity"],
+  "enums": {
+    "HistoryPeriod": ["all", "hours6", "hours24", "days7"],
+    "ShareDisplay": ["remaining", "used"],
+    "SummaryOrder": ["mostRestrictive", "configuration"],
+    "WidgetDetail": ["detailed", "compact"]
+  }
+}

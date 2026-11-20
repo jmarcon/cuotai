@@ -259,6 +259,13 @@ fn route(path: &str) -> &'static [Area] {
         "crates/cuotai-core/src/changelog.rs" => return &[Core, Xtask],
         // The macOS extension decodes what this file writes.
         "crates/cuotai-core/src/widget_snapshot.rs" => return &[Core, Widgets],
+        // The app side of the widget contract: where the file goes and the
+        // extension process an update left running.
+        "apps/desktop/src-tauri/src/widgets.rs" => return &[Desktop, Widgets],
+        // The release builds, embeds and checks the extension with these.
+        "scripts/release/macos-embed-widgets.sh" | "scripts/release/smoke-desktop-macos.sh" => {
+            return &[Xtask, Widgets]
+        }
         "scripts/site-build.sh" => return &[Site],
         "scripts/codeql-local.sh" => return &[],
         ".github/workflows/pages.yml" => return &[Workflows, Site, Xtask],
@@ -774,7 +781,7 @@ mod tests {
         assert!(push(&["apps/desktop/widgets/macos/build-appex.sh"])
             .steps
             .contains(&Step::Widgets));
-        assert!(!push(&["apps/desktop/src-tauri/src/widgets.rs"])
+        assert!(!push(&["apps/desktop/src-tauri/src/lib.rs"])
             .steps
             .contains(&Step::Widgets));
         // The render check decodes what the core writes and draws it.
@@ -783,6 +790,9 @@ mod tests {
             "crates/cuotai-core/tests/fixtures/widget/writer.json",
             "crates/cuotai-core/tests/fixtures/compat/widget/major-2-revision-0/widget.json",
             "apps/desktop/tools/widget-shots/macos/Render.swift",
+            "apps/desktop/widgets/macos/widget-contract.json",
+            "apps/desktop/src-tauri/src/widgets.rs",
+            "scripts/release/macos-embed-widgets.sh",
         ] {
             assert!(push(&[path]).steps.contains(&Step::Widgets), "{path}");
         }

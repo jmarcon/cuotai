@@ -98,6 +98,11 @@ for arch in arm64 x86_64; do
     exit 1
   }
 done
+# The signed extension still matches what macOS needs to load it and the
+# configuration placed widgets saved, and carries the app's own version:
+# chronod refuses what an extension of another version draws.
+app_version="$(plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")"
+sh "$(dirname "$0")/../../apps/desktop/widgets/macos/check-appex.sh" "$plugin" "$app_version"
 echo "ok: widget extension embedded and signed ($method)"
 
 executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
