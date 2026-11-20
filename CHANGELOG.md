@@ -13,6 +13,12 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.7] - 2026-11-20
+
+### Fixed
+
+- The macOS widgets draw your usage again after an update instead of staying as grey placeholders (PRD 0014 RF3.1, RF3.2; 9b39c1d).
+
 ## [0.87.6] - 2026-11-20
 
 ### Fixed
@@ -1269,7 +1275,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.6...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.7...HEAD
+[0.87.7]: https://github.com/jmarcon/cuotai/compare/v0.87.6...v0.87.7
 [0.87.6]: https://github.com/jmarcon/cuotai/compare/v0.87.5...v0.87.6
 [0.87.5]: https://github.com/jmarcon/cuotai/compare/v0.87.4...v0.87.5
 [0.87.4]: https://github.com/jmarcon/cuotai/compare/v0.87.3...v0.87.4
