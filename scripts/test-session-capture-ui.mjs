@@ -13,6 +13,8 @@ const KEYS = ["capture", "captureHint", "capturing", "captured", "captureCancell
   "captureUnavailable", "captureBusy",
   // PRD 0056: the shared Google window, the passkey limit and "Forget the Google sign-in".
   "captureSharedHint", "capturePasskeyHint", "captureForget", "captureForgotten", "captureNothingToForget",
+  // PRD 0056 re-validation V-03: a shared window that times out or stops is hidden, not closed.
+  "captureTimeoutShared", "captureCancelledShared",
 ].map((k) => `dialog.session.${k}`);
 
 // RF8.1: every catalog has every text, none empty and none left in English outside en-US.
@@ -34,7 +36,7 @@ const BELOW = { "de.json": /unten/, "en-US.json": /below/i, "es.json": /abajo/, 
 assert.deepEqual(Object.keys(BELOW).sort(), [...locales].sort());
 for (const file of locales) {
   const catalog = JSON.parse(await readFile(ui(`locales/${file}`), "utf8"));
-  for (const key of ["dialog.session.captureTimeout", "dialog.session.captureUnavailable"]) {
+  for (const key of ["dialog.session.captureTimeout", "dialog.session.captureTimeoutShared", "dialog.session.captureUnavailable"]) {
     assert.doesNotMatch(catalog[key], BELOW[file], `${file}: ${key} still says "below"`);
   }
 }
@@ -73,6 +75,10 @@ assert.match(sharedHint, /data-capture-forget/);
 // No catalog is loaded here, so the texts render as their ids.
 assert.match(sharedHint, /dialog\.session\.captureSharedHint[\s\S]*dialog\.session\.capturePasskeyHint[\s\S]*dialog\.session\.captureForget/);
 assert.doesNotMatch(sharedHint, /dialog\.session\.captureHint\b/);
+// PRD 0056 re-validation V-01/V-02: "Forget" is the design-system link button (an icon and a label) on its own row,
+// outside the inline hints, with its own polite status line for the answer.
+assert.match(sharedHint, /<\/small><div class="session-capture-forget"><button type="button" class="link" data-capture-forget><svg[^>]*>[\s\S]*?<\/svg><span>dialog\.session\.captureForget<\/span><\/button><small class="hint" data-capture-forget-status role="status" aria-live="polite"><\/small><\/div><\/div>$/);
+assert.doesNotMatch(sharedHint, /<small[^>]*>(?:(?!<\/small>)[\s\S])*data-capture-forget>/, "Forget is not inside a hint");
 // PRD 0016 re-validation (V-08): the two inline hints are separated by a space.
 assert.match(sharedHint, /<\/small> <small class="hint">/);
 const privateHint = lib.sessionCaptureHintHtml(shared, "cn");
@@ -117,6 +123,15 @@ assert.match(dialog, /field\.value = outcome\.paste;[\s\S]{0,80}field\.dispatchE
 assert.match(dialog, /#session-test"\)\?\.click\(\)/, "the capture is tested like a paste");
 assert.match(dialog, /addEventListener\("close", \(\) => \{[\s\S]{0,300}if \(capturing\) cancelSessionCapture\(\)/, "closing the dialog cancels");
 for (const status of ["cancelled", "timed_out"]) assert.ok(dialog.includes(`"${status}"`), status);
+// Re-validation V-02: Forget answers on its own row, never in the Test button's status line.
+assert.match(dialog, /const bindForget[\s\S]{0,300}b\.closest\("\.session-capture-forget"\)\?\.querySelector\("\[data-capture-forget-status\]"\)/);
+assert.doesNotMatch(dialog.match(/const bindForget[\s\S]*?\}\)\);/)[0], /#session-test-status/);
+// Re-validation V-03: the shared texts follow the slot's shared sign-in for the chosen region.
+assert.match(dialog, /const shared = captureSharedOf\(schema\.sessions\?\.find\(\(x\) => x\.slot === slot\), sessionRegion\(\)\) === "google";/);
+assert.match(dialog, /t\(shared \? "dialog\.session\.captureCancelledShared" : "dialog\.session\.captureCancelled"\)/);
+assert.match(dialog, /t\(shared \? "dialog\.session\.captureTimeoutShared" : "dialog\.session\.captureTimeout"\)/);
+assert.match(en["dialog.session.captureTimeoutShared"], /window was hidden[\s\S]*into the box above\.$/);
+assert.doesNotMatch(en["dialog.session.captureCancelledShared"], /closed/);
 assert.ok(!/console\.(log|info|debug)\([^)]*paste/.test(dialog), "no paste is logged");
 // PRD 0056: the hint comes from the shared helper, follows the region, and "Forget" calls the shell.
 assert.match(dialog, /sessionCaptureHintHtml\(s, sessionRegion\(\)\)/, "the capture hint follows the region choice");

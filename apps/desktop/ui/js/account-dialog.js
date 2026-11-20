@@ -5,7 +5,7 @@ import {
   accountIndex, accountTitle, configChangedOnDisk, deleteAccount, detectSources, forgetExtensionSecrets, dismissDetected, draftAccess, errText, esc, fieldChoices, formSchema, getAccount,
   getSettings, getView, icon, listProviders, logo, NEW_PROVIDER_URL, openExternal, openSettingsWindow, sessionOpenLinkHtml, keyPageLinkHtml, installLinkHtml, providerModes, setDetectEnabled,
   loginCancel, loginStart, loginSubmitCode, forgetSession, migrateSession, modelSupport, onLogin, previewSession, reloadConfig,
-  reportKey, saveAccount, captureSession, cancelSessionCapture, forgetSharedCapture, sessionCaptureHintHtml, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
+  reportKey, saveAccount, captureSession, cancelSessionCapture, forgetSharedCapture, captureSharedOf, sessionCaptureHintHtml, sessionNoticeHtml, testAggregator, testSession, validMonogram, visibleFields,
 } from "./lib.js";
 import { mountModels } from "./detail.js";
 import { mountBudgets } from "./budgets-editor.js";
@@ -576,8 +576,9 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
     }
   };
   // PRD 0056 RF2.4: "Forget the Google sign-in" destroys the hidden shared capture window.
+  // Re-validation V-02: the answer shows on the button's own row, not under the Test button.
   const bindForget = (root) => root.querySelectorAll("[data-capture-forget]").forEach((b) => b.addEventListener("click", async () => {
-    const statusEl = sessionBox.querySelector("#session-test-status");
+    const statusEl = b.closest(".session-capture-forget")?.querySelector("[data-capture-forget-status]");
     let text;
     try { text = (await forgetSharedCapture()) ? t("dialog.session.captureForgotten") : t("dialog.session.captureNothingToForget"); }
     catch (x) { text = String(x).includes("busy") ? t("dialog.session.captureBusy") : errText(x); }
@@ -685,8 +686,11 @@ export async function openAccountDialog(index = null, { onSaved = () => {}, past
         sessionBox.querySelector("#session-test")?.click();
         return;
       }
-      statusEl.textContent = outcome.status === "cancelled" ? t("dialog.session.captureCancelled")
-        : outcome.status === "timed_out" ? t("dialog.session.captureTimeout")
+      // Re-validation V-03: a shared Google window is hidden, not closed, when the capture times out or stops (and a
+      // dialog cancel and a closed window give the same outcome, so the shared text is neutral).
+      const shared = captureSharedOf(schema.sessions?.find((x) => x.slot === slot), sessionRegion()) === "google";
+      statusEl.textContent = outcome.status === "cancelled" ? t(shared ? "dialog.session.captureCancelledShared" : "dialog.session.captureCancelled")
+        : outcome.status === "timed_out" ? t(shared ? "dialog.session.captureTimeoutShared" : "dialog.session.captureTimeout")
         : outcome.status === "error" && String(outcome.error).includes("busy") ? t("dialog.session.captureBusy")
         : t("dialog.session.captureUnavailable");
       if (outcome.status !== "cancelled") field?.focus();
