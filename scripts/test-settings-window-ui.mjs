@@ -392,6 +392,16 @@ function plain(html) {
     assert.ok(!html.includes("data-autostart-stale"), `${code}: no Repair line by default`);
     assert.match(general.staleHtml(), /data-autostart-stale><p class="hint">[^<]+<button type="button" class="btn outline" data-autostart-repair>[^<]+<\/button>/, `${code}: Repair line`);
   }
+  // PRD 0054 RF4.1/RF4.2: after a refused change or Repair, what the system reports wins; unknown keeps the switch.
+  {
+    const refusal = new Error("autostart_failed");
+    const ok = (v) => () => Promise.resolve(v);
+    const no = () => Promise.reject(refusal);
+    assert.deepEqual(await general.settleAutostart(ok(true), no), { on: true, error: null }, "success");
+    assert.deepEqual(await general.settleAutostart(no, ok(true)), { on: true, error: refusal }, "a failed Repair keeps the switch on");
+    assert.deepEqual(await general.settleAutostart(no, ok(false)), { on: false, error: refusal }, "refused: the system says off");
+    assert.deepEqual(await general.settleAutostart(no, no), { on: null, error: refusal }, "the system does not answer");
+  }
   // "Show in Dock" (mockup 50-settings-general): only on macOS, beside Open at login, searchable, on by default.
   assert.ok(!general.html({ settings: { motion: "system" } }).includes('id="dock"'), "no Dock row off macOS");
   document.documentElement.dataset.platform = "mac";

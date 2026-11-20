@@ -49,6 +49,16 @@ function packActiveHtml() {
 export const staleHtml = () =>
   `<div class="set-row-body" data-autostart-stale><p class="hint">${te("settings.autostart.stale")} <button type="button" class="btn outline" data-autostart-repair>${te("settings.autostart.repair")}</button></p></div>`;
 
+/** PRD 0054 RF4.1/RF4.2: run `action`; on a refusal, what the system now reports wins over what was asked. */
+export async function settleAutostart(action, status) {
+  try { return { on: await action(), error: null }; }
+  catch (error) {
+    let on = null;
+    try { on = await status(); } catch { /* unknown: keep the switch as drawn */ }
+    return { on, error };
+  }
+}
+
 export function bind(root, ctx) {
   // "Start at login": read from the system, written through the shell; what the system reports wins.
   const login = root.querySelector("#autostart");
@@ -65,20 +75,23 @@ export function bind(root, ctx) {
   autostartStatus().then(
     (on) => { login.checked = on; login.disabled = false; checkStale(on); },
     (x) => rowError(login, errorText(x)));
+  // PRD 0054 RF4.1/RF4.2: after a refusal the switch shows what the system then reports (the previous value when
+  // the system does not answer), and the reason stays in the row.
+  const settle = (action, previous) => settleAutostart(action, autostartStatus).then(({ on, error }) => {
+    if (on !== null) { login.checked = on; checkStale(on); } else login.checked = previous;
+    rowError(login, error ? errorText(error) : "");
+    if (!error) toast();
+  }).finally(() => { login.disabled = false; });
   login.addEventListener("change", () => {
     login.disabled = true;
-    autostartSet(login.checked).then(
-      (on) => { login.checked = on; rowError(login, ""); toast(); checkStale(on); },
-      (x) => { login.checked = !login.checked; rowError(login, errorText(x)); }
-    ).finally(() => { login.disabled = false; });
+    settle(() => autostartSet(login.checked), !login.checked);
   });
   login.closest(".set-row")?.addEventListener("click", (e) => {
     const repair = e.target.closest?.("[data-autostart-repair]");
     if (!repair) return;
     repair.disabled = true;
-    autostartRepair().then(
-      (on) => { login.checked = on; rowError(login, ""); toast(); checkStale(on); },
-      (x) => { repair.disabled = false; rowError(login, errorText(x)); });
+    login.disabled = true;
+    settle(autostartRepair, login.checked).finally(() => { repair.disabled = false; });
   });
   // "Show in Dock": the shell switches the activation policy as it saves (regular or menu-bar only).
   const dock = root.querySelector("#dock");

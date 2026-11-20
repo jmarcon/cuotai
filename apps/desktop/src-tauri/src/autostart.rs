@@ -64,14 +64,14 @@ pub fn apply(login: &dyn Login, on: bool) -> Result<bool, String> {
     status(login)
 }
 
-/// PRD 0054 RF4.3: rewrite an existing entry so it starts this copy of the app (after the app or its
-/// AppImage moved). An entry the user removed in the system's settings stays removed: without one this
-/// changes nothing and reports `false`.
+/// PRD 0054 RF4.3: rewrites an existing entry in place so it starts this copy of the app (after the app or
+/// its AppImage moved); the plugin's enable overwrites the entry on every system, so a refused rewrite
+/// leaves the entry as it was. An entry the user removed in the system's settings stays removed: without
+/// one this changes nothing and reports `false`.
 pub fn repair(login: &dyn Login) -> Result<bool, String> {
     if !status(login)? {
         return Ok(false);
     }
-    login.disable().map_err(|_| FAILED.to_owned())?;
     login.enable().map_err(|_| FAILED.to_owned())?;
     status(login)
 }
@@ -224,9 +224,17 @@ mod tests {
         assert!(fake.calls.borrow().is_empty(), "nothing re-enabled");
         fake.on.set(true);
         assert_eq!(repair(&fake), Ok(true));
-        assert_eq!(*fake.calls.borrow(), ["disable", "enable"]);
+        assert_eq!(*fake.calls.borrow(), ["enable"]);
+    }
+
+    #[test]
+    fn a_refused_repair_keeps_the_entry_it_had() {
+        let fake = Fake::default();
+        fake.on.set(true);
         fake.fail.set(true);
         assert_eq!(repair(&fake), Err(FAILED.to_owned()));
+        assert!(fake.on.get(), "the entry is still there");
+        assert_eq!(*fake.calls.borrow(), ["enable"]);
     }
 
     #[test]
