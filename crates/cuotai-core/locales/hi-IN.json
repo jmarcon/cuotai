@@ -2050,6 +2050,9 @@
     "one": "{count} आइटम जस का तस छोड़ा गया, क्योंकि वह ऐसे फ़ोल्डर में है, या उसमें ऐसी फ़ाइलें हैं, जिन्हें Cuotai ने नहीं बनाया।",
     "other": "{count} आइटम जस के तस छोड़े गए, क्योंकि वे ऐसे फ़ोल्डर में हैं, या उनमें ऐसी फ़ाइलें हैं, जिन्हें Cuotai ने नहीं बनाया।"
   },
+  "privacy.erase.running": "Cuotai चलते रहने के दौरान कुछ भी नहीं मिटाया गया। पहले इन्हें बंद करें, फिर मिटाना दोबारा चलाएँ:{programs}",
+  "privacy.erase.running.desktop": "Cuotai ऐप (मेन्यू बार या सिस्टम ट्रे वाला भी)",
+  "privacy.erase.running.dashboard": "टर्मिनल में Cuotai डैशबोर्ड",
   "privacy.erase.label.vault_oauth": "सहेजे गए साइन-इन, कुंजियाँ और चैनल पते",
   "privacy.erase.label.vault_serve": "लोकल सर्वर का एक्सेस टोकन",
   "privacy.erase.not_cuotai_folder": "रखा गया: यह फ़ोल्डर Cuotai ने नहीं बनाया।",

@@ -1910,6 +1910,9 @@
     "one": "{count} item ficou onde estava porque está numa pasta, ou contém arquivos, que o Cuotai não criou.",
     "other": "{count} itens ficaram onde estavam porque estão numa pasta, ou contêm arquivos, que o Cuotai não criou."
   },
+  "privacy.erase.running": "Nada foi apagado enquanto o Cuotai está em execução. Feche estes primeiro e depois execute a exclusão de novo:{programs}",
+  "privacy.erase.running.desktop": "O app Cuotai (também na barra de menus ou na bandeja do sistema)",
+  "privacy.erase.running.dashboard": "O painel do Cuotai no terminal",
   "privacy.erase.label.vault_oauth": "Logins, chaves e endereços de canais salvos",
   "privacy.erase.label.vault_serve": "Token de acesso do servidor local",
   "privacy.erase.not_cuotai_folder": "Mantida: esta pasta não foi criada pelo Cuotai.",

@@ -2042,6 +2042,9 @@
   "privacy.erase.foreign": {
     "other": "有 {count} 项保留原样，因为它们位于非 Cuotai 创建的文件夹中，或包含非 Cuotai 创建的文件。"
   },
+  "privacy.erase.running": "Cuotai 正在运行，因此未清除任何内容。请先退出以下程序，然后再次运行清除：{programs}",
+  "privacy.erase.running.desktop": "Cuotai 应用(包括菜单栏或系统托盘中的)",
+  "privacy.erase.running.dashboard": "终端中的 Cuotai 仪表板",
   "privacy.erase.label.vault_oauth": "已保存的登录、密钥和渠道地址",
   "privacy.erase.label.vault_serve": "本地服务器访问令牌",
   "privacy.erase.not_cuotai_folder": "已保留：此文件夹不是由 Cuotai 创建的。",

@@ -1360,6 +1360,9 @@
     "one": "{count} elemento è stato lasciato al suo posto perché si trova in una cartella, o contiene file, che Cuotai non ha creato.",
     "other": "{count} elementi sono stati lasciati al loro posto perché si trovano in una cartella, o contengono file, che Cuotai non ha creato."
   },
+  "privacy.erase.running": "Non è stato cancellato nulla mentre Cuotai è in esecuzione. Chiudi prima questi programmi, poi esegui di nuovo la cancellazione:{programs}",
+  "privacy.erase.running.desktop": "L'app Cuotai (anche nella barra dei menu o nell'area di notifica)",
+  "privacy.erase.running.dashboard": "La dashboard di Cuotai nel terminale",
   "privacy.erase.label.vault_oauth": "Accessi, chiavi e indirizzi dei canali salvati",
   "privacy.erase.label.vault_serve": "Token di accesso del server locale",
   "privacy.erase.not_cuotai_folder": "Conservata: questa cartella non è stata creata da Cuotai.",

@@ -121,6 +121,7 @@ pub mod output_file;
 pub mod overage;
 pub mod pace;
 pub mod panic_guard;
+pub mod presence;
 pub mod privacy;
 pub mod private_fs;
 mod process_tree;

@@ -24,6 +24,7 @@ use serde::Serialize;
 
 use super::{artifacts, companions, Artifact, Erase, Kind, Root, Roots};
 use crate::diagnostics::redact::home_abbreviated;
+pub use crate::presence::Program;
 use crate::text::Localized;
 
 /// What [`erase_all`] removes.
@@ -141,6 +142,47 @@ pub fn word_mismatch() -> Localized {
         "privacy.erase.word_mismatch",
         "The confirmation word does not match; nothing was erased.",
     )
+}
+
+/// PRD 0052 S-04: how a running program is named in [`running`], in
+/// `locale`: the two terminal commands literally (never translated), the
+/// app and the dashboard in words.
+pub fn program_name(program: Program, locale: &str) -> String {
+    match program {
+        Program::Desktop => Localized::fixed(
+            "privacy.erase.running.desktop",
+            "The Cuotai app (also in the menu bar or system tray)",
+        )
+        .resolve(locale),
+        Program::Serve => "cuotai --serve".to_string(),
+        Program::Watch => "cuotai --watch".to_string(),
+        Program::Dashboard => Localized::fixed(
+            "privacy.erase.running.dashboard",
+            "The Cuotai terminal dashboard",
+        )
+        .resolve(locale),
+    }
+}
+
+/// PRD 0052 S-04: nothing was erased because other Cuotai programs run;
+/// one line per program, named in `locale` (the English fallback names
+/// them in English).
+pub fn running(programs: &[Program], locale: &str) -> Localized {
+    let lines = |locale: &str| -> String {
+        programs
+            .iter()
+            .map(|program| format!("\n  - {}", program_name(*program, locale)))
+            .collect()
+    };
+    let mut text = Localized::with_param(
+        "privacy.erase.running",
+        "programs",
+        lines("en-US"),
+        "Nothing was erased while Cuotai is running. Quit these first, then run the erase again:{programs}",
+    );
+    text.params
+        .insert("programs".to_string(), lines(locale).into());
+    text
 }
 
 /// The native confirmation was cancelled or could not be shown.
@@ -601,6 +643,10 @@ fn shape(artifact: &Artifact, path: &Path, scope: &Scope) -> Shape {
             Shape::Entries(|_, name, meta| meta.is_file() && metered_name(name))
         }
         "oauth.locks" => Shape::Entries(|_, name, meta| meta.is_file() && lock_name(name)),
+        // PRD 0052 S-04: `<program>-<pid>.lock` files only.
+        "process.presence" => {
+            Shape::Entries(|_, name, meta| meta.is_file() && crate::presence::is_lock_name(name))
+        }
         _ => Shape::EmptyOnly,
     }
 }
@@ -812,6 +858,27 @@ mod tests {
         assert!(body.contains(&plan.iter().filter(|i| i.erase).count().to_string()));
     }
 
+    /// PRD 0052 S-04: the refusal names each running program on a line of
+    /// its own, the commands literally and the rest in the language.
+    #[test]
+    fn the_running_refusal_names_each_program_in_the_language() {
+        let programs = [Program::Desktop, Program::Serve, Program::Dashboard];
+        let english = running(&programs, "en-US");
+        assert_eq!(english.id, "privacy.erase.running");
+        let text = english.resolve("en-US");
+        assert!(text.starts_with("Nothing was erased while Cuotai is running."));
+        assert_eq!(text.lines().count(), 4, "{text}");
+        assert!(text.contains("\n  - cuotai --serve"));
+        let portuguese = running(&programs, "pt-BR");
+        let text = portuguese.resolve("pt-BR");
+        assert!(text.contains("cuotai --serve") && text.contains("O app Cuotai"));
+        assert!(
+            !portuguese.fallback.contains("O app Cuotai"),
+            "English fallback"
+        );
+        assert_eq!(program_name(Program::Watch, "ja"), "cuotai --watch");
+    }
+
     /// A vault with entries per service, that can be made to fail.
     #[derive(Default)]
     struct FakeVault {
@@ -900,6 +967,7 @@ mod tests {
                 write("run-1.json", b"{}");
             }
             "oauth.locks" => write("0f8e5a3c-1b2d-4c6e-8a9b-112233445566.lock", b""),
+            "process.presence" => write("serve-123.lock", b""),
             _ => write("sub/f", b"x"),
         }
     }

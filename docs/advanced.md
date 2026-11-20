@@ -42,6 +42,9 @@ cuotai --history-erase ACCOUNT    # or: --history-erase all; --yes skips the que
 # the system vault; a release build refuses the flag. It also erases the data
 # folder chosen in the desktop app and data left in the default folder, and
 # removes the desktop settings last; a folder Cuotai did not create is kept.
+# It refuses, asking and erasing nothing (--yes included), while the Cuotai
+# app, cuotai --serve, cuotai --watch or the terminal dashboard runs, and
+# names what to quit.
 cuotai --erase-all-data [--yes] [--include-config]
 
 # Human-readable summary in the terminal (single run)

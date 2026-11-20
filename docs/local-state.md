@@ -20,7 +20,7 @@ Cuotai keeps a few files of its own next to your accounts file. This page lists 
 | `channels/log.jsonl` | `<data>/channels/` | core `channels::log` | none (one JSON object per line; unreadable lines are skipped) | time, channel id, kind, outcome, HTTP status and attempt of each channel delivery; never a body, address or label | `0600` in `0700` | none | unreadable lines are skipped; a file over 8 MiB is not read | lines it cannot read are skipped and kept until they are 7 days old | `cuotai --erase-all-data`, or delete the file |
 <!-- state-matrix:end -->
 
-Other files under `<data>`: `serve/token` (the local server token, `0600`; `cuotai --doctor` warns when others can read it), `hooks/` (consent, run log, work folder), `extensions/`, `metered/`, `canary/`, `last-config-*.json`, `vault-index.json` and `update-check.json`. None holds a secret value except the server token, which never leaves this computer (it is not part of a backup).
+Other files under `<data>`: `serve/token` (the local server token, `0600`; `cuotai --doctor` warns when others can read it), `hooks/` (consent, run log, work folder), `extensions/`, `metered/`, `canary/`, `last-config-*.json`, `vault-index.json` and `update-check.json`. None holds a secret value except the server token, which never leaves this computer (it is not part of a backup). `<OS local data dir>/cuotai/running/` (fixed, whatever `CUOTAI_DATA_DIR` says) holds one empty lock file per running Cuotai program (`desktop-`, `serve-`, `watch-` or `dashboard-<pid>.lock`, `0600` in `0700`); it is removed when the program ends, a crash's leftover by the next check, and `cuotai --erase-all-data` refuses while one is held.
 
 ## Downgrading
 

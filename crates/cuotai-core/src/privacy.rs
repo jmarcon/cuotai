@@ -492,6 +492,16 @@ static ARTIFACTS: &[Artifact] = &[
             "0033",
         )
     },
+    Artifact {
+        root: Root::OsLocalData,
+        ..dir(
+            "process.presence",
+            "running",
+            "empty lock files naming which Cuotai programs run now (the desktop app, `--serve`, `--watch`, the terminal dashboard) and their process ids; erasing all data refuses while one is held",
+            "removed when the program ends; a file a crash left is removed by the next check",
+            "0052",
+        )
+    },
     dir(
         "metered.records_legacy",
         "metered",
@@ -673,6 +683,13 @@ impl Roots {
                 .filter(|path| self.feed.as_deref() != Some(path.as_path())),
             Root::LocalData => self.local_data.as_deref().map(|d| join(d, artifact.path)),
             Root::OsLocalData if artifact.id == "feed.tree" => self.feed.clone(),
+            // The other fixed folders sit beside the metered records, in
+            // `<OS local data dir>/cuotai` ([`crate::presence::default_dir`]).
+            Root::OsLocalData if artifact.id != "metered.records" => self
+                .metered
+                .as_deref()
+                .and_then(Path::parent)
+                .map(|d| join(d, artifact.path)),
             Root::OsLocalData => self.metered.clone(),
             Root::Config => self
                 .config
@@ -1219,6 +1236,7 @@ mod tests {
             "vault.oauth",
             "vault.serve",
             "channels.log",
+            "process.presence",
         ] {
             assert!(artifact(id).is_some(), "{id}");
         }
@@ -1279,6 +1297,12 @@ mod tests {
         };
         let path = |roots: &Roots, id: &str| roots.path_of(artifact(id).unwrap());
         assert_eq!(path(&moved, "metered.records"), Some(fixed.clone()));
+        // PRD 0052 S-04: the presence locks sit beside them, whatever the
+        // data folder.
+        assert_eq!(
+            path(&moved, "process.presence"),
+            Some(PathBuf::from("/os/cuotai/running"))
+        );
         assert_eq!(
             path(&moved, "metered.records_legacy"),
             Some(PathBuf::from("/moved/cuotai/metered"))

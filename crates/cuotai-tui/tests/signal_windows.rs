@@ -30,6 +30,11 @@ fn exit_after_ctrl_break(args: &[&str]) -> Option<i32> {
         .args(["--config", config.to_str().unwrap()])
         .args(args)
         .env_remove("CUOTAI_CONFIG")
+        // PRD 0052 S-04: never the real presence folder.
+        .env(
+            "CUOTAI_RUNNING_DIR",
+            std::env::temp_dir().join(format!("cuotai-test-running-{}", std::process::id())),
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

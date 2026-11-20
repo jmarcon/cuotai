@@ -2048,6 +2048,9 @@
   "privacy.erase.foreign": {
     "other": "Cuotai が作成していないフォルダーにある、または Cuotai が作成していないファイルを含むため、{count} 個の項目はそのまま残しました。"
   },
+  "privacy.erase.running": "Cuotai の実行中は何も消去されませんでした。先に次のプログラムを終了してから、もう一度消去を実行してください：{programs}",
+  "privacy.erase.running.desktop": "Cuotai アプリ(メニューバーやシステムトレイにあるものも含む)",
+  "privacy.erase.running.dashboard": "ターミナルの Cuotai ダッシュボード",
   "privacy.erase.label.vault_oauth": "保存したサインイン、キー、チャネルのアドレス",
   "privacy.erase.label.vault_serve": "ローカルサーバーのアクセストークン",
   "privacy.erase.not_cuotai_folder": "保持：このフォルダーは Cuotai が作成したものではありません。",

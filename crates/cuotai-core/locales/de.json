@@ -2055,6 +2055,9 @@
     "one": "{count} Element wurde nicht angetastet, weil es in einem Ordner liegt oder Dateien enthält, die Cuotai nicht angelegt hat.",
     "other": "{count} Elemente wurden nicht angetastet, weil sie in einem Ordner liegen oder Dateien enthalten, die Cuotai nicht angelegt hat."
   },
+  "privacy.erase.running": "Es wurde nichts gelöscht, solange Cuotai läuft. Beenden Sie zuerst diese Programme und führen Sie das Löschen dann erneut aus:{programs}",
+  "privacy.erase.running.desktop": "Die Cuotai-App (auch in der Menüleiste oder im Infobereich)",
+  "privacy.erase.running.dashboard": "Das Cuotai-Dashboard im Terminal",
   "privacy.erase.label.vault_oauth": "Gespeicherte Anmeldungen, Schlüssel und Kanaladressen",
   "privacy.erase.label.vault_serve": "Zugriffstoken des lokalen Servers",
   "privacy.erase.not_cuotai_folder": "Behalten: Diesen Ordner hat nicht Cuotai angelegt.",
