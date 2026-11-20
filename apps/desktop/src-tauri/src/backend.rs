@@ -11606,7 +11606,12 @@ mod tests {
             cli_path: None,
         };
         let error = login_request(Some(&config), &input(alpha)).unwrap_err();
-        assert!(error.contains("edit_error.account_moved"), "{error}");
+        // The message is not printed: it is built from the account's data,
+        // which CodeQL treats as sensitive (code-scanning alert #159).
+        assert!(
+            error.contains("edit_error.account_moved"),
+            "the stale sign-in is refused as a moved account"
+        );
         let beta = config.accounts[0].id().to_string();
         let request = login_request(Some(&config), &input(beta)).unwrap();
         assert_eq!(
