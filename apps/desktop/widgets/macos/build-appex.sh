@@ -104,5 +104,9 @@ xcrun appintentsmetadataprocessor \
     exit 1
 }
 
+# What macOS needs to load the extension and what it stored for the widgets
+# already placed (widget-contract.json).
+sh "$here/check-appex.sh" "$appex" "$version"
+
 lipo -info "$appex/Contents/MacOS/$name"
 echo "built $appex ($version)"

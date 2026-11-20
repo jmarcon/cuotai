@@ -528,9 +528,10 @@ jobs:
   # The macOS widget extension (PRD 0014 RF3): its sources and string catalog
   # compile, its decoder reads what the core writes (the writer fixture a core
   # test keeps equal to the writer's output, plus the compatibility fixtures),
-  # and every widget lays out under the unbounded proposals macOS 27.2
-  # measures with. Before this job a layout fault stopped the extension on
-  # every device and the widgets stayed on the system's placeholder.
+  # every widget lays out under the unbounded proposals macOS 27.2
+  # measures with, and the built extension keeps the widget contract. Before
+  # this job a layout fault stopped the extension on every device and the
+  # widgets stayed on the system's placeholder.
   widgets:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -544,6 +545,13 @@ jobs:
         run: sh apps/desktop/widgets/macos/typecheck.sh
       - name: Decode the core's snapshot and lay out every widget
         run: sh apps/desktop/tools/widget-shots/macos/render.sh --check
+      # The release's own build of the extension, then check-appex.sh: the
+      # bundle macOS loads (identity, entry point, both architectures,
+      # version) and widget-contract.json, the configuration macOS stored
+      # for every widget already placed. The sources side of that contract
+      # is crates/cuotai-core/tests/widget_contract.rs, in every test job.
+      - name: Build the extension and check it against the widget contract
+        run: sh apps/desktop/widgets/macos/build-appex.sh "$RUNNER_TEMP/appex" 0.0.0
 
   # Dependency licenses, advisories and sources (PRD 0019, RF1.3). cargo-deny
   # finds the root `deny.toml` by walking up from either manifest.
