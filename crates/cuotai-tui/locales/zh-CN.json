@@ -423,6 +423,9 @@
   },
   "stats.unknown_return": "恢复时间未知",
   "ui.account_changed": "文件中的账户已更改；请重新打开向导。",
+  "ui.config_notice.count": {
+    "other": "已跳过 {count} 个账户，请运行 cuotai --check-config：{note}"
+  },
   "ui.data_as_of": " · 数据截至 {at}",
   "ui.delete.account_n": "账户 #{index}",
   "ui.delete.already_removed": "账户已被移除。",

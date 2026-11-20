@@ -3686,17 +3686,37 @@ impl HistoryView {
 
 /// PRD 0051 RF1.2/RF1.3: what the tolerant reader set aside, as one line.
 fn config_notice(file: &ConfigFile) -> Option<String> {
-    let notes: Vec<_> = file
-        .issues
+    config_notice_of(&file.issues, &file.warnings)
+}
+
+/// [`config_notice`] of the reader's notes. A set-aside account leads with
+/// how many were skipped and the command that finds the cause (V-02), so a
+/// narrow window that cuts the rest still shows both; the first note
+/// follows, then how many more notes there are.
+pub(crate) fn config_notice_of(
+    issues: &[cuotai_core::config_file::ConfigAccountIssue],
+    warnings: &[cuotai_core::config_file::ConfigWarning],
+) -> Option<String> {
+    let notes: Vec<_> = issues
         .iter()
         .map(|issue| issue.l10n())
-        .chain(file.warnings.iter().map(|warning| warning.l10n()))
+        .chain(warnings.iter().map(|warning| warning.l10n()))
         .collect();
     let first = notes.first()?.resolve(tui_locale());
-    Some(match notes.len() {
+    let first = match notes.len() {
         1 => first,
         n => format!("{first} (+{})", n - 1),
-    })
+    };
+    if issues.is_empty() {
+        return Some(first);
+    }
+    Some(trp(
+        "ui.config_notice.count",
+        "{count} account skipped, run cuotai --check-config: {note}",
+        "{count} accounts skipped, run cuotai --check-config: {note}",
+        issues.len(),
+        &[("note", &first)],
+    ))
 }
 
 impl State {

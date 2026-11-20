@@ -432,6 +432,10 @@
   },
   "stats.unknown_return": "Rückkehr unbekannt",
   "ui.account_changed": "Konto in der Datei geändert; öffnen Sie den Assistenten erneut.",
+  "ui.config_notice.count": {
+    "one": "{count} Konto übersprungen, führen Sie cuotai --check-config aus: {note}",
+    "other": "{count} Konten übersprungen, führen Sie cuotai --check-config aus: {note}"
+  },
   "ui.data_as_of": " · Datenstand {at}",
   "ui.delete.account_n": "Konto #{index}",
   "ui.delete.already_removed": "Konto bereits entfernt.",

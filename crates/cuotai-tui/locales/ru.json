@@ -458,6 +458,12 @@
   },
   "stats.unknown_return": "Возврат неизвестен",
   "ui.account_changed": "Запись изменена в файле; откройте мастер заново.",
+  "ui.config_notice.count": {
+    "one": "{count} уч. запись пропущена, выполните cuotai --check-config: {note}",
+    "few": "{count} уч. записи пропущены, выполните cuotai --check-config: {note}",
+    "many": "{count} уч. записей пропущено, выполните cuotai --check-config: {note}",
+    "other": "{count} уч. записи пропущены, выполните cuotai --check-config: {note}"
+  },
   "ui.data_as_of": " · данные от {at}",
   "ui.delete.account_n": "запись №{index}",
   "ui.delete.already_removed": "Запись уже удалена.",

@@ -398,6 +398,9 @@
   },
   "stats.unknown_return": "Waktu kembali tidak diketahui",
   "ui.account_changed": "Akun berubah di file; buka wizard lagi.",
+  "ui.config_notice.count": {
+    "other": "{count} akun dilewati, jalankan cuotai --check-config: {note}"
+  },
   "ui.data_as_of": " · data dari {at}",
   "ui.delete.account_n": "akun #{index}",
   "ui.delete.already_removed": "Akun sudah dihapus.",

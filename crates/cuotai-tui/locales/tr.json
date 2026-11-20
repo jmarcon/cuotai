@@ -408,6 +408,10 @@
   },
   "stats.unknown_return": "Dönüş zamanı bilinmiyor",
   "ui.account_changed": "Hesap dosyada değişti; sihirbazı yeniden açın.",
+  "ui.config_notice.count": {
+    "one": "{count} hesap atlandı, cuotai --check-config komutunu çalıştırın: {note}",
+    "other": "{count} hesap atlandı, cuotai --check-config komutunu çalıştırın: {note}"
+  },
   "ui.data_as_of": " · veriler {at} itibarıyla",
   "ui.delete.account_n": "#{index} numaralı hesap",
   "ui.delete.already_removed": "Hesap zaten kaldırıldı.",

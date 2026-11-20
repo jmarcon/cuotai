@@ -408,6 +408,10 @@
   },
   "stats.unknown_return": "वापसी का समय अज्ञात",
   "ui.account_changed": "फ़ाइल में खाता बदल गया; विज़ार्ड दोबारा खोलें।",
+  "ui.config_notice.count": {
+    "one": "{count} खाता छोड़ा गया, cuotai --check-config चलाएँ: {note}",
+    "other": "{count} खाते छोड़े गए, cuotai --check-config चलाएँ: {note}"
+  },
   "ui.data_as_of": " · {at} तक का डेटा",
   "ui.delete.account_n": "खाता #{index}",
   "ui.delete.already_removed": "खाता पहले ही हटाया जा चुका है।",

@@ -411,6 +411,10 @@
   },
   "stats.unknown_return": "Retorno desconhecido",
   "ui.account_changed": "Conta alterada no arquivo; reabra o assistente.",
+  "ui.config_notice.count": {
+    "one": "{count} conta ignorada, execute cuotai --check-config: {note}",
+    "other": "{count} contas ignoradas, execute cuotai --check-config: {note}"
+  },
   "ui.data_as_of": " · dados de {at}",
   "ui.delete.account_n": "conta #{index}",
   "ui.delete.already_removed": "Conta já removida.",
