@@ -229,6 +229,45 @@ async fn two_instances_writing_at_once_keep_every_row() {
     assert_eq!(file.entries.len(), 40);
 }
 
+/// A write of the index that fails for a reason that may pass (a busy lock,
+/// an I/O step such as the rename) is tried again, so the row is not lost;
+/// the attempts are bounded and the credential operation never fails.
+#[test]
+fn a_failed_index_write_is_retried_within_a_bound() {
+    use crate::private_fs::fault;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("vault-index.json");
+    let store = IndexedStore::new(Arc::new(Memory::default()), path.clone());
+    let save = |key: &str| {
+        store
+            .save_tagged(key, &token("t"), &EntryTag::kind(Kind::Oauth))
+            .unwrap()
+    };
+    let keys = || match read(&path) {
+        Index::Known(file) => file.entries.into_keys().collect::<Vec<_>>(),
+        Index::Newer(_) => panic!("a known schema"),
+    };
+    fault::fail_times(fault::Step::Rename, UPDATE_ATTEMPTS as u32 - 1);
+    save("kept");
+    fault::clear();
+    assert_eq!(keys(), vec!["kept"], "the last attempt wrote the row");
+
+    fault::fail_times(fault::Step::Rename, UPDATE_ATTEMPTS as u32);
+    save("lost");
+    fault::clear();
+    assert_eq!(keys(), vec!["kept"], "no more than the bounded attempts");
+
+    save("after");
+    assert_eq!(keys(), vec!["after", "kept"]);
+    let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".tmp"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
 /// The common case still works: an account removed by hand leaves an entry
 /// the configuration owned, which is proven unused and pruned.
 #[tokio::test]

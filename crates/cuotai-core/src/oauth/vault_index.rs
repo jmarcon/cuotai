@@ -6,8 +6,8 @@
 //! records each key it saves, with the time, in
 //! `<OS local data dir>/cuotai/vault-index.json` (`0600`); a delete removes
 //! the key. The index never holds a value. A missing or corrupt index reads
-//! as empty and an index that cannot be written is ignored: the credential
-//! operation itself never fails because of it.
+//! as empty and a write that keeps failing after a few attempts is logged
+//! and ignored: the credential operation itself never fails because of it.
 //!
 //! # Delete only on proof (2026-11 re-validation F1, F2, R-01)
 //!
@@ -231,19 +231,46 @@ fn read(path: &Path) -> Index {
     parse(std::fs::read(path).ok().as_deref())
 }
 
+/// How many times [`update`] tries a write that failed for a reason that
+/// may pass (another writer held the lock past the bounded wait, or an I/O
+/// step such as a rename a scanner blocked).
+const UPDATE_ATTEMPTS: usize = 3;
+
 /// One locked read-modify-write of the index, shared by every Cuotai
 /// process: the migration to schema 2 happens on the first write, in the
-/// same atomic replace. An index of a newer schema is left alone; any
-/// failure is ignored (the index never blocks a credential operation).
-fn update(path: &Path, change: impl FnOnce(&mut IndexFile)) {
-    let _ = crate::private_fs::update_locked(path, |bytes| match parse(bytes.as_deref()) {
-        Index::Newer(_) => Err(()),
-        Index::Known(mut file) => {
-            change(&mut file);
-            file.schema = SCHEMA;
-            serde_json::to_vec_pretty(&file).map_err(|_| ())
+/// same atomic replace. An index of a newer schema is left alone. A busy
+/// lock or an I/O failure is tried again up to [`UPDATE_ATTEMPTS`] times,
+/// since a lost write is a credential missing from the list and from
+/// `--vault-prune`; what still fails is logged, never returned (the index
+/// never blocks a credential operation).
+fn update(path: &Path, change: impl Fn(&mut IndexFile)) {
+    use crate::diagnostics::logging::{event, Field, Level};
+    use crate::private_fs::UpdateError;
+    for attempt in 1..=UPDATE_ATTEMPTS {
+        let result =
+            crate::private_fs::update_locked(path, |bytes| match parse(bytes.as_deref()) {
+                Index::Newer(_) => Err(()),
+                Index::Known(mut file) => {
+                    change(&mut file);
+                    file.schema = SCHEMA;
+                    serde_json::to_vec_pretty(&file).map_err(|_| ())
+                }
+            });
+        let (reason, lasting) = match result {
+            Ok(()) | Err(UpdateError::Refused(())) => return,
+            Err(UpdateError::NotPrivate) => ("not_private", true),
+            Err(UpdateError::Busy) => ("busy", false),
+            Err(UpdateError::Io(_)) => ("io", false),
+        };
+        if lasting || attempt == UPDATE_ATTEMPTS {
+            event(
+                Level::Warn,
+                "vault_index.write_failed",
+                &[("reason", Field::Text(reason))],
+            );
+            return;
         }
-    });
+    }
 }
 
 /// A [`TokenStore`] that keeps the index of the keys it saved.
@@ -263,7 +290,7 @@ impl IndexedStore {
         }
     }
 
-    fn update(&self, change: impl FnOnce(&mut IndexFile)) {
+    fn update(&self, change: impl Fn(&mut IndexFile)) {
         let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
         update(&self.path, change);
     }

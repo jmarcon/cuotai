@@ -121,9 +121,26 @@ pub(crate) fn temp_affixes(path: &Path) -> (String, &'static str) {
     (format!(".{name}."), ".tmp")
 }
 
-/// Take the OS advisory lock on `lock`, polling up to `wait`. The lock is
+/// Take the OS advisory lock on `lock`, waiting up to `wait`. The lock is
 /// released when the returned file closes, also when the process dies, so
 /// a lock is never broken by its age.
+///
+/// A held lock is waited for in the operating system's queue (a blocking
+/// `LockFileEx` on Windows, `flock` on Unix) on a helper thread, never by
+/// polling: a writer that releases the lock and takes it again at once (two
+/// processes saving a credential each, back to back) re-locked it within
+/// microseconds, while a poller that looked every 10 ms almost never landed
+/// in that gap and starved until the bounded wait ran out with
+/// [`UpdateError::Busy`]. With Windows flushes of up to 300 ms per write,
+/// twenty writes of the other instance were enough (CI run 44783274748, one
+/// row of 40 lost). The kernel wakes the queued waiter when the lock is
+/// released. `flock` does not hand the lock to the woken waiter, though:
+/// the writer that just released it could still take it back before the
+/// waiter ran (seen on a macOS CI runner). So a waiter announces itself
+/// with a marker file beside the lock ([`waiter_marker`]), and a writer
+/// that finds another's marker first gives it [`HANDOFF_GRACE`] to take the
+/// lock; two writers then alternate. If `wait` passes first, the helper
+/// thread keeps its place and releases the lock as soon as it gets it.
 fn lock_file(lock: &Path, wait: std::time::Duration) -> io::Result<Option<std::fs::File>> {
     let file = std::fs::OpenOptions::new()
         .read(true)
@@ -131,17 +148,90 @@ fn lock_file(lock: &Path, wait: std::time::Duration) -> io::Result<Option<std::f
         .create(true)
         .truncate(false)
         .open(lock)?;
-    let deadline = std::time::Instant::now() + wait;
-    loop {
-        match file.try_lock() {
-            Ok(()) => return Ok(Some(file)),
-            Err(std::fs::TryLockError::WouldBlock) => {}
-            Err(std::fs::TryLockError::Error(error)) => return Err(error),
+    if others_wait(lock) {
+        std::thread::sleep(HANDOFF_GRACE);
+    }
+    match file.try_lock() {
+        Ok(()) => return Ok(Some(file)),
+        Err(std::fs::TryLockError::WouldBlock) => {}
+        Err(std::fs::TryLockError::Error(error)) => return Err(error),
+    }
+    wait_in_queue(file, lock, wait)
+}
+
+/// How long a writer that finds another waiter lets it take the lock first.
+const HANDOFF_GRACE: std::time::Duration = std::time::Duration::from_millis(25);
+
+/// A marker older than this is left over from a process that died while it
+/// waited; it is ignored and removed.
+const STALE_MARKER: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The marker of one waiter of `lock`: `<lock>.wait-<pid>-<n>`, present only
+/// while that waiter is queued.
+fn waiter_marker(lock: &Path) -> std::path::PathBuf {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let name = lock.file_name().unwrap_or_default().to_string_lossy();
+    lock.with_file_name(format!("{name}.wait-{}-{n}", std::process::id()))
+}
+
+/// Whether a live waiter of `lock` is queued (its marker exists and is not
+/// stale). Stale markers are removed on the way.
+fn others_wait(lock: &Path) -> bool {
+    let (Some(dir), Some(name)) = (lock.parent(), lock.file_name()) else {
+        return false;
+    };
+    let prefix = format!("{}.wait-", name.to_string_lossy());
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    let mut waiting = false;
+    for entry in entries.flatten() {
+        if !entry.file_name().to_string_lossy().starts_with(&prefix) {
+            continue;
         }
-        if std::time::Instant::now() >= deadline {
-            return Ok(None);
+        let age = entry
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .ok()
+            .and_then(|modified| modified.elapsed().ok());
+        match age {
+            Some(age) if age > STALE_MARKER => {
+                let _ = std::fs::remove_file(entry.path());
+            }
+            _ => waiting = true,
         }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    waiting
+}
+
+/// Block on `file`'s lock on a helper thread for up to `wait`: the locked
+/// file, `None` after `wait`, or the error of the lock call. A lock taken
+/// after `wait` is dropped (released) with the channel.
+fn wait_in_queue(
+    file: std::fs::File,
+    lock: &Path,
+    wait: std::time::Duration,
+) -> io::Result<Option<std::fs::File>> {
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    // Announce the wait (see [`lock_file`]); a marker that cannot be written
+    // only costs this waiter its turn, never the lock.
+    let marker = waiter_marker(lock);
+    let _ = std::fs::File::create(&marker);
+    std::thread::Builder::new()
+        .name("cuotai-file-lock".into())
+        .spawn(move || {
+            let locked = file.lock().map(|()| file);
+            let _ = std::fs::remove_file(&marker);
+            // A receiver that gave up drops the locked file, releasing it.
+            let _ = sender.send(locked);
+        })?;
+    match receiver.recv_timeout(wait) {
+        Ok(locked) => locked.map(Some),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            Err(io::Error::other("the lock waiter ended"))
+        }
     }
 }
 
@@ -356,9 +446,9 @@ pub(crate) fn decide_locked<T, E>(
 
 /// PRD 0051 RF4 acceptance: test-only failures injected at the write, sync
 /// and rename steps of [`update_locked`]; a no-op outside tests.
-mod fault {
+pub(crate) mod fault {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(super) enum Step {
+    pub(crate) enum Step {
         Write,
         Sync,
         Rename,
@@ -367,11 +457,37 @@ mod fault {
     #[cfg(test)]
     thread_local! {
         pub(super) static FAIL_AT: std::cell::Cell<Option<Step>> = const { std::cell::Cell::new(None) };
+        /// How many more times [`FAIL_AT`] fails; `None` means every time.
+        static FAILS_LEFT: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
+    }
+
+    /// Fail `step` on this thread the next `times` times it is reached.
+    #[cfg(test)]
+    pub(crate) fn fail_times(step: Step, times: u32) {
+        FAIL_AT.with(|fail| fail.set(Some(step)));
+        FAILS_LEFT.with(|left| left.set(Some(times)));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn clear() {
+        FAIL_AT.with(|fail| fail.set(None));
+        FAILS_LEFT.with(|left| left.set(None));
     }
 
     #[cfg(test)]
     pub(super) fn at(step: Step) -> std::io::Result<()> {
-        if FAIL_AT.with(|fail| fail.get()) == Some(step) {
+        if FAIL_AT.with(|fail| fail.get()) != Some(step) {
+            return Ok(());
+        }
+        let fail = FAILS_LEFT.with(|left| match left.get() {
+            None => true,
+            Some(0) => false,
+            Some(n) => {
+                left.set(Some(n - 1));
+                true
+            }
+        });
+        if fail {
             return Err(std::io::Error::other("injected fault"));
         }
         Ok(())
@@ -1175,6 +1291,48 @@ mod update_tests {
         assert!(leftovers.is_empty(), "{leftovers:?}");
     }
 
+    /// A writer that releases the lock and takes it again at once (the CLI
+    /// and the desktop saving credentials back to back) never starves the
+    /// other: the waiter is queued by the OS and gets the lock in between.
+    /// With the former 10 ms polling the waiter missed every gap and timed
+    /// out with `Busy` once the other writer's run outlasted the wait (one
+    /// vault-index row of 40 lost on a Windows runner).
+    #[test]
+    fn a_writer_that_relocks_at_once_never_starves_a_waiter() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = Arc::new(dir.path().join("vault-index.json"));
+        // 50 writes of 20 ms each outlast the 800 ms wait by far; a fair
+        // waiter needs about one write.
+        let wait = std::time::Duration::from_millis(800);
+        let threads: Vec<_> = (0..2)
+            .map(|n| {
+                let path = Arc::clone(&path);
+                std::thread::spawn(move || {
+                    (0..50)
+                        .filter(|i| {
+                            update_locked_with(&path, wait, |bytes| {
+                                std::thread::sleep(std::time::Duration::from_millis(20));
+                                let mut map: serde_json::Map<String, serde_json::Value> =
+                                    match bytes {
+                                        Some(bytes) => serde_json::from_slice(&bytes).unwrap(),
+                                        None => serde_json::Map::new(),
+                                    };
+                                map.insert(format!("k{n}-{i}"), true.into());
+                                Ok::<_, ()>(serde_json::to_vec(&map).unwrap())
+                            })
+                            .is_err()
+                        })
+                        .count()
+                })
+            })
+            .collect();
+        let failed: usize = threads.into_iter().map(|t| t.join().unwrap()).sum();
+        assert_eq!(failed, 0, "no write timed out");
+        let map: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(&std::fs::read(&*path).unwrap()).unwrap();
+        assert_eq!(map.len(), 100);
+    }
+
     #[test]
     fn a_refused_change_or_a_busy_lock_leaves_the_file_untouched() {
         let dir = tempfile::tempdir().unwrap();
@@ -1193,6 +1351,10 @@ mod update_tests {
         });
         assert!(matches!(busy, Err(UpdateError::Busy)));
         drop(held);
+        // The waiter that gave up releases the lock as soon as it gets it.
+        let again = lock_file(&lock_path(&path), UPDATE_LOCK_WAIT).unwrap();
+        assert!(again.is_some(), "an abandoned waiter never keeps the lock");
+        drop(again);
         assert_eq!(std::fs::read(&path).unwrap(), b"{not json");
         assert!(
             lock_path(&path).exists(),
