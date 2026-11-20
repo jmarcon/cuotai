@@ -455,14 +455,29 @@ fn check_tool(index: usize, account: &Account, inputs: &Inputs) -> Option<Check>
     );
     let id = format!("account.{}.tool", index + 1);
     Some(match &result {
-        Ok(resolved) => Check::new(id, CheckStatus::Ok, title).detail(Localized::with_params(
-            "doctor.tool.found",
-            params([
-                ("source", ParamValue::from(resolved.source.slug())),
-                ("path", path_param(&resolved.program)),
-            ]),
-            "Found ({source}): {path}.",
-        )),
+        Ok(resolved) => {
+            // Re-validation V-04: one translated sentence per source, never the internal slug (the summary line
+            // and the JSON keep the slug, RF6.3).
+            let (key, fallback) = match resolved.source {
+                crate::external_tool::ToolSource::Configured => (
+                    "doctor.tool.found.configured",
+                    "Found at the path set in the account: {path}.",
+                ),
+                crate::external_tool::ToolSource::WellKnown => (
+                    "doctor.tool.found.well_known",
+                    "Found in a standard install folder: {path}.",
+                ),
+                crate::external_tool::ToolSource::Path => {
+                    ("doctor.tool.found.path", "Found on PATH: {path}.")
+                }
+            };
+            Check::new(id, CheckStatus::Ok, title).detail(Localized::with_param(
+                key,
+                "path",
+                path_param(&resolved.program),
+                fallback,
+            ))
+        }
         Err(error) => Check::new(id, CheckStatus::Fail, title)
             .detail(error.l10n())
             .fix(Localized::with_param(
