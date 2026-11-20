@@ -113,6 +113,7 @@
   "quota.resetsIn": "{time} sonra",
   "quota.na": "Yok",
   "relocation.use": "Bu geçmişi kullan",
+  "relocation.keep": "Ayrı tut",
   "settings.agg.all": "Tümü'nde toplayıcı bağlantıları",
   "settings.agg.all.grouped": "Gruplanmış (varsayılan)",
   "settings.agg.all.hidden": "Gizli",

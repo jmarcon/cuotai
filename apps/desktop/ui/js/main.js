@@ -18,7 +18,7 @@ import { accountName, accountFullLabel,
   accountTitle, billingOverage, isRecharging, bestChipHtml, forecastChipHtml, accessHtml, causeText, bellHtml, setAccountNotify, setMetricAlert, setPoolAlerts, setBreakdownAlerts, openAggregatorDashboard, incidentHtml, bindStatusLinks, costUsage, costPlans,
   openSettingsWindow, bindSettingsShortcut, onSettingsChanged, onAccountAction, listExtensions, extensionSecrets,
   planBadgeHtml, scopeBlocksHtml, budgetSuggestion,
-  sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml, clockSkewBannerHtml,
+  sessionAction, liveSessionHtml, dismissFeedBanner, historyRelocation, relocationBannerHtml, hideRelocation, configNoticesHtml, clockSkewBannerHtml,
 } from "./lib.js";
 import { fold, patch } from "./util.js";
 import { initRowLayout, rowLayout } from "./density.js";
@@ -508,7 +508,7 @@ function render() {
     ${feedBannersHtml(view)}
     ${clockSkewBannerHtml(view)}
     ${view?.history_warning ? `<div class="banner bad" role="status" data-history-warning>${icon("warn")} ${esc(tl(view.history_warning))}</div>` : ""}
-    ${(view?.config_notices ?? []).map((note) => `<div class="banner bad" role="status" data-config-notice>${icon("warn")} ${esc(tl(note))}</div>`).join("")}
+    ${configNoticesHtml(view)}
     ${view?.serve?.state === "error" ? `<div class="banner bad" role="status" data-protected-texts="serve-banner" data-serve-error>${icon("warn")} ${te("serve.banner")} ${esc(tl(view.serve.error))}${
       view.serve.cuotai_on_port ? ` ${te("settings.serve.cuotaiOnPort", { port: view.serve.port })}` : ""} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
     ${view?.serve?.token_notice && view.serve.state === "on" ? `<div class="banner info" role="status" data-protected-texts="serve-banner" data-serve-token-notice>${icon("info")} ${te("settings.serve.token.notice")} <button class="link" data-settings="integrations" data-settings-anchor="serve">${te("serve.bannerOpen")}</button></div>` : ""}
@@ -558,7 +558,8 @@ root.addEventListener("click", (e) => {
   if (t.closest("[data-dismiss-pack]")) { dismissNotice(t.closest("[data-dismiss-pack]").dataset.dismissPack); return render(); }
   if (t.closest("[data-dismiss-other-config]")) { dismissOtherConfig(store.view); return render(); }
   if (t.closest("[data-relocation-adopt]")) return answerRelocation(true);
-  if (t.closest("[data-relocation-decline]")) return answerRelocation(false);
+  if (t.closest("[data-relocation-keep]")) return answerRelocation(false);
+  if (t.closest("[data-relocation-hide]")) { hideRelocation(store.view); return render(); }
   // PRD 0040 RF8.1: the feed banner's Add account (prefilled) and its dismissal for 7 days.
   const feedAdd = t.closest("[data-feed-add]");
   if (feedAdd) return openAccountDialog(null, { onSaved, onExtension: (id) => openExtensionManager(id), prefill: { provider: feedAdd.dataset.provider, query_mode: feedAdd.dataset.queryMode } });

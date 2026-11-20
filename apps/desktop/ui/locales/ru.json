@@ -196,6 +196,7 @@
   "quota.resetsIn": "через {time}",
   "quota.na": "н/д",
   "relocation.use": "Использовать эту историю",
+  "relocation.keep": "Оставить отдельно",
   "settings.agg.all": "Подключения агрегаторов в разделе «Все»",
   "settings.agg.all.grouped": "Сгруппировано (по умолчанию)",
   "settings.agg.all.hidden": "Скрыто",

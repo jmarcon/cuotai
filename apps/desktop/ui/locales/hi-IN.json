@@ -113,6 +113,7 @@
   "quota.resetsIn": "{time} में",
   "quota.na": "उपलब्ध नहीं",
   "relocation.use": "यह इतिहास उपयोग करें",
+  "relocation.keep": "अलग रखें",
   "settings.agg.all": "All में एग्रीगेटर कनेक्शन",
   "settings.agg.all.grouped": "समूहित (डिफ़ॉल्ट)",
   "settings.agg.all.hidden": "छिपे हुए",

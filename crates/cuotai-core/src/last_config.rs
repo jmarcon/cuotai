@@ -7,6 +7,10 @@
 //! Throwaway configs never count: a file under the OS temp dir (a test or
 //! development run) is not recorded, and a recorded path that is under it or
 //! no longer exists is ignored, so it cannot keep a stale notice alive.
+//!
+//! PRD 0051 RF5.4: a frontend's record may also carry the moved file whose
+//! history it offered to reuse and that was not answered yet, so the offer
+//! comes back at the next start until the person adopts or declines it.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -38,6 +42,9 @@ impl Frontend {
 struct Record {
     path: PathBuf,
     at: chrono::DateTime<chrono::Utc>,
+    /// PRD 0051 RF5.4: the old path of an unanswered moved-file offer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pending: Option<PathBuf>,
 }
 
 /// Directory holding the records; injectable so tests never touch OS dirs.
@@ -104,11 +111,21 @@ impl LastConfig {
         if self.is_throwaway(path) {
             return Ok(());
         }
+        // An unanswered moved-file offer survives the new record.
+        let pending = self.read(me).and_then(|r| r.pending);
+        self.write(
+            me,
+            &Record {
+                path: path.clone(),
+                at: chrono::Utc::now(),
+                pending,
+            },
+        )
+    }
+
+    fn write(&self, me: Frontend, record: &Record) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.dir)?;
-        let body = serde_json::to_vec(&Record {
-            path: path.clone(),
-            at: chrono::Utc::now(),
-        })?;
+        let body = serde_json::to_vec(record)?;
         // tempfile creates 0600 files on Unix.
         let mut tmp = tempfile::NamedTempFile::new_in(&self.dir)?;
         tmp.write_all(&body)?;
@@ -116,18 +133,40 @@ impl LastConfig {
         crate::private_fs::persist(tmp, &self.dir.join(me.file()))
     }
 
-    fn last(&self, kind: Frontend) -> Option<PathBuf> {
+    fn read(&self, kind: Frontend) -> Option<Record> {
         let bytes = std::fs::read(self.dir.join(kind.file())).ok()?;
-        serde_json::from_slice::<Record>(&bytes)
-            .ok()
-            .map(|r| r.path)
+        serde_json::from_slice::<Record>(&bytes).ok()
     }
 
-    /// PRD 0051 RF5.4: the path `me` itself opened last (read before
-    /// [`Self::record`] replaces it), even when it no longer exists; `None`
-    /// when unknown or under the temp dir.
+    fn last(&self, kind: Frontend) -> Option<PathBuf> {
+        self.read(kind).map(|r| r.path)
+    }
+
+    /// PRD 0051 RF5.4: the path whose history `me` may offer to reuse: the
+    /// old path of an offer not answered yet, else the path `me` opened last
+    /// (read before [`Self::record`] replaces it), even when it no longer
+    /// exists; `None` when unknown or under the temp dir.
     pub fn previous(&self, me: Frontend) -> Option<PathBuf> {
-        self.last(me).filter(|path| !self.is_throwaway(path))
+        let record = self.read(me)?;
+        record
+            .pending
+            .filter(|path| !self.is_throwaway(path))
+            .or_else(|| Some(record.path).filter(|path| !self.is_throwaway(path)))
+    }
+
+    /// PRD 0051 RF5.4: keep `from` as the unanswered offer of `me` (shown
+    /// again at the next start), or drop it with `None` once the person
+    /// answered or no offer applies. Needs a record from [`Self::record`].
+    pub fn set_pending(&self, me: Frontend, from: Option<&Path>) -> std::io::Result<()> {
+        let Some(mut record) = self.read(me) else {
+            return Ok(());
+        };
+        let from = from.map(Path::to_path_buf);
+        if record.pending == from {
+            return Ok(());
+        }
+        record.pending = from;
+        self.write(me, &record)
     }
 
     /// Path last opened by the other frontend when it differs from
@@ -148,6 +187,14 @@ impl LastConfig {
 /// current one. Best effort.
 pub fn previous(me: Frontend) -> Option<PathBuf> {
     LastConfig::in_data_dir()?.previous(me)
+}
+
+/// PRD 0051 RF5.4: keep (`Some`) or drop (`None`) the unanswered moved-file
+/// offer of `me`. Best effort.
+pub fn set_pending(me: Frontend, from: Option<&Path>) {
+    if let Some(store) = LastConfig::in_data_dir() {
+        let _ = store.set_pending(me, from);
+    }
 }
 
 /// Record `me`'s identity and return the other frontend's differing path.
@@ -250,6 +297,7 @@ mod tests {
             let body = serde_json::to_vec(&Record {
                 path: path.to_path_buf(),
                 at: chrono::Utc::now(),
+                pending: None,
             })
             .unwrap();
             std::fs::write(data.join(Frontend::Tui.file()), body).unwrap();
@@ -270,6 +318,37 @@ mod tests {
             store.other_differs(Frontend::Desktop, &id(&app)),
             Some(other)
         );
+    }
+
+    /// PRD 0051 RF5.4: an unanswered offer outlives new records and is the
+    /// path offered next time; answering drops it.
+    #[test]
+    fn an_unanswered_offer_comes_back_until_answered() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _tmp) = store(dir.path().join("data"));
+        let old = dir.path().join("old.toml");
+        let new = dir.path().join("new.toml");
+        std::fs::write(&new, "").unwrap();
+        // No record yet: nothing to keep.
+        store.set_pending(Frontend::Desktop, Some(&old)).unwrap();
+        assert_eq!(store.previous(Frontend::Desktop), None);
+        store.record(Frontend::Desktop, &id(&new)).unwrap();
+        let ConfigIdentity::File(new_real) = id(&new) else {
+            unreachable!()
+        };
+        assert_eq!(store.previous(Frontend::Desktop), Some(new_real.clone()));
+        // The offer is kept across the next start's record.
+        store.set_pending(Frontend::Desktop, Some(&old)).unwrap();
+        store.record(Frontend::Desktop, &id(&new)).unwrap();
+        assert_eq!(store.previous(Frontend::Desktop), Some(old.clone()));
+        // The other frontend's notice still compares the opened path.
+        assert_eq!(store.last(Frontend::Desktop), Some(new_real.clone()));
+        // An answer drops it.
+        store.set_pending(Frontend::Desktop, None).unwrap();
+        assert_eq!(store.previous(Frontend::Desktop), Some(new_real));
+        // A record written by an older build (no `pending`) still reads.
+        let body = std::fs::read(dir.path().join("data").join(Frontend::Desktop.file())).unwrap();
+        assert!(!String::from_utf8(body).unwrap().contains("pending"));
     }
 
     #[test]

@@ -1179,6 +1179,15 @@ fn status_view(
     }
 }
 
+/// PRD 0051 RF1.2/RF1.3/RF2.5: one configuration notice and its kind:
+/// `issue` (an account set aside, shown as an error) or `warning` (an
+/// unknown key kept and ignored, shown as information).
+#[derive(Serialize, Clone)]
+pub struct ConfigNoticeView {
+    kind: &'static str,
+    text: cuotai_core::text::Localized,
+}
+
 /// PRD 0003 RF3: whether reset notices are on and, then, the next one
 /// (tray and tooltip). Only provider, account name, window and label.
 #[derive(Serialize, Clone)]
@@ -1303,7 +1312,7 @@ pub struct View {
     settings_backup: Option<String>,
     /// PRD 0051 RF1.2/RF1.3: the accounts the configuration reader set
     /// aside because they need a newer Cuotai, then unknown top-level keys.
-    config_notices: Vec<cuotai_core::text::Localized>,
+    config_notices: Vec<ConfigNoticeView>,
     /// PRD 0054 RF5.1: the system refused the tray icon, so the window is
     /// the only way in (a banner that cannot be dismissed says so).
     tray_unavailable: bool,
@@ -2289,8 +2298,14 @@ impl Inner {
                 .file
                 .issues
                 .iter()
-                .map(|issue| issue.l10n())
-                .chain(l.file.warnings.iter().map(|warning| warning.l10n()))
+                .map(|issue| ConfigNoticeView {
+                    kind: "issue",
+                    text: issue.l10n(),
+                })
+                .chain(l.file.warnings.iter().map(|warning| ConfigNoticeView {
+                    kind: "warning",
+                    text: warning.l10n(),
+                }))
                 .collect(),
             tray_unavailable: crate::window_mode::current()
                 == crate::window_mode::WindowMode::NoTray,
@@ -2539,6 +2554,14 @@ impl Inner {
             })
             .flatten()
             .map(|p| p.display().to_string());
+        // PRD 0051 RF5.4: an offer stays until it is answered (the dismiss
+        // only hides it for this run); one that no longer applies is dropped.
+        if !cfg!(test) {
+            cuotai_core::last_config::set_pending(
+                cuotai_core::last_config::Frontend::Desktop,
+                relocation.as_ref().map(|(_, offer)| offer.from.as_path()),
+            );
+        }
         // PRD 0010 RF2.3: the last recorded readings show, stale, until the
         // first query of each account answers.
         let mut cycle = RefreshCycle::new(&file.config, Instant::now());
@@ -3760,8 +3783,9 @@ impl Backend {
     /// The new `View` is returned so the frontend can refresh without
     /// a separate round-trip.
     /// PRD 0051 RF5.4/RF5.5: answer the moved-file question. `adopt`
-    /// carries the old history over (with a `.bak`); declining changes
-    /// nothing. Returns what to tell the user.
+    /// carries the old history over (with a `.bak`); declining (Keep apart)
+    /// changes no history. Either answer ends the offer for good. Returns
+    /// what to tell the user.
     pub async fn answer_relocation(
         &self,
         app: &AppHandle,
@@ -3780,6 +3804,13 @@ impl Backend {
         } else {
             None
         };
+        // Answered: the offer does not come back at the next start.
+        if !cfg!(test) {
+            cuotai_core::last_config::set_pending(
+                cuotai_core::last_config::Frontend::Desktop,
+                None,
+            );
+        }
         self.emit(app).await;
         Ok(note)
     }

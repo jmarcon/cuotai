@@ -193,6 +193,7 @@
   "quota.resetsIn": "{time}后",
   "quota.na": "不适用",
   "relocation.use": "使用此历史记录",
+  "relocation.keep": "保持分开",
   "settings.agg.all": "“全部”中的聚合器连接",
   "settings.agg.all.grouped": "分组（默认）",
   "settings.agg.all.hidden": "隐藏",

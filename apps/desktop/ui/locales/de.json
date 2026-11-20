@@ -182,6 +182,7 @@
   "quota.resetsIn": "in {time}",
   "quota.na": "k. A.",
   "relocation.use": "Diesen Verlauf verwenden",
+  "relocation.keep": "Getrennt lassen",
   "settings.agg.all": "Aggregator-Verbindungen in „Alle“",
   "settings.agg.all.grouped": "Gruppiert (Standard)",
   "settings.agg.all.hidden": "Ausgeblendet",

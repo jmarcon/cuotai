@@ -189,6 +189,7 @@
   "quota.resetsIn": "{time} 후",
   "quota.na": "해당 없음",
   "relocation.use": "이 기록 사용",
+  "relocation.keep": "따로 유지",
   "settings.agg.all": "All의 어그리게이터 연결",
   "settings.agg.all.grouped": "그룹으로 묶기(기본값)",
   "settings.agg.all.hidden": "숨김",

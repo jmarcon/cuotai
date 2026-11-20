@@ -542,11 +542,20 @@ export async function pickTomlFile(defaultPath) {
 /** Effective path of `cuotai.toml` with its origin (variable, chosen or OS default); unescaped text. */
 export const configLabel = (view) => view?.config_path ? `${view.config_path} · ${t(`settings.config.source.${view.config_source}`)}` : "";
 /** RF1.2: notice when the TUI last used another file; unescaped text. */
-/** PRD 0051 RF5.4: the moved-file question (core text), one action that uses the old history and a dismiss that
- *  declines it (DS-CMP-MSG-2). Empty without an offer. */
-export const relocationBannerHtml = (view) => view?.history_relocation
-  ? `<div class="banner dismissable" role="status" data-relocation>${icon("info")}<span>${esc(tl(view.history_relocation))} <button class="link" data-relocation-adopt>${te("relocation.use")}</button></span><button class="icon" data-relocation-decline title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>`
+/** PRD 0051 RF5.4: the moved-file question (core text) with its two answers, "Use this history" and "Keep apart",
+ *  and a dismiss that only hides it for this run (DS-CMP-MSG-2): the offer comes back at the next start until it is
+ *  answered. Empty without an offer, or once hidden for that same question. */
+let hiddenRelocation = null;
+const relocationKey = (view) => JSON.stringify(view?.history_relocation ?? null);
+export const hideRelocation = (view) => { hiddenRelocation = relocationKey(view); };
+export const relocationBannerHtml = (view) => view?.history_relocation && relocationKey(view) !== hiddenRelocation
+  ? `<div class="banner dismissable" role="status" data-relocation>${icon("info")}<span>${esc(tl(view.history_relocation))} <button class="link" data-relocation-adopt>${te("relocation.use")}</button> <button class="link" data-relocation-keep>${te("relocation.keep")}</button></span><button class="icon" data-relocation-hide title="${te("common.dismiss")}" aria-label="${te("common.dismiss")}">${icon("x")}</button></div>`
   : "";
+/** PRD 0051 RF1.2/RF1.3: the configuration notices. An account set aside (`issue`) is an error (`bad`); an unknown
+ *  key kept and ignored (`warning`) is information (`info`). */
+export const configNoticesHtml = (view) => (view?.config_notices ?? []).map((note) => note?.kind === "warning"
+  ? `<div class="banner info" role="status" data-config-notice="warning">${icon("info")} ${esc(tl(note.text))}</div>`
+  : `<div class="banner bad" role="status" data-config-notice="issue">${icon("warn")} ${esc(tl(note?.text ?? note))}</div>`).join("");
 export const otherConfigNotice = (view) => view?.other_config ? t("config.other", { tui: view.other_config, app: view.config_path }) : "";
 /** RF1.2 banner of the main window (DS-CMP-MSG-2, dismissable): each (TUI path, app path) pair shows in one session
  *  only. The first render while the window is visible records the pair in localStorage, so a later launch does not show
