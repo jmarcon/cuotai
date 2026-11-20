@@ -2737,6 +2737,7 @@
   "models.unsupported.reason.admin_key": "tài khoản lưu khóa quản trị, quản lý hoặc phân tích, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình; hãy để khóa đó trong tham số riêng và một khóa suy luận làm thông tin xác thực của tài khoản.",
   "models.unsupported.reason.admin_key_only": "tài khoản chỉ lưu khóa quản trị, mà nhà cung cấp không có tài liệu về việc dùng để liệt kê mô hình.",
   "query.jetbrains_ai.missing_secret": "Thiếu thông tin xác thực: {env} (client secret của tài khoản dịch vụ).",
+  "query.jetbrains_ai.missing_client_id": "Thiếu thông tin xác thực: {env} (client ID của tài khoản dịch vụ).",
   "query.env_name_invalid": "Tên biến trong {field} không hợp lệ; hãy nhập tên của một biến đã xuất, không bao giờ nhập giá trị của nó.",
   "note.jetbrains_ai.rate_limited": "JetBrains đã giới hạn truy vấn.",
   "note.jetbrains_ai.client_rejected": "JetBrains đã từ chối client ID hoặc client secret của tài khoản dịch vụ; hãy kiểm tra cả hai biến hoặc đổi secret trong JetBrains Central Console.",

@@ -2754,6 +2754,7 @@
   "models.unsupported.reason.admin_key": "계정에 관리자·관리·분석 키가 저장되어 있으며, 제공업체는 이 키로 모델을 나열하는 방법을 문서화하지 않았습니다. 이 키는 전용 매개변수에, 추론 키는 계정 자격 증명으로 넣으세요.",
   "models.unsupported.reason.admin_key_only": "계정에 관리자 키만 저장되어 있으며, 제공업체는 이 키로 모델을 나열하는 방법을 문서화하지 않았습니다.",
   "query.jetbrains_ai.missing_secret": "자격 증명 없음: {env}(서비스 계정의 client secret).",
+  "query.jetbrains_ai.missing_client_id": "자격 증명 없음: {env}(서비스 계정의 client ID).",
   "query.env_name_invalid": "{field}의 변수 이름이 올바르지 않습니다. 값이 아니라 내보낸 변수의 이름을 입력하세요.",
   "note.jetbrains_ai.rate_limited": "JetBrains가 조회를 제한했습니다.",
   "note.jetbrains_ai.client_rejected": "JetBrains가 서비스 계정의 client ID 또는 client secret을 거부했습니다. 두 변수를 확인하거나 JetBrains Central Console에서 secret을 교체하세요.",

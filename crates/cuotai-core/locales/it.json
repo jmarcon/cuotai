@@ -2667,6 +2667,7 @@
   "models.unsupported.reason.admin_key": "l'account memorizza una chiave di amministrazione, gestione o analisi, che il provider non documenta per elencare i modelli; metti quella chiave nel suo parametro e una chiave di inferenza come credenziale dell'account.",
   "models.unsupported.reason.admin_key_only": "l'account memorizza solo una chiave di amministrazione, che il provider non documenta per elencare i modelli.",
   "query.jetbrains_ai.missing_secret": "Credenziale mancante: {env} (il client secret dell'account di servizio).",
+  "query.jetbrains_ai.missing_client_id": "Credenziale mancante: {env} (il client ID dell'account di servizio).",
   "query.env_name_invalid": "Il nome della variabile in {field} non è valido; inserisci il nome di una variabile esportata, mai il suo valore.",
   "note.jetbrains_ai.rate_limited": "JetBrains ha limitato le richieste.",
   "note.jetbrains_ai.client_rejected": "JetBrains ha rifiutato il client ID o il client secret dell'account di servizio; controlla entrambe le variabili o ruota il secret in JetBrains Central Console.",

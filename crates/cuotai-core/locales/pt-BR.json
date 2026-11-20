@@ -2668,6 +2668,7 @@
   "models.unsupported.reason.admin_key": "a conta guarda uma chave de administração, gerenciamento ou analytics, que o provedor não documenta para listar modelos; deixe essa chave no parâmetro próprio dela e uma chave de inferência como credencial da conta.",
   "models.unsupported.reason.admin_key_only": "a conta guarda só uma chave de administração, que o provedor não documenta para listar modelos.",
   "query.jetbrains_ai.missing_secret": "Credencial ausente: {env} (o client secret da conta de serviço).",
+  "query.jetbrains_ai.missing_client_id": "Credencial ausente: {env} (o client ID da conta de serviço).",
   "query.env_name_invalid": "O nome da variável em {field} não é válido; coloque ali o nome de uma variável exportada, nunca o valor dela.",
   "note.jetbrains_ai.rate_limited": "A JetBrains limitou as consultas.",
   "note.jetbrains_ai.client_rejected": "A JetBrains recusou o client ID ou o client secret da conta de serviço; confira as duas variáveis ou gere um novo secret no JetBrains Central Console.",
