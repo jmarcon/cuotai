@@ -9,9 +9,12 @@
 //! instead, which is hidden and kept alive between captures so the next
 //! "Sign in with Google" reuses the Google sign-in. Between captures that
 //! window holds only Google's cookies (every other cookie is deleted, or the
-//! window is destroyed), shows `about:blank`, and lives at most
-//! [`SHARED_IDLE`] without use, until the user forgets it, or until the app
-//! quits. Nothing of it is written to disk by Cuotai.
+//! window is destroyed) and shows `about:blank`. It is destroyed
+//! [`SHARED_IDLE`] after its last capture, counted on both the monotonic
+//! and the wall clock so that time the computer slept counts too (checked
+//! every [`SHARED_IDLE_TICK`], before the next capture and when the main
+//! window gains focus), when the user forgets it, or when the app quits.
+//! Nothing of it is written to disk by Cuotai.
 //!
 //! Safety properties (RF2–RF5 of PRD 0048):
 //! - neither window is listed in `capabilities/default.json` and no
@@ -37,7 +40,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tauri::webview::NewWindowResponse;
 use tauri::{
     AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
@@ -54,6 +57,11 @@ pub const TIMEOUT: Duration = Duration::from_secs(10 * 60);
 pub const POLL: Duration = Duration::from_secs(1);
 /// PRD 0056 RF2.3: how long a parked shared window lives without a capture.
 pub const SHARED_IDLE: Duration = Duration::from_secs(30 * 60);
+/// PRD 0056 RF2.3: how often a parked shared window checks [`SHARED_IDLE`].
+/// A monotonic timer does not run while the computer sleeps (macOS and
+/// Linux), so one 30-minute timer could fire hours late; a short tick
+/// finds the expiry within this much awake time after a wake.
+pub const SHARED_IDLE_TICK: Duration = Duration::from_secs(30);
 /// PRD 0056 RF3: how long a parking window waits after leaving the
 /// provider's page before it deletes the cookies (a page being unloaded may
 /// still set one).
@@ -273,6 +281,9 @@ pub enum Phase {
     /// the next capture; `generation` tells its idle timer apart from a
     /// later parking.
     Parked { generation: u64 },
+    /// Being destroyed (idle limit or "Forget"): no capture may start in it
+    /// until [`Life::closed`].
+    Closing,
 }
 
 /// PRD 0056 RF2: how a capture in the shared window ended.
@@ -308,6 +319,8 @@ pub enum After {
 pub struct Life {
     phase: Phase,
     generation: u64,
+    /// When the current parking began, on the monotonic and the wall clock.
+    parked_at: Option<(Instant, SystemTime)>,
 }
 
 impl Life {
@@ -316,10 +329,10 @@ impl Life {
     }
 
     /// A capture starts: reuse a parked window, else create one; `None`
-    /// while one runs.
+    /// while one runs or the window is being destroyed.
     pub fn begin(&mut self) -> Option<Start> {
         let start = match self.phase {
-            Phase::Busy => return None,
+            Phase::Busy | Phase::Closing => return None,
             Phase::Absent => Start::Create,
             Phase::Parked { .. } => Start::Reuse,
         };
@@ -340,6 +353,7 @@ impl Life {
                 self.phase = Phase::Parked {
                     generation: self.generation,
                 };
+                self.parked_at = Some((Instant::now(), SystemTime::now()));
                 After::Park {
                     generation: self.generation,
                 }
@@ -351,27 +365,72 @@ impl Life {
         }
     }
 
+    /// RF2.3: the parked generation once [`SHARED_IDLE`] has passed since
+    /// it was parked, on the monotonic clock (`mono_now`) **or** the wall
+    /// clock (`wall_now`), so time asleep counts even where the monotonic
+    /// clock stops. A wall clock set back before the parking does not
+    /// count; the monotonic clock still does. `None` when not parked.
+    pub fn expired(&self, mono_now: Instant, wall_now: SystemTime) -> Option<u64> {
+        let Phase::Parked { generation } = self.phase else {
+            return None;
+        };
+        let (mono, wall) = self.parked_at?;
+        let mono_due = mono_now.saturating_duration_since(mono) >= SHARED_IDLE;
+        let wall_due = wall_now
+            .duration_since(wall)
+            .is_ok_and(|elapsed| elapsed >= SHARED_IDLE);
+        (mono_due || wall_due).then_some(generation)
+    }
+
     /// The idle limit of the parking `generation` passed: `true` when the
-    /// window must be destroyed now (still parked since then).
+    /// window must be destroyed now (still parked since then). It is
+    /// [`Phase::Closing`] until [`Life::closed`].
     pub fn idle(&mut self, generation: u64) -> bool {
         if self.phase == (Phase::Parked { generation }) {
-            self.phase = Phase::Absent;
+            self.phase = Phase::Closing;
             true
         } else {
             false
         }
     }
 
-    /// RF2.4 "Forget": `Ok(true)` when a parked window must be destroyed,
-    /// `Ok(false)` without one, `Err(())` while a capture runs in it.
+    /// [`Life::idle`] for whichever parking [`Life::expired`] reports.
+    pub fn expire(&mut self, mono_now: Instant, wall_now: SystemTime) -> bool {
+        self.expired(mono_now, wall_now)
+            .is_some_and(|generation| self.idle(generation))
+    }
+
+    /// RF2.4 "Forget": `Ok(true)` when a parked window must be destroyed
+    /// (it is [`Phase::Closing`] until [`Life::closed`]), `Ok(false)`
+    /// without one, `Err(())` while a capture runs in it or it is being
+    /// destroyed.
     pub fn forget(&mut self) -> Result<bool, ()> {
         match self.phase {
-            Phase::Busy => Err(()),
+            Phase::Busy | Phase::Closing => Err(()),
             Phase::Absent => Ok(false),
             Phase::Parked { .. } => {
-                self.phase = Phase::Absent;
+                self.phase = Phase::Closing;
                 Ok(true)
             }
+        }
+    }
+
+    /// The destruction that [`Life::idle`] or [`Life::forget`] started is
+    /// over. Only [`Phase::Closing`] becomes [`Phase::Absent`], so a capture
+    /// that started meanwhile is never clobbered.
+    pub fn closed(&mut self) {
+        if self.phase == Phase::Closing {
+            self.phase = Phase::Absent;
+        }
+    }
+
+    /// Tests: move the current parking `by` into the past on both clocks
+    /// (the monotonic one only as far as it goes back).
+    #[cfg(test)]
+    fn backdate(&mut self, by: Duration) {
+        if let Some((mono, wall)) = self.parked_at.as_mut() {
+            *mono = mono.checked_sub(by).unwrap_or(*mono);
+            *wall -= by;
         }
     }
 
@@ -741,6 +800,9 @@ async fn shared_capture<R: Runtime>(
     let (start, host) = urls(target)?;
     let state = app.state::<State>();
     let site = target.descriptor.site;
+    // RF2.3: never reuse a window whose idle limit passed while the
+    // computer slept (the capture lock is held, so nothing races this).
+    expire_if_due(app);
     let (begin, target_slot, closed) = {
         let mut slot = state.shared.lock();
         let Some(begin) = slot.life.begin() else {
@@ -847,21 +909,43 @@ async fn park<R: Runtime>(window: &WebviewWindow<R>, sign_in: SharedSignIn) -> b
     })
 }
 
-/// PRD 0056 RF2.3: destroy the parking `generation` after [`SHARED_IDLE`]
-/// unless a capture used the window since.
+/// PRD 0056 RF2.3: every [`SHARED_IDLE_TICK`], destroy the parking
+/// `generation` once [`SHARED_IDLE`] has passed; the ticker stops as soon as
+/// a capture used the window or it is gone.
 fn schedule_idle<R: Runtime>(app: &AppHandle<R>, generation: u64) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(SHARED_IDLE).await;
-        let expired = app.state::<State>().shared.lock().life.idle(generation);
-        if expired {
-            destroy_shared(&app);
+        loop {
+            tokio::time::sleep(SHARED_IDLE_TICK).await;
+            if app.state::<State>().shared_phase() != (Phase::Parked { generation }) {
+                return;
+            }
+            if expire_if_due(&app) {
+                return;
+            }
         }
     });
 }
 
-/// Wipe and destroy the shared window and remove its directory. The state
-/// lock is never held across the window calls.
+/// PRD 0056 RF2.3: destroy the parked shared window now when
+/// [`SHARED_IDLE`] has passed since its parking (monotonic or wall clock);
+/// `true` when it did. Called by the idle ticker, before a shared capture
+/// and when the main window gains focus (after a wake).
+pub fn expire_if_due<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let expired = app
+        .state::<State>()
+        .shared
+        .lock()
+        .life
+        .expire(Instant::now(), SystemTime::now());
+    if expired {
+        destroy_shared(app);
+    }
+    expired
+}
+
+/// Wipe and destroy the shared window and remove its directory, then end a
+/// [`Phase::Closing`]. The state lock is never held across the window calls.
 fn destroy_shared<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(SHARED_LABEL) {
         let _ = window.clear_all_browsing_data();
@@ -876,11 +960,12 @@ fn destroy_shared<R: Runtime>(app: &AppHandle<R>) {
     if let Some(dir) = dir {
         let _ = std::fs::remove_dir_all(dir);
     }
+    app.state::<State>().shared.lock().life.closed();
 }
 
 /// PRD 0056 RF2.4: the dialog's "Forget the Google sign-in". `Ok(true)`
 /// when a parked window was destroyed, `Ok(false)` without one; `busy`
-/// while a capture runs in it.
+/// while a capture runs in it or it is already being destroyed.
 pub fn forget_shared<R: Runtime>(app: &AppHandle<R>) -> Result<bool, String> {
     let forget = app.state::<State>().shared.lock().life.forget();
     match forget {
@@ -1334,11 +1419,15 @@ mod tests {
         );
         assert!(!life.idle(1));
         assert!(life.idle(2));
+        assert_eq!(life.phase(), Phase::Closing);
+        life.closed();
         assert_eq!(life.phase(), Phase::Absent);
         // A time-out parks too; forgetting destroys.
         assert_eq!(life.begin(), Some(Start::Create));
         assert_eq!(life.end(Ending::TimedOut), After::Park { generation: 3 });
         assert_eq!(life.forget(), Ok(true));
+        assert_eq!(life.phase(), Phase::Closing);
+        life.closed();
         assert_eq!(life.phase(), Phase::Absent);
         assert!(!life.idle(3));
         // Closing the window or an unreadable store destroys it.
@@ -1356,41 +1445,116 @@ mod tests {
         assert_eq!(life.phase(), Phase::Absent);
     }
 
+    /// PRD 0056 RF2.3 (R-01): the idle limit counts on the wall clock too,
+    /// so time asleep counts; a wall clock set back does not cancel the
+    /// monotonic count; only the parked window expires.
+    #[test]
+    fn parked_window_expires_on_either_clock() {
+        let mut life = Life::default();
+        assert_eq!(life.expired(Instant::now(), SystemTime::now()), None);
+        life.begin();
+        assert_eq!(life.end(Ending::Captured), After::Park { generation: 1 });
+        let (mono, wall) = life.parked_at.unwrap();
+        let minutes = |m: u64| Duration::from_secs(m * 60);
+        // Not yet.
+        assert_eq!(life.expired(mono + minutes(1), wall + minutes(1)), None);
+        // The computer slept: the wall clock moved 31 minutes, the
+        // monotonic clock 1.
+        assert_eq!(life.expired(mono + minutes(1), wall + minutes(31)), Some(1));
+        // 30 awake minutes.
+        assert_eq!(
+            life.expired(mono + minutes(30), wall + minutes(30)),
+            Some(1)
+        );
+        // The wall clock set back 2 hours does not count, nor cancel.
+        assert_eq!(life.expired(mono + minutes(5), wall - minutes(120)), None);
+        assert_eq!(
+            life.expired(mono + minutes(30), wall - minutes(120)),
+            Some(1)
+        );
+        // A capture reused it: the old parking no longer expires.
+        life.begin();
+        assert_eq!(life.expired(mono + minutes(31), wall + minutes(31)), None);
+        assert!(!life.expire(mono + minutes(31), wall + minutes(31)));
+        assert_eq!(life.end(Ending::Captured), After::Park { generation: 2 });
+        let (mono, wall) = life.parked_at.unwrap();
+        assert_eq!(life.expired(mono + minutes(31), wall), Some(2));
+        // The ticker of generation 1 does not destroy generation 2.
+        assert!(!life.idle(1));
+        assert!(life.expire(mono + minutes(31), wall));
+        assert_eq!(life.phase(), Phase::Closing);
+        assert_eq!(life.expired(mono + minutes(31), wall), None);
+    }
+
+    /// PRD 0056 R-04: while the window is being destroyed no capture
+    /// starts and "Forget" answers busy; the end of the destruction never
+    /// clobbers a capture.
+    #[test]
+    fn closing_refuses_captures_and_forget() {
+        let mut life = Life::default();
+        life.begin();
+        life.end(Ending::Captured);
+        assert_eq!(life.forget(), Ok(true));
+        assert_eq!(life.phase(), Phase::Closing);
+        assert_eq!(life.begin(), None);
+        assert_eq!(life.forget(), Err(()));
+        assert!(!life.idle(1));
+        life.closed();
+        assert_eq!(life.phase(), Phase::Absent);
+        // `closed` from Busy (a capture after the destruction) is a no-op.
+        assert_eq!(life.begin(), Some(Start::Create));
+        life.closed();
+        assert_eq!(life.phase(), Phase::Busy);
+        // And from Parked or Absent.
+        life.end(Ending::Captured);
+        life.closed();
+        assert_eq!(life.phase(), Phase::Parked { generation: 2 });
+        life.gone();
+        life.closed();
+        assert_eq!(life.phase(), Phase::Absent);
+    }
+
+    fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
+        use tauri::test::{mock_builder, mock_context, noop_assets};
+        mock_builder()
+            .manage(State::default())
+            .build(mock_context(noop_assets()))
+            .expect("test app")
+    }
+
+    /// A shared capture that the dialog cancels at once: the first poll
+    /// ends it.
+    fn run_cancelled(handle: &AppHandle<tauri::test::MockRuntime>) -> Result<Outcome, String> {
+        let cancel_soon = {
+            let handle = handle.clone();
+            std::thread::spawn(move || {
+                for _ in 0..200 {
+                    if handle.state::<State>().active.lock().is_some() {
+                        handle.state::<State>().cancel();
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            })
+        };
+        let outcome = tauri::async_runtime::block_on(run(
+            handle,
+            Provider::AlibabaTokenPlan,
+            "session_env",
+            None,
+        ));
+        cancel_soon.join().unwrap();
+        outcome
+    }
+
     /// PRD 0056 RF2 with Tauri's mock runtime (no real webview, no
     /// network): a dialog cancel parks the shared window, the next capture
     /// reuses it, forgetting destroys it and the app's exit clears it.
     #[test]
     fn shared_capture_parks_reuses_and_forgets_with_a_mock_runtime() {
-        use tauri::test::{mock_builder, mock_context, noop_assets};
-        let app = mock_builder()
-            .manage(State::default())
-            .build(mock_context(noop_assets()))
-            .expect("test app");
+        let app = mock_app();
         let handle = app.handle().clone();
         let state = handle.state::<State>();
-        let run_cancelled = |handle: &AppHandle<tauri::test::MockRuntime>| {
-            // The dialog cancels at once: the first poll ends the capture.
-            let cancel_soon = {
-                let handle = handle.clone();
-                std::thread::spawn(move || {
-                    for _ in 0..200 {
-                        if handle.state::<State>().active.lock().is_some() {
-                            handle.state::<State>().cancel();
-                            return;
-                        }
-                        std::thread::sleep(Duration::from_millis(5));
-                    }
-                })
-            };
-            let outcome = tauri::async_runtime::block_on(run(
-                handle,
-                Provider::AlibabaTokenPlan,
-                "session_env",
-                None,
-            ));
-            cancel_soon.join().unwrap();
-            outcome
-        };
         assert_eq!(run_cancelled(&handle), Ok(Outcome::Cancelled));
         assert!(matches!(state.shared_phase(), Phase::Parked { .. }));
         assert!(handle.get_webview_window(SHARED_LABEL).is_some());
@@ -1407,6 +1571,40 @@ mod tests {
         assert_eq!(forget_shared(&handle), Ok(false));
         on_exit(&handle);
         assert_eq!(state.shared_phase(), Phase::Absent);
+    }
+
+    /// PRD 0056 RF2.3 (R-01) with the mock runtime: a parked window whose
+    /// limit passed while the computer slept is destroyed by
+    /// [`expire_if_due`], and the next capture does not reuse it.
+    #[test]
+    fn expired_shared_window_is_destroyed_with_a_mock_runtime() {
+        let app = mock_app();
+        let handle = app.handle().clone();
+        let state = handle.state::<State>();
+        assert_eq!(run_cancelled(&handle), Ok(Outcome::Cancelled));
+        // Not due yet.
+        assert!(!expire_if_due(&handle));
+        assert!(matches!(
+            state.shared_phase(),
+            Phase::Parked { generation: 1 }
+        ));
+        let old_closed = Arc::clone(&state.shared.lock().closed);
+        state
+            .shared
+            .lock()
+            .life
+            .backdate(SHARED_IDLE + Duration::from_secs(1));
+        assert!(expire_if_due(&handle));
+        assert_eq!(state.shared_phase(), Phase::Absent);
+        assert!(state.shared.lock().target.lock().is_none());
+        assert!(!expire_if_due(&handle));
+        // The next capture does not reuse it but creates a new window. The
+        // mock runtime keeps a destroyed window's label registered, so that
+        // build is refused here, which shows no reuse took place.
+        assert_eq!(run_cancelled(&handle), Err("unavailable".into()));
+        assert_eq!(state.shared_phase(), Phase::Absent);
+        assert!(!Arc::ptr_eq(&old_closed, &state.shared.lock().closed));
+        assert_eq!(forget_shared(&handle), Ok(false));
     }
 
     /// RF5.1: the capture windows get no capability, so Tauri rejects IPC
