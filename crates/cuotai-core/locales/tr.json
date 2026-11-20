@@ -2034,6 +2034,7 @@
   },
   "privacy.erase.label.vault_oauth": "Kayıtlı oturum açmalar, anahtarlar ve kanal adresleri",
   "privacy.erase.label.vault_serve": "Yerel sunucu erişim belirteci",
+  "privacy.erase.not_cuotai_folder": "Korundu: bu klasörü Cuotai oluşturmadı.",
   "provider.alibaba_cloud": "Alibaba Cloud — faturalama",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

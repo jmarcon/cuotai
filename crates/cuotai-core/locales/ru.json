@@ -2141,6 +2141,7 @@
   },
   "privacy.erase.label.vault_oauth": "Сохранённые входы, ключи и адреса каналов",
   "privacy.erase.label.vault_serve": "Токен доступа локального сервера",
+  "privacy.erase.not_cuotai_folder": "Сохранено: эту папку создал не Cuotai.",
   "provider.alibaba_cloud": "Alibaba Cloud — биллинг",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

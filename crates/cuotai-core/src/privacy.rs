@@ -556,6 +556,14 @@ pub struct Roots {
     /// The agent feed's fixed folder ([`Root::OsLocalData`]):
     /// `<OS local data dir>/cuotai/feed` ([`crate::feed::FeedStore::default_dir`]).
     pub feed: Option<PathBuf>,
+    /// PRD 0052 re-validation S-02: the other data roots an erase also
+    /// clears (the desktop's chosen folder, data left in the OS default
+    /// one), each Cuotai's own ([`crate::data_dir::owned`]) and apart from
+    /// [`Roots::local_data`]. Empty outside [`Roots::for_erase`].
+    pub other_local_data: Vec<PathBuf>,
+    /// Data roots an erase found but leaves alone, because Cuotai did not
+    /// create them (no marker); listed as kept with the reason.
+    pub kept_local_data: Vec<PathBuf>,
 }
 
 impl Roots {
@@ -572,6 +580,67 @@ impl Roots {
             },
             metered: crate::metered_record::Store::default_dir(),
             feed: crate::feed::FeedStore::default_dir(),
+            other_local_data: Vec::new(),
+            kept_local_data: Vec::new(),
+        }
+    }
+
+    /// The roots of an erase (PRD 0052 re-validation S-02): [`Roots::system`]
+    /// plus the desktop's chosen data folder
+    /// ([`crate::data_dir::desktop_choice`]) and the OS default one, when
+    /// they exist apart from the data root in use. One without Cuotai's
+    /// marker is never emptied; it is listed as kept.
+    pub fn for_erase(accounts: Option<PathBuf>) -> Self {
+        let roots = Self::system(accounts);
+        let choice = roots
+            .config
+            .as_deref()
+            .and_then(crate::data_dir::desktop_choice);
+        roots.with_erase_roots(
+            [choice, crate::data_dir::default_root()]
+                .into_iter()
+                .flatten(),
+        )
+    }
+
+    /// [`Roots::for_erase`] over any candidate roots (tests): each existing
+    /// directory not already listed (compared canonically) joins
+    /// [`Roots::other_local_data`] when it is Cuotai's, else
+    /// [`Roots::kept_local_data`].
+    pub fn with_erase_roots(mut self, candidates: impl IntoIterator<Item = PathBuf>) -> Self {
+        let same = |a: &Path, b: &Path| {
+            a == b || matches!((a.canonicalize(), b.canonicalize()), (Ok(x), Ok(y)) if x == y)
+        };
+        for candidate in candidates {
+            if !std::fs::symlink_metadata(&candidate).is_ok_and(|meta| meta.is_dir()) {
+                continue;
+            }
+            let listed = self
+                .local_data
+                .iter()
+                .chain(&self.other_local_data)
+                .chain(&self.kept_local_data)
+                .any(|known| same(known, &candidate));
+            if listed {
+                continue;
+            }
+            if crate::data_dir::owned(&candidate) {
+                self.other_local_data.push(candidate);
+            } else {
+                self.kept_local_data.push(candidate);
+            }
+        }
+        self
+    }
+
+    /// These roots with `root` as the data root and no other one: how an
+    /// erase resolves an extra root's items.
+    pub(crate) fn with_local_data(&self, root: &Path) -> Self {
+        Self {
+            local_data: Some(root.to_path_buf()),
+            other_local_data: Vec::new(),
+            kept_local_data: Vec::new(),
+            ..self.clone()
         }
     }
 
@@ -1153,6 +1222,7 @@ mod tests {
             mac_home: None,
             metered: None,
             feed: None,
+            ..Roots::default()
         };
         let path = |id: &str| roots.path_of(artifact(id).unwrap()).unwrap();
         let local = |rel: &str| Path::new("/data").join("cuotai").join(rel);
@@ -1220,6 +1290,7 @@ mod tests {
             mac_home: Some(PathBuf::from("/home/ana")),
             metered: None,
             feed: None,
+            ..Roots::default()
         };
         let path = |roots: &Roots, id: &str| roots.path_of(artifact(id).unwrap());
         let fixed = Path::new("/home/ana/Library/Application Support/cuotai/widget.json");
@@ -1266,6 +1337,7 @@ mod tests {
             mac_home: None,
             metered: None,
             feed: None,
+            ..Roots::default()
         };
         let base = dir.path().join("cuotai");
         std::fs::create_dir_all(base.join("history")).unwrap();

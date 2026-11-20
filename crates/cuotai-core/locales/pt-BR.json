@@ -1912,6 +1912,7 @@
   },
   "privacy.erase.label.vault_oauth": "Logins, chaves e endereços de canais salvos",
   "privacy.erase.label.vault_serve": "Token de acesso do servidor local",
+  "privacy.erase.not_cuotai_folder": "Mantida: esta pasta não foi criada pelo Cuotai.",
   "provider.alibaba_cloud": "Alibaba Cloud — faturamento",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

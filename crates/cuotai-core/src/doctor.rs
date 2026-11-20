@@ -1338,6 +1338,7 @@ pub fn run(inputs: &Inputs) -> Report {
             .as_deref()
             .and_then(Path::parent)
             .map(|dir| dir.join("feed")),
+        ..Default::default()
     });
     checks.push(check_artifacts(&artifacts));
     Report {

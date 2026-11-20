@@ -2,7 +2,8 @@
 //! directory. The root is `CUOTAI_DATA_DIR` when that is set (and not
 //! empty), else the desktop app's own choice (`desktop.json` `data_dir`,
 //! set with [`set_app_override`] before any store opens; the CLI and TUI
-//! never store into it), else `<OS local data dir>/cuotai`.
+//! never store into it, and `--erase-all-data` reads it only to erase it,
+//! [`desktop_choice`]), else `<OS local data dir>/cuotai`.
 //!
 //! An override goes through [`plan`] (PRD 0051 re-validation S-01/S-02):
 //! a path that does not exist is created (`0700`) and used as is; a folder
@@ -248,6 +249,43 @@ pub fn default_root() -> Option<PathBuf> {
 /// default folder, or it holds a valid marker.
 pub fn owned(root: &Path) -> bool {
     default_root().as_deref() == Some(root) || marker_origin(root).is_some()
+}
+
+/// Most bytes [`desktop_choice`] reads from `desktop.json`.
+const DESKTOP_JSON_MAX_BYTES: u64 = 1024 * 1024;
+
+/// PRD 0052 re-validation S-02: the store root of the desktop app's
+/// data-folder choice, for the terminal's erase. It reads
+/// `<config_dir>/cuotai/desktop.json` (a regular file of at most 1 MiB,
+/// links not followed), takes its `data_dir` when that is an absolute path,
+/// and maps it through [`plan`] to the folder the desktop uses. Read-only:
+/// nothing is created, marked or narrowed. `None` when the file, the value
+/// or the planned folder (an existing directory of this user) is missing
+/// or invalid. Whether the erase may empty it is [`owned`]'s answer.
+pub fn desktop_choice(config_dir: &Path) -> Option<PathBuf> {
+    use std::io::Read;
+    let file = config_dir.join("cuotai").join("desktop.json");
+    let meta = std::fs::symlink_metadata(&file).ok()?;
+    if !meta.is_file() || meta.len() > DESKTOP_JSON_MAX_BYTES {
+        return None;
+    }
+    let mut bytes = Vec::new();
+    std::fs::File::open(&file)
+        .ok()?
+        .take(DESKTOP_JSON_MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if bytes.len() as u64 > DESKTOP_JSON_MAX_BYTES {
+        return None;
+    }
+    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    let chosen = PathBuf::from(value.get("data_dir")?.as_str()?);
+    if !chosen.is_absolute() {
+        return None;
+    }
+    let planned = plan(&chosen).ok()?.dir;
+    let meta = std::fs::symlink_metadata(&planned).ok()?;
+    (meta.is_dir() && !crate::private_fs::foreign_owner(&meta)).then_some(planned)
 }
 
 /// Pure precedence: `env` (when not empty), then `app`, then nothing.
@@ -641,6 +679,66 @@ mod tests {
             assert!(owned(&dir), "{}", dir.display());
             let (dir, _) = resolve(None, Some(&value)).unwrap().unwrap();
             assert!(owned(&dir), "{}", dir.display());
+        }
+    }
+
+    fn desktop_json(config: &Path, body: &str) {
+        let dir = config.join("cuotai");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("desktop.json"), body).unwrap();
+    }
+
+    /// PRD 0052 re-validation S-02: the erase reads the desktop's choice
+    /// without creating, marking or narrowing anything, maps it to the
+    /// folder in use, and refuses a link, a relative path or a huge file.
+    #[test]
+    fn desktop_choice_is_read_only_and_refuses_links_relative_paths_and_big_files() {
+        let root = tempfile::tempdir().unwrap();
+        let config = root.path().join("config");
+        let chosen = root.path().join("Documents");
+        std::fs::create_dir_all(&chosen).unwrap();
+        std::fs::write(chosen.join("taxes.pdf"), b"x").unwrap();
+        #[cfg(unix)]
+        set_mode(&chosen, 0o755);
+        let json = |path: &Path| serde_json::json!({ "data_dir": path }).to_string();
+
+        // An older value (the pick itself) maps to its Cuotai folder, once
+        // that folder exists.
+        desktop_json(&config, &json(&chosen));
+        assert_eq!(desktop_choice(&config), None, "nothing to erase yet");
+        assert!(!chosen.join(SUBFOLDER).exists(), "nothing is created");
+        mark_for_tests(&chosen.join(SUBFOLDER)).unwrap();
+        assert_eq!(desktop_choice(&config), Some(chosen.join(SUBFOLDER)));
+        desktop_json(&config, &json(&chosen.join(SUBFOLDER)));
+        assert_eq!(desktop_choice(&config), Some(chosen.join(SUBFOLDER)));
+        #[cfg(unix)]
+        assert_eq!(mode(&chosen), 0o755, "nothing is narrowed");
+
+        let missing = root.path().join("missing");
+        desktop_json(&config, &json(&missing));
+        assert_eq!(desktop_choice(&config), None);
+        assert!(!missing.exists(), "a missing folder is not created");
+        desktop_json(&config, r#"{"data_dir":"relative/dir"}"#);
+        assert_eq!(desktop_choice(&config), None);
+        desktop_json(&config, r#"{"theme":"dark"}"#);
+        assert_eq!(desktop_choice(&config), None);
+        desktop_json(&config, "not json");
+        assert_eq!(desktop_choice(&config), None);
+        let big = format!(
+            r#"{{"data_dir":{},"pad":"{}"}}"#,
+            serde_json::json!(chosen.join(SUBFOLDER)),
+            "x".repeat(1024 * 1024)
+        );
+        desktop_json(&config, &big);
+        assert_eq!(desktop_choice(&config), None, "over 1 MiB");
+        #[cfg(unix)]
+        {
+            let real = root.path().join("real.json");
+            std::fs::write(&real, json(&chosen.join(SUBFOLDER))).unwrap();
+            let file = config.join("cuotai").join("desktop.json");
+            std::fs::remove_file(&file).unwrap();
+            std::os::unix::fs::symlink(&real, &file).unwrap();
+            assert_eq!(desktop_choice(&config), None, "a link is not followed");
         }
     }
 

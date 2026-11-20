@@ -196,7 +196,9 @@ fn accounts_path(explicit: Option<PathBuf>) -> Option<PathBuf> {
 /// `--erase-all-data [--yes] [--include-config]`, on the credential store
 /// this process was started with (PRD 0050 `SEC-DEV-VAULT`): with
 /// `--dev-credentials-sqlite` it clears that store and never the system
-/// vault; a release build refuses the flag before anything is listed.
+/// vault; a release build refuses the flag before anything is listed. It
+/// also erases the desktop app's chosen data folder and data left in the OS
+/// default one ([`Roots::for_erase`], PRD 0052 re-validation S-02).
 pub(crate) fn erase_all_data(
     config: Option<PathBuf>,
     include_config: bool,
@@ -204,7 +206,7 @@ pub(crate) fn erase_all_data(
     choice: &StoreChoice,
 ) -> Res {
     let options = EraseOptions {
-        roots: Roots::system(accounts_path(config)),
+        roots: Roots::for_erase(accounts_path(config)),
         include_config,
     };
     erase_all_data_with(
@@ -251,7 +253,10 @@ pub(crate) fn erase_with(
     for item in plan.iter().filter(|i| i.erase) {
         writeln!(out, "  {:<22} {}", item.id, item.location)?;
     }
-    let kept: Vec<_> = plan.iter().filter(|i| !i.erase).collect();
+    let kept: Vec<_> = plan
+        .iter()
+        .filter(|i| !i.erase && i.reason.is_none())
+        .collect();
     if !kept.is_empty() {
         writeln!(
             out,
@@ -263,6 +268,17 @@ pub(crate) fn erase_with(
         )?;
         for item in kept {
             writeln!(out, "  {:<22} {}", item.id, item.location)?;
+        }
+    }
+    // Data folders Cuotai did not create: kept whatever the flags say.
+    for item in plan.iter().filter(|i| !i.erase) {
+        if let Some(reason) = &item.reason {
+            writeln!(
+                out,
+                "  {}  {}",
+                item.location,
+                reason.resolve(crate::ui::tui_locale())
+            )?;
         }
     }
     out.flush()?;
@@ -347,6 +363,7 @@ mod tests {
             mac_home: None,
             metered: None,
             feed: None,
+            ..Roots::default()
         };
         std::fs::create_dir_all(dir.join("local/cuotai/logs")).unwrap();
         cuotai_core::data_dir::mark_for_tests(&dir.join("local/cuotai")).unwrap();
@@ -438,6 +455,43 @@ mod tests {
         )
         .unwrap();
         assert_eq!(code, 0);
+    }
+
+    /// PRD 0052 re-validation S-02: the plan lists the desktop's chosen
+    /// folder and data left in the default one, and a folder Cuotai did not
+    /// create as kept with the reason.
+    #[test]
+    fn the_plan_lists_the_desktop_folder_and_the_default_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut options = options(dir.path());
+        let chosen = dir.path().join("chosen");
+        let default = dir.path().join("os-default");
+        let foreign = dir.path().join("theirs");
+        for root in [&chosen, &default] {
+            std::fs::create_dir_all(root.join("logs")).unwrap();
+            std::fs::write(root.join("logs/cuotai.log"), b"x").unwrap();
+            cuotai_core::data_dir::mark_for_tests(root).unwrap();
+        }
+        std::fs::create_dir_all(&foreign).unwrap();
+        options.roots =
+            options
+                .roots
+                .with_erase_roots([chosen.clone(), default.clone(), foreign.clone()]);
+        let mut out = Vec::new();
+        let code = erase_with(&options, &vault(), true, &mut &b""[..], false, &mut out).unwrap();
+        assert_eq!(code, 0);
+        let shown = String::from_utf8(out).unwrap();
+        for root in [&chosen, &default] {
+            assert!(
+                shown.contains(&root.join("logs").join("cuotai.log").display().to_string()),
+                "{shown}"
+            );
+            assert!(!root.exists(), "{} erased", root.display());
+        }
+        assert!(shown.contains(&foreign.display().to_string()), "{shown}");
+        let reason = erase::not_cuotai_folder().resolve(crate::ui::tui_locale());
+        assert!(shown.contains(&reason), "{shown}");
+        assert!(foreign.exists());
     }
 
     /// PRD 0051 re-validation S-01: a data root Cuotai did not create (no

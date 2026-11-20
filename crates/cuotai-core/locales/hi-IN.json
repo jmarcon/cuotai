@@ -2052,6 +2052,7 @@
   },
   "privacy.erase.label.vault_oauth": "सहेजे गए साइन-इन, कुंजियाँ और चैनल पते",
   "privacy.erase.label.vault_serve": "लोकल सर्वर का एक्सेस टोकन",
+  "privacy.erase.not_cuotai_folder": "रखा गया: यह फ़ोल्डर Cuotai ने नहीं बनाया।",
   "provider.alibaba_cloud": "Alibaba Cloud — बिलिंग",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

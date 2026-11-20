@@ -2025,6 +2025,7 @@
   },
   "privacy.erase.label.vault_oauth": "저장된 로그인, 키 및 채널 주소",
   "privacy.erase.label.vault_serve": "로컬 서버 액세스 토큰",
+  "privacy.erase.not_cuotai_folder": "보존됨: 이 폴더는 Cuotai가 만든 것이 아닙니다.",
   "provider.alibaba_cloud": "Alibaba Cloud — 청구",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",

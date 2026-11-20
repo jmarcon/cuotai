@@ -2006,6 +2006,7 @@
   },
   "privacy.erase.label.vault_oauth": "Info masuk, kunci, dan alamat saluran yang tersimpan",
   "privacy.erase.label.vault_serve": "Token akses server lokal",
+  "privacy.erase.not_cuotai_folder": "Disimpan: folder ini tidak dibuat oleh Cuotai.",
   "provider.alibaba_cloud": "Alibaba Cloud — penagihan",
   "provider.alibaba_coding_plan": "Alibaba Coding Plan",
   "provider.alibaba_model_studio": "Alibaba Model Studio / DashScope",
