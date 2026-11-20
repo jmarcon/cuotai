@@ -341,6 +341,106 @@ fn deserialize<T: serde::de::DeserializeOwned>(
     toml_edit::de::from_document(toml_edit::DocumentMut::from(table))
 }
 
+/// The keys of a `[[groups]]` table this release knows ([`crate::model::GroupDef`]).
+pub(crate) const GROUP_KEYS: [&str; 4] = ["id", "label", "order", "members"];
+
+/// Remove the key at `path` (`updates.channel`, `groups[0].name`) from
+/// `root`. Returns false when the path does not end on a key of a table
+/// below `root`.
+fn remove_at(root: &mut toml_edit::Table, path: &ConfigPath) -> bool {
+    enum Node<'a> {
+        Item(&'a mut toml_edit::Item),
+        Table(&'a mut toml_edit::Table),
+        Value(&'a mut toml_edit::Value),
+    }
+    let Some((Segment::Key(last), parents)) = path.0.split_last() else {
+        return false;
+    };
+    let Some((Segment::Key(first), rest)) = parents.split_first() else {
+        return false;
+    };
+    let Some(mut node) = root.get_mut(first).map(Node::Item) else {
+        return false;
+    };
+    for segment in rest {
+        let next = match (node, segment) {
+            (Node::Item(toml_edit::Item::ArrayOfTables(tables)), Segment::Index(index)) => {
+                tables.get_mut(*index).map(Node::Table)
+            }
+            (Node::Item(toml_edit::Item::Table(table)) | Node::Table(table), Segment::Key(key)) => {
+                table.get_mut(key).map(Node::Item)
+            }
+            (Node::Item(toml_edit::Item::Value(value)) | Node::Value(value), segment) => {
+                match (value, segment) {
+                    (toml_edit::Value::Array(array), Segment::Index(index)) => {
+                        array.get_mut(*index).map(Node::Value)
+                    }
+                    (toml_edit::Value::InlineTable(table), Segment::Key(key)) => {
+                        table.get_mut(key).map(Node::Value)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let Some(next) = next else {
+            return false;
+        };
+        node = next;
+    }
+    match node {
+        Node::Item(item) => item
+            .as_table_like_mut()
+            .is_some_and(|table| table.remove(last).is_some()),
+        Node::Table(table) => table.remove(last).is_some(),
+        Node::Value(toml_edit::Value::InlineTable(table)) => table.remove(last).is_some(),
+        Node::Value(_) => false,
+    }
+}
+
+/// PRD 0051 RF1.3: read the known top-level table `key` of `kept` as `T`.
+/// In tolerant mode a key this release does not know inside it (and only
+/// that: a wrong type or an unknown value still fails) is dropped from
+/// `kept` and reported as a [`ConfigWarning`]; the document keeps it.
+fn read_known_table<T: serde::de::DeserializeOwned>(
+    kept: &mut toml_edit::Table,
+    key: &str,
+    mode: ConfigParseMode,
+    root: &toml_edit::Table,
+    warnings: &mut Vec<ConfigWarning>,
+) -> Result<(), toml_edit::de::Error> {
+    let Some(item) = kept.get(key) else {
+        return Ok(());
+    };
+    let mut table = toml_edit::Table::new();
+    table.insert(key, item.clone());
+    // Each pass removes one key, so the loop ends.
+    loop {
+        let error = match deserialize::<T>(table.clone()) {
+            Ok(_) => return Ok(()),
+            Err(error) => error,
+        };
+        if mode == ConfigParseMode::Strict || !error.message().starts_with("unknown field") {
+            return Err(error);
+        }
+        let Some(path) = error_path(root, &error) else {
+            return Err(error);
+        };
+        if !remove_at(&mut table, &path) || !remove_at(kept, &path) {
+            return Err(error);
+        }
+        warnings.push(ConfigWarning { path });
+    }
+}
+
+/// A `[[groups]]` table as this release reads it: keys it does not know
+/// are left out (PRD 0051 RF1.3).
+pub(crate) fn known_group(table: &toml_edit::Table) -> Option<crate::model::GroupDef> {
+    let mut table = table.clone();
+    table.retain(|key, _| GROUP_KEYS.contains(&key));
+    toml_edit::de::from_str(&table.to_string()).ok()
+}
+
 /// Read `text` in `mode`. The result is not validated: run
 /// [`Config::validate`] on it (as [`Config::from_toml`] and
 /// [`super::ConfigFile`] do).
@@ -356,17 +456,21 @@ pub fn parse(text: &str, mode: ConfigParseMode) -> Result<ParsedConfig, ConfigEr
 
     // PRD 0028 RF8.2: `[updates]` belongs to the CLI update notice; it is
     // validated here and left out of `Config`.
-    if let Some(updates) = kept.remove("updates") {
-        let mut table = toml_edit::Table::new();
-        table.insert("updates", updates);
-        #[derive(serde::Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct Updates {
-            #[allow(dead_code)]
-            updates: crate::update_check::UpdatesSettings,
-        }
-        deserialize::<Updates>(table).map_err(|error| error_at(&error))?;
+    #[derive(serde::Deserialize)]
+    struct Updates {
+        #[allow(dead_code)]
+        updates: crate::update_check::UpdatesSettings,
     }
+    read_known_table::<Updates>(&mut kept, "updates", mode, root, &mut warnings)
+        .map_err(|error| error_at(&error))?;
+    kept.remove("updates");
+    #[derive(serde::Deserialize)]
+    struct Groups {
+        #[allow(dead_code)]
+        groups: Vec<crate::model::GroupDef>,
+    }
+    read_known_table::<Groups>(&mut kept, "groups", mode, root, &mut warnings)
+        .map_err(|error| error_at(&error))?;
 
     for (key, _) in root.iter() {
         if KNOWN_TOP_LEVEL.contains(&key) {
@@ -597,13 +701,92 @@ credential_env = "GROQ_API_KEY"
     }
 
     #[test]
-    fn nested_unknown_keys_and_the_updates_table_carry_their_path() {
+    fn strict_reading_names_unknown_keys_of_updates_and_groups() {
         let text = "accounts = []\n[updates]\ncheck = true\nsurprise = 1\n";
-        let (line, column, path) = parse_error_of(text, ConfigParseMode::Tolerant);
+        let (line, column, path) = parse_error_of(text, ConfigParseMode::Strict);
         assert_eq!(
             (line, column, path.as_deref()),
             (4, 1, Some("updates.surprise"))
         );
+        let text =
+            "accounts = []\n[[groups]]\nid = \"a\"\n\n[[groups]]\nid = \"b\"\nname = \"x\"\n";
+        let (line, column, path) = parse_error_of(text, ConfigParseMode::Strict);
+        assert_eq!(
+            (line, column, path.as_deref()),
+            (7, 1, Some("groups[1].name"))
+        );
+    }
+
+    /// PRD 0051 RF1.3 (V-01): an unknown key inside `[updates]` or a
+    /// `[[groups]]` table warns and sets nothing else aside.
+    #[test]
+    fn tolerant_reading_warns_on_unknown_keys_of_updates_and_groups() {
+        let text = format!(
+            "{FOUR}\n[updates]\ncheck = true\nchannel = \"beta\"\n\n[[groups]]\nid = \"coding\"\nname = \"Coding\"\nlabel = \"Code\"\n\n[[groups]]\nid = \"chat\"\n"
+        );
+        let parsed = parse(&text, ConfigParseMode::Tolerant).unwrap();
+        parsed.config.validate().unwrap();
+        let warned: Vec<_> = parsed.warnings.iter().map(|w| w.path.to_string()).collect();
+        assert_eq!(warned, ["updates.channel", "groups[0].name"]);
+        let groups: Vec<_> = parsed
+            .config
+            .groups
+            .iter()
+            .map(|g| (g.id.as_str(), g.label.as_deref()))
+            .collect();
+        assert_eq!(groups, [("coding", Some("Code")), ("chat", None)]);
+        assert_eq!(
+            parsed.config.accounts.len(),
+            2,
+            "the FOUR accounts as before"
+        );
+        assert_eq!(parsed.issues.len(), 2);
+        // Four known accounts and the two unknown keys: four ready, two warnings.
+        let text = format!(
+            "{}\n[updates]\nchannel = \"beta\"\n\n[[groups]]\nid = \"coding\"\nname = \"Coding\"\n",
+            FOUR.replace("provider-from-the-future", "mistral")
+                .replace("weekly_cap = \"hidden-value\"\n", "")
+        );
+        let parsed = parse(&text, ConfigParseMode::Tolerant).unwrap();
+        assert_eq!(parsed.config.accounts.len(), 4);
+        assert!(parsed.issues.is_empty());
+        assert_eq!(parsed.warnings.len(), 2);
+        assert!(crate::update_check::settings_from_toml(&text) == Default::default());
+    }
+
+    #[test]
+    fn inline_groups_and_updates_also_drop_only_the_unknown_key() {
+        let text = "updates = { check = true, channel = \"beta\" }\ngroups = [{ id = \"a\", name = \"x\" }]\naccounts = []\n";
+        let parsed = parse(text, ConfigParseMode::Tolerant).unwrap();
+        let warned: Vec<_> = parsed.warnings.iter().map(|w| w.path.to_string()).collect();
+        assert_eq!(warned, ["updates.channel", "groups[0].name"]);
+        assert_eq!(parsed.config.groups[0].id, "a");
+    }
+
+    #[test]
+    fn known_keys_with_a_wrong_type_still_fail_the_tolerant_reader() {
+        for text in [
+            "accounts = []\n[updates]\ncheck = \"yes\"\n",
+            "accounts = []\n[[groups]]\nid = \"a\"\norder = \"first\"\nname = \"x\"\n",
+        ] {
+            assert!(parse(text, ConfigParseMode::Tolerant).is_err(), "{text}");
+        }
+    }
+
+    #[test]
+    fn the_known_group_keys_match_the_group_definition() {
+        let group = crate::model::GroupDef {
+            id: "a".into(),
+            label: Some("A".into()),
+            order: Some(1),
+            members: vec!["m".into()],
+        };
+        let table = toml_edit::ser::to_document(&group).unwrap();
+        let keys: Vec<_> = table.iter().map(|(key, _)| key).collect();
+        assert_eq!(keys, GROUP_KEYS);
+        let mut with_extra = table.into_table();
+        with_extra.insert("name", toml_edit::value("x"));
+        assert_eq!(known_group(&with_extra), Some(group));
     }
 
     /// PRD 0051 RF6.3: the proposed-key fixture is read tolerantly (known
@@ -638,6 +821,24 @@ credential_env = "GROQ_API_KEY"
         assert_eq!(parsed.config.groups.len(), 1);
         let (_, _, path) = parse_error_of(text, ConfigParseMode::Strict);
         assert_eq!(path.as_deref(), Some("accounts[1].base_url"));
+    }
+
+    /// PRD 0051 RF1.3/RF6.3: the revision-2 fixture (unknown keys inside
+    /// `[updates]` and `[[groups]]`) keeps every account ready.
+    #[test]
+    fn the_revision_2_fixture_warns_and_keeps_every_account() {
+        let text =
+            include_str!("../../tests/fixtures/compat/config/major-1-revision-2/proposed.toml");
+        let parsed = parse(text, ConfigParseMode::Tolerant).unwrap();
+        parsed.config.validate().unwrap();
+        assert_eq!(parsed.config.accounts.len(), 2);
+        assert!(parsed.issues.is_empty());
+        let warned: Vec<_> = parsed.warnings.iter().map(|w| w.path.to_string()).collect();
+        assert_eq!(warned, ["updates.channel", "groups[0].name"]);
+        assert_eq!(parsed.config.groups[0].label.as_deref(), Some("Coding"));
+        assert!(crate::update_check::settings_from_toml(text).check);
+        let (_, _, path) = parse_error_of(text, ConfigParseMode::Strict);
+        assert_eq!(path.as_deref(), Some("updates.channel"));
     }
 
     #[test]
