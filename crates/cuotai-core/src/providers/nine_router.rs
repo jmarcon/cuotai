@@ -23,7 +23,11 @@
 //!   dropped by the deserializer and never reaches a report.
 //! - The dashboard JWT lives only in memory, is sent only to the base URL
 //!   and a failed login is never retried inside the instance's lockout
-//!   window. A one-shot command therefore logs in on each run.
+//!   window. A one-shot command therefore logs in on each run: by the
+//!   owner's decision of 2026-11-20 the session is never written to the
+//!   vault nor read back from it, in any mode (the [`Context`] credential
+//!   store is read-only; only the configured password or pasted SSO
+//!   session is read).
 //! - Never a secret first (re-validation S-01): before the first password
 //!   or session goes to an instance in a process, and again after any
 //!   transport failure, `GET /api/health` must answer `{ "ok": true }` and
@@ -4394,5 +4398,71 @@ mod tests {
             assert!(request.headers.get("cookie").is_none());
             assert_eq!(request.method.to_string(), "GET");
         }
+    }
+
+    /// A credential store that records every name asked for. The core's
+    /// `Credentials` can only read, so a refresh has no way to write a
+    /// session to the vault; this records what it reads.
+    struct Recording(std::sync::Mutex<Vec<String>>);
+    impl Credentials for Recording {
+        fn get(&self, name: &str) -> Option<String> {
+            self.0.lock().unwrap().push(name.to_owned());
+            Env.get(name)
+        }
+    }
+
+    /// Owner decision of 2026-11-20 (PRD 0036 RF3.1): the 9router login
+    /// session lives only in this process's memory. Runs in one process
+    /// share it (one login); a new process, as each one-shot command is
+    /// (`--once`, `--json`, `--json-v1`), starts without it and logs in
+    /// again, and no run asks the credential store for anything but the
+    /// password it was configured with: no session is read back from the
+    /// vault, and none can be written (the store is read-only).
+    #[tokio::test]
+    async fn the_login_session_lives_only_in_memory_and_never_in_the_vault() {
+        let server = MockServer::start().await;
+        let token = jwt(Utc::now().timestamp() + 86_400);
+        mount_login(
+            &server,
+            ResponseTemplate::new(200).insert_header("set-cookie", format!("auth_token={token}")),
+            2,
+        )
+        .await;
+        mount_json(&server, "/api/providers/client", page(json!([]), 1)).await;
+        let http = client();
+        let store = Recording(std::sync::Mutex::new(Vec::new()));
+        let ctx = Context {
+            http: &http,
+            direct: &http,
+            credentials: &store,
+            timeout: Duration::from_secs(5),
+        };
+        let acct = account(&server, true, &[]);
+        // Two refreshes of one long-running process: one login.
+        for _ in 0..2 {
+            fetch_at(&acct, &ctx, Limits::DEFAULT, Utc::now())
+                .await
+                .unwrap();
+        }
+        let logins = |requests: &[Request]| {
+            requests
+                .iter()
+                .filter(|request| request.url.path() == "/api/auth/login")
+                .count()
+        };
+        assert_eq!(logins(&server.received_requests().await.unwrap()), 1);
+        // A new process (the memory is empty): it logs in again rather than
+        // finding a session anywhere else.
+        SESSIONS.lock().await.remove(&format!("{}/", server.uri()));
+        fetch_at(&acct, &ctx, Limits::DEFAULT, Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(logins(&server.received_requests().await.unwrap()), 2);
+        let asked = store.0.lock().unwrap().clone();
+        assert!(!asked.is_empty());
+        assert!(
+            asked.iter().all(|name| name == "TEST_NINE_ROUTER_PASSWORD"),
+            "{asked:?}"
+        );
     }
 }
