@@ -1674,6 +1674,15 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             // PRD 0015 RF4.3: the server publishes `local_cost`, kept
             // current by the background scan while it runs.
             let local_cost = args.serve.then(cost::LocalCost::start).flatten();
+            // PRD 0052 S-04: erasing all data refuses while these run.
+            let _presence = [
+                args.serve.then_some(cuotai_core::presence::Program::Serve),
+                args.watch.then_some(cuotai_core::presence::Program::Watch),
+            ]
+            .into_iter()
+            .flatten()
+            .filter_map(cuotai_core::presence::hold)
+            .collect::<Vec<_>>();
             return headless::run(
                 config,
                 file.identity()?,
@@ -1817,6 +1826,9 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
     cuotai_core::diagnostics::logging::set_app_kind(
         cuotai_core::diagnostics::logging::AppKind::Tui,
     );
+    // PRD 0052 S-04: the dashboard records history like the app does, so
+    // erasing all data refuses while it is open.
+    let _presence = cuotai_core::presence::hold(cuotai_core::presence::Program::Dashboard);
     ui::run(
         file,
         session,

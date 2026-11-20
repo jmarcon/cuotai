@@ -1361,6 +1361,9 @@
     "one": "Se dejó {count} elemento sin tocar porque está en una carpeta, o contiene archivos, que Cuotai no creó.",
     "other": "Se dejaron {count} elementos sin tocar porque están en una carpeta, o contienen archivos, que Cuotai no creó."
   },
+  "privacy.erase.running": "No se borró nada mientras Cuotai está en ejecución. Cierra primero estos programas y vuelve a ejecutar el borrado:{programs}",
+  "privacy.erase.running.desktop": "La app Cuotai (también en la barra de menús o en la bandeja del sistema)",
+  "privacy.erase.running.dashboard": "El panel de Cuotai en la terminal",
   "privacy.erase.label.vault_oauth": "Inicios de sesión, claves y direcciones de canales guardados",
   "privacy.erase.label.vault_serve": "Token de acceso del servidor local",
   "privacy.erase.not_cuotai_folder": "Se conserva: esta carpeta no la creó Cuotai.",

@@ -11,6 +11,11 @@
 //! after a closing message, so no worker can recreate a file; a partial
 //! one returns the failed ids (never a path) with the writers still
 //! stopped, and may be retried. One erase runs at a time.
+//!
+//! PRD 0052 S-04: the app holds its [`presence`] lock for its whole life
+//! ([`hold_presence`]) and refuses to erase while another Cuotai program
+//! (`cuotai --serve`, `cuotai --watch`, the terminal dashboard or a second
+//! app) runs and could write its files back.
 
 use std::future::Future;
 use std::path::PathBuf;
@@ -20,6 +25,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cuotai_core::execution_review;
+use cuotai_core::presence::{self, Presence, Program};
 use cuotai_core::privacy::erase::{self, EraseOptions, Outcome, PlanItem, Vault};
 use cuotai_core::privacy::{artifacts, Erase, Kind, Roots};
 use cuotai_core::text::Localized;
@@ -34,6 +40,22 @@ static LOCKED: AtomicBool = AtomicBool::new(false);
 /// Whether an erase stopped the writers in this process.
 pub fn locked() -> bool {
     LOCKED.load(Ordering::SeqCst)
+}
+
+/// This process's presence lock, held from the start and released last by
+/// [`AppWriters::stop`] (so the erase can remove the `running` folder, also
+/// where a held file cannot be deleted).
+static PRESENCE: std::sync::Mutex<Option<Presence>> = std::sync::Mutex::new(None);
+
+/// PRD 0052 S-04: hold the app's presence until the process ends or an
+/// erase stops the writers (best effort, never fatal).
+pub fn hold_presence() {
+    let held = presence::hold(Program::Desktop);
+    *PRESENCE.lock().unwrap_or_else(|e| e.into_inner()) = held;
+}
+
+fn release_presence() {
+    drop(PRESENCE.lock().unwrap_or_else(|e| e.into_inner()).take());
 }
 
 /// One erase at a time; a second request answers `execution.pending`.
@@ -119,12 +141,19 @@ impl Writers for AppWriters {
             }
             self.cost.stop();
             cuotai_core::diagnostics::logging::suspend();
+            release_presence();
         })
     }
 }
 
+/// The other Cuotai programs running now ([`presence::running`] skips
+/// this process); the tests pass a fake.
+pub type Running = dyn Fn() -> Vec<Program> + Sync;
+
 /// The erase transaction (see the module documentation), over any
-/// confirmer, writers and vault so the tests drive it with fakes.
+/// confirmer, writers, vault and running-program check so the tests drive
+/// it with fakes.
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     typed: &str,
     include_config: bool,
@@ -133,12 +162,19 @@ pub async fn run(
     confirmer: &dyn NativeConfirmer,
     writers: &dyn Writers,
     vault: &(dyn Vault + Sync),
+    running: &Running,
 ) -> Result<EraseResult, Localized> {
     let _running = RUNNING
         .try_lock()
         .map_err(|_| execution_review::pending())?;
     if !erase::word_matches(typed, locale) {
         return Err(erase::word_mismatch());
+    }
+    // PRD 0052 S-04: another Cuotai program could write its files back;
+    // nothing is asked, stopped or erased.
+    let others = running();
+    if !others.is_empty() {
+        return Err(erase::running(&others, locale));
     }
     let options = EraseOptions {
         roots,
@@ -260,6 +296,11 @@ mod tests {
         }
     }
 
+    /// No other Cuotai program runs.
+    fn none() -> Vec<Program> {
+        Vec::new()
+    }
+
     fn vault(searchable: bool) -> FakeVault {
         FakeVault {
             searchable,
@@ -315,6 +356,7 @@ mod tests {
                 &confirmer,
                 &writers,
                 &vault,
+                &none,
             )
             .await
             .unwrap_err();
@@ -340,6 +382,7 @@ mod tests {
             &confirmer,
             &writers,
             &vault(true),
+            &none,
         )
         .await
         .unwrap();
@@ -355,9 +398,11 @@ mod tests {
         let confirmer = Answer(true, Mutex::new(Vec::new()));
         let writers = writers(&history);
         let vault = vault(true);
-        let result = run("ERASE", false, roots, "en-US", &confirmer, &writers, &vault)
-            .await
-            .unwrap();
+        let result = run(
+            "ERASE", false, roots, "en-US", &confirmer, &writers, &vault, &none,
+        )
+        .await
+        .unwrap();
         assert_eq!(writers.stopped.load(Ordering::SeqCst), 1);
         assert!(
             writers.present_at_stop.load(Ordering::SeqCst),
@@ -412,7 +457,7 @@ mod tests {
         let confirmer = Answer(true, Mutex::new(Vec::new()));
         let writers = writers(&history);
         let result = run(
-            "ERASE", false, roots, "en-US", &confirmer, &writers, &*vault,
+            "ERASE", false, roots, "en-US", &confirmer, &writers, &*vault, &none,
         )
         .await
         .unwrap();
@@ -441,6 +486,7 @@ mod tests {
             &confirmer,
             &writers,
             &vault(true),
+            &none,
         )
         .await
         .unwrap();
@@ -462,6 +508,7 @@ mod tests {
             &cancel,
             &writers,
             &vault(true),
+            &none,
         )
         .await
         .unwrap_err();
@@ -475,6 +522,7 @@ mod tests {
             &accept,
             &writers,
             &vault(false),
+            &none,
         )
         .await
         .unwrap_err();
@@ -498,6 +546,7 @@ mod tests {
             &Answer(true, Mutex::new(Vec::new())),
             &writers,
             &vault(true),
+            &none,
         )
         .await
         .unwrap_err();
@@ -570,5 +619,30 @@ mod tests {
                 .any(|i| i.item.id == "app.log" && i.item.location == log && i.item.erase),
             "{log}"
         );
+    }
+
+    /// PRD 0052 S-04: a running `cuotai --serve` stops the erase after the
+    /// word and before the vault, the native dialog or the writers.
+    #[tokio::test]
+    async fn a_running_serve_stops_the_erase_before_anything_is_asked_or_stopped() {
+        let _serial = SERIAL.lock().await;
+        let (_dir, roots, history, _) = tree();
+        let confirmer = Answer(true, Mutex::new(Vec::new()));
+        let writers = writers(&history);
+        let vault = vault(true);
+        let serve = || vec![Program::Serve, Program::Dashboard];
+        let error = run(
+            "ERASE", false, roots, "en-US", &confirmer, &writers, &vault, &serve,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.id, "privacy.erase.running");
+        let text = error.resolve("en-US");
+        assert!(text.contains("cuotai --serve"), "{text}");
+        assert!(text.contains("terminal dashboard"), "{text}");
+        assert!(history.exists());
+        assert_eq!(writers.stopped.load(Ordering::SeqCst), 0);
+        assert!(confirmer.1.lock().unwrap().is_empty(), "nothing asked");
+        assert_eq!(vault.searched.load(Ordering::SeqCst), 0);
     }
 }

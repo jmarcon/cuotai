@@ -71,6 +71,8 @@ printf '{{"per5HourPercentage":%s,"per5HourResetTime":%s000}}\n' "$usage" $(( $(
             .args(args)
             .env("HOME", &home)
             .env("XDG_DATA_HOME", home.join("data"))
+            // PRD 0052 S-04: never the real presence folder.
+            .env("CUOTAI_RUNNING_DIR", home.join("running"))
             .env("XDG_CONFIG_HOME", home.join("config"))
             .env("PATH", path)
             .env_remove("CUOTAI_CONFIG")

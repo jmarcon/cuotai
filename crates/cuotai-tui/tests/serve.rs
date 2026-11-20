@@ -85,6 +85,8 @@ esac
             .args(args)
             .env("HOME", &home)
             .env("XDG_DATA_HOME", home.join("data"))
+            // PRD 0052 S-04: never the real presence folder.
+            .env("CUOTAI_RUNNING_DIR", home.join("running"))
             // PRD 0033 re-validation M-4: never the real metered records.
             .env("CUOTAI_METERED_DIR", home.join("metered"))
             .env("CUOTAI_FEED_DIR", home.join("feed"))

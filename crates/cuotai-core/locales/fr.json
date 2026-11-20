@@ -2946,6 +2946,9 @@
     "one": "{count} élément a été laissé en place, car il se trouve dans un dossier, ou contient des fichiers, que Cuotai n’a pas créés.",
     "other": "{count} éléments ont été laissés en place, car ils se trouvent dans un dossier, ou contiennent des fichiers, que Cuotai n’a pas créés."
   },
+  "privacy.erase.running": "Rien n'a été effacé tant que Cuotai est en cours d'exécution. Quittez d'abord ces programmes, puis relancez l'effacement :{programs}",
+  "privacy.erase.running.desktop": "L'app Cuotai (aussi dans la barre des menus ou la zone de notification)",
+  "privacy.erase.running.dashboard": "Le tableau de bord de Cuotai dans le terminal",
   "privacy.erase.label.vault_oauth": "Connexions, clés et adresses de canaux enregistrées",
   "privacy.erase.label.vault_serve": "Jeton d'accès du serveur local",
   "privacy.erase.not_cuotai_folder": "Conservé : ce dossier n’a pas été créé par Cuotai.",

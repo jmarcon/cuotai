@@ -2004,6 +2004,9 @@
   "privacy.erase.foreign": {
     "other": "{count} item dibiarkan di tempatnya karena berada di folder, atau berisi file, yang tidak dibuat oleh Cuotai."
   },
+  "privacy.erase.running": "Tidak ada yang dihapus selama Cuotai berjalan. Tutup program berikut terlebih dahulu, lalu jalankan penghapusan lagi:{programs}",
+  "privacy.erase.running.desktop": "Aplikasi Cuotai (termasuk di bilah menu atau baki sistem)",
+  "privacy.erase.running.dashboard": "Dasbor Cuotai di terminal",
   "privacy.erase.label.vault_oauth": "Info masuk, kunci, dan alamat saluran yang tersimpan",
   "privacy.erase.label.vault_serve": "Token akses server lokal",
   "privacy.erase.not_cuotai_folder": "Disimpan: folder ini tidak dibuat oleh Cuotai.",

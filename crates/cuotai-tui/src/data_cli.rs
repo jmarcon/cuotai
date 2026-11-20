@@ -12,7 +12,7 @@ use cuotai_core::config_file::ConfigFile;
 use cuotai_core::history::{ExportFormat, HistoryStore, Retention};
 use cuotai_core::oauth::{EraseVault, StoreChoice};
 use cuotai_core::output_file::Protected;
-use cuotai_core::privacy::erase::{self, EraseOptions, Outcome, SystemVault};
+use cuotai_core::privacy::erase::{self, EraseOptions, Outcome, Program, SystemVault};
 use cuotai_core::privacy::Roots;
 
 use crate::cli::{self, Field, Level};
@@ -199,6 +199,8 @@ fn accounts_path(explicit: Option<PathBuf>) -> Option<PathBuf> {
 /// vault; a release build refuses the flag before anything is listed. It
 /// also erases the desktop app's chosen data folder and data left in the OS
 /// default one ([`Roots::for_erase`], PRD 0052 re-validation S-02).
+/// PRD 0052 S-04: it refuses while another Cuotai program runs
+/// ([`cuotai_core::presence::running`]).
 pub(crate) fn erase_all_data(
     config: Option<PathBuf>,
     include_config: bool,
@@ -214,21 +216,24 @@ pub(crate) fn erase_all_data(
         yes,
         choice,
         || Box::new(SystemVault),
+        &cuotai_core::presence::running,
         &mut io::stdin().lock(),
         terminal(),
         &mut io::stdout().lock(),
     )
 }
 
-/// [`erase_all_data`] over any roots, input and system-vault factory
-/// (tests): the vault comes from `choice`, which calls `system` only for
-/// the system store. A store that cannot open is a local error (exit 1)
-/// and nothing is listed or erased.
+/// [`erase_all_data`] over any roots, input, system-vault factory and
+/// running-program check (tests): the vault comes from `choice`, which
+/// calls `system` only for the system store. A store that cannot open is a
+/// local error (exit 1) and nothing is listed or erased.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn erase_all_data_with(
     options: &EraseOptions,
     yes: bool,
     choice: &StoreChoice,
     system: impl FnOnce() -> EraseVault,
+    running: &dyn Fn() -> Vec<Program>,
     input: &mut dyn BufRead,
     interactive: bool,
     out: &mut dyn Write,
@@ -236,18 +241,40 @@ pub(crate) fn erase_all_data_with(
     let vault = choice
         .erase_vault_with(system)
         .map_err(|text| text.resolve(crate::ui::tui_locale()))?;
-    erase_with(options, &*vault, yes, input, interactive, out)
+    erase_with(options, &*vault, running, yes, input, interactive, out)
 }
 
-/// The flow of [`erase_all_data`] over any vault and input (tests).
+/// PRD 0052 S-04: `true` (after printing what to quit on stderr) when
+/// another Cuotai program runs and the erase must stop.
+fn refused_while_running(running: &dyn Fn() -> Vec<Program>) -> bool {
+    let programs = running();
+    if programs.is_empty() {
+        return false;
+    }
+    let locale = crate::ui::tui_locale();
+    eprintln!(
+        "cuotai: {}",
+        erase::running(&programs, locale).resolve(locale)
+    );
+    true
+}
+
+/// The flow of [`erase_all_data`] over any vault, running-program check
+/// and input (tests).
 pub(crate) fn erase_with(
     options: &EraseOptions,
     vault: &dyn erase::Vault,
+    running: &dyn Fn() -> Vec<Program>,
     yes: bool,
     input: &mut dyn BufRead,
     interactive: bool,
     out: &mut dyn Write,
 ) -> Res {
+    // PRD 0052 S-04: a running app, server, watcher or dashboard could
+    // write its files back; nothing is listed, asked or erased.
+    if refused_while_running(running) {
+        return Ok(1);
+    }
     let plan = erase::plan(options);
     writeln!(out, "{}", tr("cli.erase_plan_header", "Cuotai will erase:"))?;
     for item in plan.iter().filter(|i| i.erase) {
@@ -292,6 +319,11 @@ pub(crate) fn erase_with(
             eprintln!("{text}");
             return Ok(1);
         }
+    }
+    // Checked again after the confirmation, which can take a while: a
+    // program started meanwhile stops the erase too.
+    if refused_while_running(running) {
+        return Ok(1);
     }
     // The app log is erased too: nothing is logged after this point.
     let report = match erase::erase_all(options, vault) {
@@ -375,6 +407,11 @@ mod tests {
         }
     }
 
+    /// No other Cuotai program runs.
+    fn none() -> Vec<Program> {
+        Vec::new()
+    }
+
     fn vault() -> Vault {
         Vault {
             searchable: true,
@@ -388,7 +425,16 @@ mod tests {
         let options = options(dir.path());
         let mut out = Vec::new();
         let vault = vault();
-        let code = erase_with(&options, &vault, false, &mut &b""[..], false, &mut out).unwrap();
+        let code = erase_with(
+            &options,
+            &vault,
+            &none,
+            false,
+            &mut &b""[..],
+            false,
+            &mut out,
+        )
+        .unwrap();
         assert_eq!(code, 1);
         assert_eq!(vault.deleted.get(), 0);
         assert!(dir.path().join("local/cuotai/logs/cuotai.log").exists());
@@ -405,6 +451,7 @@ mod tests {
         let code = erase_with(
             &options,
             &vault,
+            &none,
             false,
             &mut format!("{}\n", word().to_lowercase()).as_bytes(),
             true,
@@ -415,6 +462,7 @@ mod tests {
         let code = erase_with(
             &options,
             &vault,
+            &none,
             false,
             &mut format!("{}\n", word()).as_bytes(),
             true,
@@ -437,6 +485,7 @@ mod tests {
         let code = erase_with(
             &options,
             &refusing,
+            &none,
             true,
             &mut &b""[..],
             false,
@@ -448,6 +497,7 @@ mod tests {
         let code = erase_with(
             &options,
             &vault(),
+            &none,
             true,
             &mut &b""[..],
             false,
@@ -478,7 +528,16 @@ mod tests {
                 .roots
                 .with_erase_roots([chosen.clone(), default.clone(), foreign.clone()]);
         let mut out = Vec::new();
-        let code = erase_with(&options, &vault(), true, &mut &b""[..], false, &mut out).unwrap();
+        let code = erase_with(
+            &options,
+            &vault(),
+            &none,
+            true,
+            &mut &b""[..],
+            false,
+            &mut out,
+        )
+        .unwrap();
         assert_eq!(code, 0);
         let shown = String::from_utf8(out).unwrap();
         for root in [&chosen, &default] {
@@ -509,6 +568,7 @@ mod tests {
         let code = erase_with(
             &options,
             &vault(),
+            &none,
             true,
             &mut &b""[..],
             false,
@@ -544,6 +604,7 @@ mod tests {
             true,
             &choice,
             || panic!("the OS vault was reached"),
+            &none,
             &mut &b""[..],
             false,
             &mut Vec::new(),
@@ -554,5 +615,82 @@ mod tests {
         assert!(database.exists(), "the store's file is kept");
         let store = choice.session().unwrap().token_store();
         assert!(store.load("first").unwrap().is_none(), "its rows are gone");
+    }
+
+    /// PRD 0052 S-04: another Cuotai program running stops the erase before
+    /// the plan: nothing is asked or erased, the vault is never touched.
+    #[test]
+    fn erase_refuses_while_another_cuotai_runs_and_asks_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let options = options(dir.path());
+        let vault = vault();
+        let mut out = Vec::new();
+        let serve = || vec![Program::Serve];
+        let code = erase_with(
+            &options,
+            &vault,
+            &serve,
+            false,
+            &mut format!("{}\n", word()).as_bytes(),
+            true,
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(code, 1);
+        assert_eq!(vault.deleted.get(), 0);
+        assert!(dir.path().join("local/cuotai/logs/cuotai.log").exists());
+        assert!(out.is_empty(), "no plan, no prompt");
+        let text = erase::running(&[Program::Serve], "en-US").resolve("en-US");
+        assert!(text.contains("cuotai --serve"), "{text}");
+    }
+
+    /// PRD 0052 S-04: `--yes` does not bypass the check, and a program that
+    /// starts after the plan is caught by the second check.
+    #[test]
+    fn erase_with_yes_still_refuses_while_the_desktop_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let options = options(dir.path());
+        let vault = vault();
+        let desktop = || vec![Program::Desktop];
+        let code = erase_with(
+            &options,
+            &vault,
+            &desktop,
+            true,
+            &mut &b""[..],
+            false,
+            &mut Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(code, 1);
+        // Nothing runs at the first check; the app starts before the second.
+        let calls = Cell::new(0);
+        let later = || {
+            calls.set(calls.get() + 1);
+            if calls.get() > 1 {
+                vec![Program::Desktop]
+            } else {
+                Vec::new()
+            }
+        };
+        let mut out = Vec::new();
+        let code = erase_with(
+            &options,
+            &vault,
+            &later,
+            true,
+            &mut &b""[..],
+            false,
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(code, 1);
+        assert_eq!(calls.get(), 2);
+        assert!(
+            !out.is_empty(),
+            "the plan was shown before the second check"
+        );
+        assert_eq!(vault.deleted.get(), 0);
+        assert!(dir.path().join("local/cuotai/logs/cuotai.log").exists());
     }
 }

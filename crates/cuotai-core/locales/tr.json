@@ -2032,6 +2032,9 @@
     "one": "Cuotai'nin oluşturmadığı bir klasörde olduğu veya Cuotai'nin oluşturmadığı dosyalar içerdiği için {count} öge yerinde bırakıldı.",
     "other": "Cuotai'nin oluşturmadığı bir klasörde oldukları veya Cuotai'nin oluşturmadığı dosyalar içerdikleri için {count} öge yerinde bırakıldı."
   },
+  "privacy.erase.running": "Cuotai çalışırken hiçbir şey silinmedi. Önce bunları kapatın, ardından silme işlemini yeniden çalıştırın:{programs}",
+  "privacy.erase.running.desktop": "Cuotai uygulaması (menü çubuğundaki veya sistem tepsisindeki dahil)",
+  "privacy.erase.running.dashboard": "Terminaldeki Cuotai paneli",
   "privacy.erase.label.vault_oauth": "Kayıtlı oturum açmalar, anahtarlar ve kanal adresleri",
   "privacy.erase.label.vault_serve": "Yerel sunucu erişim belirteci",
   "privacy.erase.not_cuotai_folder": "Korundu: bu klasörü Cuotai oluşturmadı.",

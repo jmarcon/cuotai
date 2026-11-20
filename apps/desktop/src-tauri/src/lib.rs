@@ -1880,7 +1880,8 @@ async fn erase_all_plan(b: Shared<'_>) -> Result<erase_data::PlanView, String> {
 /// word, asks natively, stops every writer and erases. A complete erase
 /// quits the app after a closing message. Errors (as JSON):
 /// `privacy.erase.word_mismatch`, `privacy.erase.declined`,
-/// `privacy.erase.vault_unavailable`, `execution.pending`.
+/// `privacy.erase.vault_unavailable`, `privacy.erase.running` (another
+/// Cuotai program runs), `execution.pending`.
 #[tauri::command]
 async fn erase_all_data(
     app: AppHandle,
@@ -1911,6 +1912,7 @@ async fn erase_all_data(
         &native_confirm::DialogConfirmer::new(&app),
         &writers,
         &*vault,
+        &cuotai_core::presence::running,
     )
     .await
     .map_err(|e| backend::l10n_to_json(&e))?;
@@ -3380,6 +3382,8 @@ pub fn run() -> std::process::ExitCode {
     cuotai_core::diagnostics::logging::install_panic_hook(
         cuotai_core::diagnostics::logging::AppKind::Desktop,
     );
+    // PRD 0052 S-04: `cuotai --erase-all-data` refuses while the app runs.
+    erase_data::hold_presence();
     // First of all: a damaged `desktop.json` is kept before anything reads the defaults.
     settings::recover_damaged();
     // PRD 0022 RF15.1 / PRD 0019 RF7.7: before anything else writes `desktop.json`.

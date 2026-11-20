@@ -2139,6 +2139,9 @@
     "many": "{count} элементов оставлены без изменений: они находятся в папке или содержат файлы, которые создал не Cuotai.",
     "other": "{count} элемента оставлены без изменений: они находятся в папке или содержат файлы, которые создал не Cuotai."
   },
+  "privacy.erase.running": "Ничего не удалено, пока Cuotai работает. Сначала закройте эти программы, затем снова запустите удаление:{programs}",
+  "privacy.erase.running.desktop": "Приложение Cuotai (также в строке меню или в системном трее)",
+  "privacy.erase.running.dashboard": "Панель Cuotai в терминале",
   "privacy.erase.label.vault_oauth": "Сохранённые входы, ключи и адреса каналов",
   "privacy.erase.label.vault_serve": "Токен доступа локального сервера",
   "privacy.erase.not_cuotai_folder": "Сохранено: эту папку создал не Cuotai.",

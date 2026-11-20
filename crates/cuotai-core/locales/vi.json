@@ -2006,6 +2006,9 @@
   "privacy.erase.foreign": {
     "other": "Đã giữ nguyên {count} mục vì chúng nằm trong thư mục, hoặc chứa tệp, không do Cuotai tạo."
   },
+  "privacy.erase.running": "Không có gì bị xóa khi Cuotai đang chạy. Hãy thoát các chương trình này trước, rồi chạy lại thao tác xóa:{programs}",
+  "privacy.erase.running.desktop": "Ứng dụng Cuotai (kể cả trên thanh menu hoặc khay hệ thống)",
+  "privacy.erase.running.dashboard": "Bảng điều khiển Cuotai trong terminal",
   "privacy.erase.label.vault_oauth": "Thông tin đăng nhập, khóa và địa chỉ kênh đã lưu",
   "privacy.erase.label.vault_serve": "Mã truy cập của máy chủ cục bộ",
   "privacy.erase.not_cuotai_folder": "Giữ lại: thư mục này không do Cuotai tạo.",
