@@ -1,0 +1,29 @@
+# PRD 0051 RF1.3/RF6.3: revision 1 plus keys a later release may add inside
+# the tables this release knows. Never edit this file once shipped; add a
+# new fixture. The tolerant reader warns about `updates.channel` and
+# `groups[0].name` and keeps every account ready; the strict reader names
+# `updates.channel`.
+refresh_seconds = 300
+
+[updates]
+check = true
+channel = "beta"
+
+[[groups]]
+id = "coding"
+name = "Coding tools"
+label = "Coding"
+members = ["work-groq"]
+
+[[accounts]]
+id = "work-groq"
+name = "Work"
+provider = "groq"
+credential_env = "GROQ_API_KEY"
+group = "coding"
+
+[[accounts]]
+id = "personal-mistral"
+name = "Personal"
+provider = "mistral"
+credential_env = "MISTRAL_API_KEY"

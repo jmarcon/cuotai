@@ -768,17 +768,29 @@ fn update_groups(
     doc: &mut toml_edit::DocumentMut,
     groups: &[crate::model::GroupDef],
 ) -> Result<(), EditError> {
+    // PRD 0051 RF1.3: keys a later release adds to a group are not part of
+    // the comparison, and they stay with their group when it is rewritten.
     let current: Option<Vec<crate::model::GroupDef>> = doc
         .get("groups")
         .and_then(|item| item.as_array_of_tables())
-        .map(|tables| {
-            tables
-                .iter()
-                .filter_map(|table| toml_edit::de::from_str(&table.to_string()).ok())
-                .collect()
-        });
+        .map(|tables| tables.iter().filter_map(parse::known_group).collect());
     if current.as_deref().unwrap_or_default() == groups && current.is_some() == !groups.is_empty() {
         return Ok(());
+    }
+    let mut unknown: std::collections::HashMap<String, Vec<(String, toml_edit::Item)>> =
+        std::collections::HashMap::new();
+    if let Some(tables) = doc.get("groups").and_then(|item| item.as_array_of_tables()) {
+        for table in tables.iter() {
+            let Some(id) = table.get("id").and_then(toml_edit::Item::as_str) else {
+                continue;
+            };
+            let extra = table
+                .iter()
+                .filter(|(key, _)| !parse::GROUP_KEYS.contains(key))
+                .map(|(key, item)| (key.to_owned(), item.clone()))
+                .collect();
+            unknown.insert(id.to_owned(), extra);
+        }
     }
     doc.remove("groups");
     if groups.is_empty() {
@@ -795,6 +807,10 @@ fn update_groups(
                 )
             })?
             .into_table();
+        let mut table = table;
+        for (key, item) in unknown.remove(&group.id).unwrap_or_default() {
+            table.insert(&key, item);
+        }
         array.push(table);
     }
     doc["groups"] = toml_edit::Item::ArrayOfTables(array);
@@ -1519,6 +1535,46 @@ x = 1 # kept
         let text = fs::read_to_string(&path).unwrap();
         assert!(text.contains("# kept\n[future]\nanswer = 42\n"), "{text}");
         assert!(text.contains("refresh_seconds = 600"));
+    }
+
+    /// PRD 0051 RF1.3 (V-01): unknown keys in `[updates]` and `[[groups]]`
+    /// survive a save byte for byte, and a rewritten group keeps its own.
+    #[test]
+    fn unknown_keys_of_updates_and_groups_survive_a_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("future-keys.toml");
+        let original = "refresh_seconds = 300\n\n[updates]\ncheck = true\nchannel = \"beta\" # kept\n\n[[groups]]\nid = \"coding\"\nname   =  \"Coding\"\n\n[[accounts]]\nname = \"G\"\nprovider = \"groq\"\ncredential_env = \"GROQ_API_KEY\"\n";
+        fs::write(&path, original).unwrap();
+        let mut file = load_at(&path, false).unwrap();
+        let warned: Vec<_> = file.warnings.iter().map(|w| w.path.to_string()).collect();
+        assert_eq!(warned, ["updates.channel", "groups[0].name"]);
+        assert!(file.updates().check, "the chosen check stays on");
+        let mut updated = file.config.clone();
+        updated.refresh_seconds = 600;
+        file.save(updated).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("[updates]\ncheck = true\nchannel = \"beta\" # kept\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("[[groups]]\nid = \"coding\"\nname   =  \"Coding\"\n"),
+            "{text}"
+        );
+
+        let mut file = load_at(&path, false).unwrap();
+        let mut updated = file.config.clone();
+        updated.groups[0].label = Some("Code".into());
+        file.save(updated).unwrap();
+        let text = fs::read_to_string(&path).unwrap();
+        let document = text.parse::<toml_edit::DocumentMut>().unwrap();
+        let group = document["groups"]
+            .as_array_of_tables()
+            .unwrap()
+            .get(0)
+            .unwrap();
+        assert_eq!(group.get("label").and_then(|v| v.as_str()), Some("Code"));
+        assert_eq!(group.get("name").and_then(|v| v.as_str()), Some("Coding"));
     }
 
     #[test]

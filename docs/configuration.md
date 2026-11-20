@@ -7,6 +7,7 @@ Cuotai's accounts file (`cuotai.toml`) is shared by the terminal, the command li
 - **The running app reads tolerantly.** The dashboard, `--once`, `--json`, `--serve`, `--watch` and the desktop app keep working when the file has something this version does not know:
   - an `[[accounts]]` table whose `provider` or one of whose keys is unknown is **set aside**: the other accounts still refresh, and a notice names its position and the key (`Account 2 uses accounts[1].provider, which this version of Cuotai does not know`), in the TUI's status line, a desktop banner and on stderr;
   - an unknown top-level key or table (a later release's `[updates]`-style table, say) is ignored with a notice.
+  - an unknown key inside `[updates]` or a `[[groups]]` table (`updates.channel`, `groups[0].name`) is ignored with a notice too, and kept when the file is saved; the rest of that table still applies.
 
   Syntax errors, a key written twice and a value of the wrong type still reject the whole file: a broken file is never half-read.
 - **Checking and editing are strict.** `cuotai --check-config` reads the same file with the strict reader, which rejects every unknown provider and key, so a typo (`floor` for `floors`) is found instead of silently setting an account aside.

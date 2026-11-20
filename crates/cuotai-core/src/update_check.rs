@@ -36,13 +36,15 @@ pub struct UpdatesSettings {
 }
 
 /// `[updates]` of a TOML document; a document without the table, or one that
-/// does not parse, leaves the check off.
+/// does not parse, leaves the check off. A key a later release adds to the
+/// table is ignored (PRD 0051 RF1.3), so it never turns a chosen check off.
 pub fn settings_from_toml(text: &str) -> UpdatesSettings {
-    text.parse::<toml::Table>()
+    let check = text
+        .parse::<toml::Table>()
         .ok()
-        .and_then(|table| table.get("updates").cloned())
-        .and_then(|value| value.try_into().ok())
-        .unwrap_or_default()
+        .and_then(|table| table.get("updates")?.get("check")?.as_bool())
+        .unwrap_or_default();
+    UpdatesSettings { check }
 }
 
 /// Whether the check runs: `CUOTAI_UPDATE_CHECK` wins when set (`0` or empty
@@ -213,6 +215,10 @@ mod tests {
         assert!(settings_from_toml("[updates]\ncheck = true\n").check);
         assert!(!settings_from_toml("[updates]\ncheck = \"yes\"\n").check);
         assert!(!settings_from_toml("not toml [").check);
+        assert!(
+            settings_from_toml("[updates]\ncheck = true\nchannel = \"beta\"\n").check,
+            "a key from a later release keeps the chosen check"
+        );
     }
 
     #[test]
