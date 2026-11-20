@@ -13,6 +13,19 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.6] - 2026-11-20
+
+### Fixed
+
+- JetBrains AI shows one row per tool even when JetBrains lists a tool twice, and a credit total too large to read is left out instead of shown as infinite (PRD 0055 RF3.1, RF3.2, RF3.3; 320024c).
+- A JetBrains AI account whose client ID variable is not set now says that the variable must hold the service account's client ID (PRD 0055 RF4, RF7; 9c75dbe).
+- The hidden Google sign-in window is now erased 30 minutes after its last capture even when the computer slept in between (PRD 0056 RF2.3, RF2.4; b743799).
+- In the account dialog, "Forget the Google sign-in" now shows as a link button on its own line and answers next to it, and a shared sign-in window that times out or is stopped is said to be hidden rather than closed (PRD 0056 RF1.3, RF2.4, RF6; d5ee005).
+
+### Security
+
+- When a capture ends, the hidden Google sign-in window now erases each site's stored data as well as its cookies, keeping only Google's cookies (PRD 0056 RF3, RF6; PRD 0048 RF2.3; 3c24457).
+
 ## [0.87.5] - 2026-11-20
 
 ### Fixed
@@ -1256,7 +1269,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.5...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.6...HEAD
+[0.87.6]: https://github.com/jmarcon/cuotai/compare/v0.87.5...v0.87.6
 [0.87.5]: https://github.com/jmarcon/cuotai/compare/v0.87.4...v0.87.5
 [0.87.4]: https://github.com/jmarcon/cuotai/compare/v0.87.3...v0.87.4
 [0.87.3]: https://github.com/jmarcon/cuotai/compare/v0.87.2...v0.87.3
