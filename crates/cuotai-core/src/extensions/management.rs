@@ -1266,7 +1266,7 @@ fn extension_account(manifest: &Manifest, config: &Config) -> Account {
     let collision = config
         .accounts
         .iter()
-        .any(|account| account.name.eq_ignore_ascii_case(&manifest.name));
+        .any(|account| crate::account_names_match(&account.name, &manifest.name));
     let name = if collision {
         format!("{} ({})", manifest.name, manifest.id)
     } else {

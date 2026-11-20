@@ -20,7 +20,7 @@ pub fn find(config: &Config, name: &str) -> Option<usize> {
             config
                 .accounts
                 .iter()
-                .position(|account| account.name.eq_ignore_ascii_case(name))
+                .position(|account| cuotai_core::account_names_match(&account.name, name))
         })
 }
 
