@@ -64,12 +64,29 @@ jobs:
   #   - .github/workflows/** and every other file
   # codeql.yml applies the same allow-list in its `paths` filters: change both
   # together.
+  #
+  # Release-scoped pull requests (PRD 0039 B-7, owner decision 2026-11-20):
+  # `release_only` is true for a pull request from a `release/v*` branch with
+  # exactly one commit that changes only the release files of `release
+  # prepare` (the version files, both lockfiles, CHANGELOG.md, README.md and
+  # docs/**/*.md for the `vNEXT` rows; `xtask::release::RELEASE_FILES` plus
+  # `is_plan_file`). `heavy` is then false: the test matrix, the UI checks,
+  # the widgets, deny, the canary dry run and the release-profile job are
+  # skipped, because `main` just tested the same code. What still runs:
+  # `changelog-check` (the commit gate and the privacy guard), `version-check`,
+  # `release-preflight` (whose `release prepare --check --rev` re-renders the
+  # release commit from its parent and fails on any line `prepare` did not
+  # write) and `release-smoke` (the embedded CHANGELOG.md parses and the CLI
+  # builds). A push to main is never release-scoped: the main run of a
+  # release commit runs everything.
   changes:
     name: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       code: ${{ steps.classify.outputs.code }}
+      heavy: ${{ steps.classify.outputs.heavy }}
+      release_only: ${{ steps.classify.outputs.release_only }}
       release_tooling: ${{ steps.classify.outputs.release_tooling }}
       gate_rules: ${{ steps.classify.outputs.gate_rules }}
       reason: ${{ steps.classify.outputs.reason }}
@@ -90,6 +107,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          HEAD_REF: ${{ github.head_ref }}
         shell: bash
         run: |
           set -euo pipefail
@@ -122,6 +140,7 @@ jobs:
           code=true
           tooling=true
           gate=true
+          release_only=false
           if [ -n "$range" ]; then
             list="$(mktemp)"
             # --no-renames lists both sides of a move, so a file moved out of
@@ -131,6 +150,7 @@ jobs:
               code_files=0
               tooling_files=0
               gate_files=0
+              release_files=0
               while IFS= read -r -d '' file; do
                 total=$((total + 1))
                 case "$file" in
@@ -149,6 +169,13 @@ jobs:
                   xtask/src/commits.rs | xtask/src/changelog_gate.rs | xtask/src/plan_links.rs)
                     gate_files=$((gate_files + 1)) ;;
                 esac
+                # The files `release prepare` writes (B-7).
+                case "$file" in
+                  Cargo.toml | Cargo.lock | crates/cuotai-tui/Cargo.toml | CHANGELOG.md | README.md | \
+                  apps/desktop/src-tauri/Cargo.toml | apps/desktop/src-tauri/Cargo.lock | apps/desktop/src-tauri/tauri.conf.json | \
+                  docs/*.md)
+                    release_files=$((release_files + 1)) ;;
+                esac
                 echo "$kind  $file"
                 if [ "$kind" = code ]; then code_files=$((code_files + 1)); fi
               done < "$list"
@@ -157,6 +184,11 @@ jobs:
               fi
               if [ "$total" -gt 0 ] && [ "$gate_files" -eq 0 ]; then
                 gate=false
+              fi
+              if [ "$EVENT" = pull_request ] && [[ "$HEAD_REF" == release/v* ]] \
+                && [ "$total" -gt 0 ] && [ "$release_files" -eq "$total" ] \
+                && [ "$(git rev-list --count "$BASE_SHA..$HEAD_SHA")" -eq 1 ]; then
+                release_only=true
               fi
               if [ "$total" -eq 0 ]; then
                 why="empty diff for $range"
@@ -170,18 +202,27 @@ jobs:
               why="cannot diff $range"
             fi
           fi
+          heavy="$code"
+          if [ "$release_only" = true ]; then
+            heavy=false
+            why="$why; release-scoped pull request (one release commit, release files only): heavy jobs skipped, main runs them"
+          fi
 
           {
             echo "code=$code"
+            echo "heavy=$heavy"
+            echo "release_only=$release_only"
             echo "release_tooling=$tooling"
             echo "gate_rules=$gate"
             echo "reason=$why"
           } >> "$GITHUB_OUTPUT"
-          echo "code=$code release_tooling=$tooling gate_rules=$gate ($why)"
+          echo "code=$code heavy=$heavy release_only=$release_only release_tooling=$tooling gate_rules=$gate ($why)"
           {
             echo "### Change classification"
             echo
             echo "- code: \`$code\`"
+            echo "- heavy jobs: \`$heavy\`"
+            echo "- release-scoped: \`$release_only\`"
             echo "- release tooling: \`$tooling\`"
             echo "- commit gate rules: \`$gate\`"
             echo "- reason: $why"
@@ -192,7 +233,7 @@ jobs:
   # `test (${{ matrix.os }})` (PRD 0039 F-19).
   test:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -460,7 +501,7 @@ jobs:
   ui-checks:
     name: ui checks (${{ matrix.part }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: macos-latest
     timeout-minutes: 20
     strategy:
@@ -534,7 +575,7 @@ jobs:
   # widgets stayed on the system's placeholder.
   widgets:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: macos-latest
     timeout-minutes: 15
     steps:
@@ -557,7 +598,7 @@ jobs:
   # finds the root `deny.toml` by walking up from either manifest.
   deny:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -695,8 +736,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       # The test matrix runs this too; it only needs its own step when the
       # matrix is skipped.
-      - name: privacy guard (documentation-only changes)
-        if: needs.changes.outputs.code != 'true'
+      - name: privacy guard (documentation-only and release-scoped changes)
+        if: needs.changes.outputs.heavy != 'true'
         run: cargo test -p xtask --locked --test privacy
 
   # PRD 0028 RF6.2: evidence of an undocumented or user-session interface
@@ -728,7 +769,7 @@ jobs:
   # no `canary` environment.
   canary-dry-run:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -761,7 +802,7 @@ jobs:
   # `cfg(debug_assertions)`, not platform code.
   release-profile:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -847,6 +888,41 @@ jobs:
       - run: bash scripts/release/test-collect-linux.sh
       - run: cargo test -p xtask --locked --test packages
 
+  # Release-scoped pull requests (B-7): the one build check the skipped
+  # matrix leaves to do. The core embeds CHANGELOG.md, so the new section must
+  # parse; the CLI must build and print it. Linux only: release.yml builds
+  # every platform from the tag, and the main run of the release commit runs
+  # the whole matrix.
+  release-smoke:
+    needs: changes
+    if: needs.changes.outputs.release_only == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: test
+          workspaces: |
+            . -> target
+            apps/desktop/src-tauri -> target
+          save-if: false
+      - name: embedded changelog parses
+        run: cargo test --locked -p cuotai-core --lib changelog
+      - name: CLI builds and prints the new section
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked -p cuotai-tui
+          ./target/debug/cuotai --version
+          ./target/debug/cuotai --changelog > "$RUNNER_TEMP/changelog.txt"
+          head -n 20 "$RUNNER_TEMP/changelog.txt"
+
   # The one check to require in branch protection. Skipped jobs count as
   # success for required checks, but a skipped *matrix* job reports under its
   # unexpanded name (`test (${{ matrix.os }})`), so a required
@@ -859,7 +935,7 @@ jobs:
   # succeeded.
   ci-result:
     name: CI result
-    needs: [changes, test, ui-checks, widgets, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-profile, release-preflight]
+    needs: [changes, test, ui-checks, widgets, deny, version-check, changelog-check, access-evidence, canary-dry-run, release-profile, release-preflight, release-smoke]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -868,10 +944,11 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
           CODE: ${{ needs.changes.outputs.code }}
+          HEAVY: ${{ needs.changes.outputs.heavy }}
           REASON: ${{ needs.changes.outputs.reason }}
         run: |
           set -euo pipefail
           # Why heavy jobs may show as skipped (PRD 0039 F-19).
-          echo "changes: code=${CODE:-unknown} (${REASON:-no reason recorded})"
+          echo "changes: code=${CODE:-unknown} heavy=${HEAVY:-unknown} (${REASON:-no reason recorded})"
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           echo "$NEEDS" | jq -e '.changes.result == "success" and all(.[]; .result == "success" or .result == "skipped")' > /dev/null

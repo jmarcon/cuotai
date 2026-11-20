@@ -137,7 +137,7 @@ Agents may run releases and push tags, but only under these rules (owner decisio
 3. **Before tagging, verify and report each of these:**
    - local `main` is fast-forwarded to `origin/main` (`git switch main && git pull --ff-only`);
    - `HEAD` is the merged `chore(release): X.Y.Z` commit;
-   - `CI result` is green on that `main` commit (`gh run list --branch main --limit 1`);
+   - `CI result` is green on that `main` commit, or on the head of the merged release PR when that head has the same tree, parent, message and author as the `main` commit (`release.yml`'s `check` job verifies this and fails otherwise);
    - `cargo xtask release-check` and `cargo xtask release prepare --check` both pass on it.
 4. **Tag.** Create the annotated tag only with `cargo xtask release tag --rc` (or `cargo xtask release tag` for a stable release), never with `git tag` by hand. The first three releases start with an rc unless the owner says otherwise.
 5. **Push only that tag:** `git push origin vX.Y.Z-rc.N` (or `vX.Y.Z`), never `--tags`. Then watch `release.yml` (`gh run watch`) and report the run link and its result.

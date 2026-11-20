@@ -407,6 +407,7 @@ fn check_text(path: &Path, text: &str) -> Res<()> {
     if name == "ci.yml" {
         check_ci_result_policy(jobs)?;
         check_ui_checks_matrix(jobs)?;
+        check_release_scoped_ci(jobs)?;
         // PRD 0039 RF2.2: a push is gated from its previous tip through the
         // fail-closed `--before` resolution, never a hand-made fallback range.
         if !text.contains("changelog-gate --before \"$BEFORE\"") {
@@ -629,6 +630,75 @@ fn check_ci_result_policy(jobs: &Mapping) -> Res<()> {
                 "ci.yml job ci-result must wait for job {job} (it is the only required check)"
             ));
         }
+    }
+    Ok(())
+}
+
+/// The jobs a release-scoped pull request skips (PRD 0039 B-7): they run
+/// only when `changes` says `heavy`.
+const HEAVY_CI_JOBS: [&str; 6] = [
+    "test",
+    "ui-checks",
+    "widgets",
+    "deny",
+    "canary-dry-run",
+    "release-profile",
+];
+
+/// PRD 0039 B-7 (owner decision 2026-11-20): a pull request from a
+/// `release/v*` branch with one commit that changes only release files skips
+/// the heavy jobs, and nothing else. The checks that prove a release commit
+/// (`changelog-check`, `version-check`, `release-preflight`) keep their own
+/// conditions, `release-smoke` runs exactly then, and the classification
+/// needs the branch, the file set and the one-commit count.
+fn check_release_scoped_ci(jobs: &Mapping) -> Res<()> {
+    let changes = mapping(need(jobs, "changes", "ci jobs")?, "changes job")?;
+    let outputs = mapping(need(changes, "outputs", "changes job")?, "changes outputs")?;
+    for output in ["heavy", "release_only"] {
+        if scalar(outputs, output).is_none() {
+            return err(format!("ci.yml job changes must output {output}"));
+        }
+    }
+    let classify = steps(changes)?
+        .into_iter()
+        .find_map(|step| scalar(step, "run").filter(|run| run.contains("release_only=true")))
+        .unwrap_or_default();
+    for needle in [
+        "release/v*",
+        "rev-list --count",
+        "release_files\" -eq \"$total\"",
+        "heavy=false",
+    ] {
+        if !classify.contains(needle) {
+            return err(format!(
+                "ci.yml changes must decide release_only from the release/v* branch, one commit and release files only (missing {needle:?})"
+            ));
+        }
+    }
+    let heavy = "needs.changes.outputs.heavy == 'true'";
+    for name in HEAVY_CI_JOBS {
+        let job = mapping(need(jobs, name, "ci jobs")?, name)?;
+        if normalized_condition(job) != heavy {
+            return err(format!("ci.yml job {name} must run with if: {heavy}"));
+        }
+    }
+    let version = mapping(need(jobs, "version-check", "ci jobs")?, "version-check")?;
+    if normalized_condition(version) != "needs.changes.outputs.code == 'true'" {
+        return err(
+            "ci.yml job version-check must run on every code change, release-scoped included",
+        );
+    }
+    for name in ["changelog-check", "release-preflight", "access-evidence"] {
+        let job = mapping(need(jobs, name, "ci jobs")?, name)?;
+        if scalar(job, "if").is_some_and(|c| c.contains("heavy") || c.contains("release_only")) {
+            return err(format!(
+                "ci.yml job {name} must not be skipped for a release-scoped pull request"
+            ));
+        }
+    }
+    let smoke = mapping(need(jobs, "release-smoke", "ci jobs")?, "release-smoke")?;
+    if normalized_condition(smoke) != "needs.changes.outputs.release_only == 'true'" {
+        return err("ci.yml job release-smoke must run with if: needs.changes.outputs.release_only == 'true'");
     }
     Ok(())
 }
@@ -1604,11 +1674,53 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("--before"));
-        let unaggregated = CI_WORKFLOW.replacen(", release-preflight]", "]", 1);
+        let unaggregated =
+            CI_WORKFLOW.replacen(", release-preflight, release-smoke]", ", release-smoke]", 1);
         assert!(check_text(Path::new("ci.yml"), &unaggregated)
             .unwrap_err()
             .to_string()
             .contains("release-preflight"));
+    }
+
+    #[test]
+    fn release_scoped_ci_skips_only_the_heavy_jobs() {
+        let open = CI_WORKFLOW.replacen(
+            "  deny:\n    needs: changes\n    if: needs.changes.outputs.heavy == 'true'",
+            "  deny:\n    needs: changes\n    if: needs.changes.outputs.code == 'true'",
+            1,
+        );
+        assert_ne!(open, CI_WORKFLOW);
+        assert!(check_text(Path::new("ci.yml"), &open)
+            .unwrap_err()
+            .to_string()
+            .contains("deny"));
+        let skipped = CI_WORKFLOW.replacen(
+            "  version-check:\n    needs: changes\n    if: needs.changes.outputs.code == 'true'",
+            "  version-check:\n    needs: changes\n    if: needs.changes.outputs.heavy == 'true'",
+            1,
+        );
+        assert_ne!(skipped, CI_WORKFLOW);
+        assert!(check_text(Path::new("ci.yml"), &skipped)
+            .unwrap_err()
+            .to_string()
+            .contains("version-check"));
+        let any_branch = CI_WORKFLOW.replacen("[[ \"$HEAD_REF\" == release/v* ]]", "true", 1);
+        assert_ne!(any_branch, CI_WORKFLOW);
+        assert!(check_text(Path::new("ci.yml"), &any_branch)
+            .unwrap_err()
+            .to_string()
+            .contains("release/v*"));
+        let many_commits = CI_WORKFLOW.replacen("git rev-list --count", "git log --oneline", 1);
+        assert!(check_text(Path::new("ci.yml"), &many_commits).is_err());
+        let no_smoke = CI_WORKFLOW.replacen(
+            ", release-preflight, release-smoke]",
+            ", release-preflight]",
+            1,
+        );
+        assert!(check_text(Path::new("ci.yml"), &no_smoke)
+            .unwrap_err()
+            .to_string()
+            .contains("release-smoke"));
     }
 
     #[test]
