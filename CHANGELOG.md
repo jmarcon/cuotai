@@ -13,6 +13,16 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.87.5] - 2026-11-20
+
+### Fixed
+
+- About › What's new on the desktop and `cuotai --changelog` show each entry without its plan references and commit hashes, as the update notes already did (PRD 0053 RF7.4; PRD 0019 RF7.7; f2d89e0).
+- When Repair under Open at login fails, the login entry stays as it was and the switch shows what the system reports, instead of reading on with no entry left (PRD 0054 RF4.1, RF4.2, RF4.3; 16797a9).
+- The notice shown when the tray icon cannot be created keeps a space after its icon, and the Open at login description says the app opens in its window when there is no tray (PRD 0054 RF5.1, RF4.2; 6dc2faf).
+- The `cuotai --doctor` report says in your language where it found the `aws` or `bl` program, instead of an internal word such as `well_known` (PRD 0054 RF6.3; ec2d38a).
+- A damaged hook claims file is now kept aside and no hook runs from it, so the desktop app and `cuotai --watch --hooks` cannot both run the same hook after that file was damaged (PRD 0054 RF2.1, RF2.3; 1c2ba17).
+
 ## [0.87.4] - 2026-11-20
 
 ### Changed
@@ -1246,7 +1256,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.4...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.5...HEAD
+[0.87.5]: https://github.com/jmarcon/cuotai/compare/v0.87.4...v0.87.5
 [0.87.4]: https://github.com/jmarcon/cuotai/compare/v0.87.3...v0.87.4
 [0.87.3]: https://github.com/jmarcon/cuotai/compare/v0.87.2...v0.87.3
 [0.87.2]: https://github.com/jmarcon/cuotai/compare/v0.87.1...v0.87.2
