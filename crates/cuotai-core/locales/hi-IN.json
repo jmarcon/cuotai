@@ -541,6 +541,7 @@
   "config.account.requires_newer": "खाता {number} {path} का उपयोग करता है, जिसे Cuotai का यह संस्करण नहीं जानता; इसे छोड़ दिया जाता है और बाकी खाते काम करते रहते हैं। Cuotai अपडेट करें, या टाइपो खोजने के लिए cuotai --check-config चलाएँ।",
   "config.error.not_found": "{path} पर कोई कॉन्फ़िगरेशन फ़ाइल नहीं है।",
   "config.error.parse": "कॉन्फ़िगरेशन पंक्ति {line}, कॉलम {column} पर मान्य TOML नहीं है।",
+  "config.error.not_utf8": "कॉन्फ़िगरेशन पंक्ति {line}, कॉलम {column} पर UTF-8 टेक्स्ट नहीं है; इसे UTF-8 के रूप में सहेजें।",
   "config.error.parse_account_id": "कॉन्फ़िगरेशन में पंक्ति {line}, कॉलम {column} पर {path} अमान्य है: id में 4 से 40 छोटे अक्षर, अंक, _ या - होते हैं (Cuotai acc_ के बाद 12 वर्ण लिखता है)।",
   "config.error.parse_key": "कॉन्फ़िगरेशन में पंक्ति {line}, कॉलम {column} पर {path} अज्ञात या अमान्य है।",
   "config.error.unreadable": "{path} पर कॉन्फ़िगरेशन फ़ाइल पढ़ी नहीं जा सकी।",

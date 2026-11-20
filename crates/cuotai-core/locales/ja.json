@@ -565,6 +565,7 @@
   "config.account.requires_newer": "アカウント {number} は、このバージョンの Cuotai が知らない {path} を使っています。このアカウントはスキップされ、他のアカウントは引き続き動作します。Cuotai を更新するか、cuotai --check-config で入力ミスを探してください。",
   "config.error.not_found": "{path} に設定ファイルがありません。",
   "config.error.parse": "設定は {line} 行 {column} 列で有効な TOML ではありません。",
+  "config.error.not_utf8": "設定は {line} 行 {column} 列で UTF-8 テキストではありません。UTF-8 で保存してください。",
   "config.error.parse_account_id": "設定の {line} 行 {column} 列にある {path} は無効です。id は 4〜40 文字の英小文字、数字、_ または - です（Cuotai は acc_ の後に 12 文字を書きます）。",
   "config.error.parse_key": "設定の {line} 行 {column} 列にある {path} は不明または無効です。",
   "config.error.unreadable": "{path} の設定ファイルを読み取れませんでした。",

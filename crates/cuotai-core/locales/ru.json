@@ -578,6 +578,7 @@
   "config.account.requires_newer": "Учётная запись {number} использует {path}, неизвестное этой версии Cuotai; она пропускается, остальные учётные записи продолжают работать. Обновите Cuotai или запустите cuotai --check-config, чтобы найти опечатку.",
   "config.error.not_found": "По пути {path} нет файла конфигурации.",
   "config.error.parse": "Конфигурация не является корректным TOML в строке {line}, столбец {column}.",
+  "config.error.not_utf8": "Конфигурация не является текстом UTF-8 в строке {line}, столбец {column}; сохраните её в UTF-8.",
   "config.error.parse_account_id": "В конфигурации неверное {path} в строке {line}, столбец {column}: идентификатор — это от 4 до 40 строчных латинских букв, цифр, _ или - (Cuotai пишет acc_ и ещё 12 символов).",
   "config.error.parse_key": "В конфигурации неизвестное или неверное {path} в строке {line}, столбец {column}.",
   "config.error.unreadable": "Не удалось прочитать файл конфигурации {path}.",

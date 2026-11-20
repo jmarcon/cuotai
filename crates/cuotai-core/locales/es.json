@@ -167,6 +167,7 @@
   "config.account.requires_newer": "La cuenta {number} usa {path}, que esta versión de Cuotai no conoce; se omite y las demás cuentas siguen funcionando. Actualiza Cuotai o ejecuta cuotai --check-config para encontrar una errata.",
   "config.error.not_found": "No hay ningún archivo de configuración en {path}.",
   "config.error.parse": "La configuración no es un TOML válido en la línea {line}, columna {column}.",
+  "config.error.not_utf8": "La configuración no es texto UTF-8 en la línea {line}, columna {column}; guárdala como UTF-8.",
   "config.error.parse_account_id": "La configuración tiene {path} no válido en la línea {line}, columna {column}: un id tiene de 4 a 40 letras minúsculas, dígitos, _ o - (Cuotai escribe acc_ seguido de 12 caracteres).",
   "config.error.parse_key": "La configuración tiene {path} desconocido o no válido en la línea {line}, columna {column}.",
   "config.error.unreadable": "No se pudo leer el archivo de configuración en {path}.",

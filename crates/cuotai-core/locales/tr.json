@@ -523,6 +523,7 @@
   "config.account.requires_newer": "{number}. hesap, Cuotai'nin bu sürümünün bilmediği {path} kullanıyor; atlanır ve diğer hesaplar çalışmaya devam eder. Cuotai'yi güncelleyin veya bir yazım hatası bulmak için cuotai --check-config çalıştırın.",
   "config.error.not_found": "{path} konumunda yapılandırma dosyası yok.",
   "config.error.parse": "Yapılandırma {line}. satır, {column}. sütunda geçerli bir TOML değil.",
+  "config.error.not_utf8": "Yapılandırma {line}. satır, {column}. sütunda UTF-8 metni değil; UTF-8 olarak kaydedin.",
   "config.error.parse_account_id": "Yapılandırmada {line}. satır, {column}. sütunda geçersiz {path} var: kimlik 4 ile 40 arası küçük harf, rakam, _ veya - içerir (Cuotai acc_ ve ardından 12 karakter yazar).",
   "config.error.parse_key": "Yapılandırmada {line}. satır, {column}. sütunda bilinmeyen veya geçersiz {path} var.",
   "config.error.unreadable": "{path} konumundaki yapılandırma dosyası okunamadı.",
