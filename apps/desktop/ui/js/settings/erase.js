@@ -15,11 +15,15 @@ export function eraseHtml() {
     body: `<div class="confirm" id="erase-all-confirm" data-protected-texts="erase-all" role="alertdialog" aria-labelledby="erase-all-title" aria-describedby="erase-all-text" hidden></div>` });
 }
 
-/** One inventory line: where it is (a home-abbreviated path) and its stable id. A vault service leads with the core's
- *  friendly name and keeps the raw service name as secondary text. */
-const itemHtml = (item) => item.label
-  ? `<li><span data-erase-label>${esc(item.label)}</span> <code class="set-path secondary">${esc(item.location)}</code> <small>${esc(item.id)}</small></li>`
-  : `<li><code class="set-path">${esc(item.location)}</code> <small>${esc(item.id)}</small></li>`;
+/** One inventory line: where it is (a home-abbreviated path) and its stable id. A vault service, and what only the app
+ *  erases (its window storage, the Open at login entry, leftover capture profiles: `app_only`, PRD 0052 S-01/S-03),
+ *  leads with the core's friendly name and keeps the raw location as secondary text. */
+const itemHtml = (item) => {
+  const app = item.app_only ? " data-erase-app" : "";
+  return item.label
+    ? `<li${app}><span data-erase-label>${esc(item.label)}</span> <code class="set-path secondary">${esc(item.location)}</code> <small>${esc(item.id)}</small></li>`
+    : `<li${app}><code class="set-path">${esc(item.location)}</code> <small>${esc(item.id)}</small></li>`;
+};
 
 /** The confirmation panel over `plan` (`{ word, items }` from the shell). With `includeConfig` the items the core
  *  keeps by default (the accounts file and `hooks.toml`) move to the erased list. */

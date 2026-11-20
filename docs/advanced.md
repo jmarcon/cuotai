@@ -45,6 +45,9 @@ cuotai --history-erase ACCOUNT    # or: --history-erase all; --yes skips the que
 # It refuses, asking and erasing nothing (--yes included), while the Cuotai
 # app, cuotai --serve, cuotai --watch or the terminal dashboard runs, and
 # names what to quit.
+# The app's window storage, its Open at login entry and leftover capture
+# profiles are listed apart: only the desktop app's Erase all Cuotai data
+# reaches them.
 cuotai --erase-all-data [--yes] [--include-config]
 
 # Human-readable summary in the terminal (single run)

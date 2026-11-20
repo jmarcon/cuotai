@@ -41,6 +41,13 @@ const vaultItem = plan.items.find((i) => i.kind === "vault_service");
 assert.ok(vaultItem?.label, "the demo plan labels its vault service");
 assert.match(list("data-erase-list"), new RegExp(`<span data-erase-label>${vaultItem.label}</span> <code class="set-path secondary">${vaultItem.location.replace(".", "\\.")}</code>`));
 for (const item of plan.items.filter((i) => !i.label)) assert.ok(!html.includes(`data-erase-label>${item.location}`));
+// PRD 0052 S-01/S-03: the app's window storage and the Open at login entry are erased too, by the app only, and listed
+// with their friendly names among the erased items.
+for (const id of ["webview.storage", "autostart.entry"]) {
+  const item = plan.items.find((i) => i.id === id);
+  assert.ok(item?.app_only && item.erase && item.label, id);
+  assert.match(list("data-erase-list"), new RegExp(`<li data-erase-app><span data-erase-label>${item.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replaceAll("'", "&#39;")}</span>`), id);
+}
 assert.match(html, /<input type="checkbox" class="chk" data-erase-config\s*\/>/, "the accounts-file box starts off");
 assert.match(html, /data-erase-all-confirm disabled/, "the confirm button starts disabled");
 assert.ok(html.includes(i18n.te("settings.erase.word", { word: plan.word })), "the word to type is shown");

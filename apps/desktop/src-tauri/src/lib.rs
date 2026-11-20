@@ -1913,6 +1913,7 @@ async fn erase_all_data(
         &writers,
         &*vault,
         &cuotai_core::presence::running,
+        &erase_data::AppStateOf { app: app.clone() },
     )
     .await
     .map_err(|e| backend::l10n_to_json(&e))?;
@@ -3703,6 +3704,8 @@ pub fn run() -> std::process::ExitCode {
                     }
                 });
             }
+            // PRD 0052 S-05: capture profiles a crash left behind.
+            let _ = session_capture::sweep_dirs(None);
             // PRD 0015 RF2.2: the local cost scan, on a thread of its own.
             app.state::<Arc<local_cost::LocalCost>>().start();
             backend.notify_hook_runs(app.handle().clone());

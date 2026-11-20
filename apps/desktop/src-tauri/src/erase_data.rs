@@ -146,6 +146,56 @@ impl Writers for AppWriters {
     }
 }
 
+/// PRD 0052 S-01/S-03/S-05: what the app erases outside its files, after
+/// the writers stop; the tests record the order with a fake.
+pub trait AppState: Send + Sync {
+    /// Turn off Open at login (remove the system's login entry).
+    fn login_off(&self) -> Result<(), ()>;
+    /// Remove leftover web-session capture profiles; how many went.
+    fn sweep_capture_profiles(&self) -> Result<usize, ()>;
+    /// Clear the windows' web storage (`localStorage`, `sessionStorage`
+    /// and the webview's own data).
+    fn clear_web_storage(&self) -> Result<(), ()>;
+}
+
+/// The app's [`AppState`]: the autostart plugin, the capture folders in
+/// the system's temporary folder, and every webview window.
+pub struct AppStateOf<R: tauri::Runtime> {
+    pub app: tauri::AppHandle<R>,
+}
+
+impl<R: tauri::Runtime> AppState for AppStateOf<R> {
+    fn login_off(&self) -> Result<(), ()> {
+        match crate::autostart::apply(&self.app, false) {
+            Ok(false) => Ok(()),
+            _ => Err(()),
+        }
+    }
+
+    fn sweep_capture_profiles(&self) -> Result<usize, ()> {
+        crate::session_capture::sweep_dirs(None)
+    }
+
+    fn clear_web_storage(&self) -> Result<(), ()> {
+        use tauri::Manager;
+        let mut ok = true;
+        for window in self.app.webview_windows().values() {
+            // The explicit clear does not wait on WebKit's completion
+            // handler, which `clear_all_browsing_data` does not await on
+            // macOS; the closing message keeps the process alive meanwhile.
+            ok &= window
+                .eval("try{localStorage.clear();sessionStorage.clear()}catch(e){}")
+                .is_ok();
+            ok &= window.clear_all_browsing_data().is_ok();
+        }
+        if ok {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+}
+
 /// The other Cuotai programs running now ([`presence::running`] skips
 /// this process); the tests pass a fake.
 pub type Running = dyn Fn() -> Vec<Program> + Sync;
@@ -163,6 +213,7 @@ pub async fn run(
     writers: &dyn Writers,
     vault: &(dyn Vault + Sync),
     running: &Running,
+    app_state: &dyn AppState,
 ) -> Result<EraseResult, Localized> {
     let _running = RUNNING
         .try_lock()
@@ -200,7 +251,41 @@ pub async fn run(
         return Err(erase::declined());
     }
     writers.stop().await;
-    let report = erase::erase_all(&options, vault).map_err(|e| e.l10n())?;
+    // PRD 0052 S-03: the login entry goes first, so a later failure still
+    // leaves nothing that starts the app again; a refusal is a partial
+    // erase named by its id, retried with the rest.
+    let login = match app_state.login_off() {
+        Ok(()) => Outcome::Removed,
+        Err(()) => Outcome::Failed,
+    };
+    // PRD 0052 S-05: leftover web-session capture profiles, now that no
+    // capture can start.
+    let capture = match app_state.sweep_capture_profiles() {
+        Ok(0) => Outcome::Absent,
+        Ok(_) => Outcome::Removed,
+        Err(()) => Outcome::Failed,
+    };
+    let mut report = erase::erase_all(&options, vault).map_err(|e| e.l10n())?;
+    // PRD 0052 S-01/R-01: the web storage is cleared only once every file
+    // is gone (`desktop.json` included), so the next start cannot copy the
+    // old display choices back into a fresh `desktop.json`; a partial erase
+    // keeps it for the retry.
+    let storage = if report.complete() {
+        match app_state.clear_web_storage() {
+            Ok(()) => Outcome::Removed,
+            Err(()) => Outcome::Failed,
+        }
+    } else {
+        Outcome::Kept
+    };
+    for item in &mut report.items {
+        item.outcome = match item.id {
+            "autostart.entry" => login,
+            "capture.profiles" => capture,
+            "webview.storage" => storage,
+            _ => continue,
+        };
+    }
     Ok(EraseResult {
         complete: report.complete(),
         removed: report.count(Outcome::Removed),
@@ -296,6 +381,52 @@ mod tests {
         }
     }
 
+    /// Records the app-state steps in order, and whether the watched file
+    /// still existed at each.
+    #[derive(Default)]
+    struct FakeApp {
+        steps: Mutex<Vec<(&'static str, bool)>>,
+        watched: Option<PathBuf>,
+        fail_login: bool,
+        capture_dir: Option<PathBuf>,
+    }
+
+    impl FakeApp {
+        fn note(&self, step: &'static str) {
+            let present = self.watched.as_ref().is_some_and(|p| p.exists());
+            self.steps.lock().unwrap().push((step, present));
+        }
+        fn steps(&self) -> Vec<&'static str> {
+            self.steps.lock().unwrap().iter().map(|s| s.0).collect()
+        }
+    }
+
+    impl AppState for FakeApp {
+        fn login_off(&self) -> Result<(), ()> {
+            self.note("login_off");
+            if self.fail_login {
+                Err(())
+            } else {
+                Ok(())
+            }
+        }
+        fn sweep_capture_profiles(&self) -> Result<usize, ()> {
+            self.note("sweep");
+            match &self.capture_dir {
+                Some(dir) => crate::session_capture::sweep_dirs_in(dir, None),
+                None => Ok(0),
+            }
+        }
+        fn clear_web_storage(&self) -> Result<(), ()> {
+            self.note("clear_web_storage");
+            Ok(())
+        }
+    }
+
+    fn app() -> FakeApp {
+        FakeApp::default()
+    }
+
     /// No other Cuotai program runs.
     fn none() -> Vec<Program> {
         Vec::new()
@@ -357,6 +488,7 @@ mod tests {
                 &writers,
                 &vault,
                 &none,
+                &app(),
             )
             .await
             .unwrap_err();
@@ -383,6 +515,7 @@ mod tests {
             &writers,
             &vault(true),
             &none,
+            &app(),
         )
         .await
         .unwrap();
@@ -399,7 +532,15 @@ mod tests {
         let writers = writers(&history);
         let vault = vault(true);
         let result = run(
-            "ERASE", false, roots, "en-US", &confirmer, &writers, &vault, &none,
+            "ERASE",
+            false,
+            roots,
+            "en-US",
+            &confirmer,
+            &writers,
+            &vault,
+            &none,
+            &app(),
         )
         .await
         .unwrap();
@@ -457,7 +598,15 @@ mod tests {
         let confirmer = Answer(true, Mutex::new(Vec::new()));
         let writers = writers(&history);
         let result = run(
-            "ERASE", false, roots, "en-US", &confirmer, &writers, &*vault, &none,
+            "ERASE",
+            false,
+            roots,
+            "en-US",
+            &confirmer,
+            &writers,
+            &*vault,
+            &none,
+            &app(),
         )
         .await
         .unwrap();
@@ -487,6 +636,7 @@ mod tests {
             &writers,
             &vault(true),
             &none,
+            &app(),
         )
         .await
         .unwrap();
@@ -509,6 +659,7 @@ mod tests {
             &writers,
             &vault(true),
             &none,
+            &app(),
         )
         .await
         .unwrap_err();
@@ -523,6 +674,7 @@ mod tests {
             &writers,
             &vault(false),
             &none,
+            &app(),
         )
         .await
         .unwrap_err();
@@ -547,6 +699,7 @@ mod tests {
             &writers,
             &vault(true),
             &none,
+            &app(),
         )
         .await
         .unwrap_err();
@@ -632,7 +785,15 @@ mod tests {
         let vault = vault(true);
         let serve = || vec![Program::Serve, Program::Dashboard];
         let error = run(
-            "ERASE", false, roots, "en-US", &confirmer, &writers, &vault, &serve,
+            "ERASE",
+            false,
+            roots,
+            "en-US",
+            &confirmer,
+            &writers,
+            &vault,
+            &serve,
+            &app(),
         )
         .await
         .unwrap_err();
@@ -644,5 +805,155 @@ mod tests {
         assert_eq!(writers.stopped.load(Ordering::SeqCst), 0);
         assert!(confirmer.1.lock().unwrap().is_empty(), "nothing asked");
         assert_eq!(vault.searched.load(Ordering::SeqCst), 0);
+    }
+
+    #[cfg(unix)]
+    fn failed_id(result: &EraseResult, id: &str) -> bool {
+        result.failed.contains(&id)
+    }
+
+    /// PRD 0052 S-01/S-03/R-01: stop → login off → erase the files → clear
+    /// the web storage, which happens only once the files are gone.
+    #[tokio::test]
+    async fn a_complete_erase_turns_off_login_and_clears_web_storage_in_order() {
+        let _serial = SERIAL.lock().await;
+        let (_dir, roots, history, _) = tree();
+        let confirmer = Answer(true, Mutex::new(Vec::new()));
+        let writers = writers(&history);
+        let app = FakeApp {
+            watched: Some(history.clone()),
+            ..FakeApp::default()
+        };
+        let result = run(
+            "ERASE",
+            false,
+            roots,
+            "en-US",
+            &confirmer,
+            &writers,
+            &vault(true),
+            &none,
+            &app,
+        )
+        .await
+        .unwrap();
+        assert!(result.complete, "{result:?}");
+        assert_eq!(writers.stopped.load(Ordering::SeqCst), 1);
+        assert_eq!(app.steps(), vec!["login_off", "sweep", "clear_web_storage"]);
+        let steps = app.steps.lock().unwrap().clone();
+        assert!(steps[0].1, "login off before the files go");
+        assert!(!steps[2].1, "web storage after the files went");
+        // The two app items count as removed.
+        assert!(result.removed >= 3);
+    }
+
+    /// PRD 0052 S-03: a login entry that cannot be removed is a partial
+    /// erase named by its id; the files still go.
+    #[tokio::test]
+    async fn a_login_entry_that_cannot_be_removed_is_a_partial_erase_named_by_id() {
+        let _serial = SERIAL.lock().await;
+        let (_dir, roots, history, _) = tree();
+        let app = FakeApp {
+            fail_login: true,
+            ..FakeApp::default()
+        };
+        let result = run(
+            "ERASE",
+            false,
+            roots,
+            "en-US",
+            &Answer(true, Mutex::new(Vec::new())),
+            &writers(&history),
+            &vault(true),
+            &none,
+            &app,
+        )
+        .await
+        .unwrap();
+        assert!(!result.complete);
+        assert_eq!(result.failed, vec!["autostart.entry"]);
+        assert!(!history.exists());
+    }
+
+    /// PRD 0052 R-01: when a file could not be erased, the web storage is
+    /// left for the retry.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn web_storage_is_left_alone_when_the_file_erase_is_partial() {
+        use std::os::unix::fs::PermissionsExt;
+        let _serial = SERIAL.lock().await;
+        let (_dir, roots, history, _) = tree();
+        let folder = history.parent().unwrap().to_path_buf();
+        std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let app = app();
+        let result = run(
+            "ERASE",
+            false,
+            roots,
+            "en-US",
+            &Answer(true, Mutex::new(Vec::new())),
+            &writers(&history),
+            &vault(true),
+            &none,
+            &app,
+        )
+        .await
+        .unwrap();
+        std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(!result.complete);
+        assert!(failed_id(&result, "history.db"), "{result:?}");
+        assert!(!failed_id(&result, "webview.storage"));
+        assert!(!app.steps().contains(&"clear_web_storage"));
+    }
+
+    /// PRD 0052 S-05: leftover capture profiles go with the erase (an
+    /// injected temporary folder stands in for the system's).
+    #[tokio::test]
+    async fn capture_profiles_are_swept_by_the_erase() {
+        let _serial = SERIAL.lock().await;
+        let (dir, roots, history, _) = tree();
+        let temp = dir.path().join("tmp");
+        let profile = temp.join("cuotai-session-capture-1-2-3");
+        std::fs::create_dir_all(profile.join("Default")).unwrap();
+        std::fs::write(profile.join("Default").join("Cookies"), b"x").unwrap();
+        let other = temp.join("someone-else");
+        std::fs::create_dir_all(&other).unwrap();
+        let app = FakeApp {
+            capture_dir: Some(temp.clone()),
+            ..FakeApp::default()
+        };
+        let result = run(
+            "ERASE",
+            false,
+            roots,
+            "en-US",
+            &Answer(true, Mutex::new(Vec::new())),
+            &writers(&history),
+            &vault(true),
+            &none,
+            &app,
+        )
+        .await
+        .unwrap();
+        assert!(result.complete, "{result:?}");
+        assert!(!profile.exists());
+        assert!(other.exists(), "only Cuotai's capture folders go");
+    }
+
+    #[tokio::test]
+    async fn the_plan_lists_the_app_managed_items_with_their_labels() {
+        let (_dir, roots, _, _) = tree();
+        let view = plan_view(roots, "en-US");
+        for (id, label) in [
+            ("webview.storage", "The app's window storage"),
+            ("autostart.entry", "Open at login"),
+        ] {
+            let item = view.items.iter().find(|i| i.item.id == id).unwrap();
+            assert!(item.item.erase && item.item.app_only);
+            assert_eq!(item.label.as_deref(), Some(label));
+            let json = serde_json::to_value(item).unwrap();
+            assert_eq!(json["app_only"], true);
+            assert_eq!(json["kind"], "app_managed");
+        }
     }
 }
