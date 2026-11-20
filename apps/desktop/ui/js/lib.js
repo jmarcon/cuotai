@@ -2580,6 +2580,9 @@ function demoCheckBudgets({ index = null, budgets = [], floors = [], locale = "e
   return { targets: ["spend", "usage", "credits", "account"], floor_targets: ["any", "balance", "credits"], problems, sentences, units };
 }
 
+const demoEraseWord = () => tl({ id: "privacy.erase.word", params: {}, fallback: "ERASE" });
+// PRD 0052 re-validation V-04: `?skew` shows the core's clock advice while the clocks disagree.
+const DEMO_SKEW = { id: "network.clock_ahead", params: { minutes: 12 }, fallback: "This computer's clock is about {minutes} min ahead of the providers' servers. Times, ages and resets may look wrong: turn on automatic date and time, then refresh." };
 const DEMO_CONFIG_NOTICES = [
   { kind: "issue", text: { id: "config.account.requires_newer", params: { number: 3, path: "accounts.quota_mode" }, fallback: "Account 3 uses accounts.quota_mode, which this version of Cuotai does not know; it is skipped and the other accounts still work. Update Cuotai, or run cuotai --check-config to find a typo." } },
   { kind: "warning", text: { id: "config.warning.unknown_key", params: { path: "surprise" }, fallback: "surprise is not known to this version of Cuotai; it is ignored and kept when the file is saved." } },
@@ -2636,6 +2639,7 @@ const demoView = () => {
     // PRD 0051 re-validation V-04: `?confignotes` shows an account set aside and an unknown key kept (the core's notes);
     // `?relocation` the moved-file question until it is answered.
     config_notices: DEMO_QUERY.has("confignotes") ? DEMO_CONFIG_NOTICES : [],
+    clock_skew: DEMO_QUERY.has("skew") ? DEMO_SKEW : null,
     history_relocation: DEMO_QUERY.has("relocation") && !demoSettings.relocationAnswered ? DEMO_RELOCATION : null,
     feed_banners: demoFeedBanners(),
     notify: { enabled: demoSettings.notify.enabled, next: demoNextNotice(reports), alerts: demoSettings.alerts.enabled },
@@ -4145,7 +4149,8 @@ const demo = {
   // erased account (or everything) leaves the synthetic history of `account_history`.
   history_export: async ({ index, generation, format }) => { if (index != null && generation !== demoSettings.generation) throw STALE; return { rows: index == null ? 42 : 7, path: `/Users/demo/cuotai-history.${format}` }; },
   history_erase: async ({ index, generation }) => { if (index != null && generation !== demoSettings.generation) throw STALE; demoSettings.historyErased.add(index ?? "all"); demoSettings.historyEpoch++; return index == null ? 42 : 7; },
-  erase_all_plan: async () => ({ word: "ERASE", items: [
+  // The core's word in the UI language (the demo reads the core catalogs), so every locale shows its own word.
+  erase_all_plan: async () => ({ word: demoEraseWord(), items: [
     { id: "history.db", location: "~/Library/Application Support/cuotai/history/history.sqlite3", kind: "file", erase: true },
     { id: "desktop.settings", location: "~/Library/Application Support/cuotai/desktop.json", kind: "file", erase: true },
     { id: "vault.oauth", location: "cuotai.oauth", kind: "vault_service", erase: true, label: "Saved sign-ins, keys and channel addresses" },
@@ -4155,7 +4160,7 @@ const demo = {
   ] }),
   // The demo never erases anything: it answers as a partial erase so the page stays usable.
   erase_all_data: async ({ word }) => {
-    if (word.trim() !== "ERASE") throw JSON.stringify({ id: "privacy.erase.word_mismatch", params: {}, fallback: "The confirmation word does not match; nothing was erased." });
+    if (word.trim().normalize("NFC") !== demoEraseWord().normalize("NFC")) throw JSON.stringify({ id: "privacy.erase.word_mismatch", params: {}, fallback: "The confirmation word does not match; nothing was erased." });
     return { complete: false, removed: 0, absent: 0, failed: ["demo"] };
   },
   set_history_recording: async ({ on }) => { demoSettings.historyRecording = on; demoSettings.historyEpoch++; },

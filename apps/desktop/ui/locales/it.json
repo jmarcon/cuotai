@@ -137,6 +137,7 @@
   "settings.doctor.help": "Controlla la configurazione di questo computer offline e senza modificare nulla: il file degli account, la variabile di ogni account (impostata o no, mai il valore), i database, gli hook, le impostazioni e il server locale. Ogni problema indica cosa fare. Come cuotai --doctor.",
   "settings.doctor.copy": "Copia diagnostica",
   "settings.doctor.copyHelp": "Copia diagnostica copia esattamente il testo qui sotto: niente nomi di account, valori delle chiavi o contenuto dei file. Non viene inviato nulla; leggilo e incollalo dove vuoi.",
+  "settings.files.doctor_report_hint": "Questo rapporto nomina le tue variabili d'ambiente, mai i loro valori.",
   "settings.doctor.preview": "Diagnostica da copiare",
   "settings.doctor.copied": "Copiato.",
   "settings.doctor.copyFailed": "Impossibile copiare. Seleziona il testo qui sopra e copialo.",

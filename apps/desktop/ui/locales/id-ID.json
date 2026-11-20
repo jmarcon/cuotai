@@ -137,6 +137,7 @@
   "settings.doctor.help": "Memeriksa penyiapan komputer ini secara offline tanpa mengubah apa pun: file akun, variabel tiap akun (disetel atau tidak, tidak pernah nilainya), basis data, hook, pengaturan, dan server lokal. Setiap masalah disertai langkah perbaikannya. Sama seperti cuotai --doctor.",
   "settings.doctor.copy": "Salin diagnostik",
   "settings.doctor.copyHelp": "Salin diagnostik menyalin persis teks di bawah: tanpa nama akun, nilai kunci, atau isi berkas. Tidak ada yang dikirim; baca dulu, lalu tempel di mana pun Anda mau.",
+  "settings.files.doctor_report_hint": "Laporan ini menyebut nama variabel lingkungan Anda, tidak pernah nilainya.",
   "settings.doctor.preview": "Diagnostik yang akan disalin",
   "settings.doctor.copied": "Disalin.",
   "settings.doctor.copyFailed": "Tidak bisa menyalin. Pilih teks di atas lalu salin.",

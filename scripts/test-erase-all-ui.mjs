@@ -64,6 +64,13 @@ assert.equal(erase.wordMatches(plan.word.toLowerCase(), plan.word), false);
 assert.equal(erase.wordMatches(`${plan.word}!`, plan.word), false);
 assert.equal(erase.wordMatches(` ${plan.word} `, plan.word), true);
 assert.equal(erase.wordMatches("anything", ""), false);
+// PRD 0052 re-validation V-03: a decomposed form (base letter plus combining mark) matches, as in Rust's NFC check, and
+// the word is sent composed; the English word never stands in for another language's.
+assert.equal(erase.wordMatches("XO\u0301A", "XÓA"), true, "the decomposed Vietnamese word must enable the button");
+assert.equal(erase.wordMatches("SI\u0307L", "SİL"), true);
+assert.equal(erase.wordMatches("XOA", "XÓA"), false, "a missing accent must not match");
+assert.equal(erase.wordMatches("ERASE", "XÓA"), false);
+assert.equal(erase.typedWord(" XO\u0301A "), "XÓA");
 
 // The shell refuses a wrong word with the core's text; a partial erase lists ids, never paths.
 try {

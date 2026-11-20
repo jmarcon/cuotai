@@ -117,6 +117,7 @@ export const diagnosticsText = (report) => JSON.stringify(report, null, 2);
 function diagnosticsHtml(report) {
   return `<div class="doctor-copy" data-doctor-copy-box>
     <p class="hint">${te("settings.doctor.copyHelp")}</p>
+    <p class="hint" data-doctor-report-hint>${te("settings.files.doctor_report_hint")}</p>
     <pre class="snippet" data-doctor-json tabindex="0" aria-label="${te("settings.doctor.preview")}">${esc(diagnosticsText(report))}</pre>
     <span class="set-btns"><button class="btn sm" data-doctor-copy>${icon("copy")} ${te("settings.doctor.copy")}</button></span>
     <p class="hint" id="doctor-copy-msg" role="status"></p>

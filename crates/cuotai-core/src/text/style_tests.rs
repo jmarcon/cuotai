@@ -144,7 +144,6 @@ const DE_DU_IMPERATIVE_RATCHET: &[&str] = &[
     "ui:coreText.toolMissing",
     "ui:dialog.monogram.invalid",
     "ui:settings.erase.partial",
-    "ui:settings.erase.word",
     "ui:settings.error.busy",
     "ui:settings.error.newer",
     "ui:settings.insights.digestTestOff",

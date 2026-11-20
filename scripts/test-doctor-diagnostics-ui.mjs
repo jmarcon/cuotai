@@ -24,6 +24,9 @@ assert.equal(pre[1], escaped, "the preview shows exactly what is copied");
 assert.ok(html.indexOf("data-doctor-json") < html.indexOf("data-doctor-copy>"), "the preview comes before the button");
 assert.match(html, new RegExp(i18n.t("settings.doctor.copy")));
 assert.doesNotMatch(html, /https?:\/\/(?!127\.0\.0\.1)/, "no link to open");
+// PRD 0052 re-validation V-02/S-08: the preview says that the report names environment variables, never their values.
+assert.ok(html.includes(`<p class="hint" data-doctor-report-hint>${i18n.te("settings.files.doctor_report_hint")}</p>`), "the report hint is missing");
+assert.ok(html.indexOf("data-doctor-report-hint") < html.indexOf("data-doctor-json"), "the hint comes before the preview");
 
 // A fake box: the button's click writes to the injected clipboard, and the status line says how it went.
 const box = (() => {
@@ -48,6 +51,13 @@ for (const { code } of i18n.LOCALES) {
   await i18n.setLocale(code);
   for (const key of ["copy", "copyHelp", "preview", "copied", "copyFailed"]) {
     assert.notEqual(i18n.t(`settings.doctor.${key}`), `settings.doctor.${key}`, `${code}: ${key}`);
+  }
+  assert.notEqual(i18n.t("settings.files.doctor_report_hint"), "settings.files.doctor_report_hint", `${code}: report hint`);
+  if (!code.startsWith("en")) {
+    await i18n.setLocale("en-US");
+    const english = i18n.t("settings.files.doctor_report_hint");
+    await i18n.setLocale(code);
+    assert.notEqual(i18n.t("settings.files.doctor_report_hint"), english, `${code}: report hint left in English`);
   }
 }
 console.log("doctor diagnostics: exact preview, copy, local failure and catalogs OK");

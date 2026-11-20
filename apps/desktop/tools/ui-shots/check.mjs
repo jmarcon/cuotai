@@ -290,6 +290,10 @@ const PAGES = zoom ? ZOOM_PAGES : [
   // question with its two answers, at both main-window widths.
   ["main-config-notices", "index.html?confignotes&relocation", 1200, 820, {}],
   ["main-config-notices-narrow", "index.html?confignotes&relocation", 520, 820, {}],
+  // PRD 0052 re-validation V-04: the erase confirmation with the core's word of each language, and the clock-skew banner.
+  ["dialog-erase-all", "settings.html?page=data", 640, 460, { "cuotai.settings.disc.history-data": "open" }, "[data-erase-all]"],
+  ["main-skew", "index.html?skew", 1200, 820, {}],
+  ["main-skew-narrow", "index.html?skew", 520, 820, {}],
   ["dialog-add-claude-feed", "index.html?feed-banner", 1200, 820, {}, "[data-feed-add]"],
   ["settings-dashboard-snippet", "settings.html?page=dashboard", 640, 460, { "cuotai.settings.disc.display-more": "open" }],
 ];
