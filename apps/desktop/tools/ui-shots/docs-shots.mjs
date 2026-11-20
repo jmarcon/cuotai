@@ -52,9 +52,12 @@ async function hero() {
 }
 
 /** PRD 0020 re-validation V-15/R-07: the Settings pages (1290 × 960) and the tray popover views (570 × 900) that
- *  README.md, docs/gui-*.md and site/index.html show, named after the page or view. */
-const SETTINGS_PAGES = [["general", "general"], ["alerts", "alerts"], ["data", "data"], ["cost", "cost&cost"]];
-const TRAY_VIEWS = [["list", "list"], ["donut", "rings"]];
+ *  README.md, docs/gui-*.md and site/index.html show, named after the page or view. Menu bar, Row display
+ *  (Settings › Dashboard) and Integrations illustrate their sections of docs/gui-features.md, and so does the compact
+ *  popover view. */
+const SETTINGS_PAGES = [["general", "general"], ["alerts", "alerts"], ["data", "data"], ["cost", "cost&cost"],
+  ["menubar", "menubar"], ["rows", "dashboard&sub=rows"], ["integrations", "integrations"]];
+const TRAY_VIEWS = [["list", "list"], ["donut", "rings"], ["compact", "compact"]];
 async function settingsShots() {
   for (const [name, page] of SETTINGS_PAGES) {
     const file = `desktop-settings-${name}`;

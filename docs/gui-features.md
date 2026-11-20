@@ -166,9 +166,10 @@ Closing the main window only hides it: Cuotai keeps running and refreshing from 
 The main window comes back with its last size and position (`main_window` in `desktop.json`), written a moment after you stop moving or resizing it and when you close or quit; a maximized, full-screen or minimized window keeps its last normal place. If that screen is gone, the window opens centered on the main screen; if it is smaller now, the window shrinks to fit and at least part of its title bar stays on the screen.
 
 <div align="center">
-  <img src="assets/screenshots/desktop-tray-donut.png" alt="Tray popover, donut view" width="300" />
-  <img src="assets/screenshots/desktop-tray-list.png" alt="Tray popover, list view" width="300" />
-  <p><em>The tray popover in the donut view and in the list view.</em></p>
+  <img src="assets/screenshots/desktop-tray-donut.png" alt="Tray popover, donut view" width="260" />
+  <img src="assets/screenshots/desktop-tray-list.png" alt="Tray popover, list view" width="260" />
+  <img src="assets/screenshots/desktop-tray-compact.png" alt="Tray popover, compact view" width="260" />
+  <p><em>The tray popover in the donut, list and compact views.</em></p>
 </div>
 
 The tray icon, its tooltip, the right-click menu and the popover also carry the update notice ("Update 0.72.0 available"), the next reset notice and, when status is on, the red outage dot. Details that depend on the operating system are in the platform guides.
@@ -194,9 +195,19 @@ A 9router instance you run (see [`providers.md`](providers.md#9router-nine_route
 
 An unmeasured account shows "—", never 0%; a stale reading is marked and left out of "tightest" unless every reading is stale; an exhausted account shows its return time. The **Colored** switch is off by default, and the figures and marks carry the meaning with or without it. Below the style, **Accounts in the menu bar** lists the accounts with check boxes and drag handles (or `Alt+↑/↓`); **Automatic** shows every account in dashboard order (at most 4 meters or 6 logos), and the popover lists the rest under "Not in menu bar". The title never exceeds 24 characters (extra items collapse into "+2"), updates at most once a second and never animates. The item's tooltip, and on macOS its accessibility label, spell the summary out ("Claude Work 22% left, resets 19:30; Gemini 64% left"). How each system renders it is in [`platforms.md`](platforms.md).
 
+<div align="center">
+  <img src="assets/screenshots/desktop-settings-menubar.png" alt="Settings, Menu bar page" width="640" />
+  <p><em>Settings › Menu bar: the style with its live preview, Colored, and the accounts the menu bar shows.</em></p>
+</div>
+
 ## What each row shows
 
 **Settings › Dashboard › Row display** controls how much an account row (in the tray and in the main window) carries: **Detailed**, **Standard** (the default), **Minimal** or **Custom**, with a switch per element (plan badge, account label, monogram, unit word, pace corridor, status label, ring glyph, runs-out chip, returns chip, freshness age, incident mark, extra-usage line and sub-limit line). The figure and the bar are always shown. Hidden information is not lost: it stays in the expanded row, the details, the tooltip and the row's accessible name. **Minimal** shows one status chosen by priority (incident, stale, exhausted or blocked with its return time, runs out before the reset, pace). A switch lets the main window use a different layout from the tray, and a live preview row shows the effect of every change. The same page also has the account list with add, edit, remove, enable switch and order, the tray view (list, rings or compact), "Show pace as" (points or percent) and the refresh interval. An account's tile shows a monogram: the provider's own letters, or two characters you type in the account form (kept on this computer in `desktop.json`, never in the accounts file).
+
+<div align="center">
+  <img src="assets/screenshots/desktop-settings-rows.png" alt="Settings, Dashboard, Row display" width="640" />
+  <p><em>Settings › Dashboard › Row display: the presets, the switch per element and the live preview row.</em></p>
+</div>
 
 ## Adding accounts
 
@@ -232,6 +243,11 @@ The app ships 15 themes, each with a dark and a light mode, and follows the syst
 **Settings › Advanced › Integrations** runs the same read-only **local server** as `cuotai --serve` from inside the app, off by default. Turned on, it listens on this computer only (`127.0.0.1` and `::1`), on exactly the port you choose (6738 by default), and serves this app's own readings (`/health`, `/v1/snapshot`, `/v1/accounts/{key}`, `/v1/limits`), so reading it never queries a provider. The section shows the effective address (with **Copy address**) or why it is not serving; a taken port, for example by a `cuotai --serve` already running, is named as such there and in a banner on the main window. It always requires a bearer token: turning it on keeps one in the system vault (never in the TOML); **Copy token** copies it without showing it, **Generate new token** stops the old one at once and **Revoke token** removes it and turns the server off. **Allow web browsers** asks for confirmation first, because the pages of the trusted origins you list that know the token can then read your usage. **Access log** (off by default) keeps a private, redacted `serve-access.log` of the failing requests or of all of them, at most 1 MiB plus one older copy, with **Erase log** beside it. See [the local server guide](local-server.md).
 
 **Settings › Advanced › Integrations › Hooks** runs your own commands on account events from inside the app, off by default: an editor for the rules of the `hooks.toml` next to the accounts' file (name, events and the command as one field per argument, never a shell string), shared with `cuotai --watch --hooks`. Saving rules, approving them, turning hooks on and **Test** each show the exact commands in a system dialog the app opens itself, and nothing is saved, approved or run until you confirm there. The confirmed rules run on the events of the app's own readings (no extra query); **Test** sends a rule a sample event marked `"sample": true`, **Latest runs** lists the local run log, and a file changed outside the app asks again (with a banner on the main window). See [`events.md`](events.md#hooks-in-the-desktop-app).
+
+<div align="center">
+  <img src="assets/screenshots/desktop-settings-integrations.png" alt="Settings, Integrations page" width="640" />
+  <p><em>Settings › Advanced › Integrations: the local server, hooks and widgets.</em></p>
+</div>
 
 Other desktop details (the accounts file, the add-account dialog, the Models section, configuration conflicts, how the shell is built) are in [`apps/desktop/README.md`](../apps/desktop/README.md).
 
