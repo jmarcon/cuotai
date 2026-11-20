@@ -37,7 +37,7 @@ The weekly digest a channel receives covers only the accounts its filter admits,
 
 ## What is sent
 
-Every channel gets the notification's title and text in your language. When names are hidden, the text carries neither the account name nor the metric label. E-mail-shaped text and web addresses are replaced, and no credential, variable name or raw provider text is ever included.
+Every channel gets the notification's title and text in your language. When names are hidden, the text carries neither the account name nor the metric label. E-mail-shaped text, web addresses, key-shaped text and the value after a password, senha, secret, token or key name followed by `:` or `=` (such as `api_key=…` or `Password: …`, whatever the value's length) are replaced, and no credential, variable name or raw provider text is ever included.
 
 - **Every kind of channel:** the title, the text, the kind and the severity.
 - **Webhook only, when the notification has them:** the provider, the stable account id, the metric window, the percent used and the reset time.

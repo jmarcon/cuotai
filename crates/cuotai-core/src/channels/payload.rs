@@ -106,8 +106,9 @@ fn scrubbed_name(account: &Account) -> String {
 /// RF2.2: what every channel text and label passes: hidden direction
 /// marks and control characters are dropped line by line (so a multi-line
 /// body keeps its lines), an e-mail address shows `[email]` (an account
-/// named after one too), a whole web address and key-shaped text show
-/// `[redacted]` ([`crate::diagnostics::redact::tokens`]).
+/// named after one too), a whole web address, a secret value
+/// ([`hide_secret_values`]) and key-shaped text show `[redacted]`
+/// ([`crate::diagnostics::redact::tokens`]).
 pub fn scrub(text: &str) -> String {
     use std::sync::OnceLock;
     static PATTERNS: OnceLock<(regex::Regex, regex::Regex)> = OnceLock::new();
@@ -124,7 +125,57 @@ pub fn scrub(text: &str) -> String {
         .join("\n");
     let text = email.replace_all(&text, crate::diagnostics::redact::EMAIL);
     let text = url.replace_all(&text, crate::diagnostics::redact::SECRET);
+    let text = hide_secret_values(&text);
     crate::diagnostics::redact::tokens(&text)
+}
+
+/// PRD 0044 RF2.2 (owner decision 2026-11-20): the value after a secret's
+/// name, whatever its length, shows `[redacted]`.
+///
+/// - **The name:** `password`, `senha`, `secret`, `token` or `key`, in any
+///   case, as a word of its own (`Password: …`, `Senha = …`) or as the
+///   suffix of a longer name: after `_`, `-` or `.` (`api_key`,
+///   `x-api-key`, `client.secret`, `DB_PASSWORD`), or camel case, an
+///   uppercase keyword right after a lowercase letter or a digit (`apiKey`,
+///   `authToken`). A word that only ends in the letters (`monkey: 3`,
+///   `hockey = 2`), a plural (`Tokens: 40`) or an all-caps run (`APIKEY`)
+///   is not a name. A quote may close the name (`"password": …`).
+/// - **The separator:** `:` or `=`, with optional spaces on both sides.
+/// - **The value:** a quoted value up to its closing quote (or the end of
+///   the line when it is not closed), otherwise everything up to the first
+///   whitespace, quote, comma, `&` or the end of the text; any length,
+///   a single character too. The name and separator stay; the value
+///   (with its quotes) becomes `[redacted]`. Idempotent.
+fn hide_secret_values(text: &str) -> String {
+    use std::sync::OnceLock;
+    static PATTERN: OnceLock<regex::Regex> = OnceLock::new();
+    let pattern = PATTERN.get_or_init(|| {
+        regex::Regex::new(
+            r#"(?i)\b([A-Za-z0-9_.-]*?)(password|senha|secret|token|key)(["']?[ \t]*[:=][ \t]*)("[^"\n]*"?|'[^'\n]*'?|[^\s"',&]+)"#,
+        )
+        .expect("static")
+    });
+    pattern
+        .replace_all(text, |caps: &regex::Captures| {
+            let (prefix, name) = (&caps[1], &caps[2]);
+            let after_lower = prefix
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
+            let named = prefix.is_empty()
+                || prefix.ends_with(['_', '-', '.'])
+                || (after_lower && name.starts_with(|c: char| c.is_ascii_uppercase()));
+            if named {
+                format!(
+                    "{prefix}{name}{}{}",
+                    &caps[3],
+                    crate::diagnostics::redact::SECRET
+                )
+            } else {
+                caps[0].to_string()
+            }
+        })
+        .into_owned()
 }
 
 fn base(

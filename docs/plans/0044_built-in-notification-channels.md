@@ -61,9 +61,11 @@ The re-validation found 2 high, 5 medium and 15 low findings; every one is fixed
 | G-0044-9 | S-05, S-07 | RF4.1, RF4.3, RF7 | `channel_add`, `channel_edit`, `channel_set_enabled` and `channel_test` answer only the Settings window; `docs/privacy.md` and `docs/notifications.md` list every field a channel receives. |
 
 **Deviations, documented:**
-- `redact::tokens` redacts a bearer or colon-style value only when it looks like a key (16 characters, or 8 mixing letters with digits), so texts such as "Tokens: 40" keep their words.
+- `redact::tokens` redacts a bearer or colon-style value only when it looks like a key (16 characters, or 8 mixing letters with digits), so texts such as "Tokens: 40" keep their words. The channel scrub adds the owner's rule of 2026-11-20 for the five secret names (below), which hides values of any length.
 - A history CSV with a hidden-mark label is refused as a whole, as a control character already was.
 - A pasted line break in the hidden prompt is dropped; Enter confirms.
+
+**Owner decision of 2026-11-20, delivered in vNEXT (RF2.2):** the channel `scrub` also hides the value after a secret's name, whatever its length: `password`, `senha`, `secret`, `token` or `key` in any case, as a word or a suffix after `_`, `-`, `.` or in camel case (`api_key`, `x-api-key`, `apiKey`; not `monkey`, `Tokens` or an all-caps run such as `APIKEY`), then `:` or `=` with optional spaces; the value runs to its closing quote, or else to the first whitespace, quote, comma, `&` or the end (`channels::payload::hide_secret_values`). Other languages' words for "password" are not covered beyond "senha".
 
 **Open items:**
 - The hourly cap and the startup grace stay per process (documented deviation): the desktop and `--notify` together can reach 40 deliveries an hour per channel.
