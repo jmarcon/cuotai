@@ -188,7 +188,7 @@ static LIBRARIES: &[Library] = &[
         "MIT OR Apache-2.0",
         "https://github.com/rust-lang/libc",
         Role::Runtime,
-        &[Core],
+        &[Core, Desktop],
     ),
     lib(
         "objc2",

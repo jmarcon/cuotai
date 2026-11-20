@@ -3655,6 +3655,11 @@ pub fn run() -> std::process::ExitCode {
             };
             window_mode::set(mode);
             apply_dock_policy(app.handle());
+            // PRD 0014 RF3.1: a widget extension process an update left
+            // running draws nothing the system accepts; stop it so the
+            // installed build draws the next timeline.
+            #[cfg(target_os = "macos")]
+            std::thread::spawn(widgets::retire_stale_extension);
 
             // Popover closes on focus loss.
             if let Some(w) = app.get_webview_window("tray") {

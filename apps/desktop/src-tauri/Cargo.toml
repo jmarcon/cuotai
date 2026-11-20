@@ -65,6 +65,9 @@ parking_lot = "0.12"
 # ones included (`macos_popover` in lib.rs). Both crates are already in the graph
 # through Tauri/tao; the versions follow theirs.
 [target.'cfg(target_os = "macos")'.dependencies]
+# PRD 0014 RF3.1: the libproc calls that find a widget extension an update left
+# running (`widgets::retire_stale_extension`). Already in the graph.
+libc = "0.2"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = [
   "std",
