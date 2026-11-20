@@ -1738,6 +1738,10 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             }
             return Ok(code);
         }
+        // PRD 0051 RF1.2 (R-01): an account the tolerant reader set aside
+        // is not read at all, so `--once`, `--json` and `--json-v1` are not
+        // "all ready". A warning about an unknown key keeps 0.
+        let code = if file.issues.is_empty() { code } else { 2 };
         if args.json {
             let mut stdout = io::stdout().lock();
             serde_json::to_writer_pretty(

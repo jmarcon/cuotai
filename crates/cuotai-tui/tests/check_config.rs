@@ -39,6 +39,8 @@ fn run_in(dir: &Path, config: &str, args: &[&str], lang: &str) -> Output {
         .env("CUOTAI_METERED_DIR", home.join("metered"))
         .env("CUOTAI_FEED_DIR", home.join("feed"))
         .env("XDG_CONFIG_HOME", home.join("config"))
+        .env("CUOTAI_DATA_DIR", home.join("cuotai-data"))
+        .env("CUOTAI_USER_DIR", home.join("cuotai-user"))
         .env("PATH", path)
         .env_remove("CUOTAI_CONFIG")
         .env_remove("CUOTAI_STATUS")
@@ -115,8 +117,8 @@ fn a_provider_from_a_newer_release_fails_only_its_account() {
     let out = run(&dir, config, &["--json"]);
     assert_eq!(
         out.status.code(),
-        Some(0),
-        "{}",
+        Some(2),
+        "the set-aside account is not ready (R-01): {}",
         String::from_utf8_lossy(&out.stderr)
     );
     let snapshot: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
@@ -128,6 +130,32 @@ fn a_provider_from_a_newer_release_fails_only_its_account() {
     assert!(!stderr.contains("a_provider_from_2030"), "{stderr}");
     let strict = run(&dir, config, &["--check-config"]);
     assert_eq!(strict.status.code(), Some(1));
+    let _ = fs::remove_dir_all(dir);
+}
+
+/// PRD 0051 RF1.2 (R-01): an account set aside by the tolerant reader is
+/// not "all ready", so `--once`, `--json` and `--json-v1` exit 2; a warning
+/// about an unknown key alone keeps 0. No account here is ever queried.
+#[test]
+fn a_set_aside_account_exits_2_and_a_warning_alone_keeps_0() {
+    let dir = sandbox("set-aside-exit");
+    let set_aside = "[[accounts]]\nname = \"Next\"\nprovider = \"a_provider_from_2030\"\n";
+    let warning_only =
+        "accounts = []\n\n[a_table_from_2030]\nanswer = 42\n\n[updates]\nchannel = \"beta\"\n";
+    for args in [&["--once"][..], &["--json"][..], &["--json-v1"][..]] {
+        let out = run(&dir, set_aside, args);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(2), "{args:?}: {stderr}");
+        assert!(
+            stderr.contains("accounts[0].provider"),
+            "{args:?}: {stderr}"
+        );
+        let out = run(&dir, warning_only, args);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(0), "{args:?}: {stderr}");
+        assert!(stderr.contains("a_table_from_2030"), "{args:?}: {stderr}");
+        assert!(stderr.contains("updates.channel"), "{args:?}: {stderr}");
+    }
     let _ = fs::remove_dir_all(dir);
 }
 

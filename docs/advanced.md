@@ -82,7 +82,7 @@ cuotai --config cuotai.toml --stats --rhythm --range typical
 cuotai --config cuotai.toml --digest --markdown
 ```
 
-`--once`, `--json` and `--json-v1` exit `0` when every account is ready, `2` when an account failed or lacks configuration, and `1` for local errors. `--serve` and `--watch` exit `0` when a signal stops them (`SIGINT`/`SIGTERM`, Ctrl+C or Ctrl+Break), whatever the accounts' state; only with `--strict-exit` do they exit `2`, when no account had a ready reading until shutdown (`--serve`) or an account's latest reading had failed (`--watch`); `1` is a local error.
+`--once`, `--json` and `--json-v1` exit `0` when every account is ready, `2` when an account failed, lacks configuration or was set aside because this version does not know its provider or one of its keys (see [`configuration.md`](configuration.md#two-readers)), and `1` for local errors. `--serve` and `--watch` exit `0` when a signal stops them (`SIGINT`/`SIGTERM`, Ctrl+C or Ctrl+Break), whatever the accounts' state; only with `--strict-exit` do they exit `2`, when no account had a ready reading until shutdown (`--serve`) or an account's latest reading had failed (`--watch`); `1` is a local error.
 
 ## JSON output and the export contract
 
