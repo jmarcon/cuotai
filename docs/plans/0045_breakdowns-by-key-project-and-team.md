@@ -47,7 +47,7 @@ The re-validation (Visual and Security on `9d9ac9bb`, Review on `9d9ac9bb`, deli
 
 **Open items:**
 - Notices and hook payloads keep the English fallback name of an unnamed row ("Org · Key …ab12"), because `row_display` has no locale.
-- The main window's cards show no "Top:" line (only the popover rows in Detailed do), and a LiteLLM aggregator's breakdown appears only in the details dialog; whether the card gets a Top line is a design decision.
+- ~~Whether the main window's cards get a "Top:" line~~: **decided by the owner on 2026-11-20: no.** The "Top:" line stays in the Detailed rows only (the popover), and a LiteLLM aggregator's breakdown stays in the details dialog.
 - The 13 new catalog texts are machine drafts in `_meta.pending_review`.
 
 ## 1. Context
