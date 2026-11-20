@@ -1132,7 +1132,16 @@ pub(crate) fn draw(frame: &mut Frame, view: View) -> Targets {
     let banner_rows = view.banner.map_or(0, |banner| {
         banner_lines(&safe(banner), usize::from(area.width.saturating_sub(2))).len()
     });
-    let header = HEADER_HEIGHT + u16::try_from(banner_rows).unwrap_or(0);
+    // The location, the filter and the error share the rows below the
+    // banner; a long error (a set-aside account, V-02) wraps to a second
+    // row instead of losing its end.
+    let content_rows = view.location.lines().count()
+        + usize::from(view.filtering || !view.filter.is_empty())
+        + view.error.map_or(0, |error| {
+            banner_lines(&safe(error), usize::from(area.width.saturating_sub(2))).len()
+        });
+    let header = HEADER_HEIGHT.max(2 + u16::try_from(content_rows.min(4)).unwrap_or(4))
+        + u16::try_from(banner_rows).unwrap_or(0);
     let footer = footer_rows(&view, usize::from(area.width));
     let areas = Layout::vertical([
         Constraint::Length(header),
@@ -1322,7 +1331,10 @@ fn render_header(frame: &mut Frame, area: Rect, view: &View<'_>) {
         )));
     }
     if let Some(error) = view.error {
-        lines.push(Line::styled(safe(error), Style::default().fg(RED)));
+        let width = usize::from(area.width.saturating_sub(2));
+        for row in banner_lines(&safe(error), width) {
+            lines.push(Line::styled(row, Style::default().fg(RED)));
+        }
     }
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
@@ -5985,6 +5997,86 @@ mod tests {
         let rows = banner_lines(&long, 20);
         assert_eq!(rows.len(), 2);
         assert!(rows[1].ends_with('…'));
+    }
+
+    /// PRD 0051 re-validation V-02: at 80 columns the set-aside notice
+    /// still shows how many accounts were skipped and how to find why.
+    #[test]
+    fn the_set_aside_notice_keeps_its_count_and_remedy_at_80_columns() {
+        let text = "[[accounts]]\nprovider = \"a_provider_from_2030\"\n\n[[accounts]]\nprovider = \"groq\"\ncredential_env = \"K\"\nweekly_cap = 1\n\n[[accounts]]\nname = \"G\"\nprovider = \"groq\"\ncredential_env = \"GROQ_API_KEY\"\n";
+        let parsed = cuotai_core::config_file::parse(
+            text,
+            cuotai_core::config_file::ConfigParseMode::Tolerant,
+        )
+        .unwrap();
+        let accounts = parsed.config.accounts.clone();
+        let reports = vec![None; accounts.len()];
+        let visible = visible_indices(&accounts, &reports, "", true);
+        for (locale, count, remedy) in [
+            ("en-US", "2 accounts skipped", "cuotai --check-config"),
+            ("de", "2 Konten übersprungen", "cuotai --check-config"),
+        ] {
+            let rows = crate::l10n::with_locale(locale, || {
+                let notice = crate::ui::config_notice_of(&parsed.issues, &parsed.warnings).unwrap();
+                let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+                let mut targets = Targets::default();
+                terminal
+                    .draw(|frame| {
+                        targets = draw(
+                            frame,
+                            View {
+                                accounts: &accounts,
+                                reports: &reports,
+                                model_counts: &[],
+                                live: &[],
+                                visible: &visible,
+                                selected: Some(0),
+                                details: false,
+                                detail_scroll: 0,
+                                show_unmeasured: true,
+                                refreshing: false,
+                                location: "/tmp/config.toml (--config)",
+                                filter: "",
+                                filtering: false,
+                                next_refresh: None,
+                                error: Some(&notice),
+                                anim: None,
+                                last_good: &[],
+                                recent: &[],
+                                refresh_seconds: 300,
+                                history: None,
+                                banner: None,
+                                incidents: &[],
+                                local_cost: None,
+                                sub_cards: &[],
+                                aggregators_collapsed: false,
+                                connection_focus: None,
+                                access_account: None,
+                                now: Utc::now(),
+                            },
+                        );
+                    })
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                let rows: Vec<String> = (0..6)
+                    .map(|y| (0..80).map(|x| buffer[(x, y)].symbol()).collect())
+                    .collect();
+                (rows, targets.cards[0].0.y)
+            });
+            let (rows, first_card) = rows;
+            assert!(rows[1].contains("/tmp/config.toml"), "{rows:#?}");
+            assert!(rows[2].contains(count), "{locale}: {rows:#?}");
+            assert!(rows[2].contains(remedy), "{locale}: {rows:#?}");
+            assert!(
+                rows[3].contains("accounts[0].provider") || rows[3].contains("…"),
+                "the note continues on a second row: {rows:#?}"
+            );
+            assert!(
+                !rows.concat().contains("a_provider_from_2030"),
+                "never the value"
+            );
+            assert_eq!(first_card, HEADER_HEIGHT + 1, "one more header row");
+        }
     }
 
     #[test]

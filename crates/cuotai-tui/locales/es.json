@@ -411,6 +411,10 @@
   },
   "stats.unknown_return": "Regreso desconocido",
   "ui.account_changed": "Cuenta modificada en el archivo; vuelve a abrir el asistente.",
+  "ui.config_notice.count": {
+    "one": "{count} cuenta omitida, ejecuta cuotai --check-config: {note}",
+    "other": "{count} cuentas omitidas, ejecuta cuotai --check-config: {note}"
+  },
   "ui.data_as_of": " · datos de {at}",
   "ui.delete.account_n": "cuenta #{index}",
   "ui.delete.already_removed": "Cuenta ya eliminada.",

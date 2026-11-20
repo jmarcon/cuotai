@@ -449,6 +449,9 @@
   },
   "stats.unknown_return": "回復時期不明",
   "ui.account_changed": "ファイル内のアカウントが変更されました。ウィザードを開き直してください。",
+  "ui.config_notice.count": {
+    "other": "{count} 件のアカウントをスキップしました。cuotai --check-config を実行してください：{note}"
+  },
   "ui.data_as_of": " · {at} 時点のデータ",
   "ui.delete.account_n": "アカウント #{index}",
   "ui.delete.already_removed": "アカウントは既に削除されています。",

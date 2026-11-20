@@ -649,6 +649,10 @@
   },
   "stats.unknown_return": "Retour inconnu",
   "ui.account_changed": "Compte modifié dans le fichier ; rouvrez l’assistant.",
+  "ui.config_notice.count": {
+    "one": "{count} compte ignoré, lancez cuotai --check-config : {note}",
+    "other": "{count} comptes ignorés, lancez cuotai --check-config : {note}"
+  },
   "ui.data_as_of": " · données de {at}",
   "ui.delete.account_n": "compte n° {index}",
   "ui.delete.already_removed": "Compte déjà retiré.",

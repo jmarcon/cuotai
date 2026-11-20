@@ -422,6 +422,9 @@
   },
   "stats.unknown_return": "Chưa rõ khi nào hoạt động lại",
   "ui.account_changed": "Tài khoản đã thay đổi trong tệp; hãy mở lại trình hướng dẫn.",
+  "ui.config_notice.count": {
+    "other": "Đã bỏ qua {count} tài khoản, hãy chạy cuotai --check-config: {note}"
+  },
   "ui.data_as_of": " · dữ liệu từ {at}",
   "ui.delete.account_n": "tài khoản #{index}",
   "ui.delete.already_removed": "Tài khoản đã bị xóa.",

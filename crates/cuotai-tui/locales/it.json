@@ -411,6 +411,10 @@
   },
   "stats.unknown_return": "Ritorno sconosciuto",
   "ui.account_changed": "Account modificato nel file; riapri la procedura guidata.",
+  "ui.config_notice.count": {
+    "one": "{count} account saltato, esegui cuotai --check-config: {note}",
+    "other": "{count} account saltati, esegui cuotai --check-config: {note}"
+  },
   "ui.data_as_of": " · dati delle {at}",
   "ui.delete.account_n": "account #{index}",
   "ui.delete.already_removed": "Account già rimosso.",
