@@ -12,7 +12,7 @@ Cuotai's accounts file (`cuotai.toml`) is shared by the terminal, the command li
   Syntax errors, a key written twice and a value of the wrong type still reject the whole file: a broken file is never half-read.
 - **Checking and editing are strict.** `cuotai --check-config` reads the same file with the strict reader, which rejects every unknown provider and key, so a typo (`floor` for `floors`) is found instead of silently setting an account aside.
 
-A set-aside account is not queried: an unknown key may change its credentials, its endpoint or its cost, so Cuotai never guesses.
+A set-aside account is not queried: an unknown key may change its credentials, its endpoint or its cost, so Cuotai never guesses. Because it is not read, `--once`, `--json` and `--json-v1` exit `2` while one is set aside, as for a failed account; `--json` and `--json-v1` list no entry for it, so read the notice on stderr. An unknown key that only warns (a top-level table, or a key inside `[updates]` or `[[groups]]`) keeps exit `0`.
 
 ## Finding the problem: `cuotai --check-config`
 
