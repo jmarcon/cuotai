@@ -756,38 +756,48 @@ mod tests {
         assert_eq!(decide(&table[..1], &[V4], 20128), Verdict::Trusted);
     }
 
+    /// Read the real table for `port` until it gives `expected`, for up to
+    /// 10 s, and return the last verdict. The table is the kernel's view a
+    /// moment ago: on a loaded macOS runner a closed port was seen to still
+    /// read as ours for a while (another listener of this test process, or a
+    /// child forked by a parallel test that has not reached `exec` yet, can
+    /// briefly hold the same port or a copy of the socket), so no assertion
+    /// about a change of state reads it only once. A state that lasts past
+    /// the bound still fails the caller's assertion.
+    fn wait_for_verdict(families: &[IpAddr], port: u16, expected: Verdict) -> Verdict {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let started = std::time::Instant::now();
+            let verdict = System.verdict(families, port);
+            eprintln!(
+                "local_listener: check of port {port} took {:?}",
+                started.elapsed()
+            );
+            if verdict == expected || std::time::Instant::now() >= deadline {
+                return verdict;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
     /// The real table finds a listener this test process opens (every OS
-    /// where a check exists).
+    /// where a check exists), and stops finding it once it is closed.
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn the_system_table_finds_a_listener_of_this_process() {
         let socket = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
         let port = socket.local_addr().unwrap().port();
-        let started = std::time::Instant::now();
-        let verdict = System.verdict(&[V4], port);
-        let elapsed = started.elapsed();
-        eprintln!("local_listener: own listener check took {elapsed:?}");
-        assert_eq!(verdict, Verdict::Trusted);
+        assert_eq!(
+            wait_for_verdict(&[V4], port, Verdict::Trusted),
+            Verdict::Trusted,
+            "an open listener of this process reads as ours within 10 s"
+        );
         drop(socket);
-        // Closed, the port must stop reading as ours. Poll for it instead of
-        // asserting the very next read: on a loaded macOS runner the table
-        // was seen to still report the port for a moment after the close
-        // (another listener of this test process, or a child forked by a
-        // parallel test that has not reached `exec` yet, can briefly hold
-        // the same port or a copy of the socket). A port that stays ours
-        // past the bound still fails.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        loop {
-            let after = System.verdict(&[V4], port);
-            if after == Verdict::Unconfirmed {
-                break;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "a closed listener still reads {after:?} after 10 s"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
+        assert_eq!(
+            wait_for_verdict(&[V4], port, Verdict::Unconfirmed),
+            Verdict::Unconfirmed,
+            "a closed listener stops reading as ours within 10 s"
+        );
     }
 
     /// A listener of a child process this test starts (another process of
@@ -818,15 +828,7 @@ mod tests {
             let port: Option<u16> = read
                 .and_then(Result::ok)
                 .and_then(|_| line.trim().parse().ok());
-            let verdict = port.map(|port| {
-                let started = std::time::Instant::now();
-                let verdict = System.verdict(&[target], port);
-                eprintln!(
-                    "local_listener: child listener ({host}) check took {:?}",
-                    started.elapsed()
-                );
-                verdict
-            });
+            let verdict = port.map(|port| wait_for_verdict(&[target], port, Verdict::Trusted));
             let _ = child.kill();
             let _ = child.wait();
             let Some(verdict) = verdict else {
