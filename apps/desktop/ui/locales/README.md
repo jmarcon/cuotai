@@ -215,10 +215,10 @@ review" counts the `pending_review` ids of the three catalogs.
 | `es` | Español | es | complete | complete | complete | maintainer | pending | pending | 102 |
 | `it` | Italiano | it | complete | complete | complete | maintainer | pending | pending | 101 |
 | `zh-CN` | 中文（简体） | cn | complete | complete | complete | machine-translated, needs native review | pending | pending | 363 |
-| `fr` | Français | fr | complete | complete | complete | machine-translated, needs native review | pending | pending | 1719 |
+| `fr` | Français | fr | complete | complete | complete | machine-translated, needs native review | pending | pending | 1720 |
 | `de` | Deutsch | de | complete | complete | complete | machine-translated, needs native review | pending | pending | 333 |
-| `ja` | 日本語 | jp | complete | complete | complete | machine-translated, needs native review | pending | pending | 391 |
-| `ru` | Русский | ru | complete | complete | complete | machine-translated, needs native review | pending | pending | 375 |
+| `ja` | 日本語 | jp | complete | complete | complete | machine-translated, needs native review | pending | pending | 392 |
+| `ru` | Русский | ru | complete | complete | complete | machine-translated, needs native review | pending | pending | 376 |
 | `ko` | 한국어 | kr | complete | complete | complete | machine-translated, needs native review | pending | pending | 345 |
 | `hi-IN` | हिन्दी | in | complete | complete | complete | machine-translated, needs native review | pending | pending | 239 |
 | `id-ID` | Bahasa Indonesia | id | complete | complete | complete | machine-translated, needs native review | pending | pending | 221 |

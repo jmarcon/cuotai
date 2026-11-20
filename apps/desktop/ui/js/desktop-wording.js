@@ -25,6 +25,7 @@ export const DESKTOP_WORDING = {
   "query.router_keys.kimi_missing_credential": KEY_MISSING,
   "query.alibaba_billing.missing_secret": KEY_MISSING,
   "query.jetbrains_ai.missing_secret": KEY_MISSING,
+  "query.jetbrains_ai.missing_client_id": KEY_MISSING,
   "query.alibaba_billing.missing_security_token": KEY_MISSING,
   "query.inference.missing_endpoint_credential.hint_default": KEY_MISSING,
   "query.inference.missing_endpoint_credential.hint_override": KEY_MISSING,

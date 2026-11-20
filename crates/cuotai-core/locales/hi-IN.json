@@ -2808,6 +2808,7 @@
   "models.unsupported.reason.admin_key": "खाता एडमिन, मैनेजमेंट या एनालिटिक्स कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है; उस कुंजी को उसके अपने पैरामीटर में और इन्फ़रेंस कुंजी को खाते के क्रेडेंशियल के रूप में रखें।",
   "models.unsupported.reason.admin_key_only": "खाता केवल एडमिन कुंजी रखता है, जिससे मॉडल सूचीबद्ध करना प्रदाता के दस्तावेज़ों में नहीं है।",
   "query.jetbrains_ai.missing_secret": "क्रेडेंशियल नहीं मिला: {env} (सेवा खाते का client secret)।",
+  "query.jetbrains_ai.missing_client_id": "क्रेडेंशियल नहीं मिला: {env} (सेवा खाते का client ID)।",
   "query.env_name_invalid": "{field} में वेरिएबल नाम मान्य नहीं है; वहाँ किसी एक्सपोर्ट किए गए वेरिएबल का नाम लिखें, उसका मान कभी नहीं।",
   "note.jetbrains_ai.rate_limited": "JetBrains ने क्वेरी सीमित कर दीं।",
   "note.jetbrains_ai.client_rejected": "JetBrains ने सेवा खाते का client ID या client secret अस्वीकार कर दिया; दोनों वेरिएबल जाँचें या JetBrains Central Console में secret बदलें।",

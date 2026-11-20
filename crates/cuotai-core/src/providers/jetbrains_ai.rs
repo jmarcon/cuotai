@@ -86,7 +86,20 @@ fn client<'a>(
     ctx: &Context<'_>,
     token_url: &'a str,
 ) -> Result<Client<'a>, QueryError> {
-    let id = super::secret(account, ctx, DEFAULT_ID_ENV)?;
+    // The shared lookup keeps the session-only guard; only its generic
+    // "missing credential" answer is replaced, so the note says what the
+    // variable must hold (re-validation V-02).
+    let id = super::secret(account, ctx, DEFAULT_ID_ENV).map_err(|error| {
+        if error.note.id != "query.missing_credential" {
+            return error;
+        }
+        let env = account.credential_env.as_deref().unwrap_or(DEFAULT_ID_ENV);
+        QueryError::config_params(
+            "query.jetbrains_ai.missing_client_id",
+            params([("env", ParamValue::from(env.to_string()))]),
+            "Missing credential: {env} (the service account's client ID).",
+        )
+    })?;
     let secret_env = account
         .params
         .get("client_secret_env")
@@ -954,6 +967,13 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(error.status, Status::NeedsConfiguration);
+        assert_eq!(error.note.id, "query.jetbrains_ai.missing_client_id");
+        assert_eq!(
+            error.note.params.get("env"),
+            Some(&ParamValue::from("UNSET_JB_ID".to_string()))
+        );
+        assert!(error.note.text().contains("UNSET_JB_ID"));
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 
     #[tokio::test]

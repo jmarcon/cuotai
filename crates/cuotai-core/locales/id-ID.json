@@ -2735,6 +2735,7 @@
   "models.unsupported.reason.admin_key": "akun menyimpan kunci admin, manajemen, atau analitik, yang tidak didokumentasikan penyedia untuk mencantumkan model; simpan kunci itu di parameternya sendiri dan kunci inferensi sebagai kredensial akun.",
   "models.unsupported.reason.admin_key_only": "akun hanya menyimpan kunci admin, yang tidak didokumentasikan penyedia untuk mencantumkan model.",
   "query.jetbrains_ai.missing_secret": "Kredensial tidak ada: {env} (client secret akun layanan).",
+  "query.jetbrains_ai.missing_client_id": "Kredensial tidak ada: {env} (client ID akun layanan).",
   "query.env_name_invalid": "Nama variabel di {field} tidak valid; isi dengan nama variabel yang diekspor, jangan nilainya.",
   "note.jetbrains_ai.rate_limited": "JetBrains membatasi kueri.",
   "note.jetbrains_ai.client_rejected": "JetBrains menolak client ID atau client secret akun layanan; periksa kedua variabel atau ganti secret di JetBrains Central Console.",
