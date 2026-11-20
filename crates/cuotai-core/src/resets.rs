@@ -447,7 +447,7 @@ pub fn passed(prev: &Report, next: &Report) -> Vec<ResetMetric> {
 
 /// PRD 0003 COMP-02: where a damaged ledger is set aside: a name with the
 /// UTC time that no earlier set-aside file has.
-fn quarantine_path(path: &Path, now: DateTime<Utc>) -> PathBuf {
+pub(crate) fn quarantine_path(path: &Path, now: DateTime<Utc>) -> PathBuf {
     let stamp = now.format("%Y%m%dT%H%M%SZ");
     let mut candidate = path.as_os_str().to_owned();
     candidate.push(format!(".corrupt-{stamp}"));

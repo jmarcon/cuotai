@@ -1520,4 +1520,18 @@ mod tests {
         assert!(found.contains(&path));
         assert!(found.contains(&leftover));
     }
+
+    /// PRD 0054 re-validation S-01: a damaged hook claims file set aside as
+    /// `claims.json.corrupt-<time>` is part of the claims artifact.
+    #[test]
+    fn a_set_aside_claims_file_is_a_companion() {
+        let claims = artifact("hooks.claims").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let hooks = dir.path().join("hooks");
+        std::fs::create_dir_all(&hooks).unwrap();
+        let path = hooks.join("claims.json");
+        let aside = hooks.join("claims.json.corrupt-20261118T000000Z");
+        std::fs::write(&aside, "{not json").unwrap();
+        assert!(companions(claims, &path).contains(&aside));
+    }
 }

@@ -142,11 +142,20 @@ impl HookClaims {
         Ok(true)
     }
 
-    /// A missing file holds no claim, and so does a damaged one (it is
-    /// replaced at the next save); a file that cannot be read is an error.
+    /// A missing file holds no claim; a damaged one is set aside as
+    /// `claims.json.corrupt-<UTC time>` and refuses this claim (re-validation
+    /// S-01: it could hold another process's claim, so nothing may run from
+    /// it), and the next claim starts from no file. A file that cannot be
+    /// read is an error.
     fn read(&self) -> io::Result<Record> {
         match std::fs::read(&self.file) {
-            Ok(bytes) => Ok(serde_json::from_slice(&bytes).unwrap_or_default()),
+            Ok(bytes) => serde_json::from_slice(&bytes).or_else(|_| {
+                std::fs::rename(
+                    &self.file,
+                    crate::resets::quarantine_path(&self.file, Utc::now()),
+                )?;
+                Err(io::Error::new(io::ErrorKind::InvalidData, "claims damaged"))
+            }),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Record::default()),
             Err(error) => Err(error),
         }
@@ -277,11 +286,31 @@ mod tests {
     }
 
     #[test]
-    fn a_damaged_file_is_replaced_and_a_held_lock_fails_closed() {
+    fn a_damaged_file_is_set_aside_and_refuses_one_claim() {
         let dir = tempfile::tempdir().unwrap();
         let claims = HookClaims::at(dir.path().join(FILE_NAME));
         std::fs::write(claims.path(), b"{not json").unwrap();
         let reading = Transition::observed("k", t(0));
+        // It could hold another process's claim: nothing runs from it.
+        assert_eq!(
+            claims.claim("id", "r", "a", &reading, t(0)),
+            Claim::Unavailable
+        );
+        let aside: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("claims.json.corrupt-")
+            })
+            .map(|entry| entry.path())
+            .collect();
+        assert_eq!(aside.len(), 1, "one set-aside copy");
+        assert_eq!(std::fs::read(&aside[0]).unwrap(), b"{not json");
+        assert!(!claims.path().exists());
+        // The next claim of the same transition starts from no file.
         assert_eq!(claims.claim("id", "r", "a", &reading, t(0)), Claim::Won);
         // Another process holds the lock past the wait: nothing runs.
         std::fs::write(crate::resets::lock_path(claims.path()), "1").unwrap();
