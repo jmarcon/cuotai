@@ -716,6 +716,7 @@
   "credential_help.windsurf": "Billing Read ve Teams Read-Only izinleri olan Enterprise gerekir.",
   "credential_help.xiaomi_mimo": "Bakiye/Token Plan: platform.xiaomimimo.com web oturumunu hesap sihirbazına (sistem kasası) yapıştırın veya değişkeni platform_session_env içinde belirtin. Yerel kod bir çerez değil, bir çıkarım anahtarı verir. Xiaomi hesabı oturumu (session_env) ayrıdır: MiMo Desktop haftalık kotası.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (zed.dev yerel oturum açma akışından bulut erişim jetonu). Sayısal user_id değerini de girin — `Authorization: <user_id> <token>` olarak gönderilir.",
+  "data_dir.error.occupied": "Seçilen veri klasöründe Cuotai'nin oluşturmadığı Cuotai adlı bir klasör zaten var; başka bir klasör seçin. Bu düzeltilene kadar Cuotai veri saklamaz.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR mutlak bir yol olmalıdır; düzeltilene veya kaldırılana kadar Cuotai veri tutmaz.",
   "data_dir.error.setting": "Ayarlarda seçilen veri klasörü, bağlantı olmayan ve size ait bir dizinin mutlak yolu olmalıdır; düzeltilene veya sıfırlanana kadar Cuotai veri saklamaz.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR size ait ve bağlantı olmayan bir klasör olmalıdır; düzeltilene veya kaldırılana kadar Cuotai veri tutmaz.",
@@ -2026,6 +2027,10 @@
   "privacy.erase.confirm.body": "Cuotai arka plan işlerini durduracak ve {erased} öğeyi silecek: geçmiş, ayarlar, günlükler, yerel maliyet verileri ve sistemin kimlik bilgisi kasasına kaydettiği oturum açmalar. {kept} öğe korunur. Bu işlem geri alınamaz.",
   "privacy.erase.confirm.accept": "Tümünü sil",
   "privacy.erase.done": "Tüm Cuotai verileri silindi. Cuotai şimdi kapanacak.",
+  "privacy.erase.foreign": {
+    "one": "Cuotai'nin oluşturmadığı bir klasörde olduğu veya Cuotai'nin oluşturmadığı dosyalar içerdiği için {count} öge yerinde bırakıldı.",
+    "other": "Cuotai'nin oluşturmadığı bir klasörde oldukları veya Cuotai'nin oluşturmadığı dosyalar içerdikleri için {count} öge yerinde bırakıldı."
+  },
   "privacy.erase.label.vault_oauth": "Kayıtlı oturum açmalar, anahtarlar ve kanal adresleri",
   "privacy.erase.label.vault_serve": "Yerel sunucu erişim belirteci",
   "provider.alibaba_cloud": "Alibaba Cloud — faturalama",

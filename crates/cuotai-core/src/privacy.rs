@@ -221,6 +221,15 @@ static ARTIFACTS: &[Artifact] = &[
         "0020, 0025",
     ),
     file(
+        "data.marker",
+        LocalData,
+        crate::data_dir::MARKER,
+        "a fixed note that this folder is Cuotai's data folder, and whether Cuotai created it or adopted an older one; Cuotai deletes or narrows files only in a folder that holds it (or the system's default one)",
+        Unversioned,
+        "until erased; removed last, and only when nothing else is left in the folder",
+        "0051",
+    ),
+    file(
         "history.db",
         LocalData,
         "history/history.sqlite3",
@@ -399,7 +408,7 @@ static ARTIFACTS: &[Artifact] = &[
     dir(
         "feed.tree_legacy",
         "feed",
-        "agent-fed readings left in a moved data folder by builds before PRD 0040's re-validation; no longer read, deleted by the first refresh",
+        "agent-fed readings left in a moved data folder by builds before PRD 0040's re-validation; no longer read; only its agents' folders are erased",
         UNTIL_ERASED,
         "0040",
     ),

@@ -171,6 +171,7 @@
   "config.error.unreadable": "Impossibile leggere il file di configurazione in {path}.",
   "config.warning.unknown_key": "{path} non è noto a questa versione di Cuotai; viene ignorato e conservato quando il file viene salvato.",
   "config.warning.private_http": "Avviso: {path} invia la password o la chiave dell'account senza cifratura tramite HTTP semplice nella tua rete privata. Meglio usare HTTPS con un certificato fissato.",
+  "data_dir.error.occupied": "La cartella dei dati scelta contiene già una cartella chiamata Cuotai che Cuotai non ha creato; scegli un’altra cartella. Cuotai non conserva dati finché non viene corretto.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR deve essere un percorso assoluto; Cuotai non conserva dati finché non viene corretto o rimosso.",
   "data_dir.error.setting": "La cartella dei dati scelta nelle Impostazioni deve essere un percorso assoluto a una tua cartella che non sia un collegamento; Cuotai non conserva dati finché non viene corretta o reimpostata.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR deve essere una tua cartella che non sia un collegamento; Cuotai non conserva dati finché non viene corretto o rimosso.",
@@ -1354,6 +1355,10 @@
   "privacy.erase.confirm.body": "Cuotai interromperà il lavoro in background e cancellerà {erased} elementi: cronologia, preferenze, log, dati dei costi locali e gli accessi salvati nel portachiavi del sistema. {kept} elementi vengono mantenuti. L'operazione non può essere annullata.",
   "privacy.erase.confirm.accept": "Cancella tutto",
   "privacy.erase.done": "Tutti i dati di Cuotai sono stati cancellati. Cuotai ora si chiuderà.",
+  "privacy.erase.foreign": {
+    "one": "{count} elemento è stato lasciato al suo posto perché si trova in una cartella, o contiene file, che Cuotai non ha creato.",
+    "other": "{count} elementi sono stati lasciati al loro posto perché si trovano in una cartella, o contengono file, che Cuotai non ha creato."
+  },
   "privacy.erase.label.vault_oauth": "Accessi, chiavi e indirizzi dei canali salvati",
   "privacy.erase.label.vault_serve": "Token di accesso del server locale",
   "provider.alibaba_cloud": "Alibaba Cloud — fatturazione",

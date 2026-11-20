@@ -748,6 +748,7 @@
   "credential_help.windsurf": "Billing Read と Teams Read-Only の権限を持つ Enterprise が必要です。",
   "credential_help.xiaomi_mimo": "残高/Token Plan：platform.xiaomimimo.com の Web セッションをアカウントのウィザードに貼り付ける（システムの保管庫）か、platform_session_env に変数を指定してください。ネイティブのコードで得られるのは推論キーで、Cookie ではありません。Xiaomi アカウントのセッション（session_env）は別物で、MiMo Desktop の週間クォータ用です。",
   "credential_help.zed": "ZED_ACCESS_TOKEN（zed.dev のネイティブログインで得られるクラウドのアクセストークン）。数値の user_id も指定してください — `Authorization: <user_id> <token>` として送信されます。",
+  "data_dir.error.occupied": "選んだデータフォルダーには、Cuotai が作成していない Cuotai という名前のフォルダーがすでにあります。別のフォルダーを選んでください。修正するまで、Cuotai はデータを保存しません。",
   "data_dir.error.relative": "CUOTAI_DATA_DIR は絶対パスである必要があります。修正するか削除するまで、Cuotai はデータを保存しません。",
   "data_dir.error.setting": "設定で選んだデータフォルダーは、リンクではない自分のディレクトリへの絶対パスである必要があります。修正またはリセットするまで、Cuotai はデータを保存しません。",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR は、リンクではない自分のフォルダーである必要があります。修正するか削除するまで、Cuotai はデータを保存しません。",
@@ -2043,6 +2044,9 @@
   "privacy.erase.confirm.body": "Cuotai はバックグラウンドの処理を止め、{erased} 個の項目を削除します：履歴、設定、ログ、ローカルコストのデータ、システムの資格情報保管庫に保存したサインイン。{kept} 個の項目は残ります。元に戻せません。",
   "privacy.erase.confirm.accept": "すべて削除",
   "privacy.erase.done": "Cuotai のデータをすべて削除しました。Cuotai を終了します。",
+  "privacy.erase.foreign": {
+    "other": "Cuotai が作成していないフォルダーにある、または Cuotai が作成していないファイルを含むため、{count} 個の項目はそのまま残しました。"
+  },
   "privacy.erase.label.vault_oauth": "保存したサインイン、キー、チャネルのアドレス",
   "privacy.erase.label.vault_serve": "ローカルサーバーのアクセストークン",
   "provider.alibaba_cloud": "Alibaba Cloud — 請求",

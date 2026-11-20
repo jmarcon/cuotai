@@ -739,6 +739,7 @@
   "credential_help.windsurf": "Erfordert Enterprise mit den Berechtigungen Billing Read und Teams Read-Only.",
   "credential_help.xiaomi_mimo": "Guthaben/Token Plan: Fügen Sie die Websitzung von platform.xiaomimimo.com im Kontoassistenten ein (Systemtresor) oder nennen Sie die Variable in platform_session_env. Der native Code liefert einen Inferenzschlüssel, kein Cookie. Die Sitzung des Xiaomi-Kontos (session_env) ist getrennt: Wochenkontingent von MiMo Desktop.",
   "credential_help.zed": "ZED_ACCESS_TOKEN (Cloud-Zugriffstoken aus dem nativen Anmeldeablauf von zed.dev). Geben Sie auch die numerische user_id an — sie wird als `Authorization: <user_id> <token>` gesendet.",
+  "data_dir.error.occupied": "Der gewählte Datenordner enthält bereits einen Ordner namens Cuotai, den Cuotai nicht angelegt hat; wählen Sie einen anderen Ordner. Cuotai speichert keine Daten, bis das behoben ist.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR muss ein absoluter Pfad sein; Cuotai speichert keine Daten, bis er korrigiert oder entfernt ist.",
   "data_dir.error.setting": "Der in den Einstellungen gewählte Datenordner muss ein absoluter Pfad zu einem eigenen Ordner sein, der kein Link ist; Cuotai speichert keine Daten, bis er korrigiert oder zurückgesetzt wird.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR muss ein eigener Ordner sein, der kein Link ist; Cuotai speichert keine Daten, bis er korrigiert oder entfernt ist.",
@@ -2049,6 +2050,10 @@
   "privacy.erase.confirm.body": "Cuotai beendet seine Hintergrundarbeit und löscht {erased} Elemente: Verlauf, Einstellungen, Protokolle, lokale Kostendaten und die Anmeldungen, die es im Anmeldedatenspeicher des Systems abgelegt hat. {kept} Elemente bleiben erhalten. Das kann nicht rückgängig gemacht werden.",
   "privacy.erase.confirm.accept": "Alles löschen",
   "privacy.erase.done": "Alle Cuotai-Daten wurden gelöscht. Cuotai wird jetzt beendet.",
+  "privacy.erase.foreign": {
+    "one": "{count} Element wurde nicht angetastet, weil es in einem Ordner liegt oder Dateien enthält, die Cuotai nicht angelegt hat.",
+    "other": "{count} Elemente wurden nicht angetastet, weil sie in einem Ordner liegen oder Dateien enthalten, die Cuotai nicht angelegt hat."
+  },
   "privacy.erase.label.vault_oauth": "Gespeicherte Anmeldungen, Schlüssel und Kanaladressen",
   "privacy.erase.label.vault_serve": "Zugriffstoken des lokalen Servers",
   "provider.alibaba_cloud": "Alibaba Cloud — Abrechnung",

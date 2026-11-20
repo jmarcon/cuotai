@@ -85,6 +85,9 @@ pub struct EraseResult {
     pub absent: usize,
     /// Logical ids that could not be removed (no path).
     pub failed: Vec<&'static str>,
+    /// Items left in place because Cuotai did not create them (PRD 0051
+    /// re-validation S-01); not a failure.
+    pub foreign: usize,
 }
 
 /// Everything that writes Cuotai files, stopped before erasing.
@@ -165,20 +168,33 @@ pub async fn run(
         removed: report.count(Outcome::Removed),
         absent: report.count(Outcome::Absent),
         failed: report.failed(),
+        foreign: report.count(Outcome::Foreign),
     })
 }
 
-/// After a complete erase: a closing native message, then the process
+/// After a complete erase: a closing native message (with how many items
+/// were left in place because Cuotai did not create them), then the process
 /// ends (the run loop's exit hooks find `desktop.json` locked). The exit
 /// happens even when the message cannot be shown.
-pub fn quit(app: &tauri::AppHandle, locale: &str) {
+pub fn quit(app: &tauri::AppHandle, locale: &str, foreign: usize) {
     use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
     let handle = app.clone();
     app.dialog()
-        .message(erase::done().resolve(locale))
+        .message(closing_message(locale, foreign))
         .title(erase::confirm_title().resolve(locale).trim_end_matches('?'))
         .kind(MessageDialogKind::Info)
         .show(move |_| handle.exit(0));
+}
+
+/// The closing message: the core's "done" text, and under it the
+/// left-in-place note when there is one.
+fn closing_message(locale: &str, foreign: usize) -> String {
+    let done = erase::done().resolve(locale);
+    if foreign == 0 {
+        done
+    } else {
+        format!("{done}\n\n{}", erase::foreign(foreign).resolve(locale))
+    }
 }
 
 /// The accounts TOML for [`Roots`]: the loaded one, or none.
@@ -255,6 +271,7 @@ mod tests {
         let history = data.join("history").join("history.sqlite3");
         std::fs::create_dir_all(history.parent().unwrap()).unwrap();
         std::fs::write(&history, b"x").unwrap();
+        cuotai_core::data_dir::mark_for_tests(&data).unwrap();
         let accounts = dir.path().join("conf").join("cuotai.toml");
         std::fs::create_dir_all(accounts.parent().unwrap()).unwrap();
         std::fs::write(&accounts, b"").unwrap();
@@ -516,5 +533,15 @@ mod tests {
         let json = serde_json::to_value(oauth).unwrap();
         assert_eq!(json["location"], "cuotai.oauth");
         assert_eq!(json["label"], "Logins, chaves e endereços de canais salvos");
+    }
+
+    /// PRD 0051 re-validation S-01: the closing message names what was left
+    /// in place, and only when something was.
+    #[test]
+    fn the_closing_message_adds_the_left_in_place_note() {
+        let done = erase::done().resolve("en-US");
+        assert_eq!(closing_message("en-US", 0), done);
+        let with = closing_message("en-US", 2);
+        assert!(with.starts_with(&done) && with.contains('2'), "{with}");
     }
 }

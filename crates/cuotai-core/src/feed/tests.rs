@@ -1242,6 +1242,45 @@ fn the_feed_folder_is_fixed_whatever_the_data_folder() {
     assert_eq!(path(&default, "feed.tree_legacy"), None, "the same folder");
 }
 
+/// PRD 0051 re-validation S-01: the legacy feed folder goes only from the
+/// OS default data folder; a chosen folder's `feed` (someone else's files)
+/// stays, a link is never followed and the fixed folder is never removed.
+#[test]
+fn the_legacy_feed_goes_only_from_the_default_data_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let default = dir.path().join("os-local").join("cuotai");
+    let fixed = dir.path().join("fixed-feed");
+    let chosen = dir.path().join("chosen");
+    for root in [&default, &chosen] {
+        std::fs::create_dir_all(root.join("feed")).unwrap();
+        std::fs::write(root.join("feed").join("notes.txt"), b"x").unwrap();
+    }
+    assert!(!remove_legacy_in(&chosen, Some(&fixed), &default));
+    assert!(chosen.join("feed").join("notes.txt").exists());
+    assert!(remove_legacy_in(&default, Some(&fixed), &default));
+    assert!(!default.join("feed").exists());
+
+    // The fixed folder itself is never taken for the legacy one.
+    std::fs::create_dir_all(default.join("feed")).unwrap();
+    assert!(!remove_legacy_in(
+        &default,
+        Some(&default.join("feed")),
+        &default
+    ));
+    assert!(default.join("feed").exists());
+
+    #[cfg(unix)]
+    {
+        let outside = dir.path().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("keep"), b"x").unwrap();
+        std::fs::remove_dir_all(default.join("feed")).unwrap();
+        std::os::unix::fs::symlink(&outside, default.join("feed")).unwrap();
+        assert!(!remove_legacy_in(&default, Some(&fixed), &default));
+        assert!(outside.join("keep").exists());
+    }
+}
+
 /// RF7.2 (S-06): `live_sessions = false` exports no session; the TOML key
 /// is absent by default and round-trips.
 #[test]

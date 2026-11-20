@@ -13,6 +13,8 @@ fn sandbox(name: &str) -> PathBuf {
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(dir.join("home")).unwrap();
     fs::create_dir_all(dir.join("data/cost")).unwrap();
+    // A data folder Cuotai already uses (PRD 0051 re-validation S-01).
+    cuotai_core::data_dir::mark_for_tests(&dir.join("data")).unwrap();
     fs::write(
         dir.join("cuotai.toml"),
         "[[accounts]]\nid = \"acct-work\"\nname = \"Work\"\nprovider = \"claude\"\n",

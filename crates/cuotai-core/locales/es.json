@@ -172,6 +172,7 @@
   "config.error.unreadable": "No se pudo leer el archivo de configuración en {path}.",
   "config.warning.unknown_key": "{path} no es conocido por esta versión de Cuotai; se ignora y se conserva al guardar el archivo.",
   "config.warning.private_http": "Aviso: {path} envía la contraseña o la clave de la cuenta sin cifrar por HTTP simple en tu red privada. Es mejor usar HTTPS con un certificado fijado.",
+  "data_dir.error.occupied": "La carpeta de datos elegida ya contiene una carpeta llamada Cuotai que Cuotai no creó; elige otra carpeta. Cuotai no guarda datos hasta que se corrija.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR debe ser una ruta absoluta; Cuotai no guarda datos hasta que se corrija o se quite.",
   "data_dir.error.setting": "La carpeta de datos elegida en Ajustes debe ser una ruta absoluta a una carpeta tuya que no sea un enlace; Cuotai no guarda datos hasta que se corrija o se restablezca.",
   "data_dir.error.unusable": "CUOTAI_DATA_DIR debe ser una carpeta tuya que no sea un enlace; Cuotai no guarda datos hasta que se corrija o se quite.",
@@ -1355,6 +1356,10 @@
   "privacy.erase.confirm.body": "Cuotai detendrá su trabajo en segundo plano y borrará {erased} elementos: historial, preferencias, registros, datos de coste local y los inicios de sesión que guardó en el almacén de credenciales del sistema. Se conservan {kept} elementos. Esto no se puede deshacer.",
   "privacy.erase.confirm.accept": "Borrar todo",
   "privacy.erase.done": "Se borraron todos los datos de Cuotai. Cuotai se cerrará ahora.",
+  "privacy.erase.foreign": {
+    "one": "Se dejó {count} elemento sin tocar porque está en una carpeta, o contiene archivos, que Cuotai no creó.",
+    "other": "Se dejaron {count} elementos sin tocar porque están en una carpeta, o contienen archivos, que Cuotai no creó."
+  },
   "privacy.erase.label.vault_oauth": "Inicios de sesión, claves y direcciones de canales guardados",
   "privacy.erase.label.vault_serve": "Token de acceso del servidor local",
   "provider.alibaba_cloud": "Alibaba Cloud — facturación",

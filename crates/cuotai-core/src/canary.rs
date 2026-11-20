@@ -585,6 +585,16 @@ impl Store {
             || (self.default && names.iter().all(|name| is_canary_file(name)))
     }
 
+    /// PRD 0051 re-validation S-01: whether the erase may remove `dir` as a
+    /// whole, by the rule of [`Store::usable`] for the default folder.
+    pub(crate) fn erasable(dir: &Path) -> bool {
+        Self {
+            dir: dir.to_path_buf(),
+            default: true,
+        }
+        .usable()
+    }
+
     pub fn dir(&self) -> &Path {
         &self.dir
     }

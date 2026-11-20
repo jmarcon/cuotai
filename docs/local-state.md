@@ -2,7 +2,7 @@
 
 Cuotai keeps a few files of its own next to your accounts file. This page lists each one, how it is versioned, what happens when it is damaged, and what an older Cuotai does with a file a newer one wrote (PRD 0051). No file here holds a credential: secrets stay in the system vault (see [`oauth.md`](oauth.md)).
 
-`<data>` is `CUOTAI_DATA_DIR` when it is set, otherwise `<OS local data dir>/cuotai` (`~/Library/Application Support/cuotai` on macOS, `~/.local/share/cuotai` on Linux, `%LOCALAPPDATA%\cuotai` on Windows). `<config>` is `<OS config dir>/cuotai`. See [`advanced.md`](advanced.md#environment-variables) for `CUOTAI_DATA_DIR`.
+`<data>` is `CUOTAI_DATA_DIR` when it is set (or `<that folder>/Cuotai` when it names an existing folder that does not hold Cuotai's data yet; the same rule applies to the desktop's data-folder choice), otherwise `<OS local data dir>/cuotai` (`~/Library/Application Support/cuotai` on macOS, `~/.local/share/cuotai` on Linux, `%LOCALAPPDATA%\cuotai` on Windows). `<config>` is `<OS config dir>/cuotai`. See [`advanced.md`](advanced.md#environment-variables) for `CUOTAI_DATA_DIR`.
 
 ## The state contracts
 

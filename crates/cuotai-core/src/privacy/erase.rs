@@ -11,12 +11,18 @@
 //! accounts TOML and the adjacent `hooks.toml` are kept unless
 //! [`EraseOptions::include_config`] is set; no external directory is ever
 //! touched (symbolic links are removed, never followed).
+//!
+//! PRD 0051 re-validation S-01: Cuotai deletes only what it created. A data
+//! root that is not [`crate::data_dir::owned`] is left as it is (every item
+//! found there is [`Outcome::Foreign`]); in an owned one a directory item
+//! loses only its Cuotai-shaped entries, and the ownership marker goes
+//! last, only when nothing else is left in the root.
 
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use super::{artifacts, companions, Artifact, Erase, Kind, Roots};
+use super::{artifacts, companions, Artifact, Erase, Kind, Root, Roots};
 use crate::diagnostics::redact::home_abbreviated;
 use crate::text::Localized;
 
@@ -137,6 +143,17 @@ pub fn done() -> Localized {
     )
 }
 
+/// PRD 0051 re-validation S-01: shown under the closing message when
+/// `count` items were left in place because Cuotai did not create them.
+pub fn foreign(count: usize) -> Localized {
+    Localized::plural(
+        "privacy.erase.foreign",
+        crate::text::params([("count", count.into())]),
+        "{count} item was left in place because it is in a folder, or holds files, that Cuotai did not create.",
+        "{count} items were left in place because they are in a folder, or hold files, that Cuotai did not create.",
+    )
+}
+
 /// A vault operation failed (the class only: no backend text).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VaultFailure;
@@ -251,6 +268,9 @@ pub enum Outcome {
     Kept,
     /// Removal failed; retry.
     Failed,
+    /// Left in place: it is in a folder Cuotai did not create, or holds
+    /// files Cuotai did not create (not a failure).
+    Foreign,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -303,6 +323,34 @@ impl EraseError {
     }
 }
 
+/// The ownership marker's registry id: removed last, by
+/// [`remove_empty_dirs`].
+const MARKER_ID: &str = "data.marker";
+
+/// What erasing knows about the roots before anything is removed.
+struct Scope {
+    /// The data root is Cuotai's own ([`crate::data_dir::owned`]).
+    local_owned: bool,
+    /// Cuotai's hook files sit beside `hooks/work` in the data root.
+    hooks_beside_work: bool,
+}
+
+impl Scope {
+    fn of(roots: &Roots) -> Self {
+        let local = roots.local_data.as_deref();
+        let regular = |path: PathBuf| std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file());
+        Self {
+            local_owned: local.is_some_and(crate::data_dir::owned),
+            hooks_beside_work: local.is_some_and(|root| {
+                let hooks = root.join("hooks");
+                ["consent.json", crate::hooks::CLAIMS_FILE_NAME, "runs.log"]
+                    .into_iter()
+                    .any(|name| regular(hooks.join(name)))
+            }),
+        }
+    }
+}
+
 /// Erase every selected artifact (see the module documentation).
 pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseReport, EraseError> {
     let vaults: Vec<&Artifact> = artifacts()
@@ -312,6 +360,7 @@ pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseRepor
     if vaults.iter().any(|a| !vault.can_search(a.path)) {
         return Err(EraseError::VaultUnavailable);
     }
+    let scope = Scope::of(&options.roots);
     let mut items = Vec::new();
     for artifact in artifacts() {
         let outcome = if !selected(artifact, options) {
@@ -324,7 +373,12 @@ pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseRepor
             }
         } else {
             match options.roots.path_of(artifact) {
-                Some(path) => remove(artifact, &path),
+                Some(path) if artifact.root == Root::LocalData && !scope.local_owned => {
+                    untouched(&path)
+                }
+                // Settled once the folder is otherwise empty.
+                Some(_) if artifact.id == MARKER_ID => Outcome::Absent,
+                Some(path) => remove(artifact, &path, &scope),
                 None => Outcome::Absent,
             }
         };
@@ -333,27 +387,41 @@ pub fn erase_all(options: &EraseOptions, vault: &dyn Vault) -> Result<EraseRepor
             outcome,
         });
     }
-    remove_empty_dirs(&options.roots);
+    let marker = remove_empty_dirs(&options.roots, scope.local_owned);
+    if let (Some(outcome), Some(item)) =
+        (marker, items.iter_mut().find(|item| item.id == MARKER_ID))
+    {
+        if item.outcome != Outcome::Kept {
+            item.outcome = outcome;
+        }
+    }
     Ok(EraseReport { items })
 }
 
-fn remove(artifact: &Artifact, path: &Path) -> Outcome {
-    let paths: Vec<PathBuf> = match artifact.kind {
-        Kind::File => companions(artifact, path),
-        _ => vec![path.to_path_buf()],
-    };
+/// An item in a folder Cuotai does not own: never touched.
+fn untouched(path: &Path) -> Outcome {
+    if std::fs::symlink_metadata(path).is_ok() {
+        Outcome::Foreign
+    } else {
+        Outcome::Absent
+    }
+}
+
+fn remove(artifact: &Artifact, path: &Path, scope: &Scope) -> Outcome {
+    if artifact.kind == Kind::Directory {
+        return remove_tree(artifact, path, scope);
+    }
     let mut removed = false;
-    for path in paths {
+    for path in companions(artifact, path) {
         let Ok(meta) = std::fs::symlink_metadata(&path) else {
             continue;
         };
-        let result = if meta.is_dir() {
-            std::fs::remove_dir_all(&path)
-        } else {
-            // A file or a symbolic link (the link itself, never its target).
-            std::fs::remove_file(&path)
-        };
-        match result {
+        if meta.is_dir() {
+            // Not a file Cuotai wrote under that name.
+            return Outcome::Foreign;
+        }
+        // A file or a symbolic link (the link itself, never its target).
+        match std::fs::remove_file(&path) {
             Ok(()) => removed = true,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_) => return Outcome::Failed,
@@ -366,24 +434,178 @@ fn remove(artifact: &Artifact, path: &Path) -> Outcome {
     }
 }
 
+/// What a directory item may lose.
+enum Shape {
+    /// All of it (Cuotai's beyond doubt).
+    Whole,
+    /// Only the entries the predicate accepts (name, metadata of the entry,
+    /// links not followed).
+    Entries(fn(&Path, &str, &std::fs::Metadata) -> bool),
+    /// Nothing but an empty folder.
+    EmptyOnly,
+}
+
+fn shape(artifact: &Artifact, path: &Path, scope: &Scope) -> Shape {
+    match artifact.id {
+        "extensions.tree" => Shape::Entries(|path, _, meta| {
+            meta.is_dir() && crate::extensions::looks_like_extension(path)
+        }),
+        "hooks.work" if scope.hooks_beside_work => Shape::Whole,
+        "canary.records" if crate::canary::Store::erasable(path) => Shape::Whole,
+        "feed.tree" | "feed.tree_legacy" => Shape::Entries(|_, name, meta| {
+            meta.is_dir() && crate::feed::FeedSource::from_slug(name).is_some()
+        }),
+        "metered.records" | "metered.records_legacy" => {
+            Shape::Entries(|_, name, meta| meta.is_file() && metered_name(name))
+        }
+        _ => Shape::EmptyOnly,
+    }
+}
+
+/// A metered record (`<64 hex>.json`), its lock (`.<record>.lock`) or a
+/// temporary file of its writer (`.<record>.<random>.tmp`).
+fn metered_name(name: &str) -> bool {
+    let record = |name: &str| {
+        name.strip_suffix(".json").is_some_and(|digest| {
+            digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit())
+        })
+    };
+    if record(name) {
+        return true;
+    }
+    let Some(inner) = name.strip_prefix('.') else {
+        return false;
+    };
+    if let Some(record_name) = inner.strip_suffix(".lock") {
+        return record(record_name);
+    }
+    inner
+        .strip_suffix(".tmp")
+        .and_then(|rest| rest.get(..69))
+        .is_some_and(|prefix| record(prefix) && inner.as_bytes().get(69) == Some(&b'.'))
+}
+
+/// Remove a directory item by its [`Shape`]: a symbolic link is removed
+/// itself (never followed); a directory that keeps entries Cuotai did not
+/// create is [`Outcome::Foreign`].
+fn remove_tree(artifact: &Artifact, path: &Path, scope: &Scope) -> Outcome {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return Outcome::Absent;
+    };
+    if meta.file_type().is_symlink() {
+        return match std::fs::remove_file(path) {
+            Ok(()) => Outcome::Removed,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Outcome::Absent,
+            Err(_) => Outcome::Failed,
+        };
+    }
+    if !meta.is_dir() {
+        return Outcome::Foreign;
+    }
+    let accept = match shape(artifact, path, scope) {
+        Shape::Whole => {
+            return match std::fs::remove_dir_all(path) {
+                Ok(()) => Outcome::Removed,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Outcome::Absent,
+                Err(_) => Outcome::Failed,
+            }
+        }
+        Shape::Entries(accept) => Some(accept),
+        Shape::EmptyOnly => None,
+    };
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return Outcome::Failed;
+    };
+    let mut kept = false;
+    for entry in entries.flatten() {
+        let entry_path = entry.path();
+        let Ok(entry_meta) = std::fs::symlink_metadata(&entry_path) else {
+            continue;
+        };
+        let name = entry.file_name();
+        if !accept.is_some_and(|accept| accept(&entry_path, &name.to_string_lossy(), &entry_meta)) {
+            kept = true;
+            continue;
+        }
+        let result = if entry_meta.is_dir() {
+            std::fs::remove_dir_all(&entry_path)
+        } else {
+            std::fs::remove_file(&entry_path)
+        };
+        match result {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Outcome::Failed,
+        }
+    }
+    if kept {
+        return Outcome::Foreign;
+    }
+    match std::fs::remove_dir(path) {
+        Ok(()) => Outcome::Removed,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Outcome::Absent,
+        Err(_) => Outcome::Failed,
+    }
+}
+
 /// Remove Cuotai's own directories once empty (`remove_dir` refuses a
-/// directory that still holds anything, such as a kept TOML).
-fn remove_empty_dirs(roots: &Roots) {
+/// directory that still holds anything, such as a kept TOML); in a data
+/// root Cuotai does not own, nothing. Before the data root itself goes, its
+/// ownership marker is removed, only when it is the last entry left; the
+/// marker's outcome is returned (`None` without a data root).
+fn remove_empty_dirs(roots: &Roots, local_owned: bool) -> Option<Outcome> {
     let mut dirs: Vec<PathBuf> = artifacts()
         .iter()
         .filter_map(|a| match a.root {
-            super::Root::LocalData | super::Root::Config => roots.path_of(a),
+            Root::LocalData if local_owned => roots.path_of(a),
+            Root::Config => roots.path_of(a),
             _ => None,
         })
         .filter_map(|path| path.parent().map(Path::to_path_buf))
         .collect();
-    dirs.extend(roots.local_data.clone());
+    if local_owned {
+        dirs.extend(roots.local_data.clone());
+    }
     dirs.extend(roots.config.as_ref().map(|d| d.join("cuotai")));
     // Deepest first, so a parent empties after its children.
     dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
     dirs.dedup();
+    let local = roots.local_data.as_deref();
+    let marker = local.map(|root| root.join(crate::data_dir::MARKER));
+    let existed = marker
+        .as_deref()
+        .is_some_and(|m| std::fs::symlink_metadata(m).is_ok());
     for dir in dirs {
+        if Some(dir.as_path()) == local {
+            remove_marker_if_last(&dir);
+        }
         let _ = std::fs::remove_dir(dir);
+    }
+    let marker = marker?;
+    if !local_owned {
+        return Some(untouched(&marker));
+    }
+    Some(
+        match (existed, std::fs::symlink_metadata(&marker).is_ok()) {
+            (false, _) => Outcome::Absent,
+            (true, false) => Outcome::Removed,
+            (true, true) => Outcome::Foreign,
+        },
+    )
+}
+
+/// Remove `<root>/.cuotai-data` when it is the root's only entry.
+fn remove_marker_if_last(root: &Path) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    let names: Vec<_> = entries
+        .flatten()
+        .map(|entry| entry.file_name())
+        .take(2)
+        .collect();
+    if names.len() == 1 && names[0] == crate::data_dir::MARKER {
+        let _ = std::fs::remove_file(root.join(crate::data_dir::MARKER));
     }
 }
 
@@ -468,9 +690,9 @@ mod tests {
                 continue;
             };
             match artifact.kind {
-                Kind::Directory => {
-                    std::fs::create_dir_all(path.join("sub")).unwrap();
-                    std::fs::write(path.join("sub").join("f"), b"x").unwrap();
+                Kind::Directory => cuotai_entries(artifact.id, &path),
+                _ if artifact.id == MARKER_ID => {
+                    crate::data_dir::mark_for_tests(path.parent().unwrap()).unwrap();
                 }
                 _ => {
                     for companion in companions(artifact, &path) {
@@ -485,6 +707,53 @@ mod tests {
             include_config: false,
         };
         (dir, options)
+    }
+
+    const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    /// Entries of the shape Cuotai writes in the directory item `id`.
+    fn cuotai_entries(id: &str, path: &Path) {
+        let write = |rel: &str, bytes: &[u8]| {
+            let file = path.join(rel);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, bytes).unwrap();
+        };
+        match id {
+            "extensions.tree" => write(
+                "demo/manifest.toml",
+                b"id = \"demo\"\nname = \"Demo\"\nversion = \"1\"\nschema = 1\ncommand = [\"./run\"]\ninterval_seconds = 60\n",
+            ),
+            "feed.tree" | "feed.tree_legacy" => write("claude_code/session.json", b"{}"),
+            "metered.records" | "metered.records_legacy" => {
+                write(&format!("{DIGEST}.json"), b"{}");
+                write(&format!(".{DIGEST}.json.lock"), b"");
+                write(&format!(".{DIGEST}.json.a1b2.tmp"), b"");
+            }
+            "canary.records" => {
+                write(crate::canary::MARKER, b"");
+                write("run-1.json", b"{}");
+            }
+            _ => write("sub/f", b"x"),
+        }
+    }
+
+    /// Someone else's entries in every directory item, and a file of theirs
+    /// beside Cuotai's in the data root.
+    fn foreign_entries(roots: &Roots) -> Vec<PathBuf> {
+        let mut planted = Vec::new();
+        for artifact in artifacts().iter().filter(|a| a.kind == Kind::Directory) {
+            let Some(path) = roots.path_of(artifact) else {
+                continue;
+            };
+            let file = path.join("their-notes").join("notes.txt");
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(&file, b"mine").unwrap();
+            planted.push(file);
+        }
+        let beside = roots.local_data.as_ref().unwrap().join("their-file.txt");
+        std::fs::write(&beside, b"mine").unwrap();
+        planted.push(beside);
+        planted
     }
 
     fn vault() -> FakeVault {
@@ -541,9 +810,10 @@ mod tests {
             .iter()
             .all(|path| path.starts_with(accounts.parent().unwrap())));
         assert!(
-            !dir.path().join("local").join("cuotai").exists(),
-            "emptied directories go"
+            !dir.path().join("local").exists(),
+            "emptied directories go, the marker last"
         );
+        assert_eq!(report.count(Outcome::Foreign), 0, "{report:?}");
         // A second run finds nothing and still succeeds.
         let again = erase_all(&options, &vault).unwrap();
         assert!(again.complete());
@@ -596,7 +866,7 @@ mod tests {
             },
             include_config: false,
         };
-        std::fs::create_dir_all(&data).unwrap();
+        crate::data_dir::mark_for_tests(&data).unwrap();
         let lock = data.join("notified.lock");
         let leftover = data.join("notified.lock.stale-1-0");
         std::fs::write(&lock, "1:0").unwrap();
@@ -605,6 +875,126 @@ mod tests {
         assert!(report.complete(), "{report:?}");
         assert!(!lock.exists() && !leftover.exists());
         assert!(!data.exists(), "the emptied data folder goes");
+    }
+
+    /// PRD 0051 re-validation S-01: a data root Cuotai does not own (no
+    /// marker, not the OS default) is never touched: every item found there
+    /// is `Foreign`, every byte stays, and the erase is still complete.
+    #[test]
+    fn an_unowned_data_root_is_left_byte_for_byte() {
+        let (dir, options) = tree();
+        let local = options.roots.local_data.clone().unwrap();
+        std::fs::remove_file(local.join(crate::data_dir::MARKER)).unwrap();
+        foreign_entries(&options.roots);
+        let snapshot = |root: &Path| {
+            let mut files: Vec<(PathBuf, Vec<u8>)> = files_left(root)
+                .into_iter()
+                .map(|path| {
+                    let bytes = std::fs::read(&path).unwrap();
+                    (path, bytes)
+                })
+                .collect();
+            files.sort();
+            files
+        };
+        let before = snapshot(&local);
+        let report = erase_all(&options, &vault()).unwrap();
+        assert!(report.complete(), "{report:?}");
+        assert_eq!(snapshot(&local), before, "nothing in the root changed");
+        for id in [
+            "extensions.tree",
+            "canary.records",
+            "metered.records_legacy",
+            "feed.tree_legacy",
+            "hooks.work",
+            "notifications.ledger",
+            "history.db",
+        ] {
+            assert_eq!(
+                report.items.iter().find(|i| i.id == id).unwrap().outcome,
+                Outcome::Foreign,
+                "{id}"
+            );
+        }
+        assert_eq!(
+            report
+                .items
+                .iter()
+                .find(|i| i.id == MARKER_ID)
+                .unwrap()
+                .outcome,
+            Outcome::Absent
+        );
+        // The fixed per-user folders and the config are still erased.
+        let fixed = options.roots.metered.clone().unwrap();
+        assert!(!fixed.join(format!("{DIGEST}.json")).exists());
+        assert!(!dir
+            .path()
+            .join("config")
+            .join("cuotai")
+            .join("desktop.json")
+            .exists());
+    }
+
+    /// In an owned root, a directory item loses only Cuotai's entries: the
+    /// foreign ones stay, the directory is `Foreign`, and the marker stays
+    /// with the root because the root is not empty.
+    #[test]
+    fn an_owned_root_keeps_foreign_entries_and_its_marker() {
+        let (_dir, options) = tree();
+        let local = options.roots.local_data.clone().unwrap();
+        let planted = foreign_entries(&options.roots);
+        let report = erase_all(&options, &vault()).unwrap();
+        assert!(report.complete(), "{report:?}");
+        // `hooks/work` (beside Cuotai's hook files) and a marked canary
+        // folder are Cuotai's as a whole and go with what is in them.
+        let whole = [local.join("hooks").join("work"), local.join("canary")];
+        for path in planted
+            .iter()
+            .filter(|p| !whole.iter().any(|w| p.starts_with(w)))
+        {
+            assert_eq!(std::fs::read(path).unwrap(), b"mine", "{}", path.display());
+        }
+        let outcome = |id: &str| report.items.iter().find(|i| i.id == id).unwrap().outcome;
+        assert_eq!(outcome("hooks.work"), Outcome::Removed);
+        assert_eq!(outcome("canary.records"), Outcome::Removed);
+        for id in [
+            "extensions.tree",
+            "feed.tree",
+            "metered.records",
+            "metered.records_legacy",
+        ] {
+            assert_eq!(outcome(id), Outcome::Foreign, "{id}");
+        }
+        assert_eq!(outcome("history.db"), Outcome::Removed);
+        let extensions = local.join("extensions");
+        assert!(!extensions.join("demo").exists(), "Cuotai's extension went");
+        let fixed = options.roots.metered.clone().unwrap();
+        assert!(!fixed.join(format!("{DIGEST}.json")).exists());
+        assert!(!fixed.join(format!(".{DIGEST}.json.lock")).exists());
+        assert!(!options
+            .roots
+            .feed
+            .clone()
+            .unwrap()
+            .join("claude_code")
+            .exists());
+        assert!(
+            local.join(crate::data_dir::MARKER).is_file(),
+            "the marker stays"
+        );
+        assert_eq!(outcome(MARKER_ID), Outcome::Foreign);
+    }
+
+    #[test]
+    fn metered_names_are_records_locks_and_temporaries_only() {
+        assert!(metered_name(&format!("{DIGEST}.json")));
+        assert!(metered_name(&format!(".{DIGEST}.json.lock")));
+        assert!(metered_name(&format!(".{DIGEST}.json.x9Yz.tmp")));
+        assert!(!metered_name("notes.json"));
+        assert!(!metered_name(&format!("{DIGEST}.txt")));
+        assert!(!metered_name(&format!(".{DIGEST}.jsonx.tmp")));
+        assert!(!metered_name(&format!("{}.json", &DIGEST[1..])));
     }
 
     #[test]
