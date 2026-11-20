@@ -8,7 +8,7 @@ Claude Code runs a command you choose as its [status line](https://code.claude.c
 
 ### Set it up
 
-1. Install the **terminal version** of Cuotai (`brew install jmarcon/cuotai/cuotai`, `scoop install cuotai/cuotai`, or the Linux archive or package; see [`../installing.md`](../installing.md)). The desktop app does not include it, and Claude Code runs it, not the app.
+1. Install the **terminal version** of Cuotai (`brew install jmarcon/cuotai/cuotai`, `scoop install cuotai/cuotai`, or the Linux archive or package; see [`../installing.md`](../installing.md)). The desktop app does not include it, and Claude Code runs it, not the app: the desktop executable never acts as the status-line command, so a computer with only the desktop app installed needs the terminal version too.
 
    Add this to `~/.claude/settings.json` (Cuotai never edits it for you; `cuotai --feed claude-statusline --setup` prints the same text, and the desktop has it with **Copy** under Settings › Dashboard › More display options › Claude Code, using the terminal version's full path when it finds one):
 
@@ -69,7 +69,7 @@ A query-mode account can still show Claude Code's live session with `params = { 
 ### `cuotai --statusline-claude`
 
 ```sh
-cuotai --statusline-claude [--account ID]... [--from-server [URL]] [--max-width N] [--color]
+cuotai --statusline-claude [--account ID]... [--from-server [URL]] [--max-width N] [--color [auto|always|never]]
 ```
 
 Reads the status-line JSON on standard input (like `--feed`), stores it and prints one line: `5h 24% · Wk 41% ↺ 19:30 · Codex 64% left · ctx 8%`.
@@ -80,7 +80,7 @@ Reads the status-line JSON on standard input (like `--feed`), stores it and prin
 - The spend limit and the session cost use your language's money format (`$314.12/$500.00`, `314,12 $/500,00 $` in German).
 - `--account ID` limits the other accounts. Like `--status-line`, it takes an account's id, its key or a name no other account has; a value that names no single account is reported on stderr (with the ids) and the command exits `1`. Claude accounts are left out (their windows come from the feed).
 - `--max-width N` drops whole parts, never a piece of one: the context share first, then the other account, then Claude's reset time, then Claude's windows from the last; the age of an old reading is never dropped from a part that stays.
-- Colour only with `--color`, on a terminal, with `NO_COLOR` unset.
+- Colour only when asked and with `NO_COLOR` unset, and only on Claude's own part (its windows, reset and age); the other account and the context share stay plain. Claude Code always pipes the command's output, so use `--color always` there (`"command": "cuotai --statusline-claude --color always"`). `--color` alone (or `--color auto`) colours only on a terminal, `--color never` (or no flag) never.
 
 Both commands read standard input up to the end of the first JSON object, and wait for it at most a quarter of a second: a writer that sends nothing, or never closes its end, cannot hold Claude Code's prompt.
 

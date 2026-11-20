@@ -120,6 +120,55 @@ fn the_status_line_prints_claude_windows_and_context() {
     assert!(line.starts_with("5h 23%"), "{line}");
 }
 
+/// PRD 0040 L-8 (owner decision 2026-11-20): Claude Code pipes the status
+/// line, so `--color always` colours it there, Claude's part only; `auto`
+/// (the bare flag) and `never` stay plain on a pipe; NO_COLOR wins.
+#[test]
+fn color_always_paints_only_claudes_part_on_a_pipe() {
+    let (_root, data) = data_dir("color");
+    let paint = |args: &[&str]| {
+        let mut argv = vec!["--statusline-claude"];
+        argv.extend_from_slice(args);
+        let (output, _) = run(&data, &argv, &input());
+        assert!(output.status.success(), "{output:?}");
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .trim_end()
+            .to_owned()
+    };
+    let line = paint(&["--color", "always"]);
+    // 41 % used on the tightest window: the warn role (yellow).
+    assert!(line.starts_with("\u{1b}[33m5h 23% · Wk 41% ↺ "), "{line:?}");
+    let (claude, rest) = line.split_once("\u{1b}[0m").expect("one reset");
+    assert!(!claude.contains("ctx"), "{line:?}");
+    assert_eq!(rest, " · ctx 8%", "{line:?}");
+    assert_eq!(line.matches('\u{1b}').count(), 2, "{line:?}");
+    assert!(paint(&["--color=always"]).starts_with('\u{1b}'));
+    for plain in [
+        &["--color"][..],
+        &["--color", "auto"],
+        &["--color", "never"],
+        &[],
+    ] {
+        assert!(!paint(plain).contains('\u{1b}'), "{plain:?}");
+    }
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_cuotai"))
+        .args(["--statusline-claude", "--color", "always"])
+        .env("CUOTAI_DATA_DIR", &data)
+        .env("CUOTAI_FEED_DIR", data.join("feed"))
+        .env("CUOTAI_LANG", "en-US")
+        .env("CUOTAI_CONFIG", data.join("missing.toml"))
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(&input()).unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(!output.stdout.contains(&0x1b), "{output:?}");
+}
+
 #[test]
 fn setup_prints_the_settings_snippet() {
     let (_root, data) = data_dir("setup");

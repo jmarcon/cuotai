@@ -356,14 +356,12 @@ async fn compose(shown: &Shown, options: &LineOptions, locale: &str) -> Result<S
         options.max_width,
         locale,
     );
+    // PRD 0040 L-8: the colour paints Claude's own part only.
     Ok(match (options.color, line.level) {
-        (true, Some(level)) if !line.text.is_empty() => {
-            format!(
-                "\x1b[{}m{}\x1b[0m",
-                crate::status_line::ansi(level),
-                line.text
-            )
-        }
+        (true, Some(level)) => line.painted(
+            &format!("\x1b[{}m", crate::status_line::ansi(level)),
+            "\x1b[0m",
+        ),
         _ => line.text,
     })
 }

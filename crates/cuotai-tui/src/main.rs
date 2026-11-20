@@ -152,10 +152,20 @@ struct Args {
     /// show, named the same way.
     #[arg(long = "account", value_name = "ID", requires = "line_modes")]
     status_accounts: Vec<String>,
-    /// With --status-line, colors the line (ANSI) when the output is a
-    /// terminal and NO_COLOR is not set.
-    #[arg(long, requires = "line_modes")]
-    color: bool,
+    /// With --status-line or --statusline-claude, colors the line (ANSI):
+    /// `auto` (the bare --color) only when the output is a terminal,
+    /// `always` also when it is piped (as Claude Code runs it; only
+    /// Claude's part of --statusline-claude is colored), `never` not at
+    /// all. NO_COLOR, when set, turns color off.
+    #[arg(
+        long,
+        value_enum,
+        value_name = "WHEN",
+        num_args = 0..=1,
+        default_missing_value = "auto",
+        requires = "line_modes"
+    )]
+    color: Option<status_line::ColorWhen>,
     /// With --status-line, reads /v1/limits from a running cuotai --serve
     /// (default http://127.0.0.1 on the default port) instead of querying the
     /// providers; loopback addresses only. The token comes from --token-file

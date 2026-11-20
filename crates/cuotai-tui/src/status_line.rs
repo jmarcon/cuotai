@@ -261,10 +261,33 @@ pub(crate) fn ansi(level: Level) -> u8 {
     }
 }
 
-/// RF2.2: colour only when asked, on a terminal, and `NO_COLOR` is unset
-/// (an empty `NO_COLOR` counts as unset, per no-color.org).
-pub(crate) fn use_color(flag: bool, is_terminal: bool, no_color: Option<&str>) -> bool {
-    flag && is_terminal && no_color.is_none_or(str::is_empty)
+/// `--color [WHEN]` of the line modes. A bare `--color` is `auto`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ColorWhen {
+    /// Colour only when the output is a terminal (the bare `--color`).
+    Auto,
+    /// Colour even when the output is piped: Claude Code always pipes its
+    /// status-line command (PRD 0040 L-8, owner decision 2026-11-20).
+    Always,
+    /// No colour.
+    Never,
+}
+
+/// RF2.2: colour only when asked (`--color` or `--color auto` on a
+/// terminal, `--color always` anywhere) and `NO_COLOR` is unset (an empty
+/// `NO_COLOR` counts as unset, per no-color.org; a set one wins even over
+/// `always`).
+pub(crate) fn use_color(
+    when: Option<ColorWhen>,
+    is_terminal: bool,
+    no_color: Option<&str>,
+) -> bool {
+    no_color.is_none_or(str::is_empty)
+        && match when {
+            None | Some(ColorWhen::Never) => false,
+            Some(ColorWhen::Auto) => is_terminal,
+            Some(ColorWhen::Always) => true,
+        }
 }
 
 #[cfg(test)]
@@ -441,11 +464,20 @@ mod tests {
 
     #[test]
     fn no_color_and_non_terminals_disable_colour() {
-        assert!(use_color(true, true, None));
-        assert!(use_color(true, true, Some("")));
-        assert!(!use_color(true, true, Some("1")));
-        assert!(!use_color(true, false, None));
-        assert!(!use_color(false, true, None));
+        let auto = Some(ColorWhen::Auto);
+        let always = Some(ColorWhen::Always);
+        let never = Some(ColorWhen::Never);
+        assert!(use_color(auto, true, None));
+        assert!(use_color(auto, true, Some("")));
+        assert!(!use_color(auto, true, Some("1")));
+        assert!(!use_color(auto, false, None));
+        assert!(!use_color(None, true, None));
+        // PRD 0040 L-8: `always` colours a piped output; NO_COLOR still wins.
+        assert!(use_color(always, false, None));
+        assert!(use_color(always, true, None));
+        assert!(!use_color(always, false, Some("1")));
+        assert!(!use_color(never, true, None));
+        assert!(!use_color(never, false, None));
     }
 
     /// PRD 0034 re-validation (S-03): the value is substituted in one pass, so

@@ -26,6 +26,22 @@ pub struct Line {
     pub text: String,
     /// The level of Claude's tightest window, `None` when none is known.
     pub level: Option<Level>,
+    /// The byte length of Claude's own part at the start of `text` (0 when
+    /// the line shows none): the only part a colour applies to (PRD 0040
+    /// L-8, owner decision 2026-11-20).
+    pub claude_len: usize,
+}
+
+impl Line {
+    /// The line with Claude's part (only) wrapped in `start`…`end`, such
+    /// as an ANSI colour and its reset; the other parts stay plain.
+    pub fn painted(&self, start: &str, end: &str) -> String {
+        if self.claude_len == 0 || self.level.is_none() {
+            return self.text.clone();
+        }
+        let (claude, rest) = self.text.split_at(self.claude_len);
+        format!("{start}{claude}{end}{rest}")
+    }
 }
 
 /// "23%", the sign placed as the reader's language places it (V-17).
@@ -327,8 +343,11 @@ pub fn compose(
     candidates.extend((0..windows).rev().map(|kept| (kept, false, false, false)));
     let compose_with = |(kept, reset, with_other, with_ctx): (usize, bool, bool, bool)| {
         let mut parts: Vec<String> = Vec::new();
+        let mut claude_len = 0;
         if let Some(part) = claude.as_ref().filter(|_| kept > 0) {
-            parts.push(part.text(kept, reset));
+            let text = part.text(kept, reset);
+            claude_len = text.len();
+            parts.push(text);
         }
         if with_other || claude.is_none() {
             parts.extend(other.clone());
@@ -336,15 +355,19 @@ pub fn compose(
         if with_ctx || (claude.is_none() && other.is_none()) {
             parts.extend(ctx.clone());
         }
-        parts.join(" · ")
+        (parts.join(" · "), claude_len)
     };
-    let text = match max_width {
+    let (text, claude_len) = match max_width {
         None => compose_with(candidates[0]),
         Some(width) => candidates
             .into_iter()
             .map(compose_with)
-            .find(|text| cells(text) <= width)
+            .find(|(text, _)| cells(text) <= width)
             .unwrap_or_default(),
     };
-    Line { text, level }
+    Line {
+        text,
+        level,
+        claude_len,
+    }
 }
