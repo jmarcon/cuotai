@@ -176,7 +176,6 @@
   "config.error.parse_key": "La configuración tiene {path} desconocido o no válido en la línea {line}, columna {column}.",
   "config.error.unreadable": "No se pudo leer el archivo de configuración en {path}.",
   "config.warning.unknown_key": "{path} no es conocido por esta versión de Cuotai; se ignora y se conserva al guardar el archivo.",
-  "config.warning.private_http": "Aviso: {path} envía la contraseña o la clave de la cuenta sin cifrar por HTTP simple en tu red privada. Es mejor usar HTTPS con un certificado fijado.",
   "data_dir.error.occupied": "La carpeta de datos elegida ya contiene una carpeta llamada Cuotai que Cuotai no creó; elige otra carpeta. Cuotai no guarda datos hasta que se corrija.",
   "data_dir.error.relative": "CUOTAI_DATA_DIR debe ser una ruta absoluta; Cuotai no guarda datos hasta que se corrija o se quite.",
   "data_dir.error.setting": "La carpeta de datos elegida en Ajustes debe ser una ruta absoluta a una carpeta tuya que no sea un enlace; Cuotai no guarda datos hasta que se corrija o se restablezca.",
@@ -2147,10 +2146,6 @@
   "credential_help.litellm": "Clave de tu proxy LiteLLM: indica solo el NOMBRE de la variable que la guarda; el valor nunca entra en el TOML. Es mejor una clave virtual limitada a las rutas de lectura que la clave maestra. Solo se lee la ruta de presupuestos por proveedor, más las listas de claves y equipos cuando hay un desglose activo, y la clave solo va a la dirección del proxy; fuera de este equipo, usa HTTPS.",
   "field.litellm.base_url.label": "Dirección de LiteLLM",
   "field.litellm.base_url.help": "Predeterminado http://127.0.0.1:4000. Usa http(s)://host[:puerto][/prefijo], sin usuario, consulta ni fragmento. Fuera de esta máquina se exige HTTPS.",
-  "field.litellm.allow_private_http.label": "Conexión sin cifrado en la red privada",
-  "field.litellm.allow_private_http.help": "Solo vale para direcciones de red privada (192.168.x.x, 10.x.x.x, Tailscale, .local). Sí = la clave viaja sin cifrar por esa red y cualquiera que pueda observarla la puede leer; es mejor HTTPS. No = se exige HTTPS fuera de esta máquina.",
-  "field.litellm.allow_private_http.option.false": "No (predeterminado)",
-  "field.litellm.allow_private_http.option.true": "Sí, en mi red privada",
   "field.litellm.hidden.label": "Proveedores ocultos (opcional)",
   "field.litellm.hidden.help": "Lista separada por comas de los identificadores de los proveedores que se ocultan (el identificador aparece en los detalles).",
   "field.litellm.dedup.label": "Proveedores que repiten una cuenta directa",
@@ -2167,7 +2162,7 @@
   "access.summary.meta_session": "Uso del equipo leído en la interfaz interna de la consola dev.meta.ai con la sesión capturada, además de la verificación de la clave; puede cambiar sin aviso.",
   "query.litellm.base_url": "Dirección base de LiteLLM no válida: indica http(s)://host[:puerto][/prefijo].",
   "query.litellm.base_url_forbidden": "La dirección base de LiteLLM no puede contener usuario, contraseña, consulta ni fragmento.",
-  "query.litellm.base_url_insecure": "Fuera de esta máquina LiteLLM exige HTTPS (HTTP solo en red privada, con la opción explícita). No se envió nada.",
+  "query.litellm.base_url_insecure": "Fuera de esta máquina LiteLLM exige HTTPS; HTTP sin cifrar solo se acepta en este equipo, por ejemplo a través de un túnel SSH. No se envió nada.",
   "note.litellm.summary": {
     "one": "{count} proveedor con presupuesto en LiteLLM.",
     "other": "{count} proveedores con presupuesto en LiteLLM."
@@ -2181,6 +2176,7 @@
   "query.nine_router.password_wrong": "Se rechazó la contraseña del panel de 9router.",
   "query.nine_router.locked": "Demasiados intentos de acceso a 9router; espera {seconds} s antes de volver a intentarlo.",
   "query.litellm.listener_foreign": "No se pudo confirmar que el programa que escucha en el puerto {port} sea tuyo (puede pertenecer a otro usuario), así que no se envió la clave de LiteLLM. Inicia LiteLLM con tu propio usuario o accede a él por HTTPS.",
+  "query.litellm.key_plain_http": "LiteLLM en {host} usa HTTP sin cifrar, y Cuotai solo envía la clave de LiteLLM por HTTP sin cifrar a este equipo (allow_private_http ya no se aplica a LiteLLM); no se envió nada. Sirve LiteLLM por HTTPS o accede a él mediante una dirección de loopback, como un túnel SSH.",
   "query.nine_router.listener_foreign": "No se pudo confirmar que el programa que escucha en el puerto {port} sea tuyo (puede pertenecer a otro usuario), así que no se envió la contraseña ni la sesión de 9router. Inicia 9router con tu propio usuario o accede a él por HTTPS con un certificado fijado.",
   "query.nine_router.login_refused": "9router no acepta el acceso con contraseña aquí (SSO activo o acceso bloqueado por el túnel).",
   "query.nine_router.not_nine_router": "La dirección responde, pero no parece un 9router; no se envió la contraseña ni la sesión.",
@@ -2711,7 +2707,7 @@
   "channels.error.url_invalid": "Eso no es una dirección web (debe empezar por https://).",
   "channels.error.url_userinfo": "La dirección no debe llevar nombre de usuario ni contraseña antes del host.",
   "channels.error.url_fragment": "La dirección no debe terminar con un fragmento #.",
-  "channels.error.url_http": "Solo se aceptan direcciones https:// (http:// simple solo para un servidor ntfy en este equipo o en una red privada).",
+  "channels.error.url_http": "Solo se aceptan direcciones https:// (http:// simple solo para un servidor ntfy en este equipo).",
   "channels.error.url_provider": "Esa es la dirección de un proveedor, no un destino de notificaciones.",
   "channels.error.url_slack": "Un webhook entrante de Slack empieza por https://hooks.slack.com/services/.",
   "channels.error.url_discord": "Un webhook de Discord empieza por https://discord.com/api/webhooks/.",
@@ -2723,7 +2719,7 @@
   "channels.error.too_many": "Como máximo {max} canales; elimina uno primero.",
   "channels.error.unknown": "Ese canal no existe.",
   "channels.error.kind_change": "El tipo de un canal no puede cambiar; añade un canal nuevo.",
-  "channels.warning.plain_http": "Esta dirección usa HTTP simple: cualquiera en tu red puede leer las notificaciones. Úsala solo para un servidor en este equipo o en tu red privada.",
+  "channels.warning.plain_http": "Esta dirección usa HTTP simple en este equipo: el programa que escuche en ese puerto recibe las notificaciones. Úsala solo para tu propio servidor ntfy.",
   "channels.words.every_kind": "Todos los tipos",
   "channels.words.every_account": "de todas las cuentas",
   "channels.words.accounts": {
@@ -2918,5 +2914,6 @@
   "note.metered.shared_reading": "De la lectura compartida de las {time}; no se hizo ninguna consulta facturada nueva.",
   "number.percent": "{p} %",
   "query.nine_router.secret_plain_http": "9router en {host} usa HTTP sin cifrar, y Cuotai envía la contraseña o la sesión del panel por HTTP sin cifrar solo a este equipo; no se envió nada. Sirve 9router por HTTPS (Probar conexión puede fijar su certificado) o accede a él a través de una dirección de loopback, como un túnel SSH.",
-  "config.warning.nine_router_secret_plain_http": "Aviso: {path} llega a 9router por HTTP sin cifrar en tu red privada, donde Cuotai nunca envía la contraseña ni la sesión del panel, así que esta cuenta se rechazará. Sirve 9router por HTTPS con un certificado fijado o accede a él a través de una dirección de loopback, como un túnel SSH."
+  "config.warning.nine_router_secret_plain_http": "Aviso: {path} llega a 9router por HTTP sin cifrar en tu red privada, donde Cuotai nunca envía la contraseña ni la sesión del panel, así que esta cuenta se rechazará. Sirve 9router por HTTPS con un certificado fijado o accede a él a través de una dirección de loopback, como un túnel SSH.",
+  "config.warning.litellm_key_plain_http": "Aviso: {path} accede a LiteLLM por HTTP sin cifrar en tu red privada, donde Cuotai ya no envía la clave (allow_private_http ya no se aplica a LiteLLM), así que esta cuenta será rechazada. Sirve LiteLLM por HTTPS o accede a él mediante una dirección de loopback, como un túnel SSH."
 }

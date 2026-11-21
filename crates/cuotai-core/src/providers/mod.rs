@@ -70,8 +70,9 @@ impl Context<'_> {
 }
 
 /// Re-validation S-01/S-06: an aggregator account reached over plain HTTP
-/// on its private network by its own choice (`allow_private_http`): its
-/// password or key, when one is set, travels unencrypted on that network.
+/// on its private network by its own choice (`allow_private_http`, a
+/// legacy key for LiteLLM since L-4). A 9router password or session and a
+/// LiteLLM key are then refused before anything is sent.
 pub(crate) fn private_http_in_effect(account: &crate::Account) -> bool {
     let base = match account.provider {
         crate::Provider::NineRouter => nine_router::account_base(account),
@@ -367,20 +368,13 @@ pub(crate) async fn read_json<T: DeserializeOwned>(
     serde_json::from_slice(&bytes).map_err(|_| QueryError::schema())
 }
 
+/// Send `request` only over HTTPS or plain HTTP to loopback
+/// ([`crate::transport::is_secure`]; owner rule, security review
+/// 2026-11-21 L-4: no account option widens it).
 pub(crate) async fn send(request: RequestBuilder) -> Result<reqwest::Response, QueryError> {
-    send_checked(request, false).await
-}
-
-/// [`send`] for an aggregator account whose private-network opt-in
-/// (`allow_private_http`) also lets the secret travel over plain HTTP to a
-/// private host ([`crate::transport::secret_may_travel`], PRD 0036 S-06).
-pub(crate) async fn send_checked(
-    request: RequestBuilder,
-    allow_private_http: bool,
-) -> Result<reqwest::Response, QueryError> {
     let (client, request) = request.build_split();
     let request = request.map_err(|_| QueryError::transport())?;
-    if !crate::transport::secret_may_travel(request.url(), allow_private_http) {
+    if !crate::transport::is_secure(request.url()) {
         return Err(QueryError::insecure());
     }
     let response = client.execute(request).await.map_err(|error| {
@@ -581,15 +575,7 @@ pub(crate) fn param<'a>(account: &'a Account, key: &str) -> Result<&'a str, Quer
 
 /// Never return response bodies or request URLs: both can contain credentials.
 pub(crate) async fn json<T: DeserializeOwned>(request: RequestBuilder) -> Result<T, QueryError> {
-    json_checked(request, false).await
-}
-
-/// [`json`] through [`send_checked`].
-pub(crate) async fn json_checked<T: DeserializeOwned>(
-    request: RequestBuilder,
-    allow_private_http: bool,
-) -> Result<T, QueryError> {
-    let response = send_checked(request, allow_private_http).await?;
+    let response = send(request).await?;
     let code = response.status();
     if !code.is_success() {
         return Err(http_failure(code.as_u16()));

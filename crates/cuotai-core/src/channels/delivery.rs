@@ -139,8 +139,8 @@ struct Shared {
     vault: Vault,
     http: reqwest::Client,
     /// The same client without the environment's proxy, for the plain
-    /// `http://` ntfy server on this computer or the private network
-    /// ([`super::validate_url`] allows no other plain address): a proxy
+    /// `http://` ntfy server on this computer ([`super::validate_url`]
+    /// allows no other plain address): a proxy
     /// could not reach it, and would read every notification.
     direct: reqwest::Client,
     handle: tokio::runtime::Handle,

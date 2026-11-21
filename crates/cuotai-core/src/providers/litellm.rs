@@ -28,7 +28,7 @@
 //! certificate, and a private-network host is not on this machine.
 
 use super::nine_router::{allows_private_http, base_is_loopback, parse_base, sub_id, BaseUrlError};
-use super::{json_checked, secret, Context, Data, QueryError};
+use super::{json, secret, Context, Data, QueryError};
 use crate::local_listener::{self, ListenerCheck, Verdict};
 use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status, SubReport};
@@ -226,7 +226,7 @@ fn base_error(error: BaseUrlError) -> QueryError {
         ),
         BaseUrlError::Insecure => (
             "query.litellm.base_url_insecure",
-            "Outside this machine LiteLLM requires HTTPS (HTTP only on a private network, with the explicit option). Nothing was sent.",
+            "Outside this machine LiteLLM requires HTTPS; plain HTTP is accepted only on this computer, for example through an SSH tunnel. Nothing was sent.",
         ),
     };
     QueryError::config(id, text)
@@ -260,6 +260,32 @@ impl Guard<'_> {
     }
 }
 
+const KEY_PLAIN_HTTP: &str = "query.litellm.key_plain_http";
+
+/// L-4: the note of a LiteLLM base on another machine over plain HTTP (a
+/// configuration written with the removed `allow_private_http` option).
+fn key_plain_http_note(host: &str) -> Localized {
+    Localized::with_param(
+        KEY_PLAIN_HTTP,
+        "host",
+        host,
+        "LiteLLM at {host} uses plain HTTP, and Cuotai sends the LiteLLM key over plain HTTP only to this computer (allow_private_http no longer applies to LiteLLM); nothing was sent. Serve LiteLLM over HTTPS, or reach it through a loopback address such as an SSH tunnel.",
+    )
+}
+
+fn key_plain_http(base: &url::Url) -> QueryError {
+    let host = base.host_str().unwrap_or_default();
+    let host = match base.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    };
+    QueryError {
+        diagnostic: None,
+        status: Status::NeedsConfiguration,
+        note: key_plain_http_note(&host),
+    }
+}
+
 const LISTENER_FOREIGN: &str = "query.litellm.listener_foreign";
 
 fn listener_foreign_note(port: u16) -> Localized {
@@ -279,28 +305,25 @@ fn listener_foreign(port: u16) -> QueryError {
     }
 }
 
-/// One `GET` of the proxy with the key. Plain HTTP goes only to loopback,
-/// or to a private host when the account chose `allow_private_http`
-/// (PRD 0036 S-06); never a redirect. The listener check runs first.
+/// One `GET` of the proxy with the key. Plain HTTP goes only to loopback
+/// (L-4); never a redirect. The listener check runs first.
 async fn get_json(
     ctx: &Context<'_>,
     guard: &Guard<'_>,
     url: &str,
     key: &str,
-    allow_private: bool,
 ) -> Result<Value, QueryError> {
     guard.check()?;
     // S-02: plain HTTP and local or private hosts never use an
     // environment proxy (the key would reach it, and the proxy would
     // connect to its own loopback); public HTTPS keeps it.
     let client = url::Url::parse(url).map_or(ctx.direct, |parsed| ctx.client_for(&parsed));
-    json_checked(
+    json(
         client
             .get(url)
             .bearer_auth(key)
             .header("Accept", "application/json")
             .timeout(ctx.timeout),
-        allow_private,
     )
     .await
 }
@@ -326,14 +349,19 @@ async fn fetch_with(
 ) -> Result<Data, QueryError> {
     // L-1: the listener check and the connection dial the same address.
     let base = local_listener::pin_plain_localhost(account_base(account).map_err(base_error)?);
+    // L-4 (owner rule: plain HTTP only to loopback): a legacy
+    // `allow_private_http` still parses, but the key never goes over plain
+    // HTTP to another machine.
+    if base.scheme() == "http" && !base_is_loopback(&base) {
+        return Err(key_plain_http(&base));
+    }
     let key = secret(account, ctx, "LITELLM_API_KEY")?;
-    let allow_private = allows_private_http(account);
     let guard = Guard {
         base: &base,
         listener,
     };
     let url = format!("{}{BUDGETS_PATH}", base.as_str().trim_end_matches('/'));
-    let value = get_json(ctx, &guard, &url, key.trim(), allow_private).await?;
+    let value = get_json(ctx, &guard, &url, key.trim()).await?;
     let hidden: Vec<String> = account
         .params
         .get("hidden")
@@ -380,10 +408,8 @@ async fn fetch_with(
             continue;
         }
         let fetched = match kind {
-            crate::BreakdownKind::Keys => {
-                key_rows(ctx, &guard, root, key.trim(), allow_private).await
-            }
-            _ => team_rows(ctx, &guard, root, key.trim(), allow_private).await,
+            crate::BreakdownKind::Keys => key_rows(ctx, &guard, root, key.trim()).await,
+            _ => team_rows(ctx, &guard, root, key.trim()).await,
         };
         match fetched {
             Ok((found, more)) => {
@@ -394,9 +420,6 @@ async fn fetch_with(
             }
             Err(error) => notes.push_note(crate::breakdown::unavailable_note(kind, &error)),
         }
-    }
-    if allow_private && base.scheme() == "http" && !base_is_loopback(&base) {
-        notes.push_note(super::nine_router::private_http_note());
     }
     let mut data = Data::new(Vec::new(), notes, "LiteLLM: provider/budgets");
     data.sub_reports = sub_reports;
@@ -418,13 +441,12 @@ async fn key_rows(
     guard: &Guard<'_>,
     root: &str,
     key: &str,
-    allow_private: bool,
 ) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
     let mut rows = Vec::new();
     for page in 1..=crate::breakdown::MAX_PAGES {
         let url =
             format!("{root}{KEYS_PATH}?return_full_object=true&page={page}&size={KEY_PAGE_SIZE}");
-        let value = get_json(ctx, guard, &url, key, allow_private).await?;
+        let value = get_json(ctx, guard, &url, key).await?;
         let keys = value
             .get("keys")
             .and_then(Value::as_array)
@@ -457,16 +479,8 @@ async fn team_rows(
     guard: &Guard<'_>,
     root: &str,
     key: &str,
-    allow_private: bool,
 ) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
-    let value = get_json(
-        ctx,
-        guard,
-        &format!("{root}{TEAMS_PATH}"),
-        key,
-        allow_private,
-    )
-    .await?;
+    let value = get_json(ctx, guard, &format!("{root}{TEAMS_PATH}"), key).await?;
     let teams = value
         .as_array()
         .ok_or_else(|| QueryError::schema_at(&value, &[], "array"))?;
@@ -600,6 +614,12 @@ fn outcome_of(result: Result<Data, QueryError>) -> super::nine_router::TestOutco
             version: None,
             connections: data.sub_reports.len(),
         },
+        Err(error) if error.note.id == KEY_PLAIN_HTTP => TestOutcome::SecretOverPlainHttp {
+            host: match error.note.params.get("host") {
+                Some(ParamValue::Text(text)) => text.clone(),
+                _ => String::new(),
+            },
+        },
         Err(error) if error.note.id == LISTENER_FOREIGN => TestOutcome::ListenerForeign {
             port: match error.note.params.get("port") {
                 Some(ParamValue::Text(text)) => text.parse().unwrap_or(0),
@@ -615,6 +635,11 @@ fn outcome_of(result: Result<Data, QueryError>) -> super::nine_router::TestOutco
             _ => TestOutcome::Unreachable,
         },
     }
+}
+
+/// L-4: the Test connection sentence of a plain-HTTP base on another machine.
+pub(crate) fn plain_http_outcome_text(host: &str) -> Localized {
+    key_plain_http_note(host)
 }
 
 /// M-3: the Test connection sentence of a refused listener.
@@ -1377,38 +1402,38 @@ mod tests {
         assert!(proxy.seen().is_empty(), "{:?}", proxy.seen());
     }
 
-    /// Re-validation S-06: `allow_private_http` accepts "true" and "1" like
-    /// 9router, and the account's transport rule follows it.
-    #[test]
-    fn the_private_network_option_reads_true_and_one() {
-        let private = |value: Option<&str>| {
-            let mut acct = Account {
-                provider: Provider::LiteLlm,
-                ..Account::default()
-            };
-            acct.params
-                .insert("base_url".into(), "http://192.168.1.10:4000".into());
-            if let Some(value) = value {
-                acct.params
-                    .insert("allow_private_http".into(), value.into());
-            }
-            acct
-        };
-        for yes in ["true", "1", " TRUE "] {
-            assert!(account_base(&private(Some(yes))).is_ok(), "{yes}");
-            assert!(crate::providers::private_http_in_effect(&private(Some(
-                yes
-            ))));
-        }
-        for no in [None, Some("false"), Some("0"), Some("yes")] {
-            assert_eq!(
-                account_base(&private(no)),
-                Err(BaseUrlError::Insecure),
-                "{no:?}"
-            );
-        }
-        let url = url::Url::parse("http://192.168.1.10:4000/provider/budgets").unwrap();
-        assert!(crate::transport::secret_may_travel(&url, true));
-        assert!(!crate::transport::secret_may_travel(&url, false));
+    /// L-4 (owner rule: plain HTTP only to loopback): a configuration
+    /// written with the removed `allow_private_http` still loads, so the
+    /// other accounts keep working, but the key is refused before anything
+    /// is sent, with a classified sentence that names the way out.
+    #[tokio::test]
+    async fn a_legacy_private_http_account_never_sends_its_key() {
+        let server = MockServer::start().await;
+        mount(&server, 200, documented()).await;
+        let mut acct = account(&server, &[("allow_private_http", "true")]);
+        acct.params
+            .insert("base_url".into(), "http://192.168.1.10:4000".into());
+        assert!(account_base(&acct).is_ok(), "the legacy file still parses");
+        assert!(crate::providers::private_http_in_effect(&acct));
+        let http = reqwest::Client::new();
+        let error = fetch_with(&acct, &context(&http), Utc::now(), &NeverAsked)
+            .await
+            .unwrap_err();
+        assert_eq!(error.status, Status::NeedsConfiguration);
+        assert_eq!(error.note.id, "query.litellm.key_plain_http");
+        let text = error.note.resolve("en-US");
+        assert!(
+            text.contains("192.168.1.10:4000") && text.contains("HTTPS"),
+            "{text}"
+        );
+        assert!(server.received_requests().await.unwrap().is_empty());
+        assert!(matches!(
+            outcome_of(Err(error)),
+            crate::providers::nine_router::TestOutcome::SecretOverPlainHttp { ref host }
+                if host == "192.168.1.10:4000"
+        ));
+        // Without the legacy option, the address is invalid as before.
+        acct.params.remove("allow_private_http");
+        assert_eq!(account_base(&acct), Err(BaseUrlError::Insecure));
     }
 }
