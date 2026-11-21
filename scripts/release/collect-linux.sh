@@ -2,9 +2,9 @@
 # Collects the Linux Tauri bundle outputs into dist/ under their stable
 # names (PRD 0021 RF2) and writes the signing fragment. Linux artifacts are
 # unsigned files whose trust comes from the signed SHA256SUMS (RF3.1); the
-# merge resolves their final state. The updater signatures are added by the
-# separate `updater-sign.sh` step afterwards, so this script never sees the
-# updater key. Usage: collect-linux.sh <x64|arm64>
+# merge resolves their final state. The updater signatures are added by
+# `updater-sign.sh` in the separate `sign-linux[-arm64]` job afterwards, so
+# this script, which runs in the build job, never sees the updater key. Usage: collect-linux.sh <x64|arm64>
 set -euo pipefail
 
 : "${VERSION:?}"

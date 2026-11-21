@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Updater-signs a collected artifact and records it in the job's signing
 # fragment (PRD 0018 RF1.1/RF1.2, PRD 0021 RF3.4). It signs the exact bytes
-# a job uploads, in a step of its own after the build:
+# a job uploads, in a `sign-*` job of `release.yml` that downloads the built
+# bundle and builds nothing (L-3):
 #   * the Windows installers, whose Authenticode signature is applied after
 #     Tauri bundles them, so an updater signature computed at bundle time
 #     would not verify;
 #   * the Linux AppImage, `.deb` and `.rpm`, so the key never reaches the
 #     build, which compiles every dependency and runs their build scripts
-#     (PRD 0019 re-validation, S-03).
+#     (PRD 0019 re-validation, S-03), nor the runner that build used.
 #
 # The Tauri private key is read from the environment, never printed and never
 # written anywhere else; it is used for nothing but this signature.
