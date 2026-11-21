@@ -523,7 +523,40 @@ pub(crate) fn sweep_dirs(keep: Option<&Path>) -> Result<usize, ()> {
 /// [`sweep_dirs`] below `base` (PRD 0052 S-05: the erase sweeps them too;
 /// tests inject a temporary folder). How many went; `Err` when one could
 /// not be removed (a missing `base` is nothing to sweep).
+///
+/// Security review 2026-11-21, L-14: on Unix the temporary folder may be
+/// shared (`/tmp` on Linux), so only entries owned by the current user are
+/// touched. A folder another user created with the same prefix is not
+/// ours, cannot be removed, and must not keep every erase partial.
 pub(crate) fn sweep_dirs_in(base: &Path, keep: Option<&Path>) -> Result<usize, ()> {
+    #[cfg(unix)]
+    // SAFETY: `geteuid` has no preconditions and cannot fail.
+    let me = Some(unsafe { libc::geteuid() });
+    #[cfg(not(unix))]
+    let me = None;
+    sweep_dirs_owned_by(base, keep, me)
+}
+
+/// Whether the entry at `path` (never followed when a link) belongs to
+/// `owner`; always true without an owner to compare (Windows keeps a
+/// per-user temporary folder).
+fn owned_by(path: &Path, owner: Option<u32>) -> bool {
+    let Some(owner) = owner else {
+        return true;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::symlink_metadata(path).is_ok_and(|meta| meta.uid() == owner)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, owner);
+        true
+    }
+}
+
+fn sweep_dirs_owned_by(base: &Path, keep: Option<&Path>, owner: Option<u32>) -> Result<usize, ()> {
     let Ok(entries) = std::fs::read_dir(base) else {
         return Ok(0);
     };
@@ -532,6 +565,7 @@ pub(crate) fn sweep_dirs_in(base: &Path, keep: Option<&Path>) -> Result<usize, (
     for entry in entries.flatten() {
         if entry.file_name().to_string_lossy().starts_with(DIR_PREFIX)
             && keep != Some(entry.path().as_path())
+            && owned_by(&entry.path(), owner)
         {
             match std::fs::remove_dir_all(entry.path()) {
                 Ok(()) => removed += 1,
@@ -1011,6 +1045,27 @@ pub fn on_exit<R: Runtime>(app: &AppHandle<R>) {
 
 #[cfg(test)]
 mod tests {
+    /// L-14: the sweep removes this user's leftovers and leaves a folder
+    /// of the same prefix that belongs to someone else, without failing.
+    #[cfg(unix)]
+    #[test]
+    fn the_capture_sweep_touches_only_this_users_folders() {
+        let base = tempfile::tempdir().unwrap();
+        let ours = base.path().join(format!("{}1-2-3", super::DIR_PREFIX));
+        std::fs::create_dir(&ours).unwrap();
+        std::fs::write(ours.join("Cookies"), b"x").unwrap();
+        // SAFETY: `geteuid` has no preconditions and cannot fail.
+        let me = unsafe { libc::geteuid() };
+        assert_eq!(
+            super::sweep_dirs_owned_by(base.path(), None, Some(me.wrapping_add(1))),
+            Ok(0),
+            "another user's folder is skipped, not a failure"
+        );
+        assert!(ours.exists());
+        assert_eq!(super::sweep_dirs_in(base.path(), None), Ok(1));
+        assert!(!ours.exists());
+    }
+
     use super::*;
 
     fn cookie(name: &str, value: &str, domain: &str, path: &str) -> StoreCookie {
