@@ -8,6 +8,7 @@
 //! and nothing else is changed. Retention and pruning apply afterwards as
 //! for any other sample.
 
+use std::collections::HashMap;
 use std::ops::Bound;
 
 use chrono::{DateTime, Utc};
@@ -273,40 +274,45 @@ impl HistoryStore {
                     resets_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )?;
-            let mut positions: Vec<String> = Vec::new();
+            // Security review 2026-11-21, L-13: each metric's position (in
+            // order of first appearance) and latest time are computed in
+            // one pass, and its series id is looked up once, so a large
+            // file merges in linear time instead of scanning every sample
+            // for every sample inside the write transaction.
+            let mut metrics: HashMap<&str, (usize, i64)> = HashMap::new();
             for sample in &samples {
-                let position = match positions.iter().position(|k| *k == sample.metric_key) {
-                    Some(position) => position,
+                let next = metrics.len();
+                let entry = metrics
+                    .entry(sample.metric_key.as_str())
+                    .or_insert((next, sample.taken_at));
+                entry.1 = entry.1.max(sample.taken_at);
+            }
+            let mut ids: HashMap<&str, i64> = HashMap::new();
+            for sample in &samples {
+                let (position, seen_at) = metrics[sample.metric_key.as_str()];
+                let known = ids.get(sample.metric_key.as_str()).copied();
+                let id = match known.map_or_else(
+                    || series_id(&tx, &self.config_key, &account_digest, &sample.metric_key),
+                    |id| Ok(Some(id)),
+                )? {
+                    Some(id) => id,
                     None => {
-                        positions.push(sample.metric_key.clone());
-                        positions.len() - 1
+                        insert_series.execute(rusqlite::params![
+                            self.config_key,
+                            account_digest,
+                            sample.metric_key,
+                            sample.label,
+                            i64::try_from(position).map_err(|_| HistoryError::Storage)?,
+                            seen_at,
+                            sample.unit,
+                            sample.kind,
+                            sample.window,
+                        ])?;
+                        series_id(&tx, &self.config_key, &account_digest, &sample.metric_key)?
+                            .ok_or(HistoryError::Storage)?
                     }
                 };
-                let seen_at = samples
-                    .iter()
-                    .filter(|other| other.metric_key == sample.metric_key)
-                    .map(|other| other.taken_at)
-                    .max()
-                    .unwrap_or(sample.taken_at);
-                let id =
-                    match series_id(&tx, &self.config_key, &account_digest, &sample.metric_key)? {
-                        Some(id) => id,
-                        None => {
-                            insert_series.execute(rusqlite::params![
-                                self.config_key,
-                                account_digest,
-                                sample.metric_key,
-                                sample.label,
-                                i64::try_from(position).map_err(|_| HistoryError::Storage)?,
-                                seen_at,
-                                sample.unit,
-                                sample.kind,
-                                sample.window,
-                            ])?;
-                            series_id(&tx, &self.config_key, &account_digest, &sample.metric_key)?
-                                .ok_or(HistoryError::Storage)?
-                        }
-                    };
+                ids.insert(sample.metric_key.as_str(), id);
                 let exists = tx
                     .query_row(
                         "SELECT 1 FROM samples WHERE series_id = ?1 AND taken_at = ?2",
@@ -363,6 +369,40 @@ mod tests {
             derived_from: None,
             unlimited: false,
         }
+    }
+
+    /// L-13: a large file of many metrics merges in one linear pass, with
+    /// every metric's series created once and every row counted.
+    #[test]
+    fn a_large_history_file_merges_every_row_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let account = first_account(config(CONFIG));
+        let target = store(dir.path(), "big.sqlite3");
+        let start = Utc::now() - TimeDelta::days(60);
+        let (metrics, per_metric) = (40, 1_000);
+        let mut csv = HEADER.join(",");
+        csv.push('\n');
+        for minute in 0..per_metric {
+            let at = (start + TimeDelta::minutes(minute)).to_rfc3339();
+            for metric in 0..metrics {
+                csv.push_str(&format!(
+                    "alpha,groq,Requests {metric},m{metric},req,quota,daily,{at},{minute},100,,\n"
+                ));
+            }
+        }
+        let rows = metrics * per_metric as usize;
+        let started = std::time::Instant::now();
+        assert_eq!(
+            target.import_csv(&account, csv.as_bytes(), true).unwrap(),
+            ImportCount { rows, new: rows }
+        );
+        assert_eq!(
+            target.import_csv(&account, csv.as_bytes(), true).unwrap(),
+            ImportCount { rows, new: 0 }
+        );
+        // 40,000 rows: the old scan compared every sample with every other
+        // one (1.6 billion comparisons); a generous bound for slow runners.
+        assert!(started.elapsed() < std::time::Duration::from_secs(60));
     }
 
     #[test]
