@@ -179,10 +179,14 @@ impl Rule {
             && self
                 .provider
                 .is_none_or(|provider| Some(provider) == event.provider)
-            && self
-                .account
-                .as_ref()
-                .is_none_or(|account| *account == event.account_name || parent_is(event, account))
+            // L-8: the display name matches a direct account only. A
+            // connection of an aggregator takes its name from the remote
+            // instance, which could copy a direct account's name; a rule on
+            // the aggregator still covers its connections by `parent`.
+            && self.account.as_ref().is_none_or(|account| {
+                (event.parent.is_none() && *account == event.account_name)
+                    || parent_is(event, account)
+            })
             && self
                 .account_id
                 .as_ref()

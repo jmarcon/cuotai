@@ -1947,6 +1947,28 @@ fn a_rule_on_an_aggregator_covers_its_connections() {
     assert!(rule.matches(&event(EventKind::PoolExhausted, "home", None)));
 }
 
+/// L-8: a connection that whoever runs the aggregator named like a direct
+/// account ("Work") does not fire that account's `account` rule; only
+/// `account_id` or the aggregator's own name select it.
+#[test]
+fn an_account_filter_ignores_a_connection_named_like_a_direct_account() {
+    let rule = Rule {
+        quiet: Default::default(),
+        account_id: None,
+        name: "work".into(),
+        events: vec![EventKind::QuotaExhausted],
+        provider: None,
+        account: Some("Work".into()),
+        min_threshold: None,
+        command: vec!["true".into()],
+        timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
+    };
+    assert!(rule.matches(&event(EventKind::QuotaExhausted, "Work", None)));
+    let mut spoof = event(EventKind::QuotaExhausted, "Work", None);
+    spoof.parent = Some("nine_router:home".into());
+    assert!(!rule.matches(&spoof));
+}
+
 /// PRD 0051 RF3: a later revision of this schema is read without its new
 /// keys, and an editor save keeps them; a later major is refused and never
 /// rewritten; this revision stays strict.
