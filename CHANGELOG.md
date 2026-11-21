@@ -13,6 +13,15 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.89.0] - 2026-11-21
+
+### Security
+
+- **Breaking**: The terminal app no longer reads a `cuotai.toml` from the current folder on its own; pass `--config ./cuotai.toml` or set `CUOTAI_CONFIG` to use that file. Migration: a ./cuotai.toml in the working directory is no longer discovered. Pass --config ./cuotai.toml or set CUOTAI_CONFIG to keep using it (36c3638).
+- Browser sign-ins that return to `localhost` now listen on both loopback addresses, so another local program can no longer receive the sign-in callback (c9490f0).
+- A restored backup now asks before a LiteLLM account that relies on the default `LITELLM_API_KEY` sends it to an address outside this computer (ce18949).
+- A LiteLLM proxy on this computer over plain HTTP now gets its key only when the program listening on its port is yours (PRD 0036 RF10.1; d0cc733).
+
 ## [0.88.0] - 2026-11-21
 
 ### Added
@@ -1299,7 +1308,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.88.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.89.0...HEAD
+[0.89.0]: https://github.com/jmarcon/cuotai/compare/v0.88.0...v0.89.0
 [0.88.0]: https://github.com/jmarcon/cuotai/compare/v0.87.7...v0.88.0
 [0.87.7]: https://github.com/jmarcon/cuotai/compare/v0.87.6...v0.87.7
 [0.87.6]: https://github.com/jmarcon/cuotai/compare/v0.87.5...v0.87.6
