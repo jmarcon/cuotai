@@ -1,9 +1,11 @@
 //! PRD 0051 RF2.3/RF2.4: `cuotai --check-config [--json]`. The file is the
-//! one the other modes would read (`--config`, `CUOTAI_CONFIG`, an existing
-//! `./cuotai.toml`, then the OS path); the check is the core's strict,
-//! offline one. Exit 0 when valid, 1 otherwise.
+//! one the other modes would read (`--config`, `CUOTAI_CONFIG`, then the OS
+//! path); the check is the core's strict, offline one. Exit 0 when valid, 1
+//! otherwise.
 
-use cuotai_core::config_file::{self, ConfigCheck, ConfigFile, Discovery, Locations};
+use cuotai_core::config_file::{
+    self, ConfigCheck, ConfigFile, Discovery, Locations, PathSource, ResolvedPath,
+};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
@@ -12,6 +14,11 @@ use crate::l10n;
 /// Run the check and print it; returns the exit code.
 pub(crate) fn run(config: Option<PathBuf>, json: bool, locale: &str) -> io::Result<u8> {
     let resolved = ConfigFile::resolve_path(Discovery::Cli { config }, &Locations::from_process());
+    if !json {
+        if let Some(notice) = ignored_local_notice(&resolved.path, resolved.source) {
+            eprintln!("cuotai: {notice}");
+        }
+    }
     let check = config_file::check(&resolved.path);
     let mut stdout = io::stdout().lock();
     write!(
@@ -20,6 +27,25 @@ pub(crate) fn run(config: Option<PathBuf>, json: bool, locale: &str) -> io::Resu
         render(&check, &resolved.path.display().to_string(), json, locale)
     )?;
     Ok(if check.valid { 0 } else { 1 })
+}
+
+/// Security review 2026-11-21 (H-1): one line saying that a `./cuotai.toml`
+/// in the working directory is no longer read, for the human outputs only
+/// (`--check-config`, `--once`, the TUI). Never printed on standard output
+/// or by the machine modes.
+pub(crate) fn ignored_local_notice(path: &std::path::Path, source: PathSource) -> Option<String> {
+    let resolved = ResolvedPath {
+        path: path.to_path_buf(),
+        source,
+    };
+    ConfigFile::ignored_local(&resolved, &Locations::from_process())?;
+    Some(
+        l10n::tr(
+            "cli.local_config_ignored",
+            "A ./cuotai.toml in this folder is not read; pass --config ./cuotai.toml to use it.",
+        )
+        .to_string(),
+    )
 }
 
 fn render(check: &ConfigCheck, path: &str, json: bool, locale: &str) -> String {

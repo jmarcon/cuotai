@@ -115,8 +115,9 @@ fn build_version() -> &'static str {
     )
 )]
 struct Args {
-    /// TOML file (created if missing). Without it: CUOTAI_CONFIG, an existing ./cuotai.toml,
-    /// or <OS config dir>/cuotai/config.toml (where the wizard creates a new one).
+    /// TOML file (created if missing). Without it: CUOTAI_CONFIG, then
+    /// <OS config dir>/cuotai/config.toml (where the wizard creates a new one). A
+    /// ./cuotai.toml in the current folder is read only when named here.
     #[arg(short, long)]
     config: Option<PathBuf>,
     /// Queries once, without opening the TUI.
@@ -1568,6 +1569,13 @@ async fn run() -> Result<u8, Box<dyn std::error::Error>> {
             .chain(file.warnings.iter().map(|warning| warning.l10n()))
         {
             eprintln!("cuotai: {}", note.resolve(locale));
+        }
+    }
+    // Security review 2026-11-21 (H-1): `--once` says on standard error that
+    // a `./cuotai.toml` here is not read; the machine modes stay silent.
+    if args.once && !args.json && !args.json_v1 && !args.serve && !args.watch && !args.status_line {
+        if let Some(notice) = config_check::ignored_local_notice(&file.path, file.source) {
+            eprintln!("cuotai: {notice}");
         }
     }
     // PRD 0028 RF8: the opt-in update notice, TUI and `--once` only.

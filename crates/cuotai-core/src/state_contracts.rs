@@ -24,7 +24,7 @@ pub struct StateContract {
 pub const CONTRACTS: [StateContract; 9] = [
     StateContract {
         file: "cuotai.toml",
-        location: "`--config`, `CUOTAI_CONFIG`, `./cuotai.toml` or `<config>/config.toml`",
+        location: "`--config`, `CUOTAI_CONFIG` or `<config>/config.toml`",
         owner: "core `config_file`",
         version: "none (tolerant reader)",
         holds: "accounts, variable **names**, vault references",

@@ -21,7 +21,7 @@ cuotai --check-config            # one line per problem; exit 0 when valid, 1 ot
 cuotai --check-config --json     # {"valid": false, "diagnostics": [{"kind", "line", "column", "path"}]}
 ```
 
-It follows the normal file lookup (`--config`, `CUOTAI_CONFIG`, `./cuotai.toml`, the OS path), needs no credential and makes no network request. Each diagnostic names the line, the column and the key path (`accounts[2].provider`), never the value, so it can be pasted into an issue. `cuotai --doctor` runs the same check among its others.
+It follows the normal file lookup (`--config`, `CUOTAI_CONFIG`, the OS path), needs no credential and makes no network request. Each diagnostic names the line, the column and the key path (`accounts[2].provider`), never the value, so it can be pasted into an issue. `cuotai --doctor` runs the same check among its others.
 
 ## What the editors keep
 
