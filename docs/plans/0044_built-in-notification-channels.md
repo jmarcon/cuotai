@@ -65,7 +65,7 @@ The re-validation found 2 high, 5 medium and 15 low findings; every one is fixed
 - A history CSV with a hidden-mark label is refused as a whole, as a control character already was.
 - A pasted line break in the hidden prompt is dropped; Enter confirms.
 
-**Owner decision of 2026-11-20, delivered in vNEXT (RF2.2):** the channel `scrub` also hides the value after a secret's name, whatever its length: `password`, `senha`, `secret`, `token` or `key` in any case, as a word or a suffix after `_`, `-`, `.` or in camel case (`api_key`, `x-api-key`, `apiKey`; not `monkey`, `Tokens` or an all-caps run such as `APIKEY`), then `:` or `=` with optional spaces; the value runs to its closing quote, or else to the first whitespace, quote, comma, `&` or the end (`channels::payload::hide_secret_values`). Other languages' words for "password" are not covered beyond "senha".
+**Owner decision of 2026-11-20, delivered in 0.88.0 (RF2.2):** the channel `scrub` also hides the value after a secret's name, whatever its length: `password`, `senha`, `secret`, `token` or `key` in any case, as a word or a suffix after `_`, `-`, `.` or in camel case (`api_key`, `x-api-key`, `apiKey`; not `monkey`, `Tokens` or an all-caps run such as `APIKEY`), then `:` or `=` with optional spaces; the value runs to its closing quote, or else to the first whitespace, quote, comma, `&` or the end (`channels::payload::hide_secret_values`). Other languages' words for "password" are not covered beyond "senha".
 
 **Open items:**
 - The hourly cap and the startup grace stay per process (documented deviation): the desktop and `--notify` together can reach 40 deliveries an hour per channel.

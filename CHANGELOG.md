@@ -13,6 +13,30 @@ How to read the history:
 
 ## [Unreleased]
 
+## [0.88.0] - 2026-11-21
+
+### Added
+
+- The Claude Code status line can be colored with `--color always`, which works even though Claude Code pipes the command's output, and colors only Claude's own part of the line (PRD 0040 RF5.3; 5a2e6ac).
+
+### Changed
+
+- The documentation states the supported systems (macOS 12, Windows 11 and Linux with the glibc of Ubuntu 22.04 or newer; Windows 10 should work but is untested) and that only the latest release is supported (PRD 0039 RF4.5; PRD 0053 RF6.3; bec7e4c).
+
+### Fixed
+
+- Account names that differ only in the case of accented or other non-English letters, such as "Équipe" and "équipe", now count as the same name (PRD 0029 RF3.1; 241534e).
+- A budget whose period was not fully recorded now has a dimmed meter and share left in the desktop app, since the amount left is at most what it shows (PRD 0041 RF2.1, RF5.1; 1947f64).
+- Two budgets that would get the same automatic name now read apart, with " (2)", " (3)" and so on after the name (PRD 0041 RF2.1, RF5.1; 1947f64).
+- Saving credentials from the desktop app and the terminal at the same time no longer leaves one of them out of the stored-credentials list (PRD 0029 RF6; PRD 0051 RF4; 96720e2).
+- Long sign-in descriptions in the account dialog wrap inside the dialog instead of running past its edge (PRD 0037 RF9; PRD 0022 RF14; a715375).
+
+### Security
+
+- A local 9router reached over plain HTTP now has the program on its port re-checked before every request that carries the password or session, not only before the first one of a refresh (PRD 0036 RF3.1; ee37e63).
+- A 9router on your private network reached over plain HTTP no longer receives the dashboard password or session, even with the private-network option; serve it over HTTPS or reach it through a loopback address such as an SSH tunnel, and only an instance without a password is still read over plain HTTP (PRD 0036 RF2.3; 60d0026).
+- Notification channels now hide the value written after a password, secret, token or key name followed by ":" or "=", however short it is (PRD 0044 RF2.2; 329a91d).
+
 ## [0.87.7] - 2026-11-20
 
 ### Fixed
@@ -1275,7 +1299,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.87.7...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.88.0...HEAD
+[0.88.0]: https://github.com/jmarcon/cuotai/compare/v0.87.7...v0.88.0
 [0.87.7]: https://github.com/jmarcon/cuotai/compare/v0.87.6...v0.87.7
 [0.87.6]: https://github.com/jmarcon/cuotai/compare/v0.87.5...v0.87.6
 [0.87.5]: https://github.com/jmarcon/cuotai/compare/v0.87.4...v0.87.5
