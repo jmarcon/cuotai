@@ -19,10 +19,18 @@
 //! <https://docs.litellm.ai/docs/proxy/team_budgets>). No LiteLLM code is copied; the fixtures below are
 //! written from the documented example. A live instance has not been
 //! checked yet (owner verification), so the access level is `Official` (a documented route).
+//!
+//! Security review 2026-11-21 (M-3): before every request that carries the
+//! key to a loopback address over plain HTTP, the program listening on that
+//! port must belong to the current user or the superuser
+//! ([`crate::local_listener`], as for 9router); otherwise nothing is sent
+//! (`query.litellm.listener_foreign`). HTTPS is authenticated by its
+//! certificate, and a private-network host is not on this machine.
 
 use super::nine_router::{allows_private_http, base_is_loopback, parse_base, sub_id, BaseUrlError};
 use super::{json_checked, secret, Context, Data, QueryError};
-use crate::text::{params, Notes, ParamValue};
+use crate::local_listener::{self, ListenerCheck, Verdict};
+use crate::text::{params, Localized, Notes, ParamValue};
 use crate::{Account, Metric, MetricKind, MetricWindow, Provider, Status, SubReport};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -224,15 +232,64 @@ fn base_error(error: BaseUrlError) -> QueryError {
     QueryError::config(id, text)
 }
 
+/// M-3: who may receive the key on a plain-HTTP loopback base.
+struct Guard<'a> {
+    base: &'a url::Url,
+    listener: &'a dyn ListenerCheck,
+}
+
+impl Guard<'_> {
+    /// Read again before every keyed request and never cached, so a port
+    /// that changes hands during a refresh stops the next request.
+    fn check(&self) -> Result<(), QueryError> {
+        if self.base.scheme() != "http" {
+            return Ok(());
+        }
+        let Some(targets) = self
+            .base
+            .host()
+            .and_then(|host| local_listener::loopback_targets(&host))
+        else {
+            return Ok(());
+        };
+        let port = self.base.port_or_known_default().unwrap_or(80);
+        match self.listener.verdict(&targets, port) {
+            Verdict::Trusted => Ok(()),
+            Verdict::Foreign | Verdict::Unconfirmed => Err(listener_foreign(port)),
+        }
+    }
+}
+
+const LISTENER_FOREIGN: &str = "query.litellm.listener_foreign";
+
+fn listener_foreign_note(port: u16) -> Localized {
+    Localized::with_param(
+        LISTENER_FOREIGN,
+        "port",
+        port,
+        "The program listening on port {port} could not be confirmed as yours (it may belong to another user), so the LiteLLM key was not sent. Start LiteLLM as yourself, or reach it over HTTPS.",
+    )
+}
+
+fn listener_foreign(port: u16) -> QueryError {
+    QueryError {
+        diagnostic: None,
+        status: Status::Error,
+        note: listener_foreign_note(port),
+    }
+}
+
 /// One `GET` of the proxy with the key. Plain HTTP goes only to loopback,
 /// or to a private host when the account chose `allow_private_http`
-/// (PRD 0036 S-06); never a redirect.
+/// (PRD 0036 S-06); never a redirect. The listener check runs first.
 async fn get_json(
     ctx: &Context<'_>,
+    guard: &Guard<'_>,
     url: &str,
     key: &str,
     allow_private: bool,
 ) -> Result<Value, QueryError> {
+    guard.check()?;
     // S-02: plain HTTP and local or private hosts never use an
     // environment proxy (the key would reach it, and the proxy would
     // connect to its own loopback); public HTTPS keeps it.
@@ -257,11 +314,25 @@ pub(crate) async fn fetch_at(
     ctx: &Context<'_>,
     now: DateTime<Utc>,
 ) -> Result<Data, QueryError> {
+    fetch_with(account, ctx, now, &local_listener::System).await
+}
+
+/// [`fetch_at`] with an injected listener check.
+async fn fetch_with(
+    account: &Account,
+    ctx: &Context<'_>,
+    now: DateTime<Utc>,
+    listener: &dyn ListenerCheck,
+) -> Result<Data, QueryError> {
     let base = account_base(account).map_err(base_error)?;
     let key = secret(account, ctx, "LITELLM_API_KEY")?;
     let allow_private = allows_private_http(account);
+    let guard = Guard {
+        base: &base,
+        listener,
+    };
     let url = format!("{}{BUDGETS_PATH}", base.as_str().trim_end_matches('/'));
-    let value = get_json(ctx, &url, key.trim(), allow_private).await?;
+    let value = get_json(ctx, &guard, &url, key.trim(), allow_private).await?;
     let hidden: Vec<String> = account
         .params
         .get("hidden")
@@ -308,8 +379,10 @@ pub(crate) async fn fetch_at(
             continue;
         }
         let fetched = match kind {
-            crate::BreakdownKind::Keys => key_rows(ctx, root, key.trim(), allow_private).await,
-            _ => team_rows(ctx, root, key.trim(), allow_private).await,
+            crate::BreakdownKind::Keys => {
+                key_rows(ctx, &guard, root, key.trim(), allow_private).await
+            }
+            _ => team_rows(ctx, &guard, root, key.trim(), allow_private).await,
         };
         match fetched {
             Ok((found, more)) => {
@@ -341,6 +414,7 @@ const KEY_PAGE_SIZE: usize = 100;
 /// [`crate::breakdown::MAX_PAGES`] pages; whether pages were left unread.
 async fn key_rows(
     ctx: &Context<'_>,
+    guard: &Guard<'_>,
     root: &str,
     key: &str,
     allow_private: bool,
@@ -349,7 +423,7 @@ async fn key_rows(
     for page in 1..=crate::breakdown::MAX_PAGES {
         let url =
             format!("{root}{KEYS_PATH}?return_full_object=true&page={page}&size={KEY_PAGE_SIZE}");
-        let value = get_json(ctx, &url, key, allow_private).await?;
+        let value = get_json(ctx, guard, &url, key, allow_private).await?;
         let keys = value
             .get("keys")
             .and_then(Value::as_array)
@@ -379,11 +453,19 @@ async fn key_rows(
 /// `GET /team/list`: one answer with every team the credential may read.
 async fn team_rows(
     ctx: &Context<'_>,
+    guard: &Guard<'_>,
     root: &str,
     key: &str,
     allow_private: bool,
 ) -> Result<(Vec<crate::BreakdownRow>, bool), QueryError> {
-    let value = get_json(ctx, &format!("{root}{TEAMS_PATH}"), key, allow_private).await?;
+    let value = get_json(
+        ctx,
+        guard,
+        &format!("{root}{TEAMS_PATH}"),
+        key,
+        allow_private,
+    )
+    .await?;
     let teams = value
         .as_array()
         .ok_or_else(|| QueryError::schema_at(&value, &[], "array"))?;
@@ -503,15 +585,25 @@ pub(crate) async fn test_connection(
     account: &Account,
     ctx: &Context<'_>,
 ) -> super::nine_router::TestOutcome {
-    use super::nine_router::TestOutcome;
     // The budgets route, read-only: a ticked breakdown would also read the
     // key and team lists, which a connection test does not need.
     let mut probe = account.clone();
     probe.breakdown.clear();
-    match fetch(&probe, ctx).await {
+    outcome_of(fetch(&probe, ctx).await)
+}
+
+fn outcome_of(result: Result<Data, QueryError>) -> super::nine_router::TestOutcome {
+    use super::nine_router::TestOutcome;
+    match result {
         Ok(data) => TestOutcome::Connected {
             version: None,
             connections: data.sub_reports.len(),
+        },
+        Err(error) if error.note.id == LISTENER_FOREIGN => TestOutcome::ListenerForeign {
+            port: match error.note.params.get("port") {
+                Some(ParamValue::Text(text)) => text.parse().unwrap_or(0),
+                _ => 0,
+            },
         },
         Err(error) => match error.status {
             Status::AuthenticationError => TestOutcome::PasswordWrong,
@@ -522,6 +614,11 @@ pub(crate) async fn test_connection(
             _ => TestOutcome::Unreachable,
         },
     }
+}
+
+/// M-3: the Test connection sentence of a refused listener.
+pub(crate) fn listener_outcome_text(port: u16) -> Localized {
+    listener_foreign_note(port)
 }
 
 /// PRD 0028 RF11: the fixture whose metric identities `label_snapshot`
@@ -636,6 +733,137 @@ mod tests {
             .respond_with(ResponseTemplate::new(status).set_body_json(body))
             .mount(server)
             .await;
+    }
+
+    /// A listener check with a fixed answer.
+    struct FixedListener(Verdict);
+    impl ListenerCheck for FixedListener {
+        fn verdict(&self, _: &[std::net::IpAddr], _: u16) -> Verdict {
+            self.0
+        }
+    }
+
+    /// A listener check that must not be consulted.
+    struct NeverAsked;
+    impl ListenerCheck for NeverAsked {
+        fn verdict(&self, _: &[std::net::IpAddr], _: u16) -> Verdict {
+            panic!("the listener check ran for a base that does not need it")
+        }
+    }
+
+    /// Security review 2026-11-21 (M-3): a loopback port whose listener is
+    /// foreign or unconfirmed never receives the key; the error names the
+    /// port and Test connection says so in LiteLLM's words.
+    #[tokio::test]
+    async fn an_unconfirmed_loopback_listener_never_receives_the_key() {
+        let http = reqwest::Client::new();
+        for verdict in [Verdict::Foreign, Verdict::Unconfirmed] {
+            let server = MockServer::start().await;
+            mount(&server, 200, documented()).await;
+            let port = server.address().port();
+            let error = fetch_with(
+                &account(&server, &[]),
+                &context(&http),
+                Utc::now(),
+                &FixedListener(verdict),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(error.note.id, LISTENER_FOREIGN);
+            assert_eq!(error.status, Status::Error);
+            let text = error.note.resolve("en-US");
+            assert!(text.contains(&port.to_string()), "{text}");
+            assert!(text.contains("LiteLLM key was not sent"), "{text}");
+            assert!(
+                server.received_requests().await.unwrap().is_empty(),
+                "{verdict:?}: nothing reached the port"
+            );
+            let outcome = outcome_of(Err(error));
+            assert_eq!(
+                outcome,
+                crate::providers::nine_router::TestOutcome::ListenerForeign { port }
+            );
+            let sentence = crate::providers::nine_router::litellm_outcome_text(&outcome)
+                .unwrap()
+                .resolve("en-US");
+            assert!(sentence.contains("LiteLLM"), "{sentence}");
+            assert!(!sentence.contains("9router"), "{sentence}");
+        }
+        // The user's own listener gets the request as before.
+        let server = MockServer::start().await;
+        mount(&server, 200, documented()).await;
+        let data = fetch_with(
+            &account(&server, &[]),
+            &context(&http),
+            Utc::now(),
+            &FixedListener(Verdict::Trusted),
+        )
+        .await
+        .unwrap();
+        assert_eq!(data.sub_reports.len(), 5);
+    }
+
+    /// M-3: the check is read again before every keyed request, so a port
+    /// that turns foreign after the budgets route gets no key or team list.
+    #[tokio::test]
+    async fn a_listener_that_turns_foreign_mid_refresh_gets_no_further_key() {
+        struct TurnsForeign(std::sync::atomic::AtomicUsize);
+        impl ListenerCheck for TurnsForeign {
+            fn verdict(&self, _: &[std::net::IpAddr], _: u16) -> Verdict {
+                if self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                    Verdict::Trusted
+                } else {
+                    Verdict::Foreign
+                }
+            }
+        }
+        let server = MockServer::start().await;
+        mount(&server, 200, documented()).await;
+        let mut acct = account(&server, &[]);
+        acct.breakdown = vec![crate::BreakdownKind::Keys, crate::BreakdownKind::Teams];
+        let http = reqwest::Client::new();
+        let check = TurnsForeign(std::sync::atomic::AtomicUsize::new(0));
+        let data = fetch_with(&acct, &context(&http), Utc::now(), &check)
+            .await
+            .unwrap();
+        assert_eq!(data.sub_reports.len(), 5);
+        let requests = server.received_requests().await.unwrap();
+        assert!(requests.iter().all(|r| r.url.path() == BUDGETS_PATH));
+        assert_eq!(check.0.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    /// M-3: HTTPS and private-network bases are not on this machine's
+    /// loopback; only a plain-HTTP loopback base asks who listens.
+    #[test]
+    fn only_a_plain_http_loopback_base_asks_who_listens() {
+        for raw in [
+            "https://127.0.0.1:4000",
+            "https://litellm.example.com",
+            "http://192.168.1.10:4000",
+        ] {
+            let base = url::Url::parse(raw).unwrap();
+            let guard = Guard {
+                base: &base,
+                listener: &NeverAsked,
+            };
+            assert!(guard.check().is_ok(), "{raw}");
+        }
+        for raw in [
+            "http://127.0.0.1:4000",
+            "http://localhost:4000",
+            "http://[::1]:4000",
+        ] {
+            let base = url::Url::parse(raw).unwrap();
+            let guard = Guard {
+                base: &base,
+                listener: &FixedListener(Verdict::Unconfirmed),
+            };
+            assert_eq!(
+                guard.check().unwrap_err().note.id,
+                LISTENER_FOREIGN,
+                "{raw}"
+            );
+        }
     }
 
     #[tokio::test]

@@ -2152,6 +2152,7 @@
   "query.nine_router.ca_file": "File CA 9router tidak dapat dibaca sebagai PEM.",
   "query.nine_router.certificate_changed": "Sertifikat instans 9router berubah; periksa dan uji koneksi lagi sebelum memercayainya.",
   "query.nine_router.locked": "Terlalu banyak percobaan login 9router; tunggu {seconds} dtk sebelum mencoba lagi.",
+  "query.litellm.listener_foreign": "Program yang mendengarkan di port {port} tidak dapat dipastikan milik Anda (mungkin milik pengguna lain), jadi kunci LiteLLM tidak dikirim. Jalankan LiteLLM sebagai pengguna Anda sendiri, atau akses lewat HTTPS.",
   "query.nine_router.listener_foreign": "Program yang mendengarkan di port {port} tidak dapat dipastikan milik Anda (mungkin milik pengguna lain), jadi kata sandi atau sesi 9router tidak dikirim. Jalankan 9router sebagai pengguna Anda sendiri, atau akses lewat HTTPS dengan sertifikat yang disematkan.",
   "query.nine_router.login_refused": "9router tidak menerima login kata sandi di sini (SSO aktif atau akses diblokir terowongan).",
   "query.nine_router.not_nine_router": "Alamat menjawab, tetapi tidak terlihat seperti 9router; kata sandi atau sesi tidak dikirim.",

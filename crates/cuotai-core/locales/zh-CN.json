@@ -2190,6 +2190,7 @@
   "query.nine_router.ca_file": "无法以 PEM 格式读取 9router 的 CA 文件。",
   "query.nine_router.certificate_changed": "9router 实例的证书已更改；请先检查并重新测试连接，然后再信任它。",
   "query.nine_router.locked": "登录 9router 的尝试次数过多；请等待 {seconds} 秒后再试。",
+  "query.litellm.listener_foreign": "无法确认在端口 {port} 上监听的程序属于当前用户（它可能属于其他用户），因此未发送 LiteLLM 密钥。请以当前用户身份启动 LiteLLM，或通过 HTTPS 访问它。",
   "query.nine_router.listener_foreign": "无法确认在端口 {port} 上监听的程序属于当前用户（它可能属于其他用户），因此未发送 9router 的密码或会话。请以当前用户身份启动 9router，或通过使用固定证书的 HTTPS 访问它。",
   "query.nine_router.login_refused": "9router 在此不接受密码登录（已启用 SSO，或登录被隧道阻止）。",
   "query.nine_router.not_nine_router": "该地址有响应，但看起来不是 9router；未发送密码或会话。",

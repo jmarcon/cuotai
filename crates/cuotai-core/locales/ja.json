@@ -2199,6 +2199,7 @@
   "query.nine_router.ca_file": "9router の CA ファイルを PEM として読み取れませんでした。",
   "query.nine_router.certificate_changed": "9router インスタンスの証明書が変更されました。信頼する前に確認し、接続をもう一度テストしてください。",
   "query.nine_router.locked": "9router へのログインの試行が多すぎます。{seconds} 秒待ってからもう一度お試しください。",
+  "query.litellm.listener_foreign": "ポート {port} で待ち受けているプログラムが現在のユーザーのものであると確認できなかったため（別のユーザーのものである可能性があります）、LiteLLM のキーを送信していません。LiteLLM を現在のユーザーで起動するか、HTTPS で接続してください。",
   "query.nine_router.listener_foreign": "ポート {port} で待ち受けているプログラムが現在のユーザーのものであると確認できなかったため（別のユーザーのものである可能性があります）、9router のパスワードもセッションも送信していません。9router を現在のユーザーで起動するか、固定した証明書を使って HTTPS で接続してください。",
   "query.nine_router.login_refused": "9router はここではパスワードでのログインを受け付けません（SSO が有効か、トンネルによってログインがブロックされています）。",
   "query.nine_router.not_nine_router": "アドレスは応答しましたが、9router ではないようです。パスワードもセッションも送信していません。",

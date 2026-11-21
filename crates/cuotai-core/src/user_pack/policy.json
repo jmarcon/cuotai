@@ -59,6 +59,7 @@
       "privacy.*",
       "provider.*",
       "query.env_name_invalid",
+      "query.litellm.listener_foreign",
       "query.nine_router.listener_foreign",
       "query.nine_router.not_nine_router",
       "query.nine_router.secret_plain_http",

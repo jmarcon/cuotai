@@ -2180,6 +2180,7 @@
   "query.nine_router.unauthorized": "9router rechazó el acceso: indica la contraseña del panel.",
   "query.nine_router.password_wrong": "Se rechazó la contraseña del panel de 9router.",
   "query.nine_router.locked": "Demasiados intentos de acceso a 9router; espera {seconds} s antes de volver a intentarlo.",
+  "query.litellm.listener_foreign": "No se pudo confirmar que el programa que escucha en el puerto {port} sea tuyo (puede pertenecer a otro usuario), así que no se envió la clave de LiteLLM. Inicia LiteLLM con tu propio usuario o accede a él por HTTPS.",
   "query.nine_router.listener_foreign": "No se pudo confirmar que el programa que escucha en el puerto {port} sea tuyo (puede pertenecer a otro usuario), así que no se envió la contraseña ni la sesión de 9router. Inicia 9router con tu propio usuario o accede a él por HTTPS con un certificado fijado.",
   "query.nine_router.login_refused": "9router no acepta el acceso con contraseña aquí (SSO activo o acceso bloqueado por el túnel).",
   "query.nine_router.not_nine_router": "La dirección responde, pero no parece un 9router; no se envió la contraseña ni la sesión.",
