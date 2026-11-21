@@ -2058,6 +2058,7 @@
   "query.nine_router.ca_file": "O arquivo de CA do 9router não pôde ser lido como PEM.",
   "query.nine_router.certificate_changed": "O certificado da instância do 9router mudou; confira-o e teste a conexão de novo antes de confiar nele.",
   "query.nine_router.locked": "Muitas tentativas de login no 9router; aguarde {seconds} s antes de tentar de novo.",
+  "query.litellm.listener_foreign": "Não foi possível confirmar que o programa escutando na porta {port} é seu (ele pode ser de outro usuário), então a chave do LiteLLM não foi enviada. Inicie o LiteLLM com o seu próprio usuário ou acesse-o por HTTPS.",
   "query.nine_router.listener_foreign": "Não foi possível confirmar que o programa escutando na porta {port} é seu (ele pode ser de outro usuário), então a senha ou a sessão do 9router não foi enviada. Inicie o 9router com o seu próprio usuário ou acesse-o por HTTPS com um certificado fixado.",
   "query.nine_router.login_refused": "O 9router não aceita login por senha por aqui (SSO ativo ou acesso bloqueado pelo túnel).",
   "query.nine_router.not_nine_router": "O endereço responde, mas não parece ser um 9router; a senha ou a sessão não foi enviada.",

@@ -2154,6 +2154,7 @@
   "query.nine_router.ca_file": "Không đọc được tệp CA của 9router dưới dạng PEM.",
   "query.nine_router.certificate_changed": "Chứng chỉ của phiên bản 9router đã thay đổi; hãy kiểm tra và thử lại kết nối trước khi tin cậy.",
   "query.nine_router.locked": "Quá nhiều lần thử đăng nhập 9router; hãy chờ {seconds} giây trước khi thử lại.",
+  "query.litellm.listener_foreign": "Không thể xác nhận chương trình đang lắng nghe ở cổng {port} là của bạn (có thể thuộc người dùng khác), nên chưa gửi khóa LiteLLM. Hãy khởi động LiteLLM bằng chính người dùng của bạn, hoặc truy cập qua HTTPS.",
   "query.nine_router.listener_foreign": "Không thể xác nhận chương trình đang lắng nghe ở cổng {port} là của bạn (có thể thuộc người dùng khác), nên chưa gửi mật khẩu hay phiên 9router. Hãy khởi động 9router bằng chính người dùng của bạn, hoặc truy cập qua HTTPS với chứng chỉ được ghim.",
   "query.nine_router.login_refused": "9router không nhận đăng nhập bằng mật khẩu ở đây (SSO đang bật hoặc đường hầm chặn truy cập).",
   "query.nine_router.not_nine_router": "Địa chỉ có phản hồi, nhưng trông không giống 9router; chưa gửi mật khẩu hay phiên.",

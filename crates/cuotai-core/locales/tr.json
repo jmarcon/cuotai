@@ -2180,6 +2180,7 @@
   "query.nine_router.ca_file": "9router CA dosyası PEM olarak okunamadı.",
   "query.nine_router.certificate_changed": "9router örneğinin sertifikası değişti; güvenmeden önce kontrol edin ve bağlantıyı yeniden test edin.",
   "query.nine_router.locked": "Çok fazla 9router oturum açma denemesi; yeniden denemeden önce {seconds} sn bekleyin.",
+  "query.litellm.listener_foreign": "{port} numaralı bağlantı noktasını dinleyen programın size ait olduğu doğrulanamadı (başka bir kullanıcıya ait olabilir), bu yüzden LiteLLM anahtarı gönderilmedi. LiteLLM'i kendi kullanıcınızla başlatın ya da ona HTTPS üzerinden erişin.",
   "query.nine_router.listener_foreign": "{port} numaralı bağlantı noktasını dinleyen programın size ait olduğu doğrulanamadı (başka bir kullanıcıya ait olabilir), bu yüzden 9router parolası veya oturumu gönderilmedi. 9router'ı kendi kullanıcınızla başlatın ya da ona sabitlenmiş bir sertifikayla HTTPS üzerinden erişin.",
   "query.nine_router.login_refused": "9router burada parolayla oturum açmayı kabul etmiyor (SSO açık veya erişim tünel tarafından engelleniyor).",
   "query.nine_router.not_nine_router": "Adres yanıt veriyor, ancak bir 9router'a benzemiyor; parola veya oturum gönderilmedi.",

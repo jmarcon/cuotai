@@ -2171,6 +2171,7 @@
   "query.nine_router.ca_file": "9router CA 파일을 PEM으로 읽을 수 없습니다.",
   "query.nine_router.certificate_changed": "9router 인스턴스의 인증서가 바뀌었습니다. 신뢰하기 전에 확인하고 연결을 다시 테스트하세요.",
   "query.nine_router.locked": "9router 로그인 시도가 너무 많습니다. {seconds}초 후에 다시 시도하세요.",
+  "query.litellm.listener_foreign": "포트 {port}에서 수신 대기 중인 프로그램이 현재 사용자의 것인지 확인할 수 없어(다른 사용자의 것일 수 있음) LiteLLM 키를 전송하지 않았습니다. LiteLLM을 현재 사용자로 시작하거나 HTTPS로 연결하세요.",
   "query.nine_router.listener_foreign": "포트 {port}에서 수신 대기 중인 프로그램이 현재 사용자의 것인지 확인할 수 없어(다른 사용자의 것일 수 있음) 9router 비밀번호나 세션을 전송하지 않았습니다. 9router를 현재 사용자로 시작하거나, 고정 인증서를 사용해 HTTPS로 연결하세요.",
   "query.nine_router.login_refused": "9router가 여기서 비밀번호 로그인을 받지 않습니다(SSO가 켜져 있거나 터널이 접근을 막음).",
   "query.nine_router.not_nine_router": "주소가 응답하지만 9router로 보이지 않습니다. 비밀번호나 세션은 전송되지 않았습니다.",

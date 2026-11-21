@@ -1749,6 +1749,7 @@ pub(crate) fn litellm_outcome_text(outcome: &TestOutcome) -> Option<Localized> {
             "test.litellm.key_required",
             "Enter the LiteLLM master key or a virtual key.",
         ),
+        TestOutcome::ListenerForeign { port } => super::litellm::listener_outcome_text(*port),
         _ => return None,
     })
 }
