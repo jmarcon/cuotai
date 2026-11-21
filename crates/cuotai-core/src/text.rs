@@ -275,10 +275,16 @@ impl From<Localized> for String {
     }
 }
 
-/// Whether `c` can disguise text on screen: a control character or a bidi
-/// override/isolate (U+202A–U+202E, U+2066–U+2069).
+/// Whether `c` can disguise text on screen: a control character, the line
+/// and paragraph separators (U+2028, U+2029: a native dialog breaks the
+/// line there, security review 2026-11-21 L-7) or a bidi override/isolate
+/// (U+202A–U+202E, U+2066–U+2069).
 pub fn is_disguising(c: char) -> bool {
-    c.is_control() || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+    c.is_control()
+        || matches!(
+            c,
+            '\u{2028}' | '\u{2029}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+        )
 }
 
 /// `text` without its [`is_disguising`] characters and bidi marks (U+200E,
@@ -349,6 +355,24 @@ pub fn strip_hidden(text: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
+/// L-7: a line or paragraph separator cannot start a forged line in a
+/// consent listing; it is escaped like a newline, and so is an invisible
+/// format character.
+#[cfg(test)]
+#[test]
+fn escape_disguising_shows_line_separators_and_format_characters() {
+    assert!(is_disguising('\u{2028}') && is_disguising('\u{2029}'));
+    assert_eq!(
+        escape_disguising("rule\u{2028}command: /bin/true\u{2029}x\u{200b}y"),
+        "rule\\u{2028}command: /bin/true\\u{2029}x\\u{200b}y"
+    );
+    assert_eq!(strip_disguising("a\u{2028}b"), "ab");
+    assert!(matches!(
+        escape_disguising("Plain name é"),
+        std::borrow::Cow::Borrowed(_)
+    ));
+}
+
 #[cfg(test)]
 #[test]
 fn strip_hidden_drops_format_characters_too() {
@@ -363,17 +387,19 @@ fn strip_hidden_drops_format_characters_too() {
     assert!(is_hidden('\u{202e}') && is_hidden('\u{200d}') && !is_hidden('é'));
 }
 
-/// `text` with every [`is_disguising`] character written visibly as
-/// `\u{…}` (its code point in hex) instead of stripped, so a listing shows
-/// exactly what a name, a path or a value holds and no line can be forged
-/// or reordered by a newline, an escape sequence or a bidi override.
+/// `text` with every [`is_hidden`] character (the [`is_disguising`] ones,
+/// line separators included, plus the invisible format characters, L-7)
+/// written visibly as `\u{…}` (its code point in hex) instead of stripped,
+/// so a listing shows exactly what a name, a path or a value holds and no
+/// line can be forged, reordered or padded invisibly by a newline, an
+/// escape sequence, a bidi override or a zero-width character.
 pub fn escape_disguising(text: &str) -> std::borrow::Cow<'_, str> {
-    if !text.chars().any(is_disguising) {
+    if !text.chars().any(is_hidden) {
         return std::borrow::Cow::Borrowed(text);
     }
     let mut out = String::with_capacity(text.len() + 8);
     for c in text.chars() {
-        if is_disguising(c) {
+        if is_hidden(c) {
             out.push_str(&format!("\\u{{{:x}}}", u32::from(c)));
         } else {
             out.push(c);

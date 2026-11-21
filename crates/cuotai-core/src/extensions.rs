@@ -604,14 +604,32 @@ pub(crate) fn valid_id(id: &str) -> bool {
         && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
 }
 
-/// A trimmed, non-empty text of at most `max` characters, without control
-/// characters.
+/// A trimmed, non-empty text of at most `max` characters, without control,
+/// line-separator, bidi or invisible format characters (L-7: none can forge
+/// or hide a line of the consent listing).
 fn single_line(field: &'static str, text: &str, max: usize) -> Result<String, Localized> {
     let text = text.trim();
-    if text.is_empty() || text.chars().count() > max || text.chars().any(char::is_control) {
+    if text.is_empty() || text.chars().count() > max || text.chars().any(crate::text::is_hidden) {
         return Err(field_text(field, max));
     }
     Ok(text.to_owned())
+}
+
+/// L-7: a manifest name or version cannot carry a line separator, a bidi
+/// override or an invisible character into the consent listing.
+#[cfg(test)]
+#[test]
+fn single_line_refuses_line_separators_and_invisible_characters() {
+    assert_eq!(single_line("name", "  Proxy  ", 10).unwrap(), "Proxy");
+    for bad in [
+        "a\u{2028}command: x",
+        "a\u{2029}b",
+        "a\nb",
+        "a\u{202e}b",
+        "a\u{200b}b",
+    ] {
+        assert!(single_line("version", bad, 40).is_err(), "{bad:?}");
+    }
 }
 
 /// An `http(s)` address without credentials.
