@@ -639,68 +639,59 @@ impl LoopbackLogin {
         let _ = timeout_at(self.deadline, request).await;
     }
 
-    /// Accept connections until a valid callback arrives or the deadline
-    /// passes. Unrelated requests never trigger a token exchange.
+    /// Serve connections until a valid callback arrives or the deadline
+    /// passes, side by side (L-6). Unrelated requests never trigger a token
+    /// exchange.
     async fn wait_for_callback(&self) -> Result<Callback, OAuthError> {
-        loop {
-            let (mut stream, _) = timeout_at(self.deadline, self.listener.accept())
-                .await
-                .map_err(|_| OAuthError::Expired)?
-                .map_err(|_| OAuthError::Network)?;
-            let conn_deadline =
-                std::cmp::min(self.deadline, Instant::now() + CALLBACK_CONN_DEADLINE);
-            let outcome = match timeout_at(
-                conn_deadline,
-                read_request(
-                    &mut stream,
-                    &self.callback_path,
-                    self.expected_state.as_deref(),
-                ),
-            )
-            .await
-            {
-                Ok(outcome) => outcome,
-                Err(_) => {
-                    if Instant::now() >= self.deadline {
-                        return Err(OAuthError::Expired);
+        let (path, state) = (self.callback_path.as_str(), self.expected_state.as_deref());
+        super::loopback::serve(
+            || self.listener.accept(),
+            self.deadline,
+            CALLBACK_CONN_DEADLINE,
+            |mut stream| async move {
+                Some(match read_request(&mut stream, path, state).await {
+                    LoopbackOutcome::Code(callback) => {
+                        respond(
+                            &mut stream,
+                            "200 OK",
+                            &super::callback_page::render(
+                                super::callback_page::CallbackPage::Success,
+                            ),
+                        )
+                        .await;
+                        Ok(callback)
                     }
-                    LoopbackOutcome::Ignored
-                }
-            };
-            match outcome {
-                LoopbackOutcome::Code(callback) => {
-                    respond(
-                        &mut stream,
-                        "200 OK",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Success),
-                    )
-                    .await;
-                    return Ok(callback);
-                }
-                LoopbackOutcome::Denied => {
-                    respond(
-                        &mut stream,
-                        "200 OK",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Denied),
-                    )
-                    .await;
-                    return Err(OAuthError::Denied);
-                }
-                LoopbackOutcome::Failed(error) => {
-                    respond(
-                        &mut stream,
-                        "400 Bad Request",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Failed),
-                    )
-                    .await;
-                    return Err(error);
-                }
-                LoopbackOutcome::Ignored => {
-                    // No details: a stray request learns nothing from us.
-                    respond(&mut stream, "404 Not Found", "").await;
-                }
-            }
-        }
+                    LoopbackOutcome::Denied => {
+                        respond(
+                            &mut stream,
+                            "200 OK",
+                            &super::callback_page::render(
+                                super::callback_page::CallbackPage::Denied,
+                            ),
+                        )
+                        .await;
+                        Err(OAuthError::Denied)
+                    }
+                    LoopbackOutcome::Failed(error) => {
+                        respond(
+                            &mut stream,
+                            "400 Bad Request",
+                            &super::callback_page::render(
+                                super::callback_page::CallbackPage::Failed,
+                            ),
+                        )
+                        .await;
+                        Err(error)
+                    }
+                    LoopbackOutcome::Ignored => {
+                        // No details: a stray request learns nothing from us.
+                        respond(&mut stream, "404 Not Found", "").await;
+                        return None;
+                    }
+                })
+            },
+        )
+        .await
     }
 }
 

@@ -366,8 +366,7 @@ async fn begin_zed(
 
 impl ZedLogin {
     async fn finish(self) -> Result<OAuthToken, OAuthError> {
-        let (user_id, encrypted_token) = self.wait_for_callback().await?;
-        let access_token = decrypt_zed_token(&encrypted_token, &self.private_key)?;
+        let (user_id, access_token) = self.wait_for_callback().await?;
 
         // Confirm the token is bound to the user the callback claimed. The
         // cloud `/client/users/me` endpoint returns 401 for tokens the user
@@ -400,42 +399,49 @@ impl ZedLogin {
         })
     }
 
-    /// Accept loopback connections until the Zed callback arrives or the
+    /// Serve loopback connections side by side (L-6) until a Zed callback
+    /// whose token decrypts with this sign-in's key arrives, or the
     /// deadline passes. The ephemeral port plus the RSA keypair are the
-    /// correlation: only this process can decrypt the delivered token.
+    /// correlation: only this process can decrypt the delivered token, so a
+    /// request with a token that does not decrypt is answered like a stray
+    /// one and the wait goes on (another local program cannot end the
+    /// sign-in by sending `?user_id=x&token=y`). Returns the user id and the
+    /// decrypted access token.
     async fn wait_for_callback(&self) -> Result<(String, String), OAuthError> {
-        loop {
-            let accepted = timeout_at(self.deadline, self.listener.accept())
-                .await
-                .map_err(|_| OAuthError::Expired)?
-                .map_err(|_| OAuthError::Network)?;
-            let (mut stream, _) = accepted;
-            let conn_deadline =
-                std::cmp::min(self.deadline, Instant::now() + CALLBACK_CONN_DEADLINE);
-            let outcome = match timeout_at(conn_deadline, read_zed_request(&mut stream)).await {
-                Ok(outcome) => outcome,
-                Err(_) => {
-                    if Instant::now() >= self.deadline {
-                        return Err(OAuthError::Expired);
+        let key = &self.private_key;
+        super::loopback::serve(
+            || self.listener.accept(),
+            self.deadline,
+            CALLBACK_CONN_DEADLINE,
+            |mut stream| async move {
+                let decrypted =
+                    read_zed_request(&mut stream)
+                        .await
+                        .and_then(|(user_id, encrypted)| {
+                            decrypt_zed_token(&encrypted, key)
+                                .ok()
+                                .map(|token| (user_id, token))
+                        });
+                match decrypted {
+                    Some(callback) => {
+                        respond(
+                            &mut stream,
+                            "200 OK",
+                            &super::callback_page::render(
+                                super::callback_page::CallbackPage::Success,
+                            ),
+                        )
+                        .await;
+                        Some(Ok(callback))
                     }
-                    None
+                    None => {
+                        respond(&mut stream, "404 Not Found", "").await;
+                        None
+                    }
                 }
-            };
-            match outcome {
-                Some(callback) => {
-                    respond(
-                        &mut stream,
-                        "200 OK",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Success),
-                    )
-                    .await;
-                    return Ok(callback);
-                }
-                None => {
-                    respond(&mut stream, "404 Not Found", "").await;
-                }
-            }
-        }
+            },
+        )
+        .await
     }
 }
 

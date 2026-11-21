@@ -67,6 +67,51 @@ impl Listener {
     }
 }
 
+/// Most callback connections [`serve`] reads at once; beyond that it stops
+/// accepting until one finishes (each lasts at most its own deadline).
+const MAX_OPEN: usize = 64;
+
+/// Security review 2026-11-21, L-6: serve the connections of a sign-in's
+/// callback listener side by side, each bounded by `per_connection` and
+/// the sign-in's `deadline`, until `handle` decides. One connection held
+/// idle by another local program no longer blocks the browser's.
+///
+/// `handle` reads one request, answers it and returns `None` to keep
+/// listening (a stray request, a wrong state, a token that does not
+/// decrypt) or the sign-in's outcome. `accept` yields the next connection;
+/// it must be cancel-safe, as the Tokio listeners are.
+pub(super) async fn serve<T, Accept, Accepted, Handle, Handled>(
+    mut accept: Accept,
+    deadline: tokio::time::Instant,
+    per_connection: std::time::Duration,
+    mut handle: Handle,
+) -> Result<T, super::OAuthError>
+where
+    Accept: FnMut() -> Accepted,
+    Accepted: std::future::Future<Output = std::io::Result<(TcpStream, SocketAddr)>>,
+    Handle: FnMut(TcpStream) -> Handled,
+    Handled: std::future::Future<Output = Option<Result<T, super::OAuthError>>>,
+{
+    use futures_util::stream::{FuturesUnordered, StreamExt};
+    let mut open = FuturesUnordered::new();
+    loop {
+        tokio::select! {
+            accepted = accept(), if open.len() < MAX_OPEN => {
+                let (stream, _) = accepted.map_err(|_| super::OAuthError::Network)?;
+                let until = std::cmp::min(deadline, tokio::time::Instant::now() + per_connection);
+                open.push(tokio::time::timeout_at(until, handle(stream)));
+            }
+            Some(done) = open.next(), if !open.is_empty() => {
+                // A connection past its own deadline is dropped unanswered.
+                if let Ok(Some(outcome)) = done {
+                    return outcome;
+                }
+            }
+            () = tokio::time::sleep_until(deadline) => return Err(super::OAuthError::Expired),
+        }
+    }
+}
+
 /// Bind the callback listener for a redirect to `http://<redirect_host>:P`,
 /// on `fixed_port` or an ephemeral port.
 pub(super) async fn bind(
@@ -131,6 +176,39 @@ mod tests {
         stream.read_exact(&mut buf).await.unwrap();
         assert_eq!(&buf, b"ping");
         client.await.unwrap();
+    }
+
+    /// L-6: idle connections held open by another local program do not
+    /// delay the callback that arrives after them.
+    #[tokio::test]
+    async fn idle_connections_do_not_stall_the_callback() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let target = listener.local_addr().unwrap();
+        let mut idle = Vec::new();
+        for _ in 0..8 {
+            idle.push(TcpStream::connect(target).await.unwrap());
+        }
+        let client = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            let mut stream = TcpStream::connect(target).await.unwrap();
+            stream.write_all(b"code").await.unwrap();
+        });
+        let started = tokio::time::Instant::now();
+        let outcome = serve(
+            || listener.accept(),
+            started + std::time::Duration::from_secs(20),
+            std::time::Duration::from_secs(15),
+            |mut stream| async move {
+                let mut buf = [0u8; 4];
+                stream.read_exact(&mut buf).await.ok()?;
+                (&buf == b"code").then_some(Ok::<_, super::super::OAuthError>(42))
+            },
+        )
+        .await;
+        assert_eq!(outcome.unwrap(), 42);
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+        client.await.unwrap();
+        drop(idle);
     }
 
     #[tokio::test]
