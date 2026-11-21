@@ -14,10 +14,10 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use reqwest::{header::ACCEPT, StatusCode};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, net::Ipv4Addr, time::Duration};
+use std::{collections::BTreeMap, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    net::TcpStream,
     time::{timeout, timeout_at, Instant},
 };
 
@@ -75,8 +75,9 @@ impl Endpoints {
             load_code_assist_url: LOAD_CODE_ASSIST_URL.into(),
             load_code_assist_host: LOAD_CODE_ASSIST_HOST.into(),
             require_https: true,
-            // This is the redirect host registered by the public client. The
-            // socket itself binds only the IPv4 loopback interface.
+            // This is the redirect host registered by the public client; the
+            // callback listener holds both loopback addresses on its port
+            // (security review 2026-11-21, M-1).
             redirect_host: "localhost",
         }
     }
@@ -134,7 +135,7 @@ pub(super) async fn refresh(
 
 struct LoopbackLogin {
     http: reqwest::Client,
-    listener: TcpListener,
+    listener: super::loopback::Listener,
     redirect_uri: String,
     expected_state: String,
     code_verifier: String,
@@ -155,13 +156,10 @@ async fn begin_with(
     let client_id = client_id(config);
     // Validate only: the value is dropped here and resolved again at `finish`.
     ensure_custom_client_ready(config)?;
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+    let listener = super::loopback::bind(endpoints.redirect_host, None)
         .await
         .map_err(|_| OAuthError::Network)?;
-    let port = listener
-        .local_addr()
-        .map_err(|_| OAuthError::Network)?
-        .port();
+    let port = listener.port().map_err(|_| OAuthError::Network)?;
     let redirect_uri = format!("http://{}:{port}{CALLBACK_PATH}", endpoints.redirect_host);
 
     let state = random_url_safe_32()?;
@@ -667,6 +665,7 @@ fn parse_token(
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::net::Ipv4Addr;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 

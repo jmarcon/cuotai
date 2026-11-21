@@ -25,10 +25,9 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::net::Ipv4Addr;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 use tokio::time::{timeout, timeout_at, Instant};
 
 // ---------------------------------------------------------------------------
@@ -114,7 +113,9 @@ struct Endpoints {
     /// itself is a random per-login capability.
     callback_path: Option<String>,
     /// Host part of the loopback redirect_uri. Codex's registered public
-    /// client expects exactly `localhost`; everyone else accepts either.
+    /// client expects exactly `localhost`; the others keep the redirect
+    /// their reference clients send. A `localhost` redirect binds both
+    /// loopback addresses on one port ([`super::loopback`]).
     redirect_host: &'static str,
 }
 
@@ -250,7 +251,7 @@ pub(super) async fn refresh(
 
 struct LoopbackLogin {
     http: reqwest::Client,
-    listener: TcpListener,
+    listener: super::loopback::Listener,
     redirect_uri: String,
     callback_path: String,
     /// Token/exchange endpoint (production: the official constant).
@@ -296,23 +297,19 @@ async fn begin_with(
     endpoints: Endpoints,
 ) -> Result<PendingLogin, OAuthError> {
     // Codex registers exactly one redirect URI (fixed port + path); a busy
-    // port means another client is mid-login.
-    let bind_port = endpoints.fixed_port.unwrap_or(0);
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, bind_port))
+    // port (on either loopback address) means another program holds it.
+    let listener = super::loopback::bind(endpoints.redirect_host, endpoints.fixed_port)
         .await
-        .map_err(|_| match endpoints.fixed_port {
-            Some(port) => OAuthError::Configuration(crate::text::Localized::with_param(
+        .map_err(|error| match (error, endpoints.fixed_port) {
+            (super::loopback::BindError::PortInUse, Some(port)) => OAuthError::Configuration(crate::text::Localized::with_param(
                 "oauth_error.browser.local_port_in_use",
                 "port",
                 port,
                 "The local port {port} required by this login is in use; wait for the login in progress to finish.",
             )),
-            None => OAuthError::Network,
+            _ => OAuthError::Network,
         })?;
-    let port = listener
-        .local_addr()
-        .map_err(|_| OAuthError::Network)?
-        .port();
+    let port = listener.port().map_err(|_| OAuthError::Network)?;
     let callback_path = match &endpoints.callback_path {
         Some(path) => path.clone(),
         None => format!("/{}", random_url_safe_32()?),
@@ -1387,6 +1384,7 @@ fn parse_bearer_body(
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::net::Ipv4Addr;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -1854,6 +1852,90 @@ mod tests {
         assert_eq!(token.access_token, "sk-or-v1-issued");
         assert!(token.refresh_token.is_none() && token.expires_at.is_none());
         assert!(token.metadata.is_empty(), "user_id is not stored");
+    }
+
+    /// Security review 2026-11-21 (M-1): every production redirect either
+    /// names `127.0.0.1` or is `localhost`, whose listener holds both
+    /// loopback addresses on the redirect's port.
+    #[tokio::test]
+    async fn every_official_redirect_host_is_bound_on_each_address_it_can_reach() {
+        for provider in [
+            Provider::Claude,
+            Provider::ChatGpt,
+            Provider::GeminiAi,
+            Provider::Cline,
+            Provider::OpenRouter,
+        ] {
+            let endpoints = Endpoints::official(provider).expect("official");
+            assert!(
+                matches!(endpoints.redirect_host, "localhost" | "127.0.0.1"),
+                "{provider:?}: {}",
+                endpoints.redirect_host
+            );
+            let listener = super::super::loopback::bind(endpoints.redirect_host, None)
+                .await
+                .expect("bind");
+            let ipv6 = std::net::TcpListener::bind((std::net::Ipv6Addr::LOCALHOST, 0)).is_ok();
+            assert_eq!(
+                listener.has_v6(),
+                endpoints.redirect_host == "localhost" && ipv6,
+                "{provider:?}"
+            );
+        }
+    }
+
+    /// M-1: with a `localhost` redirect, a callback that arrives on `[::1]`
+    /// reaches this login, so no other program can answer there.
+    #[tokio::test]
+    async fn a_localhost_callback_on_the_ipv6_loopback_reaches_the_login() {
+        if std::net::TcpListener::bind((std::net::Ipv6Addr::LOCALHOST, 0)).is_err() {
+            return; // no IPv6 loopback on this host
+        }
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("opaque-v6-code"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": {
+                    "accessToken": "v6-access",
+                    "refreshToken": "rt-v6",
+                    "expiresAt": "2099-01-01T00:00:00Z"
+                }
+            })))
+            .mount(&server)
+            .await;
+        let endpoints = Endpoints {
+            redirect_host: "localhost",
+            ..loopback_endpoints(&server, Provider::Cline)
+        };
+        let pending = begin_with(&client(), Provider::Cline, &test_config(), endpoints)
+            .await
+            .expect("begin");
+        assert!(pending.prompt().url.contains("localhost"));
+        let (_, port, path) = prompt_state_and_port(&pending);
+        // The `[::1]` side of the port is ours while the login waits.
+        assert!(std::net::TcpListener::bind((std::net::Ipv6Addr::LOCALHOST, port)).is_err());
+        let task = tokio::spawn(pending.finish());
+        let mut stream = TcpStream::connect((std::net::Ipv6Addr::LOCALHOST, port))
+            .await
+            .expect("connect [::1]");
+        stream
+            .write_all(
+                format!("GET {path}?code=opaque-v6-code HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                    .as_bytes(),
+            )
+            .await
+            .expect("write");
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await.expect("read");
+        let response = String::from_utf8_lossy(&response);
+        assert!(response.starts_with("HTTP/1.1 200"), "got: {response}");
+        let token = timeout(Duration::from_secs(5), task)
+            .await
+            .expect("timed out")
+            .expect("join")
+            .expect("token");
+        assert_eq!(token.access_token, "v6-access");
     }
 
     #[tokio::test]
