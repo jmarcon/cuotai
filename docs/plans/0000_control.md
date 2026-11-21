@@ -5,7 +5,7 @@ This file is the living index of `docs/plans`: it shows what has been implemente
 | Field | Value |
 |---|---|
 | Last updated | 2026-11-21 |
-| Last release prepared | 0.89.0 |
+| Last release prepared | 1.0.0 |
 | Plans | 56 (21 implemented, 34 awaiting owner verification, 1 in progress, 0 planned for the next version, 0 proposed) |
 
 ## 1. How to maintain it

@@ -13,6 +13,25 @@ How to read the history:
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-21
+
+### Fixed
+
+- Previewing or restoring a backup with a large history is much faster, so other Cuotai processes wait far less to record samples meanwhile (210c50f).
+
+### Security
+
+- A 9router or LiteLLM account whose plain-HTTP address is localhost now always connects to 127.0.0.1, the address the ownership check confirmed, so another user's IPv6 loopback socket on a Mac cannot receive its password or key (2241ce6).
+- A restore now asks you to confirm an account whose certificate pin, CA file or plain-HTTP setting would change, even when its address stays the same (128e7e7).
+- **Breaking**: A LiteLLM key and ntfy notifications are no longer sent over plain HTTP to another machine, even on a private network: the LiteLLM `allow_private_http` option was removed, such an account is refused with a message until it uses HTTPS or a loopback address, and an ntfy channel accepts a plain-HTTP address only for a server on this computer. Migration: `allow_private_http` no longer applies to LiteLLM accounts, and ntfy channels no longer accept plain http:// addresses outside this computer. Migrate by serving LiteLLM or ntfy over https://, or by reaching them through a loopback address such as an SSH tunnel (base_url = "http://127.0.0.1:4000" for LiteLLM), then edit the account or channel (d360b35).
+- A program on this computer can no longer stall a browser sign-in by holding its callback port open, or end a Zed sign-in with a made-up callback (8ebd240).
+- Hook rule names and extension names or versions can no longer carry invisible line separators that make extra lines appear in the confirmation dialogs (e491276).
+- A hook rule that filters by account name no longer runs for a 9router or LiteLLM connection that its instance named like one of your accounts; use `account_id` to select exactly one account (aa2d2b0).
+- On Linux, another user's folder in the shared temporary directory can no longer keep Erase all data from completing (7d8573c).
+- On a Mac shared with other accounts, another user can no longer stop the desktop app from starting (e3e8dc3).
+- Desktop confirmations for commands, extensions and the local-server token now have Cancel as the default button and are not asked again for a few seconds after you cancel (b049bb6).
+- A custom theme can no longer hide the text of consent, warning and confirmation dialogs; under a custom theme they keep Cuotai's own colors (f66665f).
+
 ## [0.89.0] - 2026-11-21
 
 ### Security
@@ -1308,7 +1327,8 @@ Cuotai went through its internal builds 0.1.0 to 0.79.0 between 2026-10-01 and 2
 
 - Credentials travel only over HTTPS, OAuth client secrets are not kept in memory while a browser login waits, `cuotai --serve` requires a bearer token by default, hooks and extensions run in private directories with checked permissions, removing an account also deletes its web session, and dependency advisories were fixed as they appeared (PRD 0012 INT-04; PRD 0013 FIX-01, FIX-02; PRD 0017 FIX-04; PRD 0016 FIX-06).
 
-[Unreleased]: https://github.com/jmarcon/cuotai/compare/v0.89.0...HEAD
+[Unreleased]: https://github.com/jmarcon/cuotai/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/jmarcon/cuotai/compare/v0.89.0...v1.0.0
 [0.89.0]: https://github.com/jmarcon/cuotai/compare/v0.88.0...v0.89.0
 [0.88.0]: https://github.com/jmarcon/cuotai/compare/v0.87.7...v0.88.0
 [0.87.7]: https://github.com/jmarcon/cuotai/compare/v0.87.6...v0.87.7
