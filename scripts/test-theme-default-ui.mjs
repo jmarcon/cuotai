@@ -58,4 +58,28 @@ for (const page of ["tray.html", "index.html", "settings.html"]) {
   const once = await prePaint(page, { "cuotai.locale": "it", "cuotai.themeDefaultMigrated": "1" });
   assert.equal(once.theme, "cuotai", `${page}: the migration runs once`);
 }
-console.log("PASS: Cuotai for new installs, Dracula kept for existing profiles, stored choices untouched, runs once");
+// Security review 2026-11-21 L-12 (DS-COL-SEC-1): under a user theme, the protected surfaces take fixed roles for every
+// color role a user theme may set, in both modes, with an opaque fill; `applyTheme()` marks the theme's source.
+const css = await readFile(new URL("css/themes.css", ui), "utf8");
+const core = await readFile(new URL("../../../crates/cuotai-core/src/user_theme.rs", ui), "utf8");
+const colorRoles = [...core.matchAll(/\("(--[a-z0-9-]+)", Class::Color\)/g)].map((m) => m[1]);
+assert.ok(colorRoles.includes("--fg") && colorRoles.includes("--bad"), "the core's color roles were read");
+const block = (selector) => {
+  const at = css.indexOf(`${selector} {`);
+  assert.ok(at >= 0, `themes.css has ${selector}`);
+  return css.slice(at, css.indexOf("}", at));
+};
+const shared = block(':root[data-theme-source="user"] [data-protected-texts]');
+for (const mode of ["dark", "light"]) {
+  const fixed = block(`:root[data-theme-source="user"][data-mode="${mode}"] [data-protected-texts]`);
+  for (const role of colorRoles) {
+    const own = new RegExp(`\\s${role}:\\s*[^;]+;`).test(fixed);
+    const derived = new RegExp(`\\s${role}:\\s*[^;]+;`).test(shared);
+    assert.ok(own || derived, `${mode}: ${role} is fixed on protected surfaces`);
+    assert.ok(!new RegExp(`\\s${role}:\\s*var\\(`).test(fixed), `${mode}: ${role} is a literal`);
+  }
+}
+assert.match(css, /:root\[data-theme-source="user"\] \[data-protected-texts\]:not\(\.banner\) \{\s*background-color: var\(--surface\);/);
+const lib = await readFile(new URL("js/lib.js", ui), "utf8");
+assert.match(lib, /root\.dataset\.themeSource = isBuiltinTheme\(t\.id\) \? "builtin" : "user";/);
+console.log("PASS: Cuotai for new installs, Dracula kept for existing profiles, stored choices untouched, runs once; protected surfaces keep fixed roles under a user theme");

@@ -57,6 +57,69 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: var(--ease-out);
 }
+/* Security review 2026-11-21 L-12 (DS-COL-SEC-1): under a user theme, every protected surface (consent, warnings,
+   confirmations, sign-in, the update prompt: the elements marked `data-protected-texts`) takes the Cuotai theme's
+   roles, fixed here, so a theme that sets `--fg: transparent` or `--bad: var(--bg)` cannot hide their words. A user
+   theme can only set custom properties on `:root`, never these rules. Built-in themes are reviewed and keep their look. */
+:root[data-theme-source="user"][data-mode="dark"] [data-protected-texts] {
+  color-scheme: dark;
+  --bg: #1b1f28;
+  --surface: #232835;
+  --surface-2: #2d3342;
+  --border: #3c4354;
+  --fg: #e4e9f3;
+  --fg-muted: #a9b2c6;
+  --accent: #c6bdf5;
+  --accent-fg: #1b1f28;
+  --good: #76d3c6;
+  --warn: #ecd28a;
+  --bad: #e68f98;
+  --bad-fg: #1b1f28;
+  --info: #8fb2ee;
+  --track: #353c4c;
+  --focus: #c6bdf5;
+  --scrim: color-mix(in srgb, #0b0e14 55%, transparent);
+}
+:root[data-theme-source="user"][data-mode="light"] [data-protected-texts] {
+  color-scheme: light;
+  --bg: #e8ecf3;
+  --surface: #f6f8fb;
+  --surface-2: #e1e6ef;
+  --border: #c6cedb;
+  --fg: #252b37;
+  --fg-muted: #525c6f;
+  --accent: #5f55b0;
+  --accent-fg: #ffffff;
+  --good: #1a6b70;
+  --warn: #83601a;
+  --bad: #94384b;
+  --bad-fg: #ffffff;
+  --info: #35629f;
+  --track: #d3dae5;
+  --focus: #5f55b0;
+  --scrim: color-mix(in srgb, #1b2130 35%, transparent);
+}
+/* The derived roles are resolved again from the fixed ones (an inherited custom property keeps the theme's value). */
+:root[data-theme-source="user"] [data-protected-texts] {
+  --border-w: 1px;
+  --card-bg: var(--surface);
+  --head-bg: transparent;
+  --topbar-bg: var(--bg);
+  --btn-bg: var(--surface);
+  --btn-fg: var(--fg);
+  --input-bg: var(--bg);
+  --switch-knob: #ffffff;
+  --body-bg: var(--bg);
+  --tile-fg: #ffffff;
+  --chart-neutral: color-mix(in srgb, var(--fg-muted) 55%, transparent);
+  --hatch: repeating-linear-gradient(135deg, var(--track) 0 2px, transparent 2px 5px);
+  color: var(--fg);
+}
+/* An opaque fill, so the page behind (the theme's `--body-bg`) never shows through; banners keep their tone fill,
+   drawn from the fixed roles. */
+:root[data-theme-source="user"] [data-protected-texts]:not(.banner) {
+  background-color: var(--surface);
+}
 /* PRD 0022 RF1 (DS section 2): layout tokens. Themes never redefine these (DS-TOK-SPC-2, DS-GOV-3). */
 :root {
   --space-0: 2px;
