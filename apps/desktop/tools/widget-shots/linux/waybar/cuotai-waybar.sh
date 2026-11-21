@@ -22,7 +22,11 @@ if [ ! -r "$file" ]; then
     exit 0
 fi
 
+# Waybar reads `text` and `tooltip` as Pango markup: names, labels and
+# providers are escaped, so an account called "R&D" or "<b>x</b>" shows as
+# typed instead of blanking the module (leave Waybar's "escape" off).
 exec jq -c '
+  def markup: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
   def pct: (. * 100 | round | tostring) + "%";
   # The core writes RFC 3339 with sub-second precision; jq parses whole seconds.
   def epoch: sub("\\.[0-9]+"; "") | fromdateiso8601;
@@ -45,9 +49,9 @@ exec jq -c '
   (.accounts[0].binding.used_ratio // null) as $top
   | ([.accounts[:3][] | short] | join(" · ")) as $text
   | {
-      text: (if $text == "" then "Cuotai: no accounts" else $text end),
-      tooltip: (([.accounts[] | line] | join("\n"))
-        + (if .truncated then "\n(more accounts not published)" else "" end)),
+      text: (if $text == "" then "Cuotai: no accounts" else $text end | markup),
+      tooltip: ((([.accounts[] | line] | join("\n"))
+        + (if .truncated then "\n(more accounts not published)" else "" end)) | markup),
       class: (if $top == null then "unavailable"
               elif $top >= 1 then "exhausted"
               elif $top >= 0.9 then "critical"

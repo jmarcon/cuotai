@@ -13,4 +13,7 @@ case $cuotai_severity in
   warning) colour=yellow ;;
   *) colour=green ;;
 esac
-printf '#[fg=%s]%s#[default]\n' "$colour" "$(cuotai_label)"
+# tmux reads `#` in the status line as a format (`#[fg=…]`, `#(command)`):
+# double it, so a label from an aggregator connection cannot restyle the bar.
+label=$(cuotai_label | sed 's/#/##/g')
+printf '#[fg=%s]%s#[default]\n' "$colour" "$label"
