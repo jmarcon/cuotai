@@ -133,13 +133,13 @@ computed version (`v0.80.0-rc.1`, D9). Versions 0.1.0 to 0.79.0 are internal
 versions and get no retroactive tags (D10).
 
 ```text
-check ─┬─► [owner approves release builds] ─┬─ desktop-macos ───────────────────┐
-       │                                    ├─ desktop-windows ─────────────────┤
-       │                                    ├─ desktop-windows-arm64 (optional) ┤
-       │                                    ├─ desktop-linux ───────────────────┤
-       │                                    └─ desktop-linux-arm64 (optional) ──┤
-       ├─ cli (7 legs, 2 optional) ─────────────────────────────────────────────┤
-       └─ sbom ─────────────────────────────────────────────────────────────────┴─► assemble
+check ─┬─ desktop-macos ───────────────────► [owner approves] ─► sign-macos ───────────────────┐
+       ├─ desktop-windows ─────────────────► [owner approves] ─► sign-windows ─────────────────┤
+       ├─ desktop-windows-arm64 (optional) ► [owner approves] ─► sign-windows-arm64 (optional) ┤
+       ├─ desktop-linux ───────────────────► [owner approves] ─► sign-linux ───────────────────┤
+       ├─ desktop-linux-arm64 (optional) ──► [owner approves] ─► sign-linux-arm64 (optional) ──┤
+       ├─ cli (7 legs, 2 optional) ────────────────────────────────────────────────────────────┤
+       └─ sbom ────────────────────────────────────────────────────────────────────────────────┴─► assemble
 assemble ─┬─ smoke-cli (7 legs) ────┐
           ├─ smoke-desktop-macos ───┤
           ├─ smoke-desktop-windows ─┤
@@ -155,11 +155,14 @@ assemble ─┬─ smoke-cli (7 legs) ────┐
 What is configured: the `release` environment has one required reviewer,
 the owner's account, with self-review allowed (`prevent_self_review` is
 off). A tag run therefore waits for that reviewer twice: once when the
-desktop signing builds enter `release`, and once when `publish` does. The
-former prerequisite deployment added a separate wait before the builds
-(run 40142600517 reached three approvals during rc.2), while channel jobs
-could add a fourth after publication (run 40202699547 waited two days on
-Homebrew). Credential validation now runs first inside every signing build.
+desktop signing jobs (`sign-*`) enter `release`, after their builds, and
+once when `publish` does. The former prerequisite deployment added a
+separate wait before the builds (run 40142600517 reached three approvals
+during rc.2), while channel jobs could add a fourth after publication (run
+40202699547 waited two days on Homebrew). Credential validation runs first
+inside every signing job. The desktop builds enter no environment and wait
+for no approval (L-3, see
+[Build and signing isolation](#build-and-signing-isolation-l-3)).
 In practice the approvals are given through the API by the agent session
 that runs the release, with the owner's login and under the owner's
 standing instruction (run 44047156067 of v0.86.7), so the reviewer is not a
@@ -344,9 +347,10 @@ Choose **Actions → Release → Run workflow**, optionally provide a tag name
   permissions, timeouts, action pins, step-owned secrets, the bounded matrix
   and execution gates. Only `check` runs.
 - Select **full_rehearsal** to exercise RF1.4 deliberately. The bounded
-  desktop/CLI/SBOM jobs run after `check`; desktop jobs use the secretless
-  `rehearsal` environment and validate that production credentials are
-  intentionally unavailable before build work. Assembly signs and verifies
+  desktop/CLI/SBOM jobs run after `check`; the desktop signing jobs use the
+  secretless `rehearsal` environment, validate that production credentials
+  are intentionally unavailable, and sign the downloaded bundles ad-hoc or
+  leave them unsigned, exactly as on a tag without credentials. Assembly signs and verifies
   `SHA256SUMS` with the rehearsal's branch identity (the bundle is discarded),
   records updater and checksum signatures as unavailable, and uploads the
   complete unsigned artifact set plus rendered package manifests.
@@ -385,9 +389,9 @@ free-tier budget.
   `main` wrote, so a restored `target/`, `~/.cargo` or `cargo-tauri` binary
   would let any compromised step of a `main` CI run reach a job that builds
   shipped bytes or holds a release credential (the Sigstore identity of
-  `assemble`, the write token of `publish`, the signing keys of the desktop
-  legs). Every release job compiles from the locked sources, and each
-  desktop leg installs the pinned `tauri-cli` with
+  `assemble`, the write token of `publish`, the signing keys of the
+  `sign-*` jobs). Every release job compiles from the locked sources, and
+  each desktop build and signing job installs the pinned `tauri-cli` with
   `cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"`.
   `workflow-check` rejects `actions/cache*` and `Swatinem/rust-cache`
   anywhere in `release.yml`. The cost is a cold build on every tag; the
@@ -396,8 +400,43 @@ free-tier budget.
 - `cargo xtask workflow-check` enforces these invariants in CI and before a
   release build. Tests prove failures for broad permissions, missing timeouts,
   unpinned actions, dotted/bracketed/dynamic secret misuse, an unlisted job,
-  a bypassable heavy-job condition, a heavy job with another dependency, or
-  a desktop build that does not validate signing credentials first.
+  a bypassable heavy-job condition, a heavy job with another dependency, a
+  desktop build that enters an environment or reads a secret, or a signing
+  job that builds code, uses an action outside the checkout, toolchain and
+  artifact hand-off, waits for anything but `check` and its own build, or
+  does not validate signing credentials first.
+
+### Build and signing isolation (L-3)
+
+Security review 2026-11-21, finding L-3: step-scoped secrets are not an
+isolation boundary. A build compiles every locked dependency and runs its
+build script as the runner's user, and such a script could replace
+`~/.cargo/bin/cargo-tauri`, edit `scripts/release/*.sh` or append to
+`$GITHUB_ENV`/`$GITHUB_PATH`, then receive the key in a later step of the
+same job; on macOS the Developer ID keychain used to be unlocked before the
+build started. Each desktop target is therefore two jobs on two runners:
+
+| Build job (no environment, no secret) | Uploads | Signing job (`release` on tags, `rehearsal` otherwise) |
+|---|---|---|
+| `desktop-macos`: `cargo tauri build` (app, DMG), widget extension embedded | `unsigned-desktop-macos`: a tarball of `bundle/macos` and `bundle/dmg` (keeps executable bits and links) | `sign-macos`: Apple keychain, `macos-sign-and-verify.sh`, `macos-notarize.sh`, `collect-macos.sh` (updater archive and signature), `macos-fragment.sh` |
+| `desktop-windows`, `desktop-windows-arm64`: `cargo tauri build --no-bundle` | `unsigned-desktop-windows[-arm64]`: `Cuotai.exe` | `sign-windows`, `sign-windows-arm64`: Authenticode on `Cuotai.exe`, `cargo tauri bundle --no-binary-patching` (packages the signed executable, compiles nothing), `collect-windows.sh`, Authenticode on the installers, `updater-sign.sh` |
+| `desktop-linux`, `desktop-linux-arm64`: `cargo tauri build` (AppImage, deb, rpm), `collect-linux.sh` | `unsigned-desktop-linux[-arm64]`: `dist/` and the fragment | `sign-linux`, `sign-linux-arm64`: `updater-sign.sh` |
+
+A signing job starts on a fresh runner, validates the credentials first,
+checks out the tagged commit (the release scripts and the bundler
+configuration), installs the pinned `tauri-cli` itself and downloads its
+build's bundle. It runs no repository build: no `cargo build`,
+`cargo tauri build`, `xcodebuild` or `swiftc`, and no action besides
+checkout, toolchain and the artifact hand-off (`workflow-check` enforces
+this). The `tauri-cli` install compiles that tool's own locked dependencies;
+it is the signer, pinned by version and `--locked`, and its dependency graph
+is separate from, and much smaller than, the desktop application's. The
+unsigned hand-off artifacts are kept for one day; only the `dist-*`,
+`signing-fragment-*` and `optional-*` artifacts of the signing jobs reach
+`assemble`. An optional signing job also runs after its build failed
+(`!cancelled()`), finds no bundle and records the leg as not produced. The
+cost is a second runner and a `tauri-cli` install per desktop target, and
+the owner's approval now comes after the builds instead of before them.
   For RF6 it also fails when `publish` does not wait for every smoke job or
   could run after a failed one, when a smoke job or its script step is
   conditional or tolerates failure, when `smoke-cli` does not cover exactly
@@ -500,8 +539,9 @@ Notes and limits:
   rejected on supply-chain grounds. Revisit when a hosted toolchain exists.
 - **ARM64 legs are optional** (RF2.5): hosted ARM runners are used with job-
   level `continue-on-error`, and the assembly job runs under `always()` while
-  requiring only the mandatory jobs (`check`, `desktop-macos`, `desktop-
-  windows`, `desktop-linux`, `sbom`). The `cli` matrix row is listed under
+  requiring only the mandatory jobs (`check`, `sign-macos`, `sign-windows`,
+  `sign-linux`, `sbom`; each required signing job runs only after its build
+  succeeded). The `cli` matrix row is listed under
   `needs` but its aggregate result does **not** gate the assemble job, so a
   single unavailable ARM runner (or a partial `cli` failure such as run
   39673307029) cannot skip assembly. The authoritative required-artifact gate
@@ -581,9 +621,9 @@ Per platform:
   are final, which is a different step per platform:
   | Platform | Where | Why |
   |---|---|---|
-  | macOS | `collect-macos.sh`, after notarization | the updater artifact is a tarball of the **notarized** app; a bundle-time archive would carry the pre-notarization app and fail Gatekeeper |
-  | Windows | `scripts/release/updater-sign.sh`, after Authenticode | Authenticode rewrites the installer, so a bundle-time updater signature would not verify |
-  | Linux | `scripts/release/updater-sign.sh`, in its own step after the build and collection | the build compiles every dependency and runs their build scripts, so the key reaches only the step that signs the collected AppImage/deb/rpm, the exact bytes the job uploads |
+  | macOS | `collect-macos.sh`, in `sign-macos` after notarization | the updater artifact is a tarball of the **notarized** app; a bundle-time archive would carry the pre-notarization app and fail Gatekeeper |
+  | Windows | `scripts/release/updater-sign.sh`, in `sign-windows[-arm64]` after Authenticode | Authenticode rewrites the installer, so a bundle-time updater signature would not verify |
+  | Linux | `scripts/release/updater-sign.sh`, in the `sign-linux` job after the build job collected the packages | the build compiles every dependency and runs their build scripts, so the key reaches only a separate job that signs the collected AppImage/deb/rpm, the exact bytes it uploads |
   A tag run without this key, or with only a partial required signature set,
   fails assembly before publication. The dispatch preflight never requests
   the key or builds updater payloads.

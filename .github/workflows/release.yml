@@ -9,7 +9,8 @@
 # default token is read-only; `contents: write` exists only in the publish
 # job, behind the owner-configured `release` environment; GitHub expressions
 # reach shell scripts only through environment variables; secrets are checked
-# for presence and never echoed.
+# for presence and never echoed. Desktop builds hold no secret: signing runs in
+# separate `sign-*` jobs that consume the built bundles and build nothing.
 name: Release
 
 on:
@@ -202,16 +203,73 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
-  # Each signing build enters the release environment directly after `check`
-  # and validates the updater key before doing build work. The separate
-  # prerequisite deployment made run 40142600517 (rc.2) ask the owner for an
-  # extra approval without adding a security boundary.
+  # L-3 (security review 2026-11-21): building and signing are separate jobs
+  # on separate runners. A desktop build compiles every locked dependency and
+  # runs its build script, so it holds no secret, enters no environment and
+  # only uploads the unsigned bundle. Each `sign-*` job starts on a fresh
+  # runner, installs the pinned `tauri-cli` (the updater signer and the
+  # Windows bundler) on its own, downloads that bundle and runs no repository
+  # build: a build script can no longer leave a replaced signer, an edited
+  # script or a `$GITHUB_ENV`/`$GITHUB_PATH` entry behind for a step that holds
+  # a key, and the Apple keychain is never unlocked while third-party build
+  # code runs. `workflow-check` enforces both halves.
   desktop-macos:
     name: desktop (macOS universal)
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: macos-latest
     timeout-minutes: 120 # cold build, no cache (S-02)
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Desktop lockfile is current
+        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
+      - name: Install the pinned tauri-cli
+        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      - name: Build universal app and DMG
+        working-directory: apps/desktop
+        # No bundler updater artifacts here (PRD 0018 RF1.1): the macOS
+        # updater artifact is the notarized app, which only exists after
+        # `sign-macos` notarizes it, so `collect-macos.sh` archives and
+        # updater-signs it there. Bundling-time signatures would cover the
+        # pre-notarized app.
+        run: cargo tauri build --target universal-apple-darwin --bundles app,dmg -- --locked
+      # PRD 0014 RF3.1: Tauri cannot build a Swift extension, so the WidgetKit
+      # `.appex` is built here and embedded before anything is signed. No
+      # secret: rehearsals embed the same extension and sign it ad-hoc.
+      - name: Build and embed the widget extension
+        run: scripts/release/macos-embed-widgets.sh
+      # A tarball keeps the bundle's executable bits and links, which an
+      # Actions artifact alone would drop.
+      - name: Package the unsigned bundle
+        run: |
+          set -euo pipefail
+          mkdir -p unsigned
+          tar -cf unsigned/desktop-macos.tar apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-desktop-macos
+          path: unsigned/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Each signing job enters the release environment directly and validates
+  # the updater key before any other work. The separate prerequisite
+  # deployment made run 40142600517 (rc.2) ask the owner for an extra
+  # approval without adding a security boundary.
+  sign-macos:
+    name: sign (macOS universal)
+    needs: [check, desktop-macos]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
+    runs-on: macos-latest
+    timeout-minutes: 90 # tauri-cli install and two notarization rounds
     # Tag pushes use the owner-configured `release` environment. Dispatch
     # rehearsals use the separate secretless `rehearsal` environment.
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
@@ -243,7 +301,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Install the pinned tauri-cli
+        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: unsigned-desktop-macos
+          path: unsigned
+      - name: Unpack the unsigned bundle
+        run: tar -xf unsigned/desktop-macos.tar
       - name: Apple signing keychain (complete tag credentials only)
         env:
           APPLE_CERTIFICATE: ${{ github.event_name == 'push' && secrets.APPLE_CERTIFICATE || '' }}
@@ -252,23 +317,6 @@ jobs:
           HAS_APPLE_API_NOTARY: ${{ github.event_name == 'push' && secrets.APPLE_API_KEY != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' }}
           HAS_APPLE_ID_NOTARY: ${{ github.event_name == 'push' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
         run: scripts/release/macos-keychain.sh
-      - name: Desktop lockfile is current
-        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
-      - name: Install the pinned tauri-cli
-        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
-      - name: Build universal app and DMG
-        working-directory: apps/desktop
-        # No bundler updater artifacts here (PRD 0018 RF1.1): the macOS
-        # updater artifact is the notarized app, which only exists after the
-        # notarization below, so `collect-macos.sh` archives and updater-signs
-        # it afterwards. Bundling-time signatures would cover the pre-notarized
-        # app.
-        run: cargo tauri build --target universal-apple-darwin --bundles app,dmg -- --locked
-      # PRD 0014 RF3.1: Tauri cannot build a Swift extension, so the WidgetKit
-      # `.appex` is built here and embedded before anything is signed. No
-      # secret: rehearsals embed the same extension and sign it ad-hoc.
-      - name: Build and embed the widget extension
-        run: scripts/release/macos-embed-widgets.sh
       - name: Sign and verify app payload and DMG container
         env:
           APPLE_SIGNING_IDENTITY: ${{ github.event_name == 'push' && secrets.APPLE_SIGNING_IDENTITY || '' }}
@@ -308,12 +356,48 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # The application executable is built here and Authenticode-signed in
+  # `sign-windows` before Tauri bundles it, so the installers are made there,
+  # from the signed executable, by the freshly installed bundler.
   desktop-windows:
     name: desktop (Windows x64)
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: windows-latest
     timeout-minutes: 120 # cold build, no cache (S-02)
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      # Keep LF so the bundled resources match the repository bytes.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - name: Desktop lockfile is current
+        shell: bash
+        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
+      - name: Install the pinned tauri-cli
+        shell: bash
+        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      - name: Build desktop application
+        working-directory: apps/desktop
+        run: cargo tauri build --no-bundle -- --locked
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-desktop-windows
+          path: apps/desktop/src-tauri/target/release/Cuotai.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  sign-windows:
+    name: sign (Windows x64)
+    needs: [check, desktop-windows]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
+    runs-on: windows-latest
+    timeout-minutes: 60 # tauri-cli install and bundling
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -337,7 +421,6 @@ jobs:
             printf '::error::missing required release-environment secrets: %s\n' "${missing[*]}"
             exit 1
           fi
-      # Keep LF so the bundled resources match the repository bytes.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -345,21 +428,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - name: Desktop lockfile is current
-        shell: bash
-        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
       - name: Install the pinned tauri-cli
         shell: bash
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
-      - name: Build desktop application
-        working-directory: apps/desktop
-        run: cargo tauri build --no-bundle -- --locked
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: unsigned-desktop-windows
+          path: apps/desktop/src-tauri/target/release
       - name: Sign and verify application executable (tag runs, when configured)
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE || '' }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
         run: scripts/release/windows-sign.ps1 -Mode Application -Target x86_64-pc-windows-msvc
+      # `tauri bundle` packages the pre-built executable; it compiles nothing.
       - name: Build NSIS and MSI from the verified application
         working-directory: apps/desktop
         run: cargo tauri bundle --bundles nsis,msi --no-binary-patching
@@ -397,8 +479,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # RF2.5: optional ARM64 legs never block the release; a failed leg leaves an
-  # empty fragment and the manifest lists the artifacts as not produced.
+  # RF2.5: optional ARM64 legs never block the release. A failed build
+  # uploads nothing; its signing job still runs (`!cancelled()`), finds no
+  # bundle and leaves an empty fragment, so the manifest lists the artifacts
+  # as not produced.
   desktop-windows-arm64:
     name: desktop (Windows ARM64, optional)
     needs: check
@@ -406,6 +490,39 @@ jobs:
     runs-on: windows-11-arm
     continue-on-error: true
     timeout-minutes: 120 # cold build, no cache (S-02)
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      - name: Desktop lockfile is current
+        shell: bash
+        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
+      - name: Install the pinned tauri-cli
+        shell: bash
+        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      - name: Build desktop application (ARM64)
+        working-directory: apps/desktop
+        run: cargo tauri build --target aarch64-pc-windows-msvc --no-bundle -- --locked
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-desktop-windows-arm64
+          path: apps/desktop/src-tauri/target/aarch64-pc-windows-msvc/release/Cuotai.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  sign-windows-arm64:
+    name: sign (Windows ARM64, optional)
+    needs: [check, desktop-windows-arm64]
+    if: ${{ !cancelled() && needs.check.result == 'success' && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)) }}
+    runs-on: windows-11-arm
+    continue-on-error: true
+    timeout-minutes: 60 # tauri-cli install and bundling
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -436,19 +553,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      - name: Desktop lockfile is current
-        shell: bash
-        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
+      - name: Download the unsigned ARM64 executable
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: unsigned-desktop-windows-arm64
+          path: apps/desktop/src-tauri/target/aarch64-pc-windows-msvc/release
       - name: Install the pinned tauri-cli
+        id: install
+        if: steps.download.outcome == 'success'
         shell: bash
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
-      - name: Build desktop application (ARM64)
-        id: build
-        working-directory: apps/desktop
-        run: cargo tauri build --target aarch64-pc-windows-msvc --no-bundle -- --locked
       - name: Sign and verify application executable (tag runs, when configured)
         id: sign_app
-        if: steps.build.outcome == 'success'
+        if: steps.install.outcome == 'success'
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ github.event_name == 'push' && secrets.WINDOWS_CERTIFICATE || '' }}
@@ -456,7 +575,7 @@ jobs:
         run: scripts/release/windows-sign.ps1 -Mode Application -Target aarch64-pc-windows-msvc
       - name: Build NSIS from the verified application
         id: bundle
-        if: steps.build.outcome == 'success'
+        if: steps.sign_app.outcome == 'success'
         working-directory: apps/desktop
         run: cargo tauri bundle --target aarch64-pc-windows-msvc --bundles nsis --no-binary-patching
       - name: Collect artifacts
@@ -481,7 +600,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: scripts/release/updater-sign.sh "dist/Cuotai_${VERSION}_arm64-setup.exe" fragments/windows-arm64.json
       - name: Unavailable marker
-        if: ${{ always() && (steps.build.outcome != 'success' || steps.sign_app.outcome != 'success' || steps.bundle.outcome != 'success' || steps.collect.outcome != 'success' || steps.sign_installers.outcome != 'success' || steps.updater_sign.outcome == 'failure') }}
+        if: ${{ always() && (steps.download.outcome != 'success' || steps.install.outcome != 'success' || steps.sign_app.outcome != 'success' || steps.bundle.outcome != 'success' || steps.collect.outcome != 'success' || steps.sign_installers.outcome != 'success' || steps.updater_sign.outcome == 'failure') }}
         shell: bash
         run: |
           rm -rf dist
@@ -499,16 +618,56 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # The Linux packages are built and collected here; `sign-linux` only adds
+  # the updater signatures (PRD 0018 RF4.1, PRD 0019 re-validation S-03).
   desktop-linux:
     name: desktop (Linux x64)
     needs: check
     if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
     runs-on: ubuntu-22.04 # oldest supported glibc (RF2)
     timeout-minutes: 120 # cold build, no cache (S-02)
-    # The Tauri updater key lives here (PRD 0018 RF4.1): the collected Linux
-    # packages are updater-signed in their own step after the build, so tag
-    # jobs use the owner-configured environment while rehearsals use a
-    # secretless environment.
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      # Retries, a per-request stall timeout and the step timeout make a stuck
+      # Ubuntu mirror fail fast instead of eating the job budget.
+      - name: System dependencies (WebKitGTK, AppImage tooling)
+        timeout-minutes: 10
+        run: |
+          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${net[@]}" update
+          sudo apt-get "${net[@]}" install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
+      - name: Desktop lockfile is current
+        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
+      - name: Install the pinned tauri-cli
+        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      - name: Build AppImage, deb and rpm
+        working-directory: apps/desktop
+        run: cargo tauri build --bundles "appimage,deb,rpm" -- --locked
+      - name: Collect artifacts and signing fragment
+        run: scripts/release/collect-linux.sh x64
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-desktop-linux
+          path: |
+            dist/
+            fragments/
+          if-no-files-found: error
+          retention-days: 1
+
+  sign-linux:
+    name: sign (Linux x64)
+    needs: [check, desktop-linux]
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45 # tauri-cli install
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -538,27 +697,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      # Retries, a per-request stall timeout and the step timeout make a stuck
-      # Ubuntu mirror fail fast instead of eating the job budget.
-      - name: System dependencies (WebKitGTK, AppImage tooling)
-        timeout-minutes: 10
-        run: |
-          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
-          sudo apt-get "${net[@]}" update
-          sudo apt-get "${net[@]}" install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
-      - name: Desktop lockfile is current
-        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
       - name: Install the pinned tauri-cli
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
-      # No updater key while bundling (PRD 0019 re-validation, S-03): the
-      # build compiles every dependency and runs their build scripts, so the
-      # production key reaches only the signing step below, as on Windows.
-      - name: Build AppImage, deb and rpm
-        working-directory: apps/desktop
-        run: cargo tauri build --bundles "appimage,deb,rpm" -- --locked
-      - name: Collect artifacts and signing fragment
-        run: scripts/release/collect-linux.sh x64
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: unsigned-desktop-linux
+          path: .
       # PRD 0018 RF1.1: updater-signs the collected packages, the exact bytes
       # this job uploads. The key is only present on tag runs, and only here.
       - name: Updater-sign the Linux packages
@@ -590,6 +734,49 @@ jobs:
     runs-on: ubuntu-24.04-arm
     continue-on-error: true
     timeout-minutes: 120 # cold build, no cache (S-02)
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
+        with:
+          toolchain: 1.99.1
+      # Retries, a per-request stall timeout and the step timeout make a stuck
+      # Ubuntu mirror fail fast instead of eating the job budget.
+      - name: System dependencies (WebKitGTK, AppImage tooling)
+        timeout-minutes: 10
+        run: |
+          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${net[@]}" update
+          sudo apt-get "${net[@]}" install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
+      - name: Desktop lockfile is current
+        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
+      - name: Install the pinned tauri-cli
+        run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
+      - name: Build AppImage, deb and rpm (ARM64)
+        working-directory: apps/desktop
+        run: cargo tauri build --target aarch64-unknown-linux-gnu --bundles "appimage,deb,rpm" -- --locked
+      - name: Collect artifacts and signing fragment
+        run: scripts/release/collect-linux.sh arm64
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-desktop-linux-arm64
+          path: |
+            dist/
+            fragments/
+          if-no-files-found: error
+          retention-days: 1
+
+  sign-linux-arm64:
+    name: sign (Linux ARM64, optional)
+    needs: [check, desktop-linux-arm64]
+    if: ${{ !cancelled() && needs.check.result == 'success' && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)) }}
+    runs-on: ubuntu-24.04-arm
+    continue-on-error: true
+    timeout-minutes: 45 # tauri-cli install
     environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -619,30 +806,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # 1.99.1
         with:
           toolchain: 1.99.1
-      # Retries, a per-request stall timeout and the step timeout make a stuck
-      # Ubuntu mirror fail fast instead of eating the job budget.
-      - name: System dependencies (WebKitGTK, AppImage tooling)
-        timeout-minutes: 10
-        run: |
-          net=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
-          sudo apt-get "${net[@]}" update
-          sudo apt-get "${net[@]}" install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
-      - name: Desktop lockfile is current
-        run: cargo metadata --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 > /dev/null
+      - name: Download the unsigned ARM64 packages
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: unsigned-desktop-linux-arm64
+          path: .
       - name: Install the pinned tauri-cli
+        id: install
+        if: steps.download.outcome == 'success'
         run: cargo install tauri-cli --locked --version "$TAURI_CLI_VERSION"
-      - name: Build AppImage, deb and rpm (ARM64)
-        id: build
-        working-directory: apps/desktop
-        run: cargo tauri build --target aarch64-unknown-linux-gnu --bundles "appimage,deb,rpm" -- --locked
-      - name: Collect artifacts and signing fragment
-        id: collect
-        if: steps.build.outcome == 'success'
-        run: scripts/release/collect-linux.sh arm64
       - name: Updater-sign the Linux ARM64 packages
         id: updater_sign
-        if: steps.collect.outcome == 'success'
+        if: steps.install.outcome == 'success'
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
@@ -652,7 +829,7 @@ jobs:
             scripts/release/updater-sign.sh "dist/Cuotai_${VERSION}_aarch64.${ext}" fragments/linux-arm64.json
           done
       - name: Unavailable marker
-        if: ${{ always() && (steps.build.outcome != 'success' || steps.collect.outcome != 'success' || steps.updater_sign.outcome != 'success') }}
+        if: ${{ always() && (steps.download.outcome != 'success' || steps.install.outcome != 'success' || steps.updater_sign.outcome != 'success') }}
         run: |
           rm -rf dist
           mkdir -p fragments
@@ -855,7 +1032,8 @@ jobs:
   #
   # Gating model — two layers:
   # 1) The matrix `needs` deliberately lists every row (`cli`, `desktop-*`,
-  #    `sbom`); the `if:` condition below keys on each REQUIRED result and
+  #    `sign-*`, `sbom`); the `if:` condition below keys on each REQUIRED
+  #    result (a required `sign-*` succeeds only after its build did) and
   #    ignores optional ones, so an optional ARM runner failure cannot skip
   #    assembly (run 39673307029 reproduced that exact defect). Optional CLI
   #    rows also use job-level `continue-on-error` for the case where the
@@ -874,9 +1052,14 @@ jobs:
       - desktop-windows-arm64
       - desktop-linux
       - desktop-linux-arm64
+      - sign-macos
+      - sign-windows
+      - sign-windows-arm64
+      - sign-linux
+      - sign-linux-arm64
       - cli
       - sbom
-    if: ${{ always() && needs.check.result == 'success' && needs.desktop-macos.result == 'success' && needs.desktop-windows.result == 'success' && needs.desktop-linux.result == 'success' && needs.sbom.result == 'success' }}
+    if: ${{ always() && needs.check.result == 'success' && needs.sign-macos.result == 'success' && needs.sign-windows.result == 'success' && needs.sign-linux.result == 'success' && needs.sbom.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
