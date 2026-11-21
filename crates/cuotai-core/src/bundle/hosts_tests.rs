@@ -211,3 +211,33 @@ fn a_litellm_account_on_the_default_variable_still_names_its_host() {
         local
     );
 }
+
+/// L-2: a backup that keeps a 9router account's address but swaps its
+/// certificate pin, adds a CA file or turns on plain HTTP must be confirmed.
+#[test]
+fn a_restore_names_a_changed_trust_anchor_on_the_same_address() {
+    const ROUTER: &str = "[[accounts]]\nid = \"router\"\nprovider = \"nine_router\"\ncredential_env = \"ROUTER_PASSWORD\"\n\n[accounts.params]\nbase_url = \"https://router.example.com:20128\"\ntls_pin_sha256 = \"aa\"\n";
+    let local = ROUTER.as_bytes();
+    for (incoming, kind) in [
+        (ROUTER.replace("\"aa\"", "\"bb\""), "tls_pin_sha256"),
+        (
+            format!("{ROUTER}tls_ca_file = \"/tmp/evil.pem\"\n"),
+            "tls_ca_file",
+        ),
+        (
+            format!("{ROUTER}allow_private_http = \"true\"\n"),
+            "allow_private_http",
+        ),
+    ] {
+        let checks = host_checks(Some(local), incoming.as_bytes());
+        assert_eq!(checks.len(), 1, "{kind}");
+        assert_eq!(checks[0].kind, kind);
+        assert_eq!(checks[0].host, "https://router.example.com:20128");
+        assert_eq!(checks[0].text.id, "bundle.host.trust");
+    }
+    // Unchanged, or on an account that sends no credential: nothing to ask.
+    assert!(host_checks(Some(local), local).is_empty());
+    let keyless = ROUTER.replace("credential_env = \"ROUTER_PASSWORD\"\n", "");
+    let swapped = keyless.replace("\"aa\"", "\"bb\"");
+    assert!(host_checks(Some(keyless.as_bytes()), swapped.as_bytes()).is_empty());
+}

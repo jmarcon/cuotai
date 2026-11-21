@@ -1031,11 +1031,12 @@ pub struct HostCheck {
     pub account: usize,
     /// The provider slug.
     pub provider: String,
-    /// The parameter: `base_url` or `cli_path`.
+    /// The parameter: `base_url`, `cli_path`, or the trust parameter that
+    /// changed (`tls_pin_sha256`, `tls_ca_file`, `allow_private_http`).
     pub kind: &'static str,
-    /// For `base_url`, `scheme://host[:port]` only (never a user, a path or
-    /// a query); for `cli_path`, the program's path with `~` for the home
-    /// folder.
+    /// For `base_url` and the trust parameters, `scheme://host[:port]` only
+    /// (never a user, a path or a query); for `cli_path`, the program's path
+    /// with `~` for the home folder.
     pub host: String,
     /// The sentence the plan shows.
     pub text: Localized,
@@ -1062,6 +1063,10 @@ fn has_credential_source(account: &Account) -> bool {
             .iter()
             .any(|(key, value)| key.ends_with("_env") && !value.trim().is_empty())
 }
+
+/// L-2: the parameters that decide which server an account's credential is
+/// trusted to reach, besides `base_url`.
+const TRUST_PARAMS: [&str; 3] = ["tls_pin_sha256", "tls_ca_file", "allow_private_http"];
 
 /// `scheme://host[:port]` of a `base_url` that leaves this machine; `None`
 /// for a loopback host or a value that is not a URL (no provider sends to
@@ -1139,6 +1144,36 @@ fn host_checks(local: Option<&[u8]>, incoming: &[u8]) -> Vec<HostCheck> {
                 "Account {number} ({provider}) sends its key to {host}.",
             );
             push("base_url", host, text);
+        }
+        // L-2: on an account that sends a credential, a new or changed
+        // certificate pin, CA file or private-HTTP switch changes whom the
+        // secret is trusted to reach, even on an unchanged `base_url`, so
+        // it is confirmed like a new address (a pin never changes silently).
+        if has_credential_source(account) {
+            if let Some(kind) = TRUST_PARAMS
+                .into_iter()
+                .find(|key| new_value(key).is_some())
+            {
+                let base = account
+                    .params
+                    .get("base_url")
+                    .and_then(|value| url::Url::parse(value.trim()).ok())
+                    .and_then(|url| {
+                        let host = url.host_str()?.to_owned();
+                        Some(match url.port() {
+                            Some(port) => format!("{}://{host}:{port}", url.scheme()),
+                            None => format!("{}://{host}", url.scheme()),
+                        })
+                    })
+                    .unwrap_or_else(|| account.provider.slug().to_owned());
+                let host = crate::text::strip_disguising(&base).into_owned();
+                let text = Localized::with_params(
+                    "bundle.host.trust",
+                    params(who(&host)),
+                    "Account {number} ({provider}) changes which server it trusts with its key at {host} (certificate pin, CA file or plain HTTP).",
+                );
+                push(kind, host, text);
+            }
         }
         if let Some(path) = new_value("cli_path") {
             let host = crate::text::strip_disguising(&home_relative(Path::new(path))).into_owned();

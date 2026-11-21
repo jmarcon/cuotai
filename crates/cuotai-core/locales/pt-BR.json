@@ -2840,6 +2840,7 @@
   "bundle.setting.hooks": "Executar hooks",
   "bundle.host.url": "A conta {number} ({provider}) envia sua chave para {host}.",
   "bundle.host.program": "A conta {number} ({provider}) executa {host} no lugar da ferramenta do provedor, com as credenciais deste computador.",
+  "bundle.host.trust": "A conta {number} ({provider}) muda em qual servidor confia sua chave em {host} (fixação de certificado, arquivo de CA ou HTTP simples).",
   "cost.settings.plans_ignored": {
     "one": "{count} preço de plano salvo é inválido e foi ignorado; digite-o de novo.",
     "other": "{count} preços de plano salvos são inválidos e foram ignorados; digite-os de novo."

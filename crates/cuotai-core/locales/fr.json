@@ -3879,6 +3879,7 @@
   "bundle.setting.hooks": "Exécuter les hooks",
   "bundle.host.url": "Le compte {number} ({provider}) envoie sa clé à {host}.",
   "bundle.host.program": "Le compte {number} ({provider}) exécute {host} à la place de l’outil de son fournisseur, avec les identifiants de cet ordinateur.",
+  "bundle.host.trust": "Le compte {number} ({provider}) change le serveur auquel il confie sa clé sur {host} (certificat épinglé, fichier d'AC ou HTTP en clair).",
   "cost.settings.plans_ignored": {
     "one": "{count} prix de forfait enregistré est invalide et ignoré ; saisissez-le à nouveau.",
     "other": "{count} prix de forfait enregistrés sont invalides et ignorés ; saisissez-les à nouveau."

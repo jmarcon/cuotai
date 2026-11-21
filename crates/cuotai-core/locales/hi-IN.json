@@ -2980,6 +2980,7 @@
   "bundle.setting.hooks": "हुक चलाएँ",
   "bundle.host.url": "खाता {number} ({provider}) अपनी कुंजी {host} को भेजता है।",
   "bundle.host.program": "खाता {number} ({provider}) अपने प्रदाता के टूल की जगह {host} चलाता है, इस कंप्यूटर के क्रेडेंशियल के साथ।",
+  "bundle.host.trust": "खाता {number} ({provider}) {host} पर वह सर्वर बदलता है जिस पर वह अपनी कुंजी का भरोसा करता है (प्रमाणपत्र पिन, CA फ़ाइल या सादा HTTP)।",
   "cost.settings.plans_ignored": {
     "one": "{count} सहेजा गया प्लान मूल्य अमान्य है और अनदेखा किया गया; उसे फिर से लिखें।",
     "other": "{count} सहेजे गए प्लान मूल्य अमान्य हैं और अनदेखे किए गए; उन्हें फिर से लिखें।"

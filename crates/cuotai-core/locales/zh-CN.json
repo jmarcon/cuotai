@@ -2942,6 +2942,7 @@
   "bundle.setting.hooks": "运行钩子",
   "bundle.host.url": "账户 {number}（{provider}）会把它的密钥发送到 {host}。",
   "bundle.host.program": "账户 {number}（{provider}）会用这台电脑的凭据运行 {host}，代替其提供商的工具。",
+  "bundle.host.trust": "账户 {number}（{provider}）更改了在 {host} 上托付其密钥的服务器（证书固定、CA 文件或明文 HTTP）。",
   "cost.settings.plans_ignored": {
     "other": "{count} 个已保存的套餐价格无效，已忽略；请重新输入。"
   },
