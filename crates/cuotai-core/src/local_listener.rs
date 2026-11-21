@@ -110,6 +110,25 @@ pub(crate) fn loopback_targets(host: &url::Host<&str>) -> Option<Vec<IpAddr>> {
     }
 }
 
+/// L-1: a plain-HTTP base whose host is `localhost` is read as
+/// `127.0.0.1`, for the listener check and for the connection alike, as
+/// the local server's client does (PRD 0012 RF3.1). Otherwise the resolver
+/// may list `::1` first while the check (on macOS, which sees only the
+/// current user's sockets) confirmed the user's own `127.0.0.1` listener,
+/// and a second user bound to `[::1]` on the same port would receive the
+/// secret. Any other URL is returned unchanged.
+pub(crate) fn pin_plain_localhost(mut url: url::Url) -> url::Url {
+    let is_localhost = matches!(
+        url.host(),
+        Some(url::Host::Domain(name)) if name.eq_ignore_ascii_case("localhost")
+    );
+    if url.scheme() == "http" && is_localhost {
+        // Setting an IP host on an `http` URL cannot fail.
+        let _ = url.set_ip_host(IpAddr::V4(Ipv4Addr::LOCALHOST));
+    }
+    url
+}
+
 /// True when a connection to `target` could be accepted by a socket bound
 /// to `bound`: the same address, its IPv4-mapped form, or a wildcard (`::`
 /// is dual-stack unless the program asked otherwise, so it counts for both
@@ -593,6 +612,27 @@ mod tests {
 
     const V4: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
     const V6: IpAddr = IpAddr::V6(Ipv6Addr::LOCALHOST);
+
+    #[test]
+    fn plain_localhost_is_read_as_ipv4_loopback_for_check_and_connection() {
+        let pinned = pin_plain_localhost(url::Url::parse("http://LocalHost:20128/x").unwrap());
+        assert_eq!(pinned.as_str(), "http://127.0.0.1:20128/x");
+        // One target only: the check and the connection see the same address.
+        assert_eq!(loopback_targets(&pinned.host().unwrap()), Some(vec![V4]),);
+        // L-1 scenario: the user's own IPv4 listener cannot vouch for a
+        // foreign `[::1]` socket, because `::1` is no longer dialled.
+        let rows = [row(V4, 20128, Owner::CurrentUser)];
+        assert_eq!(decide(&rows, &[V4], 20128), Verdict::Trusted);
+        for unchanged in [
+            "https://localhost:20128/",
+            "http://127.0.0.1:4000/",
+            "http://[::1]:4000/",
+            "http://router.example.com/",
+        ] {
+            let url = url::Url::parse(unchanged).unwrap();
+            assert_eq!(pin_plain_localhost(url.clone()), url);
+        }
+    }
 
     fn row(addr: IpAddr, port: u16, owner: Owner) -> Listener {
         Listener { addr, port, owner }
