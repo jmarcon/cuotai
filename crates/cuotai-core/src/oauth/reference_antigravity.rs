@@ -241,59 +241,60 @@ impl LoopbackLogin {
         Ok(token)
     }
 
+    /// Serve connections side by side until a valid callback arrives or
+    /// the deadline passes (L-6).
     async fn wait_for_callback(&self) -> Result<Callback, OAuthError> {
-        loop {
-            let (mut stream, _) = timeout_at(self.deadline, self.listener.accept())
-                .await
-                .map_err(|_| OAuthError::Expired)?
-                .map_err(|_| OAuthError::Network)?;
-            let connection_deadline =
-                std::cmp::min(self.deadline, Instant::now() + CALLBACK_CONNECTION_DEADLINE);
-            let outcome = match timeout_at(
-                connection_deadline,
-                read_callback(&mut stream, CALLBACK_PATH, &self.expected_state),
-            )
-            .await
-            {
-                Ok(outcome) => outcome,
-                Err(_) if Instant::now() >= self.deadline => return Err(OAuthError::Expired),
-                Err(_) => CallbackOutcome::Ignored,
-            };
-            match outcome {
-                CallbackOutcome::Code(callback) => {
-                    respond(
-                        &mut stream,
-                        "200 OK",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Success),
-                    )
-                    .await;
-                    return Ok(callback);
-                }
-                CallbackOutcome::Denied => {
-                    respond(
-                        &mut stream,
-                        "200 OK",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Denied),
-                    )
-                    .await;
-                    return Err(OAuthError::Denied);
-                }
-                CallbackOutcome::Failed(error) => {
-                    respond(
-                        &mut stream,
-                        "400 Bad Request",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Failed),
-                    )
-                    .await;
-                    return Err(error);
-                }
-                CallbackOutcome::Ignored => {
-                    // Wrong state/path and unrelated browser requests reveal
-                    // nothing and cannot end the active login.
-                    respond(&mut stream, "404 Not Found", "").await;
-                }
-            }
-        }
+        let state = self.expected_state.as_str();
+        super::loopback::serve(
+            || self.listener.accept(),
+            self.deadline,
+            CALLBACK_CONNECTION_DEADLINE,
+            |mut stream| async move {
+                Some(
+                    match read_callback(&mut stream, CALLBACK_PATH, state).await {
+                        CallbackOutcome::Code(callback) => {
+                            respond(
+                                &mut stream,
+                                "200 OK",
+                                &super::callback_page::render(
+                                    super::callback_page::CallbackPage::Success,
+                                ),
+                            )
+                            .await;
+                            Ok(callback)
+                        }
+                        CallbackOutcome::Denied => {
+                            respond(
+                                &mut stream,
+                                "200 OK",
+                                &super::callback_page::render(
+                                    super::callback_page::CallbackPage::Denied,
+                                ),
+                            )
+                            .await;
+                            Err(OAuthError::Denied)
+                        }
+                        CallbackOutcome::Failed(error) => {
+                            respond(
+                                &mut stream,
+                                "400 Bad Request",
+                                &super::callback_page::render(
+                                    super::callback_page::CallbackPage::Failed,
+                                ),
+                            )
+                            .await;
+                            Err(error)
+                        }
+                        CallbackOutcome::Ignored => {
+                            // Wrong state/path and unrelated browser requests reveal nothing and cannot end the active login.
+                            respond(&mut stream, "404 Not Found", "").await;
+                            return None;
+                        }
+                    },
+                )
+            },
+        )
+        .await
     }
 }
 

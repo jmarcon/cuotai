@@ -275,77 +275,61 @@ impl PendingLogin {
     /// the deadline passes. Requests without exactly one `u` parameter are
     /// ignored with a bare 404; a `u` that fails authentication is fatal.
     async fn wait_for_callback(&self) -> Result<CallbackPayload, OAuthError> {
-        loop {
-            let accepted = timeout_at(self.deadline, self.listener.accept())
-                .await
-                .map_err(|_| OAuthError::Expired)?
-                .map_err(|_| OAuthError::Network)?;
-            let (mut stream, _) = accepted;
-            let conn_deadline =
-                std::cmp::min(self.deadline, Instant::now() + CALLBACK_CONN_DEADLINE);
-            let outcome = match timeout_at(
-                conn_deadline,
-                read_callback(&mut stream, &self.callback_path),
-            )
-            .await
-            {
-                Ok(outcome) => outcome,
-                Err(_) => {
-                    if Instant::now() >= self.deadline {
-                        return Err(OAuthError::Expired);
-                    }
-                    CallbackOutcome::Ignored
-                }
-            };
-            match outcome {
-                CallbackOutcome::Payload(encrypted) => {
-                    let payload = match decrypt_callback(&self.secret, &encrypted) {
-                        Ok(payload) => payload,
-                        Err(error) => {
-                            respond(
-                                &mut stream,
-                                "400 Bad Request",
-                                &super::callback_page::render(
-                                    super::callback_page::CallbackPage::Failed,
-                                ),
-                            )
-                            .await;
-                            return Err(error);
+        // L-6: connections are served side by side, so an idle one held by
+        // another local program does not delay the browser's.
+        let (path, secret) = (self.callback_path.as_str(), &self.secret);
+        super::loopback::serve(
+            || self.listener.accept(),
+            self.deadline,
+            CALLBACK_CONN_DEADLINE,
+            |mut stream| async move {
+                let failed =
+                    super::callback_page::render(super::callback_page::CallbackPage::Failed);
+                Some(match read_callback(&mut stream, path).await {
+                    CallbackOutcome::Payload(encrypted) => {
+                        match decrypt_callback(secret, &encrypted) {
+                            Ok(payload) => {
+                                respond(
+                                    &mut stream,
+                                    "200 OK",
+                                    &super::callback_page::render(
+                                        super::callback_page::CallbackPage::Success,
+                                    ),
+                                )
+                                .await;
+                                Ok(payload)
+                            }
+                            Err(error) => {
+                                respond(&mut stream, "400 Bad Request", &failed).await;
+                                Err(error)
+                            }
                         }
-                    };
-                    respond(
-                        &mut stream,
-                        "200 OK",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Success),
-                    )
-                    .await;
-                    return Ok(payload);
-                }
-                CallbackOutcome::Denied => {
-                    respond(
-                        &mut stream,
-                        "200 OK",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Denied),
-                    )
-                    .await;
-                    return Err(OAuthError::Denied);
-                }
-                CallbackOutcome::Malformed => {
-                    // Generic body: no detail about what was rejected.
-                    respond(
-                        &mut stream,
-                        "400 Bad Request",
-                        &super::callback_page::render(super::callback_page::CallbackPage::Failed),
-                    )
-                    .await;
-                    return Err(OAuthError::InvalidResponse);
-                }
-                CallbackOutcome::Ignored => {
-                    // No details: a stray request learns nothing from us.
-                    respond(&mut stream, "404 Not Found", "").await;
-                }
-            }
-        }
+                    }
+                    CallbackOutcome::Denied => {
+                        respond(
+                            &mut stream,
+                            "200 OK",
+                            &super::callback_page::render(
+                                super::callback_page::CallbackPage::Denied,
+                            ),
+                        )
+                        .await;
+                        Err(OAuthError::Denied)
+                    }
+                    CallbackOutcome::Malformed => {
+                        // Generic body: no detail about what was rejected.
+                        respond(&mut stream, "400 Bad Request", &failed).await;
+                        Err(OAuthError::InvalidResponse)
+                    }
+                    CallbackOutcome::Ignored => {
+                        // No details: a stray request learns nothing from us.
+                        respond(&mut stream, "404 Not Found", "").await;
+                        return None;
+                    }
+                })
+            },
+        )
+        .await
     }
 }
 
