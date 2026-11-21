@@ -5,8 +5,10 @@
 //! the question nor the answer. Rust builds the dialog from the core's
 //! typed review ([`cuotai_core::execution_review`], [`Hooks::review`],
 //! `Manager::review`), shows it as an operating-system dialog outside the
-//! webview DOM, and acts only on the OS answer. Cancel, a closed dialog or a
-//! failure to show it is the fixed `execution.declined` error: nothing is
+//! webview DOM, and acts only on the OS answer. Cancel (the default button,
+//! L-11), a closed dialog, an accept within the first moment or a failure to
+//! show it is the fixed `execution.declined` error, and a declined question
+//! is refused without a dialog for a few seconds: nothing is
 //! written, approved, enabled or spawned. One [`Gate`] serializes the
 //! confirmations, so concurrent clicks never share or replay an answer.
 //!
@@ -15,9 +17,11 @@
 //! tests drive them with a fake that answers, cancels or edits the file
 //! while the dialog is open.
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
+use std::time::{Duration, Instant};
 
 use cuotai_core::execution_review::{self, Review};
 use cuotai_core::hooks::{self, Document, Hooks, RuleDraft};
@@ -65,25 +69,88 @@ impl DialogConfirmer {
     }
 }
 
+/// Security review 2026-11-21, L-11: after a decline, the same question is
+/// refused for this long without showing a dialog, so a script cannot ask
+/// again and again until a keystroke lands on it.
+const COOLDOWN: Duration = Duration::from_secs(10);
+/// An accept that comes sooner than this after the dialog appeared is
+/// taken as a reflex (a key already on its way) and declined.
+const MIN_READ: Duration = Duration::from_millis(750);
+
+/// The last decline of each question (by title), for [`COOLDOWN`].
+#[derive(Default)]
+struct Cooldown(std::sync::Mutex<HashMap<String, Instant>>);
+
+impl Cooldown {
+    fn blocked(&self, key: &str, now: Instant) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(key)
+            .is_some_and(|at| now.saturating_duration_since(*at) < COOLDOWN)
+    }
+
+    fn record(&self, key: &str, accepted: bool, now: Instant) {
+        let mut map = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if accepted {
+            map.remove(key);
+        } else {
+            map.insert(key.to_owned(), now);
+        }
+    }
+}
+
+static COOLDOWNS: std::sync::LazyLock<Cooldown> = std::sync::LazyLock::new(Cooldown::default);
+
+/// The buttons in the order shown: the cancelling one first, so it is the
+/// default (Return on macOS and Windows) and Escape or closing the dialog
+/// never accepts; the accepting one second.
+fn buttons(question: &Question) -> (String, String) {
+    (question.cancel.clone(), question.accept.clone())
+}
+
+/// Whether `result` is the accepting button, pressed at least [`MIN_READ`]
+/// after the dialog appeared. Labels equal to the cancel label never
+/// accept.
+fn accepted(
+    result: &tauri_plugin_dialog::MessageDialogResult,
+    question: &Question,
+    shown_for: Duration,
+) -> bool {
+    matches!(result, tauri_plugin_dialog::MessageDialogResult::Custom(label)
+        if *label == question.accept && question.accept != question.cancel)
+        && shown_for >= MIN_READ
+}
+
 impl NativeConfirmer for DialogConfirmer {
     fn ask<'a>(&'a self, question: Question) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
         use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
         Box::pin(async move {
+            let key = question.title.clone();
+            if COOLDOWNS.blocked(&key, Instant::now()) {
+                return false;
+            }
+            let (first, second) = buttons(&question);
             let (tx, rx) = tokio::sync::oneshot::channel();
+            let shown = Instant::now();
             self.app
                 .dialog()
-                .message(question.body)
-                .title(question.title)
+                .message(question.body.clone())
+                .title(question.title.clone())
                 .kind(MessageDialogKind::Warning)
-                .buttons(MessageDialogButtons::OkCancelCustom(
-                    question.accept,
-                    question.cancel,
-                ))
-                .show(move |accepted| {
-                    let _ = tx.send(accepted);
+                .buttons(MessageDialogButtons::OkCancelCustom(first, second))
+                .show_with_result(move |result| {
+                    let _ = tx.send((result, shown.elapsed()));
                 });
             // A dialog that could not be shown drops its sender: declined.
-            rx.await.unwrap_or(false)
+            let yes = rx
+                .await
+                .is_ok_and(|(result, shown_for)| accepted(&result, &question, shown_for));
+            COOLDOWNS.record(&key, yes, Instant::now());
+            yes
         })
     }
 }
@@ -536,6 +603,43 @@ mod tests {
             assert_eq!(ask_action(&accepted, "en-US", review).await, Ok(()));
             assert_eq!(accepted.questions(), 1);
         }
+    }
+
+    /// L-11: Cancel is the first (default) button, only the accepting
+    /// label pressed after a moment accepts, and a declined question is
+    /// not asked again at once.
+    // security-invariant: SEC-NATIVE-CONFIRM
+    #[test]
+    fn cancel_is_the_default_and_a_decline_cools_down() {
+        use tauri_plugin_dialog::MessageDialogResult as R;
+        let question = Question::new(Review::EnableHooks, &[], "en-US");
+        let (first, second) = buttons(&question);
+        assert_eq!(first, question.cancel);
+        assert_eq!(second, question.accept);
+        let slow = MIN_READ + Duration::from_millis(1);
+        assert!(accepted(
+            &R::Custom(question.accept.clone()),
+            &question,
+            slow
+        ));
+        assert!(!accepted(
+            &R::Custom(question.accept.clone()),
+            &question,
+            Duration::ZERO
+        ));
+        for other in [R::Custom(question.cancel.clone()), R::Cancel, R::Ok, R::Yes] {
+            assert!(!accepted(&other, &question, slow), "{other:?}");
+        }
+
+        let cooldown = Cooldown::default();
+        let now = Instant::now();
+        assert!(!cooldown.blocked("t", now));
+        cooldown.record("t", false, now);
+        assert!(cooldown.blocked("t", now + Duration::from_secs(1)));
+        assert!(!cooldown.blocked("other", now));
+        assert!(!cooldown.blocked("t", now + COOLDOWN));
+        cooldown.record("t", true, now);
+        assert!(!cooldown.blocked("t", now));
     }
 
     #[tokio::test]
