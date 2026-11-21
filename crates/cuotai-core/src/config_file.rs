@@ -18,11 +18,17 @@
 //! `self` is untouched.
 //!
 //! Discovery is controlled by [`Discovery`] over injectable [`Locations`]:
-//! - [`Discovery::Cli`] (CLI/TUI): `--config`, `CUOTAI_CONFIG`, existing
-//!   `./cuotai.toml`, then `<OS config dir>/cuotai/config.toml`.
+//! - [`Discovery::Cli`] (CLI/TUI): `--config`, `CUOTAI_CONFIG`, then
+//!   `<OS config dir>/cuotai/config.toml`.
 //! - [`Discovery::Gui`]: `CUOTAI_CONFIG`, the file chosen in the app
-//!   settings, then the OS path (never `./cuotai.toml`, whose meaning in a
-//!   graphical application is unpredictable).
+//!   settings, then the OS path.
+//!
+//! Neither reads a `./cuotai.toml` it was not pointed at: a file in the
+//! working directory can come from a cloned repository or an extracted
+//! archive, and a configuration names programs to run and the variables
+//! whose values go to a host (security review 2026-11-21, H-1). A user who
+//! wants that file passes `--config ./cuotai.toml`;
+//! [`ConfigFile::ignored_local`] lets a front end say that it is not read.
 //!
 //! With nothing found, both create the file in the OS path. The selected
 //! rule is kept as [`PathSource`]; [`ConfigIdentity`] normalizes relative
@@ -56,11 +62,10 @@ use crate::{Account, Config};
 /// Discovery policy for [`ConfigFile::load_with`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Discovery {
-    /// CLI/TUI: `--config` > `CUOTAI_CONFIG` > existing `./cuotai.toml` >
+    /// CLI/TUI: `--config` > `CUOTAI_CONFIG` >
     /// `<OS config dir>/cuotai/config.toml`.
     Cli { config: Option<PathBuf> },
     /// GUI: `CUOTAI_CONFIG` > file chosen in the app settings > OS path.
-    /// Never consults `./cuotai.toml`.
     Gui { chosen: Option<PathBuf> },
 }
 
@@ -70,7 +75,9 @@ pub enum Discovery {
 pub struct Locations {
     /// `CUOTAI_CONFIG` (an empty value counts as unset).
     pub env: Option<PathBuf>,
-    /// Directory searched for `cuotai.toml` by [`Discovery::Cli`]; empty = cwd.
+    /// Directory where [`ConfigFile::ignored_local`] looks for a
+    /// `cuotai.toml` that is no longer read; empty = cwd. Discovery itself
+    /// never reads it.
     pub cwd: PathBuf,
     /// Platform config directory (`dirs::config_dir()`).
     pub config_dir: Option<PathBuf>,
@@ -98,8 +105,6 @@ pub enum PathSource {
     Env,
     /// File chosen in the desktop settings.
     Chosen,
-    /// Existing `./cuotai.toml`.
-    Local,
     /// `<OS config dir>/cuotai/config.toml`, also the creation default.
     System,
 }
@@ -314,15 +319,14 @@ impl ConfigFile {
         }
     }
 
-    /// Pure precedence (see [`Discovery`]); only `./cuotai.toml` is probed
-    /// with `is_file`. With nothing found the OS path is returned so a new
-    /// file is created there.
+    /// Pure precedence (see [`Discovery`]); nothing is probed on disk. With
+    /// no named file the OS path is returned so a new file is created there.
     pub fn resolve_path(discovery: Discovery, locations: &Locations) -> ResolvedPath {
         let at = |path, source| ResolvedPath { path, source };
-        let (chosen, local) = match discovery {
+        let chosen = match discovery {
             Discovery::Cli { config: Some(path) } => return at(path, PathSource::Argument),
-            Discovery::Cli { config: None } => (None, true),
-            Discovery::Gui { chosen } => (chosen, false),
+            Discovery::Cli { config: None } => None,
+            Discovery::Gui { chosen } => chosen,
         };
         if let Some(env) = &locations.env {
             return at(env.clone(), PathSource::Env);
@@ -330,14 +334,23 @@ impl ConfigFile {
         if let Some(chosen) = chosen {
             return at(chosen, PathSource::Chosen);
         }
-        let local_path = locations.cwd.join("cuotai.toml");
-        if local && local_path.is_file() {
-            return at(local_path, PathSource::Local);
-        }
         // ponytail: without a platform config dir (rare) this is relative to
         // the cwd, as before; add an error when such a platform matters.
         let dir = locations.config_dir.clone().unwrap_or_default();
         at(dir.join("cuotai").join("config.toml"), PathSource::System)
+    }
+
+    /// Security review 2026-11-21 (H-1): the `./cuotai.toml` that earlier
+    /// versions read on their own, when the CLI/TUI found its file by the
+    /// default rule (no `--config`, no `CUOTAI_CONFIG`) and a regular file
+    /// by that name sits in the working directory. The front end may say
+    /// that it is not read; it never opens it.
+    pub fn ignored_local(resolved: &ResolvedPath, locations: &Locations) -> Option<PathBuf> {
+        if resolved.source != PathSource::System {
+            return None;
+        }
+        let local = locations.cwd.join("cuotai.toml");
+        (local.is_file() && local != resolved.path).then_some(local)
     }
 
     /// PRD 0051 RF1.1: every account table in document order, the set-aside
@@ -2565,7 +2578,7 @@ params = { profile = "validation" }
     }
 
     #[test]
-    fn cli_precedence_argument_env_local_system() {
+    fn cli_precedence_argument_env_system() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
         let cli = |config: Option<PathBuf>| Discovery::Cli { config };
@@ -2578,16 +2591,60 @@ params = { profile = "validation" }
             resolve(cli(None), &loc),
             (d.join("env.toml"), PathSource::Env)
         );
-        let loc = locations(d, true, None);
-        assert_eq!(
-            resolve(cli(None), &loc),
-            (loc.cwd.join("cuotai.toml"), PathSource::Local)
-        );
-        fs::remove_file(loc.cwd.join("cuotai.toml")).unwrap();
+        let loc = locations(d, false, None);
         assert_eq!(
             resolve(cli(None), &loc),
             (d.join("os/cuotai/config.toml"), PathSource::System)
         );
+    }
+
+    /// Security review 2026-11-21 (H-1): a `cuotai.toml` in the working
+    /// directory is never selected, loaded or written by the default rule;
+    /// [`ConfigFile::ignored_local`] names it only for that rule.
+    #[test]
+    fn cli_never_reads_a_cuotai_toml_in_the_working_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let loc = locations(d, false, None);
+        fs::write(
+            loc.cwd.join("cuotai.toml"),
+            "[[accounts]]\nname = \"Planted\"\nprovider = \"litellm\"\ncredential_env = \"GITHUB_TOKEN\"\n",
+        )
+        .unwrap();
+        let cli = Discovery::Cli { config: None };
+        let resolved = ConfigFile::resolve_path(cli.clone(), &loc);
+        assert_eq!(
+            (resolved.path.clone(), resolved.source),
+            (d.join("os/cuotai/config.toml"), PathSource::System)
+        );
+        for interactive in [false, true] {
+            let file = ConfigFile::load_with(cli.clone(), interactive, &loc).unwrap();
+            assert!(!file.exists);
+            assert!(file.config.accounts.iter().all(|a| a.name != "Planted"));
+        }
+        assert_eq!(
+            ConfigFile::ignored_local(&resolved, &loc),
+            Some(loc.cwd.join("cuotai.toml"))
+        );
+        // Named explicitly, the same file is read and nothing is ignored.
+        let named = ConfigFile::resolve_path(
+            Discovery::Cli {
+                config: Some(loc.cwd.join("cuotai.toml")),
+            },
+            &loc,
+        );
+        assert_eq!(ConfigFile::ignored_local(&named, &loc), None);
+        let file = ConfigFile::open(named, false).unwrap();
+        assert_eq!(file.config.accounts[0].name, "Planted");
+        let env = Locations {
+            env: Some(d.join("env.toml")),
+            ..loc.clone()
+        };
+        let by_env = ConfigFile::resolve_path(Discovery::Cli { config: None }, &env);
+        assert_eq!(ConfigFile::ignored_local(&by_env, &env), None);
+        // Without the file there is nothing to mention.
+        fs::remove_file(loc.cwd.join("cuotai.toml")).unwrap();
+        assert_eq!(ConfigFile::ignored_local(&resolved, &loc), None);
     }
 
     #[test]

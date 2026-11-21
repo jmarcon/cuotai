@@ -538,7 +538,7 @@ fn an_explicit_configuration_keeps_away_from_this_computers_other_files() {
         assert_eq!(named.data_root, Some(tree.at("data")));
         assert!(named.desktop_settings.is_none());
     }
-    for source in [PathSource::Local, PathSource::System] {
+    for source in [PathSource::Chosen, PathSource::System] {
         let found = Locations::for_cli_with(resolved(source), None, None, |config| Locations {
             config,
             desktop_settings: Some(PathBuf::from("desktop.json")),

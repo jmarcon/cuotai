@@ -231,7 +231,6 @@ fn source_slug(source: PathSource) -> &'static str {
         PathSource::Argument => "--config",
         PathSource::Env => "CUOTAI_CONFIG",
         PathSource::Chosen => "desktop",
-        PathSource::Local => "./cuotai.toml",
         PathSource::System => "default",
     }
 }

@@ -2402,7 +2402,6 @@ fn location(file: &ConfigFile) -> String {
         PathSource::Argument => "--config",
         PathSource::Env => "CUOTAI_CONFIG",
         PathSource::Chosen => tr("ui.location.chosen", "chosen"),
-        PathSource::Local => tr("ui.location.local", "local"),
         PathSource::System => tr("ui.location.system", "OS default"),
     };
     let mut line = format!("{} ({source})", file.path.display());
@@ -2417,6 +2416,14 @@ fn location(file: &ConfigFile) -> String {
             "Warning: the desktop uses {path}; separate accounts and models (align them with --config or CUOTAI_CONFIG).",
             &[("path", &other.display())],
         ));
+    }
+    // Security review 2026-11-21 (H-1); tests never read the real cwd.
+    let ignored = (!cfg!(test))
+        .then(|| crate::config_check::ignored_local_notice(&file.path, file.source))
+        .flatten();
+    if let Some(ignored) = ignored {
+        line.push('\n');
+        line.push_str(&ignored);
     }
     line
 }

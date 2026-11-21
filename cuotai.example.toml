@@ -1,4 +1,6 @@
-# Copy to cuotai.toml. Repeat providers for multiple accounts.
+# Copy to <OS config dir>/cuotai/config.toml, or to any file you pass with
+# --config (for example `cuotai --config ./cuotai.toml`); a ./cuotai.toml in the
+# current folder is not read on its own. Repeat providers for multiple accounts.
 # `name` is optional: without it the account shows its provider's name. Two accounts of the same
 # provider both need a name, and names are unique (case-insensitive) across the file.
 # Cuotai adds an `id = "acc_…"` line as the first key of each account on its next save: it keeps the
