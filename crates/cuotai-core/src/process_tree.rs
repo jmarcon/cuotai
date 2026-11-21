@@ -156,14 +156,26 @@ impl Tree {
         }
     }
 
-    /// Kill the whole tree; errors (an empty group, a failed assignment)
-    /// are ignored: the direct child is always handled by the caller.
-    pub(crate) fn kill(&self) {
+    /// Kill the whole tree, once; errors (an empty group, a failed
+    /// assignment) are ignored: the direct child is always handled by the
+    /// caller.
+    ///
+    /// Security review 2026-11-21, L-9: on Unix the tree is disarmed after
+    /// this signal, so a later call or the drop never signals the group id
+    /// again. Once the leader is reaped and its group is empty, that id is
+    /// free and may come to lead an unrelated group of the same user. Call
+    /// it before reaping the child (timeout, cancellation) or right after
+    /// the wait that reaped it, never later.
+    pub(crate) fn kill(&mut self) {
         #[cfg(unix)]
-        unsafe {
+        {
             // A zero pgid would be our own process group: never.
-            if self.pgid != 0 {
-                libc::killpg(self.pgid as libc::pid_t, libc::SIGKILL);
+            let pgid = std::mem::take(&mut self.pgid);
+            if pgid != 0 {
+                // SAFETY: `killpg` has no memory-safety preconditions.
+                unsafe {
+                    libc::killpg(pgid as libc::pid_t, libc::SIGKILL);
+                }
             }
         }
         #[cfg(windows)]
@@ -176,5 +188,27 @@ impl Tree {
 impl Drop for Tree {
     fn drop(&mut self) {
         self.kill();
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    /// L-9: the group is signalled at most once, so the drop after a run
+    /// that already killed it cannot reach a reused group id.
+    #[tokio::test]
+    async fn the_tree_is_disarmed_after_its_kill() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "exit 0"]);
+        own_group(&mut command, false);
+        let mut child = command.spawn().unwrap();
+        let mut tree = Tree::new(&child);
+        assert_ne!(tree.pgid, 0);
+        child.wait().await.unwrap();
+        tree.kill();
+        assert_eq!(tree.pgid, 0, "disarmed: the drop sends nothing");
+        tree.kill();
+        assert_eq!(tree.pgid, 0);
     }
 }

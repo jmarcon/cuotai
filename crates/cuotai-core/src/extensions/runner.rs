@@ -473,7 +473,7 @@ async fn execute(
         }
         Err(_) => return run(Outcome::NotStarted, None, Captured::default()),
     };
-    let tree = Tree::new(&child);
+    let mut tree = Tree::new(&child);
     let deadline = tokio::time::Instant::now() + Duration::from_secs(manifest.timeout_seconds);
     let captured = Mutex::new(Captured::default());
     let stdout = child.stdout.take();

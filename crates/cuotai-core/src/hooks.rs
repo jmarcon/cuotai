@@ -2116,7 +2116,7 @@ async fn execute(context: &Context, job: &Job) -> Run {
         return run(Outcome::NotStarted, None, Captured::default());
     };
     // Dropped with this future (a stopped runner), it kills the tree too.
-    let tree = Tree::new(&child);
+    let mut tree = Tree::new(&child);
     let deadline = tokio::time::Instant::now() + rule.timeout();
     let captured = Mutex::new(Captured::default());
     let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
