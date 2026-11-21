@@ -17,6 +17,11 @@ const RELEASE_JOBS: &[&str] = &[
     "desktop-windows-arm64",
     "desktop-linux",
     "desktop-linux-arm64",
+    "sign-macos",
+    "sign-windows",
+    "sign-windows-arm64",
+    "sign-linux",
+    "sign-linux-arm64",
     "cli",
     "sbom",
     "assemble",
@@ -52,6 +57,59 @@ const RELEASE_DESKTOP_JOBS: &[&str] = &[
     "desktop-linux-arm64",
 ];
 
+/// L-3 (security review 2026-11-21): the jobs that hold the desktop signing
+/// credentials, each with the build job whose bundle it signs, its runner and
+/// whether the leg is optional. A signing job downloads that bundle and runs
+/// no repository build, so no dependency build script ever runs on a runner
+/// that receives a signing key.
+const RELEASE_SIGNING_JOBS: &[(&str, &str, &str, bool)] = &[
+    ("sign-macos", "desktop-macos", "macos-latest", false),
+    ("sign-windows", "desktop-windows", "windows-latest", false),
+    (
+        "sign-windows-arm64",
+        "desktop-windows-arm64",
+        "windows-11-arm",
+        true,
+    ),
+    ("sign-linux", "desktop-linux", "ubuntu-22.04", false),
+    (
+        "sign-linux-arm64",
+        "desktop-linux-arm64",
+        "ubuntu-24.04-arm",
+        true,
+    ),
+];
+
+const SIGNING_JOB_NAMES: &[&str] = &[
+    "sign-macos",
+    "sign-windows",
+    "sign-windows-arm64",
+    "sign-linux",
+    "sign-linux-arm64",
+];
+
+/// The actions a signing job may use: the checkout, the pinned toolchain
+/// (for the signer install) and the artifact hand-off.
+const SIGNING_JOB_ACTIONS: &[&str] = &[
+    "actions/checkout",
+    "dtolnay/rust-toolchain",
+    "actions/download-artifact",
+    "actions/upload-artifact",
+];
+
+/// The only `cargo` invocations a signing job's steps may run, by prefix: the
+/// pinned signer install and Tauri's bundler over the pre-built executable,
+/// which compiles nothing. The updater signer (`cargo tauri signer sign`)
+/// runs inside the release scripts.
+const SIGNING_JOB_CARGO: &[&str] = &[
+    "cargo install tauri-cli --locked --version \"$TAURI_CLI_VERSION\"",
+    "cargo tauri bundle ",
+];
+
+/// Commands that build code, refused anywhere in a signing job's steps.
+const SIGNING_JOB_BUILDERS: &[&str] =
+    &["xcodebuild", "swiftc", "build-appex", "macos-embed-widgets"];
+
 const CHANNEL_JOBS: &[&str] = &[
     "channel-homebrew",
     "channel-winget",
@@ -83,232 +141,232 @@ const PUBLISH_CONDITION: &str =
 const HEAVY_JOB_CONDITION: &str = "(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && inputs.full_rehearsal)";
 const RELEASE_OR_REHEARSAL_ENVIRONMENT: &str =
     "${{ github.event_name == 'push' && 'release' || 'rehearsal' }}";
-const REHEARSAL_SECRET_JOBS: &[&str] = RELEASE_DESKTOP_JOBS;
+const REHEARSAL_SECRET_JOBS: &[&str] = SIGNING_JOB_NAMES;
 
 const SECRET_OWNERS: &[(&str, &str, &str)] = &[
     (
         "APPLE_CERTIFICATE",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_CERTIFICATE_PASSWORD",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_SIGNING_IDENTITY",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_SIGNING_IDENTITY",
-        "desktop-macos",
+        "sign-macos",
         "Sign and verify app payload and DMG container",
     ),
     (
         "APPLE_SIGNING_IDENTITY",
-        "desktop-macos",
+        "sign-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
     ),
     (
         "APPLE_API_KEY",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_API_KEY_ID",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_API_ISSUER",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_API_KEY",
-        "desktop-macos",
+        "sign-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
     ),
     (
         "APPLE_API_KEY_ID",
-        "desktop-macos",
+        "sign-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
     ),
     (
         "APPLE_API_ISSUER",
-        "desktop-macos",
+        "sign-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
     ),
     (
         "APPLE_ID",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_PASSWORD",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_TEAM_ID",
-        "desktop-macos",
+        "sign-macos",
         "Apple signing keychain (complete tag credentials only)",
     ),
     (
         "APPLE_ID",
-        "desktop-macos",
+        "sign-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
     ),
     (
         "APPLE_PASSWORD",
-        "desktop-macos",
+        "sign-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
     ),
     (
         "APPLE_TEAM_ID",
-        "desktop-macos",
+        "sign-macos",
         "Notarize and staple app and DMG (complete tag credentials only)",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-macos",
+        "sign-macos",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-macos",
+        "sign-macos",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-windows",
+        "sign-windows",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-windows",
+        "sign-windows",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-linux",
+        "sign-linux",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-linux",
+        "sign-linux",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-linux-arm64",
+        "sign-linux-arm64",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-linux-arm64",
+        "sign-linux-arm64",
         "Validate required release credentials",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-macos",
+        "sign-macos",
         "Collect finished artifacts and updater archive",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-macos",
+        "sign-macos",
         "Collect finished artifacts and updater archive",
     ),
     (
         "WINDOWS_CERTIFICATE",
-        "desktop-windows",
+        "sign-windows",
         "Sign and verify application executable (tag runs, when configured)",
     ),
     (
         "WINDOWS_CERTIFICATE_PASSWORD",
-        "desktop-windows",
+        "sign-windows",
         "Sign and verify application executable (tag runs, when configured)",
     ),
     (
         "WINDOWS_CERTIFICATE",
-        "desktop-windows",
+        "sign-windows",
         "Sign and verify installers and write signing fragment",
     ),
     (
         "WINDOWS_CERTIFICATE_PASSWORD",
-        "desktop-windows",
+        "sign-windows",
         "Sign and verify installers and write signing fragment",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-windows",
+        "sign-windows",
         "Updater-sign the installers",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-windows",
+        "sign-windows",
         "Updater-sign the installers",
     ),
     (
         "WINDOWS_CERTIFICATE",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Sign and verify application executable (tag runs, when configured)",
     ),
     (
         "WINDOWS_CERTIFICATE_PASSWORD",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Sign and verify application executable (tag runs, when configured)",
     ),
     (
         "WINDOWS_CERTIFICATE",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Sign and verify installer and write signing fragment",
     ),
     (
         "WINDOWS_CERTIFICATE_PASSWORD",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Sign and verify installer and write signing fragment",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Updater-sign the ARM64 installer (PRD 0018 RF1.1)",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-windows-arm64",
+        "sign-windows-arm64",
         "Updater-sign the ARM64 installer (PRD 0018 RF1.1)",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-linux",
+        "sign-linux",
         "Updater-sign the Linux packages",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-linux",
+        "sign-linux",
         "Updater-sign the Linux packages",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY",
-        "desktop-linux-arm64",
+        "sign-linux-arm64",
         "Updater-sign the Linux ARM64 packages",
     ),
     (
         "TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-        "desktop-linux-arm64",
+        "sign-linux-arm64",
         "Updater-sign the Linux ARM64 packages",
     ),
     (
@@ -1009,35 +1067,22 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
             need(jobs, job_name, "release jobs")?,
             &format!("job {job_name}"),
         )?;
-        let first_step = steps(job)?
-            .into_iter()
-            .next()
-            .ok_or_else(|| Error::Msg(format!("desktop job {job_name} has no steps")))?;
-        if scalar(first_step, "name") != Some("Validate required release credentials") {
+        // L-3: a build runs every dependency build script, so it enters no
+        // environment and references no secret (the secret owners name only
+        // the signing jobs).
+        if job.contains_key(Value::String("environment".into())) {
             return err(format!(
-                "desktop job {job_name} must validate release credentials before build work"
+                "desktop build {job_name} must not enter an environment: it runs dependency build scripts, so signing happens in its sign-* job"
             ));
         }
-        let validation_env = mapping(
-            need(first_step, "env", "release credential validation step")?,
-            "release credential validation environment",
+    }
+
+    for (job_name, build, runner, optional) in RELEASE_SIGNING_JOBS {
+        let job = mapping(
+            need(jobs, job_name, "release jobs")?,
+            &format!("job {job_name}"),
         )?;
-        for (name, expected) in [
-            (
-                "HAS_TAURI_SIGNING_PRIVATE_KEY",
-                "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
-            ),
-            (
-                "HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
-                "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}",
-            ),
-        ] {
-            if scalar(validation_env, name) != Some(expected) {
-                return err(format!(
-                    "desktop job {job_name} must inspect release credentials only during pushed tag runs"
-                ));
-            }
-        }
+        check_signing_job(job_name, build, runner, *optional, job)?;
     }
 
     let cli = mapping(need(jobs, "cli", "release jobs")?, "cli job")?;
@@ -1059,6 +1104,122 @@ fn check_release_policy(jobs: &Mapping) -> Res<()> {
         }
     }
     check_checksum_signing(jobs)
+}
+
+/// L-3 (security review 2026-11-21): a signing job waits for exactly `check`
+/// and its build, runs on the bounded runner, validates the release
+/// credentials first, reads its secrets from the release or rehearsal
+/// environment, and builds nothing: only the pinned `tauri-cli` install and
+/// Tauri's bundler over the pre-built executable may invoke `cargo`, only the
+/// checkout, toolchain and artifact actions are used, and no Swift or Xcode
+/// build runs. A required job runs on the heavy condition, so it starts only
+/// after its build succeeded; an optional one also runs after a failed build
+/// (`!cancelled()`) to record the leg as not produced.
+fn check_signing_job(
+    job_name: &str,
+    build: &str,
+    runner: &str,
+    optional: bool,
+    job: &Mapping,
+) -> Res<()> {
+    let needs: BTreeSet<&str> = scalar_sequence(job, "needs")?.into_iter().collect();
+    if needs != BTreeSet::from(["check", build]) {
+        return err(format!(
+            "signing job {job_name} must wait for exactly check and {build}"
+        ));
+    }
+    if scalar(job, "runs-on") != Some(runner)
+        || boolean(job, "continue-on-error").unwrap_or(false) != optional
+    {
+        return err(format!(
+            "release signing target {job_name} drifted from the bounded RF2 matrix"
+        ));
+    }
+    let optional_condition =
+        format!("!cancelled() && needs.check.result == 'success' && ({HEAVY_JOB_CONDITION})");
+    let expected_condition = if optional {
+        optional_condition.as_str()
+    } else {
+        HEAVY_JOB_CONDITION
+    };
+    if normalized_condition(job) != expected_condition {
+        return err(format!(
+            "signing job {job_name} must run only for a pushed tag or explicit full rehearsal"
+        ));
+    }
+    if scalar(job, "environment") != Some(RELEASE_OR_REHEARSAL_ENVIRONMENT) {
+        return err(format!(
+            "signing job {job_name} must use the release environment on tags and the secretless rehearsal environment otherwise"
+        ));
+    }
+    let steps = steps(job)?;
+    let first_step = steps
+        .first()
+        .ok_or_else(|| Error::Msg(format!("signing job {job_name} has no steps")))?;
+    if scalar(first_step, "name") != Some("Validate required release credentials") {
+        return err(format!(
+            "signing job {job_name} must validate release credentials before any other work"
+        ));
+    }
+    let validation_env = mapping(
+        need(first_step, "env", "release credential validation step")?,
+        "release credential validation environment",
+    )?;
+    for (name, expected) in [
+        (
+            "HAS_TAURI_SIGNING_PRIVATE_KEY",
+            "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}",
+        ),
+        (
+            "HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+            "${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}",
+        ),
+    ] {
+        if scalar(validation_env, name) != Some(expected) {
+            return err(format!(
+                "signing job {job_name} must inspect release credentials only during pushed tag runs"
+            ));
+        }
+    }
+    for step in &steps {
+        let step_name = scalar(step, "name").unwrap_or("unnamed step");
+        if let Some(uses) = scalar(step, "uses") {
+            let action = uses.split('@').next().unwrap_or_default();
+            if !SIGNING_JOB_ACTIONS.contains(&action) {
+                return err(format!(
+                    "signing job {job_name} uses {action}; it may only check out, install the toolchain and move artifacts"
+                ));
+            }
+        }
+        let run = scalar(step, "run").unwrap_or_default();
+        for line in run.lines().map(str::trim) {
+            if line.starts_with('#') {
+                continue;
+            }
+            if let Some(builder) = SIGNING_JOB_BUILDERS
+                .iter()
+                .find(|builder| line.contains(*builder))
+            {
+                return err(format!(
+                    "signing job {job_name}, step {step_name}: `{builder}` builds code; build in {build} and sign the uploaded bundle"
+                ));
+            }
+            let mut rest = line;
+            while let Some(at) = rest.find("cargo ") {
+                let invocation = &rest[at..];
+                if !SIGNING_JOB_CARGO
+                    .iter()
+                    .any(|allowed| invocation.starts_with(allowed))
+                {
+                    return err(format!(
+                        "signing job {job_name}, step {step_name}: `{invocation}` is not the pinned signer install or the bundler; build in {build} and sign the uploaded bundle"
+                    ));
+                }
+                rest = &rest[at + "cargo ".len()..];
+            }
+        }
+    }
+    Ok(())
 }
 
 /// PRD 0021 RF3.2: `assemble` signs `SHA256SUMS` as a Sigstore bundle and
@@ -1502,7 +1663,8 @@ mod tests {
     #[test]
     fn rejects_a_cache_in_any_release_job() {
         let anchor = "      - name: Install the pinned tauri-cli\n";
-        assert_eq!(RELEASE_WORKFLOW.matches(anchor).count(), 5);
+        // Five desktop builds and their five signing jobs.
+        assert_eq!(RELEASE_WORKFLOW.matches(anchor).count(), 10);
         for cache in [
             "Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3\n        with:\n          save-if: false",
             "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          path: ~/.cargo/bin/cargo-tauri*\n          key: tauri-cli",
@@ -1916,6 +2078,78 @@ mod tests {
         );
         assert_ne!(unsafe_workflow, RELEASE_WORKFLOW);
         assert!(check_text(Path::new("release.yml"), &unsafe_workflow).is_err());
+    }
+
+    /// L-3: the build jobs hold no secret and enter no environment.
+    #[test]
+    fn rejects_a_desktop_build_that_holds_a_secret_or_an_environment() {
+        let build = "  desktop-linux:\n    name: desktop (Linux x64)\n    needs: check\n";
+        assert!(RELEASE_WORKFLOW.contains(build));
+        let with_environment = RELEASE_WORKFLOW.replacen(
+            "    runs-on: ubuntu-22.04 # oldest supported glibc (RF2)\n",
+            "    runs-on: ubuntu-22.04 # oldest supported glibc (RF2)\n    environment: release\n",
+            1,
+        );
+        assert_ne!(with_environment, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &with_environment).is_err());
+
+        let with_secret = RELEASE_WORKFLOW.replacen(
+            "      - name: Collect artifacts and signing fragment\n        run: scripts/release/collect-linux.sh x64\n",
+            "      - name: Collect artifacts and signing fragment\n        env:\n          TAURI_SIGNING_PRIVATE_KEY: ${{ github.event_name == 'push' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}\n        run: scripts/release/collect-linux.sh x64\n",
+            1,
+        );
+        assert_ne!(with_secret, RELEASE_WORKFLOW);
+        assert!(check_text(Path::new("release.yml"), &with_secret).is_err());
+    }
+
+    /// L-3: a signing job builds nothing and waits for its own build.
+    #[test]
+    fn rejects_a_signing_job_that_builds_or_drifts() {
+        let cases = [
+            // A repository build on the signing runner.
+            (
+                "      - name: Updater-sign the Linux packages\n",
+                "      - run: cargo build --locked\n      - name: Updater-sign the Linux packages\n",
+            ),
+            // `tauri build` compiles the app and runs its build scripts.
+            (
+                "        run: cargo tauri bundle --bundles nsis,msi --no-binary-patching\n",
+                "        run: cargo tauri build --bundles nsis,msi -- --locked\n",
+            ),
+            // The widget extension is a Swift build.
+            (
+                "      - name: Unpack the unsigned bundle\n        run: tar -xf unsigned/desktop-macos.tar\n",
+                "      - name: Unpack the unsigned bundle\n        run: tar -xf unsigned/desktop-macos.tar && scripts/release/macos-embed-widgets.sh\n",
+            ),
+            // An action outside the hand-off allow-list.
+            (
+                "      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2\n        with:\n          name: unsigned-desktop-linux\n",
+                "      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4\n      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2\n        with:\n          name: unsigned-desktop-linux\n",
+            ),
+            // A signing job that no longer waits for its build.
+            (
+                "    needs: [check, desktop-linux]\n",
+                "    needs: [check, desktop-macos]\n",
+            ),
+            // A signing job outside the release or rehearsal environment.
+            (
+                "    timeout-minutes: 45 # tauri-cli install\n    environment: ${{ github.event_name == 'push' && 'release' || 'rehearsal' }}\n",
+                "    timeout-minutes: 45 # tauri-cli install\n",
+            ),
+            // A required signing job that also runs after a failed build.
+            (
+                "    needs: [check, desktop-linux]\n    if: (github.event_name",
+                "    needs: [check, desktop-linux]\n    if: always() && (github.event_name",
+            ),
+        ];
+        for (from, to) in cases {
+            assert!(RELEASE_WORKFLOW.contains(from), "{from}");
+            let changed = RELEASE_WORKFLOW.replacen(from, to, 1);
+            assert!(
+                check_text(Path::new("release.yml"), &changed).is_err(),
+                "accepted: {to}"
+            );
+        }
     }
 
     #[test]

@@ -218,7 +218,7 @@ WidgetKit keeps the extension's process alive for days. When an update replaces 
 
 ### Building and packaging
 
-Tauri cannot build a Swift app extension, so the release builds it beside the bundle (`desktop-macos` job of `release.yml`):
+Tauri cannot build a Swift app extension, so the release builds it beside the bundle (`desktop-macos` job of `release.yml`, steps 1 and 2) and signs it in the separate `sign-macos` job (step 3), which downloads that bundle and builds nothing:
 
 1. `cargo tauri build` produces `Cuotai.app`.
 2. `scripts/release/macos-embed-widgets.sh` runs `apps/desktop/widgets/macos/build-appex.sh`, which compiles the sources for arm64 and x86_64 with `swiftc -application-extension` and the `_NSExtensionMain` entry point Xcode gives an extension target, joins them with `lipo`, writes `Info.plist` (extension point `com.apple.widgetkit-extension`, identifier `dev.cuotai.desktop.widgets`) and the App Intents metadata the Account picker needs (`appintentsmetadataprocessor`, full Xcode), into `Cuotai.app/Contents/PlugIns/CuotaiWidgets.appex`.

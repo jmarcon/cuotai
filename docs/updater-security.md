@@ -376,17 +376,22 @@ manual install share the same folder, so the winget manifest passes
 
 | Platform | Updater artifact | Signed by |
 |---|---|---|
-| macOS | `Cuotai.app.tar.gz` of the **notarized** app | `collect-macos.sh`, after notarization, with `cargo tauri signer sign` |
-| Windows | `Cuotai_<v>_x64-setup.exe` (NSIS), `Cuotai_<v>_x64_en-US.msi`, `Cuotai_<v>_arm64-setup.exe` | `scripts/release/updater-sign.sh`, after Authenticode |
-| Linux | `Cuotai_<v>_amd64.AppImage`, `.deb`, `.rpm` (and the `aarch64` set) | `scripts/release/updater-sign.sh`, in its own step after the build |
+| macOS | `Cuotai.app.tar.gz` of the **notarized** app | `collect-macos.sh`, in the `sign-macos` job after notarization, with `cargo tauri signer sign` |
+| Windows | `Cuotai_<v>_x64-setup.exe` (NSIS), `Cuotai_<v>_x64_en-US.msi`, `Cuotai_<v>_arm64-setup.exe` | `scripts/release/updater-sign.sh`, in the `sign-windows[-arm64]` job after Authenticode |
+| Linux | `Cuotai_<v>_amd64.AppImage`, `.deb`, `.rpm` (and the `aarch64` set) | `scripts/release/updater-sign.sh`, in the `sign-linux[-arm64]` job after the build job |
 
 The signing point differs on purpose: each signature must cover the **final**
 bytes of the file a user downloads. macOS notarization and Windows Authenticode
 both rewrite the artifact after bundling, so an updater signature computed at
 bundle time would not verify. The Linux packages are not rewritten, but they
-are also signed in a separate step, after the build: the build compiles every
-dependency and runs their build scripts, and the key must never be in the
-environment of that code.
+are also signed after the build, in a separate job on a fresh runner: the build
+compiles every dependency and runs their build scripts, and the key must never
+be in the environment of that code, nor on a runner that code could have
+altered (step-scoped secrets are no boundary there: a build script could
+replace the signer or edit a release script before the signing step runs).
+Each `sign-*` job of `release.yml` downloads its build's bundle, installs the
+pinned `tauri-cli` itself and builds nothing (L-3, see
+[Build and signing isolation](releasing.md#build-and-signing-isolation-l-3)).
 
 Every artifact above is shipped **uncompressed**: a `.tar.gz` on macOS (which
 the plugin extracts with `tar`, not `zip`), and the raw `.exe`, `.msi`,
