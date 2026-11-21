@@ -324,7 +324,8 @@ async fn fetch_with(
     now: DateTime<Utc>,
     listener: &dyn ListenerCheck,
 ) -> Result<Data, QueryError> {
-    let base = account_base(account).map_err(base_error)?;
+    // L-1: the listener check and the connection dial the same address.
+    let base = local_listener::pin_plain_localhost(account_base(account).map_err(base_error)?);
     let key = secret(account, ctx, "LITELLM_API_KEY")?;
     let allow_private = allows_private_http(account);
     let guard = Guard {

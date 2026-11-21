@@ -683,7 +683,8 @@ impl<'a> Instance<'a> {
     fn new(http: &'a reqwest::Client, base: Url, limits: Limits, timeout: Duration) -> Self {
         Self {
             http,
-            base,
+            // L-1: the check and the connection dial the same address.
+            base: local_listener::pin_plain_localhost(base),
             limits,
             timeout,
             pin_mismatch: None,
