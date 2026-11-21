@@ -2840,6 +2840,7 @@
   "bundle.setting.hooks": "Ejecutar hooks",
   "bundle.host.url": "La cuenta {number} ({provider}) envía su clave a {host}.",
   "bundle.host.program": "La cuenta {number} ({provider}) ejecuta {host} en lugar de la herramienta de su proveedor, con las credenciales de este equipo.",
+  "bundle.host.trust": "La cuenta {number} ({provider}) cambia en qué servidor confía su clave en {host} (certificado fijado, archivo de CA o HTTP sin cifrar).",
   "cost.settings.plans_ignored": {
     "one": "{count} precio de plan guardado no es válido y se ignora; escríbalo de nuevo.",
     "other": "{count} precios de plan guardados no son válidos y se ignoran; escríbalos de nuevo."

@@ -2985,6 +2985,7 @@
   "bundle.setting.hooks": "Hooks ausführen",
   "bundle.host.url": "Konto {number} ({provider}) sendet seinen Schlüssel an {host}.",
   "bundle.host.program": "Konto {number} ({provider}) führt {host} anstelle des Werkzeugs seines Anbieters aus, mit den Anmeldedaten dieses Computers.",
+  "bundle.host.trust": "Konto {number} ({provider}) ändert, welchem Server es seinen Schlüssel unter {host} anvertraut (Zertifikats-Pin, CA-Datei oder unverschlüsseltes HTTP).",
   "cost.settings.plans_ignored": {
     "one": "{count} gespeicherter Planpreis ist ungültig und wird ignoriert; geben Sie ihn erneut ein.",
     "other": "{count} gespeicherte Planpreise sind ungültig und werden ignoriert; geben Sie sie erneut ein."

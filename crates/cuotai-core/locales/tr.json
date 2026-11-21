@@ -2962,6 +2962,7 @@
   "bundle.setting.hooks": "Kancaları çalıştır",
   "bundle.host.url": "{number}. hesap ({provider}) anahtarını {host} adresine gönderir.",
   "bundle.host.program": "{number}. hesap ({provider}), sağlayıcısının aracı yerine {host} programını bu bilgisayarın kimlik bilgileriyle çalıştırır.",
+  "bundle.host.trust": "{number}. hesap ({provider}), {host} adresinde anahtarını emanet ettiği sunucuyu değiştiriyor (sertifika sabitleme, CA dosyası veya şifresiz HTTP).",
   "cost.settings.plans_ignored": {
     "one": "Kayıtlı {count} plan fiyatı geçersiz ve yok sayıldı; yeniden yazın.",
     "other": "Kayıtlı {count} plan fiyatı geçersiz ve yok sayıldı; yeniden yazın."

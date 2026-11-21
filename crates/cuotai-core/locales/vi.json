@@ -2906,6 +2906,7 @@
   "bundle.setting.hooks": "Chạy hook",
   "bundle.host.url": "Tài khoản {number} ({provider}) gửi khóa của nó đến {host}.",
   "bundle.host.program": "Tài khoản {number} ({provider}) chạy {host} thay cho công cụ của nhà cung cấp, với thông tin xác thực của máy này.",
+  "bundle.host.trust": "Tài khoản {number} ({provider}) thay đổi máy chủ được tin cậy giữ khóa tại {host} (ghim chứng chỉ, tệp CA hoặc HTTP không mã hóa).",
   "cost.settings.plans_ignored": {
     "other": "{count} giá gói đã lưu không hợp lệ và bị bỏ qua; hãy nhập lại."
   },

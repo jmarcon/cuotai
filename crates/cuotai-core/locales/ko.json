@@ -2923,6 +2923,7 @@
   "bundle.setting.hooks": "훅 실행",
   "bundle.host.url": "계정 {number}({provider})은(는) 키를 {host}(으)로 보냅니다.",
   "bundle.host.program": "계정 {number}({provider})은(는) 제공업체의 도구 대신 {host}을(를) 이 컴퓨터의 자격 증명으로 실행합니다.",
+  "bundle.host.trust": "계정 {number}({provider})이(가) {host}에서 키를 맡길 서버를 변경합니다(인증서 고정, CA 파일 또는 암호화되지 않은 HTTP).",
   "cost.settings.plans_ignored": {
     "other": "저장된 요금제 가격 {count}개가 유효하지 않아 무시되었습니다. 다시 입력하세요."
   },

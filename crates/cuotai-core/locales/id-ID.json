@@ -2904,6 +2904,7 @@
   "bundle.setting.hooks": "Jalankan hook",
   "bundle.host.url": "Akun {number} ({provider}) mengirim kuncinya ke {host}.",
   "bundle.host.program": "Akun {number} ({provider}) menjalankan {host} sebagai pengganti alat penyedianya, dengan kredensial komputer ini.",
+  "bundle.host.trust": "Akun {number} ({provider}) mengubah server yang dipercaya menerima kuncinya di {host} (pin sertifikat, file CA, atau HTTP biasa).",
   "cost.settings.plans_ignored": {
     "other": "{count} harga paket tersimpan tidak valid dan diabaikan; ketik ulang."
   },

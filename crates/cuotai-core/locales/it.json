@@ -2839,6 +2839,7 @@
   "bundle.setting.hooks": "Esegui gli hook",
   "bundle.host.url": "L'account {number} ({provider}) invia la sua chiave a {host}.",
   "bundle.host.program": "L'account {number} ({provider}) esegue {host} al posto dello strumento del suo provider, con le credenziali di questo computer.",
+  "bundle.host.trust": "L'account {number} ({provider}) cambia il server a cui affida la sua chiave su {host} (pin del certificato, file CA o HTTP in chiaro).",
   "cost.settings.plans_ignored": {
     "one": "{count} prezzo del piano salvato non è valido ed è ignorato; digitalo di nuovo.",
     "other": "{count} prezzi dei piani salvati non sono validi e sono ignorati; digitali di nuovo."

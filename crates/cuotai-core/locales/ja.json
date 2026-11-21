@@ -2951,6 +2951,7 @@
   "bundle.setting.hooks": "フックを実行",
   "bundle.host.url": "アカウント {number}（{provider}）はキーを {host} に送信します。",
   "bundle.host.program": "アカウント {number}（{provider}）は、プロバイダーのツールの代わりに {host} を、このコンピューターの認証情報で実行します。",
+  "bundle.host.trust": "アカウント {number}（{provider}）は、{host} でキーを託すサーバーを変更します（証明書ピン、CA ファイル、または暗号化なしの HTTP）。",
   "cost.settings.plans_ignored": {
     "other": "保存されたプラン料金 {count} 件が無効なため無視されました。もう一度入力してください。"
   },
