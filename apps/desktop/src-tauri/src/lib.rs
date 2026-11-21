@@ -18,6 +18,8 @@ mod session_capture;
 mod session_site_data;
 mod settings;
 mod settings_window;
+#[cfg(target_os = "macos")]
+mod single_instance;
 mod startup_error;
 mod tray_bar;
 mod updater;
@@ -3405,18 +3407,33 @@ pub fn run() -> std::process::ExitCode {
     // install source and keeps both scheduled and manual requests behind the persisted
     // one-time answer before the first possible request.
     let updates = Arc::new(updater::Service::new());
+    let single_instance = single_instance_applies(
+        cfg!(debug_assertions),
+        credential_store::choice().is_development(),
+    );
+    // L-10: on macOS a second launch hands its arguments to this user's
+    // running instance (in a private folder) and ends here.
+    #[cfg(target_os = "macos")]
+    if single_instance && single_instance::hand_over() {
+        return std::process::ExitCode::SUCCESS;
+    }
     let builder = tauri::Builder::default();
     // Registered before the other plugins, so a second launch stops here. A
     // launch by the login entry stays out of the way, as it does on its own.
-    let builder = if single_instance_applies(
-        cfg!(debug_assertions),
-        credential_store::choice().is_development(),
-    ) {
-        builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+    let builder = if single_instance {
+        let on_second_launch = |app: &tauri::AppHandle, args: Vec<String>, _cwd: String| {
             if !autostart::launched_at_login(args) {
                 reveal_main_window(app);
             }
-        }))
+        };
+        // L-10: on macOS the plugin's socket sits in the shared `/tmp`,
+        // where another user could hold it; ours lives in the user's own
+        // temporary folder.
+        #[cfg(target_os = "macos")]
+        let plugin = single_instance::init(on_second_launch);
+        #[cfg(not(target_os = "macos"))]
+        let plugin = tauri_plugin_single_instance::init(on_second_launch);
+        builder.plugin(plugin)
     } else {
         builder
     };
