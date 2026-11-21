@@ -4,6 +4,7 @@ pub mod callback_page;
 mod choice;
 mod flows;
 pub mod login;
+mod loopback;
 pub(crate) mod session;
 mod store;
 pub mod vault_index;
