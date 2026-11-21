@@ -150,9 +150,9 @@ fn check_bytes_at(bytes: &[u8], identity: Option<&super::ConfigIdentity>) -> Con
     }
 }
 
-/// The advisories of a valid configuration: every LiteLLM account whose
-/// key would travel over plain HTTP on the private network
-/// (`allow_private_http`), with HTTPS and a pinned certificate offered, and
+/// The advisories of a valid configuration: every LiteLLM account still on
+/// plain HTTP on the private network (the removed `allow_private_http`,
+/// L-4), which is refused, and
 /// every 9router account there with a password or session, which is
 /// refused (owner decision of 2026-11-20: such a secret goes over plain
 /// HTTP only to loopback); then (re-validation V-04) every aggregator
@@ -189,11 +189,13 @@ fn warnings(config: &crate::Config) -> Vec<ConfigDiagnostic> {
                     "Warning: {path} reaches 9router over plain HTTP on your private network, where Cuotai never sends the dashboard password or session, so this account will be refused. Serve 9router over HTTPS with a pinned certificate, or reach it through a loopback address such as an SSH tunnel.",
                 )
             } else {
+                // L-4: LiteLLM's private-network option was removed; the
+                // key is refused before anything is sent.
                 Localized::with_param(
-                    "config.warning.private_http",
+                    "config.warning.litellm_key_plain_http",
                     "path",
                     path.clone(),
-                    "Warning: {path} sends the account's password or key unencrypted over plain HTTP on your private network. Prefer HTTPS with a pinned certificate.",
+                    "Warning: {path} reaches LiteLLM over plain HTTP on your private network, where Cuotai no longer sends the key (allow_private_http no longer applies to LiteLLM), so this account will be refused. Serve LiteLLM over HTTPS, or reach it through a loopback address such as an SSH tunnel.",
                 )
             };
             Some(ConfigDiagnostic {
@@ -306,11 +308,13 @@ mod tests {
         let text = check.warnings[0].note.resolve("en-US");
         assert!(text.contains("refused") && text.contains("HTTPS"), "{text}");
         assert!(!text.contains("192.168"), "{text}");
-        let text = check.warnings[1].note.resolve("en-US");
-        assert!(
-            text.contains("unencrypted") && text.contains("HTTPS"),
-            "{text}"
+        // L-4: a legacy LiteLLM private-network account is refused too.
+        assert_eq!(
+            check.warnings[1].note.id,
+            "config.warning.litellm_key_plain_http"
         );
+        let text = check.warnings[1].note.resolve("en-US");
+        assert!(text.contains("refused") && text.contains("HTTPS"), "{text}");
         assert!(!text.contains("10.0.0.7"), "{text}");
         let json = serde_json::to_value(&check).unwrap();
         assert_eq!(json["warnings"][0]["kind"], "private_http");

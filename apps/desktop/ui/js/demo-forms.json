@@ -3802,40 +3802,6 @@
           {
             "decides_credential": false,
             "help": {
-              "fallback": "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). Yes = the key travels unencrypted on that network, readable by anyone who can watch it; prefer HTTPS. No = HTTPS is required outside this machine.",
-              "id": "field.litellm.allow_private_http.help"
-            },
-            "id": "field.litellm.allow_private_http",
-            "key": "allow_private_http",
-            "label": {
-              "fallback": "Unencrypted connection on the private network",
-              "id": "field.litellm.allow_private_http.label"
-            },
-            "options": [
-              {
-                "id": "field.litellm.allow_private_http.option.false",
-                "index": 0,
-                "label": {
-                  "fallback": "No (default)",
-                  "id": "field.litellm.allow_private_http.option.false"
-                },
-                "value": "false"
-              },
-              {
-                "id": "field.litellm.allow_private_http.option.true",
-                "index": 1,
-                "label": {
-                  "fallback": "Yes, on my private network",
-                  "id": "field.litellm.allow_private_http.option.true"
-                },
-                "value": "true"
-              }
-            ],
-            "required": false
-          },
-          {
-            "decides_credential": false,
-            "help": {
               "fallback": "Comma-separated ids of the providers to hide (the id is in the details).",
               "id": "field.litellm.hidden.help"
             },
@@ -3972,35 +3938,18 @@
         "credential": {
           "": [
             "base_url",
-            "allow_private_http",
             "hidden",
             "dedup",
             "show_both"
           ],
-          "allow_private_http=0&dedup=0": [
+          "dedup=0": [
             "base_url",
-            "allow_private_http",
             "hidden",
             "dedup",
             "show_both"
           ],
-          "allow_private_http=0&dedup=1": [
+          "dedup=1": [
             "base_url",
-            "allow_private_http",
-            "hidden",
-            "dedup",
-            "show_both"
-          ],
-          "allow_private_http=1&dedup=0": [
-            "base_url",
-            "allow_private_http",
-            "hidden",
-            "dedup",
-            "show_both"
-          ],
-          "allow_private_http=1&dedup=1": [
-            "base_url",
-            "allow_private_http",
             "hidden",
             "dedup",
             "show_both"

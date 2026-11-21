@@ -1034,16 +1034,6 @@ fn host_port(base: &Url) -> String {
     }
 }
 
-/// The note of a LiteLLM proxy reached over plain HTTP on the private
-/// network by the account's choice (the overlay chip reads it). A 9router
-/// never sends a secret there, so it never carries this note.
-pub(crate) fn private_http_note() -> Localized {
-    Localized::fixed(
-        "note.nine_router.private_http",
-        "Plain HTTP on your private network, by your choice: the password or key travels unencrypted on that network. Prefer HTTPS with a pinned certificate.",
-    )
-}
-
 fn redirected() -> QueryError {
     QueryError {
         diagnostic: None,
@@ -1751,6 +1741,7 @@ pub(crate) fn litellm_outcome_text(outcome: &TestOutcome) -> Option<Localized> {
             "Enter the LiteLLM master key or a virtual key.",
         ),
         TestOutcome::ListenerForeign { port } => super::litellm::listener_outcome_text(*port),
+        TestOutcome::SecretOverPlainHttp { host } => super::litellm::plain_http_outcome_text(host),
         _ => return None,
     })
 }

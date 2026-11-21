@@ -472,8 +472,10 @@ credential_env = "OPENROUTER_API_KEY"
 # GET /provider/budgets is read.
 # Use a virtual key limited to the read routes (/provider/budgets, plus
 # /key/list or /team/list with a breakdown), not the master key, which can
-# create keys and change the proxy. The key goes only to base_url; a
-# plain-http, local or private address is never reached through an
+# create keys and change the proxy. The key goes only to base_url, and
+# over plain http only to this computer: a proxy on another machine, private
+# network included, needs https:// (or a loopback address such as an SSH
+# tunnel). A local or private address is never reached through an
 # environment proxy.
 # example: litellm
 # [[accounts]]

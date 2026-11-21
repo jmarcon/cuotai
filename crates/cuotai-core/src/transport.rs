@@ -46,8 +46,10 @@ fn private_v6(ip: Ipv6Addr) -> bool {
 }
 
 /// PRD 0036 RF2.3: RFC 1918, link-local, CGNAT/Tailscale `100.64.0.0/10`,
-/// ULA and `.local` / `.ts.net` names: the only hosts the aggregators'
-/// private-network opt-in (`allow_private_http`) covers.
+/// ULA and `.local` / `.ts.net` names: the only hosts 9router's
+/// private-network opt-in (`allow_private_http`) covers, for a
+/// password-less instance only. No secret ever travels to them over plain
+/// HTTP (security review 2026-11-21, L-4: the LiteLLM exception is gone).
 pub(crate) fn is_private_network(host: &Host<&str>) -> bool {
     match host {
         Host::Domain(domain) => {
@@ -63,20 +65,6 @@ pub(crate) fn is_private_network(host: &Host<&str>) -> bool {
 /// surrounding spaces ignored (one rule for every aggregator option).
 pub(crate) fn truthy(value: Option<&str>) -> bool {
     value.is_some_and(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "1"))
-}
-
-/// PRD 0036 re-validation S-06: true when `url` may carry an aggregator's
-/// password or key: [`is_secure`], or plain HTTP to a private-network host
-/// when the account chose `allow_private_http` (the secret then travels
-/// unencrypted on that network, which the form, the reading and
-/// `--check-config` say).
-pub(crate) fn secret_may_travel(url: &Url, allow_private_http: bool) -> bool {
-    if is_secure(url) {
-        return true;
-    }
-    allow_private_http
-        && url.scheme() == "http"
-        && url.host().is_some_and(|host| is_private_network(&host))
 }
 
 #[cfg(test)]
@@ -118,11 +106,11 @@ mod tests {
         }
     }
 
-    /// PRD 0036 S-06: the private-network opt-in widens plain HTTP to the
-    /// private hosts only, and only when chosen.
+    /// Security review 2026-11-21, L-4 (owner rule: plain HTTP only to
+    /// loopback): no private-network host may receive a secret over plain
+    /// HTTP, whatever an account chose.
     #[test]
-    fn a_secret_travels_over_private_http_only_with_the_opt_in() {
-        let url = |raw: &str| Url::parse(raw).unwrap();
+    fn no_secret_travels_over_plain_http_to_a_private_network() {
         for private in [
             "http://192.168.1.10:4000/provider/budgets",
             "http://10.0.0.5/x",
@@ -131,18 +119,10 @@ mod tests {
             "http://box.tail1234.ts.net/x",
             "http://[fd00::1]/x",
         ] {
-            assert!(secret_may_travel(&url(private), true), "{private}");
-            assert!(!secret_may_travel(&url(private), false), "{private}");
+            assert!(!is_secure_str(private), "{private}");
+            let url = Url::parse(private).unwrap();
+            assert!(is_private_network(&url.host().unwrap()), "{private}");
         }
-        for public in [
-            "http://api.example.com/x",
-            "http://8.8.8.8/x",
-            "ftp://10.0.0.5/x",
-        ] {
-            assert!(!secret_may_travel(&url(public), true), "{public}");
-        }
-        assert!(secret_may_travel(&url("https://api.example.com/x"), false));
-        assert!(secret_may_travel(&url("http://127.0.0.1:4000/x"), false));
         for yes in ["true", "TRUE", " 1 ", "True"] {
             assert!(truthy(Some(yes)), "{yes}");
         }

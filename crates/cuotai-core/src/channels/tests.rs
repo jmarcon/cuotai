@@ -160,9 +160,6 @@ fn accepted_urls_show_only_the_host() {
     assert!(ntfy.warning().is_none());
     for local in [
         "http://127.0.0.1:8080/alerts",
-        "http://192.168.1.20/alerts",
-        "http://10.0.0.5/alerts",
-        "http://172.16.3.4/alerts",
         "http://localhost/alerts",
         "http://[::1]/alerts",
     ] {
@@ -172,6 +169,20 @@ fn accepted_urls_show_only_the_host() {
             Some("channels.warning.plain_http")
         );
     }
+    // L-4 (owner rule: plain HTTP only to loopback): a private-network
+    // ntfy server needs HTTPS like any other host.
+    for private in [
+        "http://192.168.1.20/alerts",
+        "http://10.0.0.5/alerts",
+        "http://172.16.3.4/alerts",
+        "http://100.100.1.2/alerts",
+        "http://[fd00::1]/alerts",
+        "http://box.local/alerts",
+    ] {
+        let error = validate_url(ChannelKind::Ntfy, private).expect_err(private);
+        assert_eq!(error.id, "channels.error.url_http", "{private}");
+    }
+    assert!(validate_url(ChannelKind::Ntfy, "https://192.168.1.20/alerts").is_ok());
     assert!(validate_url(ChannelKind::Webhook, "https://relay.example.com/hook?key=1").is_ok());
 }
 

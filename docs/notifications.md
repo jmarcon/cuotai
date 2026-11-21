@@ -16,7 +16,7 @@ You can add up to **5 channels**. Editing a channel with a new address asks for 
 | Kind | Address |
 |---|---|
 | Webhook | any `https://` address. A query string is allowed (some relays put a key there). |
-| ntfy | `https://<server>/<topic>`, with a topic of letters, digits, `-` or `_` (1 to 64). Plain `http://` is accepted only for a server on loopback or a private network (RFC 1918, `localhost`), with a warning. |
+| ntfy | `https://<server>/<topic>`, with a topic of letters, digits, `-` or `_` (1 to 64). Plain `http://` is accepted only for a server on this computer (`localhost`, `127.0.0.0/8`, `::1`), with a warning that whichever program listens on that port receives the notifications; a server on another machine, private network included, needs HTTPS (owner rule: plain HTTP only to loopback). A channel saved earlier with a private-network `http://` address is refused before sending until you edit it. |
 | Slack | `https://hooks.slack.com/services/…` |
 | Discord | `https://discord.com/api/webhooks/…` (or `discordapp.com`) |
 
@@ -90,4 +90,4 @@ Only the notification texts described above go to the addresses you added. The d
 
 ## Self-hosted ntfy
 
-Run ntfy on your own server and use `https://ntfy.example.com/<topic>`. For a server on this computer or your private network, `http://192.168.1.20/<topic>` is accepted with a warning. Anyone on that network can read the messages, so prefer HTTPS when the server is reachable from elsewhere. Pick a hard-to-guess topic on `ntfy.sh`: topics there are public to whoever knows the name.
+Run ntfy on your own server and use `https://ntfy.example.com/<topic>`. For a server on this computer, `http://127.0.0.1:8080/<topic>` is accepted with a warning. A server elsewhere on your private network needs HTTPS (for example behind a reverse proxy with a certificate), or a loopback address such as an SSH tunnel (`ssh -L 8080:127.0.0.1:80 <server>`, then `http://127.0.0.1:8080/<topic>`). Pick a hard-to-guess topic on `ntfy.sh`: topics there are public to whoever knows the name.

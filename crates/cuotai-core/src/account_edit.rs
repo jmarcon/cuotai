@@ -583,6 +583,8 @@ pub fn managed_keys(provider: Provider) -> &'static [&'static str] {
             "tls_pin_sha256",
         ],
         Provider::OpenRouter => &["product", "breakdown", "low_balance"],
+        // `allow_private_http` has no field any more (L-4); it stays managed
+        // so the next save from the form strips a legacy value.
         Provider::LiteLlm => &[
             "base_url",
             "allow_private_http",
@@ -2005,22 +2007,14 @@ pub fn field_descriptors(provider: Provider) -> &'static [FieldDescriptor] {
             false,
         ),
     ];
-    const LITELLM: [FieldDescriptor; 5] = [
+    // L-4: no `allow_private_http` field; the key goes over plain HTTP only
+    // to this computer.
+    const LITELLM: [FieldDescriptor; 4] = [
         FieldDescriptor::text(
             "base_url",
             "LiteLLM address",
             "Default http://127.0.0.1:4000. Use http(s)://host[:port][/prefix], without user, query or fragment. Outside this machine HTTPS is required.",
             false,
-        ),
-        FieldDescriptor::choice(
-            "allow_private_http",
-            "Unencrypted connection on the private network",
-            "Only applies to private network addresses (192.168.x.x, 10.x.x.x, Tailscale, .local). Yes = the key travels unencrypted on that network, readable by anyone who can watch it; prefer HTTPS. No = HTTPS is required outside this machine.",
-            &[
-                ChoiceOptionDescriptor::new("false", "No (default)"),
-                ChoiceOptionDescriptor::new("true", "Yes, on my private network"),
-            ],
-            true,
         ),
         FieldDescriptor::text(
             "hidden",

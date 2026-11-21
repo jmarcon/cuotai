@@ -14,7 +14,7 @@
 //!   tokens and extension secrets, so the debug-only SQLite store follows
 //!   the same rules.
 //! * [`validate_url`] is the boundary: HTTPS only (plain HTTP only for an
-//!   ntfy server on loopback or a private network, with a warning), no
+//!   ntfy server on loopback, with a warning), no
 //!   userinfo, at most [`MAX_URL_BYTES`], host allow-lists for Slack and
 //!   Discord and the ntfy topic alphabet.
 //! * [`payload`] renders one core notification into the four wire formats;
@@ -48,7 +48,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::net::IpAddr;
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -403,7 +403,7 @@ impl ValidUrl {
         &self.host
     }
 
-    /// RF1.2: plain HTTP on a private network (ntfy only).
+    /// RF1.2: plain HTTP to an ntfy server on this computer.
     pub fn warning(&self) -> Option<&Localized> {
         self.warning.as_ref()
     }
@@ -444,14 +444,6 @@ const PROVIDER_HOSTS: [&str; 12] = [
 
 fn url_error(id: &'static str, fallback: &'static str) -> Localized {
     Localized::fixed(id, fallback)
-}
-
-/// Whether `ip` is loopback or a private (RFC 1918 / unique local) address.
-fn private_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private(),
-        IpAddr::V6(v6) => v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00,
-    }
 }
 
 /// The ntfy topic alphabet: `[A-Za-z0-9_-]{1,64}`.
@@ -503,25 +495,25 @@ pub fn validate_url(kind: ChannelKind, raw: &str) -> Result<ValidUrl, Localized>
             ))
         }
     };
-    let ip = match url.host() {
-        Some(url::Host::Ipv4(ip)) => Some(IpAddr::V4(ip)),
-        Some(url::Host::Ipv6(ip)) => Some(IpAddr::V6(ip)),
-        _ => None,
-    };
-    let local = ip.is_some_and(private_ip) || host == "localhost";
+    // Security review 2026-11-21, L-4 (owner rule: plain HTTP only to
+    // loopback): an ntfy server on another machine, private network
+    // included, needs HTTPS.
+    let loopback = url
+        .host()
+        .is_some_and(|host| crate::transport::is_loopback_host(&host));
     let mut warning = None;
     match url.scheme() {
         "https" => {}
-        "http" if kind == ChannelKind::Ntfy && local => {
+        "http" if kind == ChannelKind::Ntfy && loopback => {
             warning = Some(Localized::fixed(
                 "channels.warning.plain_http",
-                "This address uses plain HTTP: anyone on your network can read the notifications. Use it only for a server on this computer or your private network.",
+                "This address uses plain HTTP on this computer: whichever program listens on that port receives the notifications. Use it only for your own ntfy server.",
             ));
         }
         "http" => {
             return Err(url_error(
                 "channels.error.url_http",
-                "Only https:// addresses are accepted (plain http:// only for an ntfy server on this computer or a private network).",
+                "Only https:// addresses are accepted (plain http:// only for an ntfy server on this computer).",
             ))
         }
         _ => {

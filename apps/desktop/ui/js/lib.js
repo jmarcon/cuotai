@@ -3661,8 +3661,8 @@ function demoChannelConsent(draft, url) {
   let parsed;
   try { parsed = new URL(String(url).trim()); } catch { throw JSON.stringify(demoL10n("channels.error.url_invalid", {}, "That is not a web address (it should start with https://).")); }
   const host = parsed.hostname;
-  if (parsed.protocol !== "https:" && !(draft.kind === "ntfy" && /^(localhost|127\.|10\.|192\.168\.)/.test(host)))
-    throw JSON.stringify(demoL10n("channels.error.url_http", {}, "Only https:// addresses are accepted (plain http:// only for an ntfy server on this computer or a private network)."));
+  if (parsed.protocol !== "https:" && !(draft.kind === "ntfy" && /^(localhost|\[::1\]|127\.\d+\.\d+\.\d+)$/.test(host)))
+    throw JSON.stringify(demoL10n("channels.error.url_http", {}, "Only https:// addresses are accepted (plain http:// only for an ntfy server on this computer)."));
   if (draft.kind === "slack" && (host !== "hooks.slack.com" || !parsed.pathname.startsWith("/services/")))
     throw JSON.stringify(demoL10n("channels.error.url_slack", {}, "A Slack incoming webhook starts with https://hooks.slack.com/services/."));
   if (draft.kind === "discord" && (!["discord.com", "discordapp.com"].includes(host) || !parsed.pathname.startsWith("/api/webhooks/")))
@@ -3673,7 +3673,7 @@ function demoChannelConsent(draft, url) {
     : JSON.stringify(draft.kind === "slack" ? { text: `${title}\n${body}` } : draft.kind === "discord" ? { content: `**${title}**\n${body}` }
       : { schema: 1, kind: "threshold", severity: "warning", title, body, sample: true }, null, 2);
   return { kind: draft.kind, host: parsed.host, masked: `${parsed.protocol}//${parsed.host}/••••`, warning: parsed.protocol === "http:"
-    ? demoL10n("channels.warning.plain_http", {}, "This address uses plain HTTP: anyone on your network can read the notifications. Use it only for a server on this computer or your private network.") : null,
+    ? demoL10n("channels.warning.plain_http", {}, "This address uses plain HTTP on this computer: whichever program listens on that port receives the notifications. Use it only for your own ntfy server.") : null,
   filters: demoFilterWords(draft.filters), example,
   sentence: demoL10n("channels.consent.sentence", {}, "Cuotai will send these texts to this address when a notification is due. Nothing else leaves this computer.") };
 }
