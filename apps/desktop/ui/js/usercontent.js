@@ -29,6 +29,8 @@ class Skip extends Error {}
 function addTheme(file) {
   const { id, label, group, modes, text } = file;
   if (isBuiltinTheme(id) || THEMES.some((x) => x.id === id)) throw new Skip("duplicate");
+  // L-12 (DS-COL-SEC-1): the active theme is this one already (first paint read it): mark it before its tokens apply.
+  if (document.documentElement.dataset.theme === id) document.documentElement.dataset.themeSource = "user";
   const style = document.createElement("style");
   style.dataset.userTheme = id;
   style.textContent = text;

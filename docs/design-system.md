@@ -223,6 +223,8 @@ A theme (built-in or user, `css/themes/README.md`) defines, per mode, **only**:
 
 Anything else (spacing, sizes, layout, component anatomy, chart types, icons, wording) is outside a theme (DS-GOV-3). Every theme passes `tools/contrast.py` and `tools/lint_theme.py` in both modes.
 
+- **DS-COL-SEC-1 Protected surfaces keep fixed roles under a user theme.** Every element marked `data-protected-texts` (consent, security and privacy warnings, confirmations, sign-in, the update prompt and banners, the restore hosts box; the same set language packs cannot reword, PRD 0050 RF3.3) takes, under a user theme (`:root[data-theme-source="user"]`, set by `applyTheme()`), the Cuotai theme's color roles for the current mode, fixed in `css/themes.css`, with the derived roles resolved again from them and an opaque `--surface` fill (banners keep their tone fill). A user theme can only set custom properties on `:root`, so it cannot make that text transparent or match its background (security review 2026-11-21, L-12). Built-in themes are reviewed against section 3.3 and keep their own look there. A new protected surface MUST carry `data-protected-texts`, which gives it both protections.
+
 ### 3.3 Contrast each theme MUST meet
 
 `tools/contrast.py` and `tools/lint_theme.py` enforce these per mode:

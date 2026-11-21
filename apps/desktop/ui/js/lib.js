@@ -1,4 +1,4 @@
-import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, themeById } from "./themes.js";
+import { DEFAULT_THEME, GROUP_ORDER, THEMES, effectiveMode, isBuiltinTheme, themeById } from "./themes.js";
 import { FALLBACK, LOCALES, PSEUDO, currentLocale, intlTag, pendingLocales, setLocale, t, te, tl } from "./i18n.js";
 import { esc, fold, uiPath } from "./util.js";
 import { desktopAction } from "./desktop-wording.js";
@@ -1275,6 +1275,8 @@ export function applyTheme() {
   const t = themeById(theme.id);
   const root = document.documentElement;
   root.dataset.theme = t.id;
+  // L-12 (DS-COL-SEC-1): a user theme cannot recolor the protected surfaces; themes.css gives them fixed roles.
+  root.dataset.themeSource = isBuiltinTheme(t.id) ? "builtin" : "user";
   root.dataset.mode = effectiveMode(t, theme.mode, systemDark());
   reportCallbackStyle();
 }
