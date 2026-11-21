@@ -101,6 +101,10 @@ Authorize the Google session in the browser through the OAuth mode. The registra
 
 Prepare once with `aws configure sso`. When configuring AWS Bedrock, enter the profile and trigger the SSO login (`F2` in the TUI, or the **AWS SSO** mode on the desktop). Cuotai shows the URL and code provided by `aws sso login --profile ... --use-device-code --no-browser`. The AWS CLI itself maintains and uses its SSO cache; Cuotai does not copy those tokens to the Keychain. SSO login does not replace `ce:GetCostAndUsage` and does not remove the charge for Cost Explorer queries.
 
+### Browser sign-ins on a shared Linux computer
+
+A browser sign-in opens the provider's authorize address with `xdg-open`, the way every native app does on Linux, so the full address, `state` included, is an argument of that command for the moment it runs. Another user of the same computer can read process arguments in `/proc` unless the system mounts it with `hidepid`. That user could open the address in their own browser, consent with **their own** provider account, and the provider would then redirect to your callback listener: Cuotai would accept the matching `state` and store that other account's token, so the dashboard would show their data (security review 2026-11-21, L-5). None of your secrets is exposed this way, and the window lasts only while the sign-in waits. On a computer shared with people you do not trust, mount `/proc` with `hidepid=2` (or `invisible`), or check the account's e-mail or name in Cuotai right after signing in. The callback listener itself serves each connection on its own, so an idle connection cannot stall the sign-in, and a Zed callback whose token does not decrypt with that sign-in's key is ignored.
+
 ## Persistence, cancellation and renewal
 
 - **System vault:** by default, the built-in logins store the access token, the refresh token and the secret context in the native vault, service **`cuotai.oauth`** (Keychain on macOS, Windows Credential Manager and Linux Secret Service). Without authorized access there is an explicit error; there is never an automatic fallback to SQLite.
