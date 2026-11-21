@@ -1042,13 +1042,19 @@ pub struct HostCheck {
 }
 
 /// Whether `account` reads a key from somewhere: a variable, a sign-in, a
-/// web session or a `params.*_env` variable. Whether the variable is set
+/// web session, a `params.*_env` variable or, with none named, its
+/// provider's default variable (`LITELLM_API_KEY`), which the adapter reads
+/// in that case (security review 2026-11-21, M-2). 9router is the one
+/// provider with a default name that sends a password only when the account
+/// names a variable, so it needs one here too. Whether the variable is set
 /// here does not matter, so the CLI and the desktop plan alike.
 fn has_credential_source(account: &Account) -> bool {
     account
         .credential_env
         .as_deref()
         .is_some_and(|name| !name.trim().is_empty())
+        || (account.provider != crate::Provider::NineRouter
+            && !crate::account_edit::default_env(account.provider).is_empty())
         || account.oauth.is_some()
         || account.session.is_some()
         || account

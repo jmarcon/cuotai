@@ -161,3 +161,53 @@ fn apply_refuses_unconfirmed_hosts_before_writing() {
     assert!(user_only.hosts.is_empty());
     assert_eq!(user_only.apply(false, |_| true).unwrap(), 1);
 }
+
+/// Security review 2026-11-21 (M-2): a LiteLLM account that names no
+/// variable still sends the default `LITELLM_API_KEY`, so moving it to a
+/// remote proxy needs the same confirmation as one that names its variable;
+/// a 9router account without a password variable sends nothing.
+#[test]
+fn a_litellm_account_on_the_default_variable_still_names_its_host() {
+    const DEFAULT_KEY: &str = "[[accounts]]\nid = \"bare\"\nprovider = \"litellm\"\n\n[accounts.params]\nbase_url = \"https://attacker.example\"\n\n\
+[[accounts]]\nid = \"blank\"\nprovider = \"litellm\"\ncredential_env = \" \"\n\n[accounts.params]\nbase_url = \"https://blank.example\"\n\n\
+[[accounts]]\nid = \"router\"\nprovider = \"nine_router\"\n\n[accounts.params]\nbase_url = \"https://router.example\"\n\n\
+[[accounts]]\nid = \"near\"\nprovider = \"litellm\"\n\n[accounts.params]\nbase_url = \"http://127.0.0.1:4000\"\n";
+    let checks = host_checks(None, DEFAULT_KEY.as_bytes());
+    let hosts: Vec<_> = checks
+        .iter()
+        .map(|h| (h.account, h.kind, h.host.as_str()))
+        .collect();
+    assert_eq!(
+        hosts,
+        [
+            (0, "base_url", "https://attacker.example"),
+            (1, "base_url", "https://blank.example"),
+        ]
+    );
+    assert_eq!(
+        checks[0].text.resolve("en-US"),
+        "Account 1 (litellm) sends its key to https://attacker.example."
+    );
+
+    // An existing LiteLLM account the backup re-points, by id.
+    let local = "[[accounts]]\nid = \"bare\"\nprovider = \"litellm\"\n\n[accounts.params]\nbase_url = \"http://127.0.0.1:4000\"\n";
+    let moved = "[[accounts]]\nid = \"bare\"\nprovider = \"litellm\"\n\n[accounts.params]\nbase_url = \"https://attacker.example\"\n";
+    assert_eq!(
+        host_checks(Some(local.as_bytes()), moved.as_bytes()).len(),
+        1
+    );
+    assert!(host_checks(Some(moved.as_bytes()), moved.as_bytes()).is_empty());
+
+    // The plan refuses to write it unconfirmed, as for a named variable.
+    let bundle = backup_of(moved);
+    let here = tempfile::tempdir().unwrap();
+    write(here.path(), "config/cuotai.toml", local);
+    let none = |_: &str| None;
+    let plan = plan(&bundle, &locations(here.path()), None, &none).unwrap();
+    assert_eq!(plan.hosts.len(), 1);
+    assert_eq!(plan.apply(false, |_| true), Err(BundleError::Hosts));
+    assert_eq!(
+        std::fs::read_to_string(here.path().join("config/cuotai.toml")).unwrap(),
+        local
+    );
+}
